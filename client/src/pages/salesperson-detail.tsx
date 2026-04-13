@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus, Menu } from "lucide-react";
@@ -868,98 +869,76 @@ export default function SalespersonDetail({
   };
 
   // Export salesperson data to CSV
-  const exportSalespersonDataToCSV = () => {
-    const csvData = [];
+  const exportSalespersonDataToExcel = () => {
+    const wb = XLSX.utils.book_new();
 
-    // Add header
-    csvData.push(['REPORTE DE VENDEDOR - ' + salespersonName]);
-    csvData.push(['Período: ' + selection.display]);
-    csvData.push(['Generado: ' + format(new Date(), "dd/MM/yyyy HH:mm")]);
-    csvData.push([]); // Empty row
+    // Summary sheet
+    const summaryData = [
+      { 'Indicador': 'Vendedor', 'Valor': salespersonName },
+      { 'Indicador': 'Período', 'Valor': selection.display },
+      { 'Indicador': 'Total Ventas', 'Valor': details?.totalSales || 0 },
+      { 'Indicador': 'Total Clientes', 'Valor': details?.totalClients || 0 },
+      { 'Indicador': 'Total Transacciones', 'Valor': details?.transactionCount || 0 },
+      { 'Indicador': 'Clientes Nuevos', 'Valor': details?.newClients || 0 },
+      { 'Indicador': 'Frecuencia de Ventas (días)', 'Valor': details?.salesFrequency || 0 },
+      { 'Indicador': 'Días desde última venta', 'Valor': details?.daysSinceLastSale || 0 },
+      ...(details?.lastSaleDate ? [{ 'Indicador': 'Última venta', 'Valor': formatDate(details.lastSaleDate) }] : []),
+      { 'Indicador': 'Generado', 'Valor': format(new Date(), "dd/MM/yyyy HH:mm") },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 30 }, { wch: 25 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
 
-    // KPIs Summary
-    csvData.push(['RESUMEN GENERAL']);
-    csvData.push(['Total Ventas', details?.totalSales || 0]);
-    csvData.push(['Total Clientes', details?.totalClients || 0]);
-    csvData.push(['Total Transacciones', details?.transactionCount || 0]);
-    csvData.push(['Clientes Nuevos', details?.newClients || 0]);
-    csvData.push(['Frecuencia de Ventas (días)', details?.salesFrequency || 0]);
-    csvData.push(['Días desde última venta', details?.daysSinceLastSale || 0]);
-    if (details?.lastSaleDate) {
-      csvData.push(['Última venta', formatDate(details.lastSaleDate)]);
-    }
-    csvData.push([]); // Empty row
-
-    // Segments data
+    // Segments sheet
     if (segments && segments.length > 0) {
-      csvData.push(['SEGMENTOS DEL VENDEDOR']);
-      csvData.push(['Segmento', 'Total Ventas', 'Porcentaje']);
-      segments.forEach(segment => {
-        csvData.push([
-          segment.segment,
-          segment.totalSales,
-          segment.percentage.toFixed(2) + '%'
-        ]);
-      });
-      csvData.push([]); // Empty row
+      const segmentData = segments.map(segment => ({
+        'Segmento': segment.segment,
+        'Total Ventas': segment.totalSales,
+        'Porcentaje': segment.percentage / 100,
+      }));
+      const wsSegments = XLSX.utils.json_to_sheet(segmentData);
+      wsSegments['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 14 }];
+      // Format percentage column
+      const range = XLSX.utils.decode_range(wsSegments['!ref'] || 'A1');
+      for (let r = range.s.r + 1; r <= range.e.r; r++) {
+        const cell = wsSegments[XLSX.utils.encode_cell({ r, c: 2 })];
+        if (cell) cell.z = '0.00%';
+      }
+      XLSX.utils.book_append_sheet(wb, wsSegments, 'Segmentos');
     }
 
-    // Clients data
+    // Clients sheet
     if (displayClients && displayClients.length > 0) {
-      csvData.push(['CLIENTES DEL VENDEDOR']);
-      csvData.push(['Cliente', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Última Venta', 'Días desde última venta']);
-      displayClients.forEach(client => {
-        csvData.push([
-          client.clientName,
-          client.totalSales,
-          client.transactionCount,
-          client.averageTicket,
-          formatDate(client.lastSale),
-          client.daysSinceLastSale
-        ]);
-      });
-      csvData.push([]); // Empty row
+      const clientData = displayClients.map(client => ({
+        'Cliente': client.clientName,
+        'Total Ventas': client.totalSales,
+        'Transacciones': client.transactionCount,
+        'Ticket Promedio': client.averageTicket,
+        'Última Venta': formatDate(client.lastSale),
+        'Días desde última venta': client.daysSinceLastSale,
+      }));
+      const wsClients = XLSX.utils.json_to_sheet(clientData);
+      wsClients['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(wb, wsClients, 'Clientes');
     }
 
-    // Products data
+    // Products sheet
     if (displayProducts && displayProducts.length > 0) {
-      csvData.push(['PRODUCTOS VENDIDOS']);
-      csvData.push(['Producto', 'Total Ventas', 'Unidades', 'Transacciones', 'Precio Promedio', 'Última Venta']);
-      displayProducts.forEach(product => {
-        csvData.push([
-          product.productName,
-          product.totalSales,
-          product.totalUnits,
-          product.transactionCount,
-          product.averagePrice,
-          formatDate(product.lastSale)
-        ]);
-      });
+      const productData = displayProducts.map(product => ({
+        'Producto': product.productName,
+        'Total Ventas': product.totalSales,
+        'Unidades': product.totalUnits,
+        'Transacciones': product.transactionCount,
+        'Precio Promedio': product.averagePrice,
+        'Última Venta': formatDate(product.lastSale),
+      }));
+      const wsProducts = XLSX.utils.json_to_sheet(productData);
+      wsProducts['!cols'] = [{ wch: 35 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsProducts, 'Productos');
     }
 
-    // Create CSV content
-    const csvContent = csvData.map(row =>
-      row.map(cell => {
-        // Escape commas and quotes in cell values
-        const stringCell = String(cell);
-        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
-          return '"' + stringCell.replace(/"/g, '""') + '"';
-        }
-        return stringCell;
-      }).join(',')
-    ).join('\n');
-
-    // Download file
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const fileName = `vendedor_${salespersonName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const fileName = `vendedor_${salespersonName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   // Client search and pagination display logic
@@ -1397,14 +1376,14 @@ export default function SalespersonDetail({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={exportSalespersonDataToCSV}
+                    onClick={exportSalespersonDataToExcel}
                     disabled={isLoadingDetails || isLoadingClients}
                     className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     data-testid="button-export-salesperson-csv"
-                    title="Exportar datos del vendedor a CSV"
+                    title="Exportar datos del vendedor a Excel"
                   >
                     <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Exportar CSV
+                    Exportar Excel
                   </Button>
                 </div>
               )}

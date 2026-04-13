@@ -52,7 +52,8 @@ import {
   Package,
   DollarSign,
   Building2,
-  Zap
+  Zap,
+  Users
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -252,6 +253,13 @@ const ETL_CONFIGS = [
     description: 'Notas de Venta pendientes',
     icon: FileText,
     color: 'orange',
+  },
+  {
+    id: 'clientes',
+    name: 'Clientes',
+    description: 'Sincronización de clientes desde ERP (MAEEN)',
+    icon: Users,
+    color: 'green',
   },
 ];
 

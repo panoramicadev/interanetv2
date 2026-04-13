@@ -3644,6 +3644,7 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   // Payment information
   paymentCondition: varchar("payment_condition"),
   paymentReceiptUrl: text("payment_receipt_url"),
+  purchaseOrderPdfUrl: text("purchase_order_pdf_url"), // Optional OC PDF uploaded by client at checkout
 
   // Invoice PDFs uploaded by admin
   invoiceUrls: jsonb("invoice_urls").default(sql`'[]'::jsonb`), // Array of {url, name, uploadedAt}
@@ -7093,7 +7094,10 @@ export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
   empresa: varchar("empresa"),
   rut: varchar("rut"), // RUT asociado (opcional, vincula con clients.rten)
   region: varchar("region"), // Región de Chile (editable)
+  comuna: varchar("comuna"), // Comuna del cliente (editable, overrides linked ERP data)
+  contactoEncargado: varchar("contacto_encargado"), // Nombre del contacto encargado de compras (editable)
   segmento: varchar("segmento"), // Segmento del cliente (editable, ej: FERRETERIAS, CONSTRUCCION)
+  condicionPago: varchar("condicion_pago"), // Condición de pago del cliente (editable, ej: CONTADO, CREDITO 30 DIAS)
   clienteId: varchar("cliente_id"), // FK a clients.id si se vincula un RUT
   vendedorId: varchar("vendedor_id").notNull(), // FK a salespeople_users.id
   vendedorNombre: varchar("vendedor_nombre").notNull(), // Denormalizado para performance

@@ -68,6 +68,7 @@ export interface EcommerceOrder {
   quoteId?: string;
   paymentCondition?: string;
   paymentReceiptUrl?: string;
+  purchaseOrderPdfUrl?: string;
   invoiceUrls?: InvoiceFile[];
   createdAt: string;
   approvedAt?: string;
@@ -739,6 +740,27 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     <Landmark className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="font-medium truncate">{order.paymentCondition}</span>
                   </div>
+                </div>
+              )}
+
+              {order.purchaseOrderPdfUrl && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                  <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Orden de Compra</h5>
+                  <a
+                    href={order.purchaseOrderPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors group"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200">OC del Cliente</p>
+                      <p className="text-[10px] text-blue-500 dark:text-blue-400">Clic para ver / descargar</p>
+                    </div>
+                    <Download className="w-4 h-4 text-blue-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
+                  </a>
                 </div>
               )}
 

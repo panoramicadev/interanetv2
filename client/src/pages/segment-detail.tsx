@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package, Menu, Database, Filter, Loader2 } from "lucide-react";
@@ -700,58 +701,70 @@ export default function SegmentDetail({
     setSalespersonLimit(prev => prev + 10);
   };
 
-  // Export data to CSV
-  const exportSegmentDataToCSV = async () => {
-    const csvData = [];
+  // Export data to Excel
+  const exportSegmentDataToExcel = async () => {
+    const wb = XLSX.utils.book_new();
 
-    // Add header
-    csvData.push(['REPORTE DE SEGMENTO - ' + segmentName]);
-    csvData.push(['Período: ' + selection.display]);
-    csvData.push(['Generado: ' + format(new Date(), "dd/MM/yyyy HH:mm")]);
-    csvData.push([]); // Empty row
+    // Summary sheet
+    const summaryData = [
+      { 'Indicador': 'Segmento', 'Valor': segmentName },
+      { 'Indicador': 'Período', 'Valor': selection.display },
+      { 'Indicador': 'Total Ventas', 'Valor': totalSales },
+      { 'Indicador': 'Total Clientes', 'Valor': totalClients },
+      { 'Indicador': 'Total Vendedores', 'Valor': totalSalespeople },
+      { 'Indicador': 'Total Transacciones', 'Valor': totalTransactions },
+      { 'Indicador': 'Ticket Promedio', 'Valor': Math.round(averageTicket) },
+      { 'Indicador': 'Generado', 'Valor': format(new Date(), "dd/MM/yyyy HH:mm") },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 25 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
 
-    // KPIs Summary
-    csvData.push(['RESUMEN GENERAL']);
-    csvData.push(['Total Ventas', formatCurrencyCSV(totalSales)]);
-    csvData.push(['Total Clientes', totalClients]);
-    csvData.push(['Total Vendedores', totalSalespeople]);
-    csvData.push(['Total Transacciones', totalTransactions]);
-    csvData.push(['Ticket Promedio', Math.round(averageTicket)]);
-    csvData.push([]); // Empty row
+    // Clients sheet
+    if (clients && clients.length > 0) {
+      const clientData = clients.map(client => ({
+        'Cliente': client.clientName,
+        'Vendedor': client.salespersonName || '',
+        'Total Ventas': client.totalSales,
+        'Transacciones': client.transactionCount,
+        'Ticket Promedio': Math.round(client.averageTicket),
+        'Porcentaje': client.percentage / 100,
+      }));
+      const wsClients = XLSX.utils.json_to_sheet(clientData);
+      wsClients['!cols'] = [{ wch: 30 }, { wch: 25 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+      // Format percentage column (index 5)
+      const rangeC = XLSX.utils.decode_range(wsClients['!ref'] || 'A1');
+      for (let r = rangeC.s.r + 1; r <= rangeC.e.r; r++) {
+        const cell = wsClients[XLSX.utils.encode_cell({ r, c: 5 })];
+        if (cell) cell.z = '0.00%';
+      }
+      XLSX.utils.book_append_sheet(wb, wsClients, 'Clientes');
+    }
 
-    // Clients data
-    csvData.push(['CLIENTES DEL SEGMENTO']);
-    csvData.push(['Cliente', 'Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
-    clients.forEach(client => {
-      csvData.push([
-        client.clientName,
-        client.salespersonName || '',
-        formatCurrencyCSV(client.totalSales),
-        client.transactionCount,
-        Math.round(client.averageTicket),
-        client.percentage.toFixed(2) + '%'
-      ]);
-    });
-    csvData.push([]); // Empty row
-
-    // Salespeople data
-    csvData.push(['VENDEDORES DEL SEGMENTO']);
-    csvData.push(['Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
-    salespeople.forEach(salesperson => {
-      csvData.push([
-        salesperson.salespersonName,
-        formatCurrencyCSV(salesperson.totalSales),
-        salesperson.transactionCount,
-        Math.round(salesperson.averageTicket),
-        salesperson.percentage.toFixed(2) + '%'
-      ]);
-    });
-    csvData.push([]); // Empty row
+    // Salespeople sheet
+    if (salespeople && salespeople.length > 0) {
+      const spData = salespeople.map(sp => ({
+        'Vendedor': sp.salespersonName,
+        'Total Ventas': sp.totalSales,
+        'Transacciones': sp.transactionCount,
+        'Ticket Promedio': Math.round(sp.averageTicket),
+        'Porcentaje': sp.percentage / 100,
+      }));
+      const wsSalespeople = XLSX.utils.json_to_sheet(spData);
+      wsSalespeople['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+      // Format percentage column (index 4)
+      const rangeSP = XLSX.utils.decode_range(wsSalespeople['!ref'] || 'A1');
+      for (let r = rangeSP.s.r + 1; r <= rangeSP.e.r; r++) {
+        const cell = wsSalespeople[XLSX.utils.encode_cell({ r, c: 4 })];
+        if (cell) cell.z = '0.00%';
+      }
+      XLSX.utils.book_append_sheet(wb, wsSalespeople, 'Vendedores');
+    }
 
     // Monthly breakdown if year is selected
     if (filterType === 'year' && selectedPeriod) {
       try {
-        const year = selectedPeriod.split('-')[0]; // Extract year from period
+        const year = selectedPeriod.split('-')[0];
         const response = await fetch(`/api/sales/segment/${segmentName}/monthly-breakdown?year=${year}`, {
           credentials: 'include'
         });
@@ -760,16 +773,15 @@ export default function SegmentDetail({
           const monthlyData = await response.json();
 
           if (monthlyData && monthlyData.length > 0) {
-            csvData.push(['DESGLOSE MENSUAL - ' + year]);
-            csvData.push(['Mes', 'Total Ventas', 'Transacciones', 'Ticket Promedio']);
-            monthlyData.forEach((month: any) => {
-              csvData.push([
-                month.monthName,
-                formatCurrencyCSV(month.totalSales),
-                month.transactionCount,
-                Math.round(month.averageTicket)
-              ]);
-            });
+            const monthlySheetData = monthlyData.map((month: any) => ({
+              'Mes': month.monthName,
+              'Total Ventas': month.totalSales,
+              'Transacciones': month.transactionCount,
+              'Ticket Promedio': Math.round(month.averageTicket),
+            }));
+            const wsMonthly = XLSX.utils.json_to_sheet(monthlySheetData);
+            wsMonthly['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }];
+            XLSX.utils.book_append_sheet(wb, wsMonthly, `Mensual ${year}`);
           }
         }
       } catch (error) {
@@ -777,29 +789,8 @@ export default function SegmentDetail({
       }
     }
 
-    // Create CSV content
-    const csvContent = csvData.map(row =>
-      row.map(cell => {
-        // Escape commas and quotes in cell values
-        const stringCell = String(cell);
-        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
-          return '"' + stringCell.replace(/"/g, '""') + '"';
-        }
-        return stringCell;
-      }).join(',')
-    ).join('\n');
-
-    // Download file
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const fileName = `segmento_${segmentName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const fileName = `segmento_${segmentName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   // Format period display
@@ -1241,14 +1232,14 @@ export default function SegmentDetail({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={exportSegmentDataToCSV}
+                    onClick={exportSegmentDataToExcel}
                     disabled={isLoadingClients || isLoadingSalespeople}
                     className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     data-testid="button-export-segment-csv"
-                    title="Exportar datos del segmento a CSV"
+                    title="Exportar datos del segmento a Excel"
                   >
                     <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Exportar CSV
+                    Exportar Excel
                   </Button>
                 </div>
               )}

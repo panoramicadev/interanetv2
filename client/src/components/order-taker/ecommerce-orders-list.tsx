@@ -58,6 +58,7 @@ export interface EcommerceOrder {
   total: string;
   items: OrderItem[] | string;
   notes?: string;
+  purchaseOrderPdfUrl?: string;
   createdAt: string;
 }
 

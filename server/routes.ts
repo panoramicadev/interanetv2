@@ -77,6 +77,7 @@ import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
+import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
@@ -3366,7 +3367,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // CSV Export - All sales details
+  // Excel Export - All sales details (XLSX for maximum compatibility)
   app.get("/api/sales/export-csv", requireAuth, async (req, res) => {
     try {
       const { period, filterType = "month", segment, salesperson, client, branch } = req.query;
@@ -3424,62 +3425,73 @@ export function registerRoutes(app: Express): Server {
         .where(and(...conditions))
         .orderBy(sql`${factVentas.feemdo} DESC, ${factVentas.nudo} DESC`);
 
-      // Build CSV
-      const headers = [
-        "Fecha", "Tipo Documento", "Nro Documento", "Segmento", "Sucursal",
-        "Vendedor", "Cliente", "Código Producto", "Producto", "Familia", "Subfamilia",
-        "Cantidad UD1", "Unidad UD1", "Cantidad UD2", "Unidad UD2",
-        "Precio Unitario", "Monto Neto", "Monto Bruto", "Monto Total",
-        "Bodega", "Orden Compra"
+      // Build Excel data
+      const excelData = rows.map(row => ({
+        'Fecha': row.fecha || '',
+        'Tipo Documento': row.tipoDocumento || '',
+        'Nro Documento': row.numeroDocumento || '',
+        'Segmento': row.segmento || '',
+        'Sucursal': row.sucursal || '',
+        'Vendedor': row.vendedor || '',
+        'Cliente': row.cliente || '',
+        'Código Producto': row.codigoProducto || '',
+        'Producto': row.producto || '',
+        'Familia': row.familia || '',
+        'Subfamilia': row.subfamilia || '',
+        'Cantidad UD1': row.cantidadUD1 != null ? Number(row.cantidadUD1) : '',
+        'Unidad UD1': row.unidadUD1 || '',
+        'Cantidad UD2': row.cantidadUD2 != null ? Number(row.cantidadUD2) : '',
+        'Unidad UD2': row.unidadUD2 || '',
+        'Precio Unitario': row.precioUnitario != null ? Number(row.precioUnitario) : '',
+        'Monto Neto': row.montoNeto != null ? Number(row.montoNeto) : '',
+        'Monto Bruto': row.montoBruto != null ? Number(row.montoBruto) : '',
+        'Monto Total': row.montoTotal != null ? Number(row.montoTotal) : '',
+        'Bodega': row.bodega || '',
+        'Orden Compra': row.ordenCompra || '',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Auto-size columns for better readability
+      const colWidths = [
+        { wch: 12 }, // Fecha
+        { wch: 15 }, // Tipo Documento
+        { wch: 15 }, // Nro Documento
+        { wch: 20 }, // Segmento
+        { wch: 18 }, // Sucursal
+        { wch: 25 }, // Vendedor
+        { wch: 30 }, // Cliente
+        { wch: 18 }, // Código Producto
+        { wch: 35 }, // Producto
+        { wch: 20 }, // Familia
+        { wch: 20 }, // Subfamilia
+        { wch: 14 }, // Cantidad UD1
+        { wch: 12 }, // Unidad UD1
+        { wch: 14 }, // Cantidad UD2
+        { wch: 12 }, // Unidad UD2
+        { wch: 16 }, // Precio Unitario
+        { wch: 14 }, // Monto Neto
+        { wch: 14 }, // Monto Bruto
+        { wch: 14 }, // Monto Total
+        { wch: 20 }, // Bodega
+        { wch: 16 }, // Orden Compra
       ];
+      ws['!cols'] = colWidths;
 
-      const escapeCsv = (val: any) => {
-        if (val === null || val === undefined) return "";
-        const str = String(val);
-        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
 
-      const csvLines = [headers.join(",")];
-      for (const row of rows) {
-        csvLines.push([
-          escapeCsv(row.fecha),
-          escapeCsv(row.tipoDocumento),
-          escapeCsv(row.numeroDocumento),
-          escapeCsv(row.segmento),
-          escapeCsv(row.sucursal),
-          escapeCsv(row.vendedor),
-          escapeCsv(row.cliente),
-          escapeCsv(row.codigoProducto),
-          escapeCsv(row.producto),
-          escapeCsv(row.familia),
-          escapeCsv(row.subfamilia),
-          escapeCsv(row.cantidadUD1),
-          escapeCsv(row.unidadUD1),
-          escapeCsv(row.cantidadUD2),
-          escapeCsv(row.unidadUD2),
-          escapeCsv(row.precioUnitario),
-          escapeCsv(row.montoNeto),
-          escapeCsv(row.montoBruto),
-          escapeCsv(row.montoTotal),
-          escapeCsv(row.bodega),
-          escapeCsv(row.ordenCompra),
-        ].join(","));
-      }
-
-      const csvContent = "\uFEFF" + csvLines.join("\n"); // BOM for Excel UTF-8
+      const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
       const now = new Date();
-      const filename = `ventas_${now.toISOString().split('T')[0]}.csv`;
+      const filename = `ventas_${now.toISOString().split('T')[0]}.xlsx`;
 
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(csvContent);
+      res.send(excelBuffer);
     } catch (error) {
-      console.error("Error exporting sales CSV:", error);
-      res.status(500).json({ message: "Failed to export sales CSV" });
+      console.error("Error exporting sales Excel:", error);
+      res.status(500).json({ message: "Failed to export sales Excel" });
     }
   });
 
@@ -6805,6 +6817,7 @@ export function registerRoutes(app: Express): Server {
         shippingAddress: z.string().optional().nullable(),
         paymentCondition: z.string().optional().nullable(),
         paymentMethod: z.string().optional(),
+        purchaseOrderPdfUrl: z.string().optional().nullable(),
       });
 
       const validationResult = clientOrderSchema.safeParse(req.body);
@@ -6843,6 +6856,7 @@ export function registerRoutes(app: Express): Server {
         paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
+        purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
         ...(isCreditMethod ? { approvedAt: new Date(), approvedById: clientId } : {}),
       };
 
@@ -23944,7 +23958,9 @@ Instrucciones extra:
         ? executeNVVETL()
         : etlName === 'gdv'
           ? executeGDVETL()
-          : executeIncrementalETL(etlName as string);
+          : etlName === 'clientes'
+            ? executeClientETL()
+            : executeIncrementalETL(etlName as string);
 
       etlPromise
         .then((result: any) => {
@@ -27560,6 +27576,28 @@ Instrucciones extra:
   // CRM — SEGUIMIENTO DE CLIENTES (Pipeline de Ventas)
   // ==================================================================================
 
+  // GET /api/crm/comunas — List unique comunas used in CRM for autocomplete
+  app.get('/api/crm/comunas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Get unique comunas from CRM seguimiento records + comuna_region_mapping
+      const crmComunas = await db.execute(sql`
+        SELECT DISTINCT comuna FROM (
+          SELECT TRIM(comuna) as comuna FROM crm_seguimiento_clientes 
+          WHERE comuna IS NOT NULL AND TRIM(comuna) != '' AND active = true
+          UNION
+          SELECT TRIM(comuna) as comuna FROM comuna_region_mapping 
+          WHERE is_active = true AND comuna IS NOT NULL AND TRIM(comuna) != ''
+        ) combined
+        ORDER BY comuna
+      `);
+      const comunas = (crmComunas.rows || []).map((r: any) => r.comuna);
+      res.json(comunas);
+    } catch (e: any) {
+      console.error('Error fetching comunas:', e.message);
+      res.json([]);
+    }
+  }));
+
   // GET /api/crm/seguimiento/segmentos — Available segments from stg_tabru
   app.get('/api/crm/seguimiento/segmentos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -27669,6 +27707,7 @@ Instrucciones extra:
         ultimaCompraDate: clients.feultr,
         linkedComuna: clients.comuna,
         linkedProvincia: clients.provincia,
+        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region'),
         linkedCpen: clients.cpen,
         linkedOben: clients.oben,
         linkedFoen: clients.foen,
@@ -27768,6 +27807,7 @@ Instrucciones extra:
         ultimaCompraDate: clients.feultr,
         linkedComuna: clients.comuna,
         linkedProvincia: clients.provincia,
+        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region_detail'),
         linkedCpen: clients.cpen,
         linkedOben: clients.oben,
         linkedFoen: clients.foen,
@@ -27951,7 +27991,7 @@ Instrucciones extra:
     }
 
     const updateData: any = { updatedAt: new Date() };
-    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto', 'region', 'segmento'];
+    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago'];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {

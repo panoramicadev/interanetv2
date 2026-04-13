@@ -482,7 +482,7 @@ export default function Dashboard() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `ventas_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `ventas_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -490,12 +490,12 @@ export default function Dashboard() {
 
       toast({
         title: '✅ Exportación completa',
-        description: 'El archivo CSV se ha descargado correctamente',
+        description: 'El archivo Excel se ha descargado correctamente',
       });
     } catch (error: any) {
       toast({
         title: '❌ Error',
-        description: error.message || 'No se pudo exportar el archivo CSV',
+        description: error.message || 'No se pudo exportar el archivo Excel',
         variant: 'destructive',
       });
     } finally {
@@ -1819,7 +1819,7 @@ export default function Dashboard() {
                   disabled={isExporting}
                   className="h-9 w-9 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-export-csv"
-                  title="Exportar CSV"
+                  title="Exportar Excel"
                 >
                   {isExporting ? (
                     <Loader2 className="h-4 w-4 text-green-500 animate-spin" />

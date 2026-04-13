@@ -579,7 +579,7 @@ export default function GastosEmpresariales() {
                         data-testid="button-export-csv"
                       >
                         <Download className="h-4 w-4 mr-2" />
-                        Exportar CSV
+                        Exportar Excel
                       </Button>
                     </>
                   )}

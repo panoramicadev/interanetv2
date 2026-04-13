@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import * as XLSX from "xlsx";
 
 interface SegmentData {
   segment: string;
@@ -35,54 +36,51 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
     }).format(amount);
   };
 
-  const exportToCSV = () => {
+  const exportToExcel = () => {
     if (!segmentData || segmentData.length === 0) return;
 
-    const csvData = [];
-    
-    // Add header
     const totalVentas = segmentData.reduce((sum, seg) => sum + seg.totalSales, 0);
-    csvData.push(['REPORTE DE VENTAS POR SEGMENTO']);
-    csvData.push(['Período: ' + selectedPeriod]);
-    csvData.push(['Total de segmentos: ' + segmentData.length]);
-    csvData.push(['Total del periodo: ' + totalVentas.toLocaleString('es-CL')]);
-    csvData.push(['Generado: ' + new Date().toLocaleString('es-CL')]);
-    csvData.push([]); // Empty row
 
-    // Preparar datos CSV con más detalles
-    const headers = ['#', 'Segmento', 'Total Ventas', 'Porcentaje del Total'];
-    csvData.push(headers);
-    
-    segmentData.forEach((seg, index) => {
-      csvData.push([
-        (index + 1).toString(),
-        seg.segment,
-        seg.totalSales.toString(),
-        seg.percentage.toFixed(2) + '%'
-      ]);
-    });
+    // Summary sheet data
+    const summaryData = [
+      { 'Información': 'Período', 'Valor': selectedPeriod },
+      { 'Información': 'Total de segmentos', 'Valor': segmentData.length },
+      { 'Información': 'Total del periodo', 'Valor': totalVentas },
+      { 'Información': 'Generado', 'Valor': new Date().toLocaleString('es-CL') },
+    ];
 
-    // Create CSV content
-    const csvContent = csvData.map(row => 
-      row.map(cell => {
-        const stringCell = String(cell);
-        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
-          return '"' + stringCell.replace(/"/g, '""') + '"';
-        }
-        return stringCell;
-      }).join(',')
-    ).join('\n');
+    // Segment detail data
+    const detailData = segmentData.map((seg, index) => ({
+      '#': index + 1,
+      'Segmento': seg.segment,
+      'Total Ventas': seg.totalSales,
+      'Porcentaje del Total': seg.percentage / 100, // Store as decimal for Excel percentage format
+    }));
 
-    // Descargar archivo
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `ventas_por_segmento_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const wb = XLSX.utils.book_new();
+
+    // Main data sheet
+    const wsDetail = XLSX.utils.json_to_sheet(detailData);
+    wsDetail['!cols'] = [
+      { wch: 5 },  // #
+      { wch: 30 }, // Segmento
+      { wch: 18 }, // Total Ventas
+      { wch: 20 }, // Porcentaje
+    ];
+    // Format percentage column
+    const range = XLSX.utils.decode_range(wsDetail['!ref'] || 'A1');
+    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+      const cell = wsDetail[XLSX.utils.encode_cell({ r, c: 3 })];
+      if (cell) cell.z = '0.00%';
+    }
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Ventas por Segmento');
+
+    // Summary sheet
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 25 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+
+    XLSX.writeFile(wb, `ventas_por_segmento_${selectedPeriod.replace(/[\/\\:]/g, '-')}.xlsx`);
   };
 
   // Color mapping for segments
@@ -107,12 +105,12 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
         <Button
           variant="outline"
           size="sm"
-          onClick={exportToCSV}
+          onClick={exportToExcel}
           disabled={isLoading || !segmentData || segmentData.length === 0}
           data-testid="button-export-segments-csv"
         >
           <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
+          Exportar Excel
         </Button>
       </div>
       

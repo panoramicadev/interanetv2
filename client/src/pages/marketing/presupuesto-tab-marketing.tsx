@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,21 +232,37 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
     };
 
     const handleExportCSV = () => {
-        let csv = `Concepto,Categoría,${MESES_CORTO.join(",")},Total\n`;
-        items.forEach((item) => {
-            const vals = MESES.map((m) => parseNum(item[m as keyof PresupuestoItem] as string));
-            const total = vals.reduce((a, b) => a + b, 0);
-            csv += `"${item.concepto}","${item.categoria || ""}",${vals.join(",")},${total}\n`;
+        // Build data rows for Excel
+        const excelData = items.map((item) => {
+            const row: Record<string, any> = {
+                'Concepto': item.concepto,
+                'Categoría': item.categoria || '',
+            };
+            MESES.forEach((mes, i) => {
+                row[MESES_CORTO[i]] = parseNum(item[mes as keyof PresupuestoItem] as string);
+            });
+            row['Total'] = getRowTotal(item);
+            return row;
         });
-        csv += `"TOTAL","",${totalesPorMes.join(",")},${totalAnual}\n`;
 
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `presupuesto-marketing-${selectedAnio}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // Add grand total row
+        const totalRow: Record<string, any> = { 'Concepto': 'TOTAL GENERAL', 'Categoría': '' };
+        MESES_CORTO.forEach((mes, i) => {
+            totalRow[mes] = totalesPorMes[i];
+        });
+        totalRow['Total'] = totalAnual;
+        excelData.push(totalRow);
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        ws['!cols'] = [
+            { wch: 30 }, // Concepto
+            { wch: 22 }, // Categoría
+            ...MESES.map(() => ({ wch: 14 })), // Month columns
+            { wch: 16 }, // Total
+        ];
+        XLSX.utils.book_append_sheet(wb, ws, `Presupuesto ${selectedAnio}`);
+        XLSX.writeFile(wb, `presupuesto-marketing-${selectedAnio}.xlsx`);
     };
 
     if (isLoading) {
@@ -281,7 +298,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                         disabled={items.length === 0}
                     >
                         <Download className="mr-2 h-4 w-4" />
-                        Exportar CSV
+                        Exportar Excel
                     </Button>
                     {isAdmin && (
                         <Button

@@ -132,7 +132,7 @@ export default function SeguimientoClientes() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [filtroVendedor, setFiltroVendedor] = useState<string>("todos");
-  const [filtroComuna, setFiltroComuna] = useState<string>("todos");
+  const [filtroRegion, setFiltroRegion] = useState<string>("todos");
   const [filtroSegmento, setFiltroSegmento] = useState<string>("todos");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -234,21 +234,21 @@ export default function SeguimientoClientes() {
   };
 
   // ─── Derived data ───────────────────────────────────────────────
-  // Extract unique comunas for filter dropdown
-  const uniqueComunas = Array.from(
+  // Extract unique regions for filter dropdown
+  const uniqueRegiones = Array.from(
     new Set(
       clientes
-        .map((c: any) => (c.linkedComuna || c.ciudad || "").trim())
-        .filter((c: string) => c && c !== "—")
+        .map((c: any) => (c.linkedRegion || c.linkedProvincia || c.region || "").trim())
+        .filter((r: string) => r && r !== "—")
     )
   ).sort() as string[];
 
-  // Apply client-side comuna + segmento filter
+  // Apply client-side region + segmento filter
   const filteredClientes = clientes.filter((c: any) => {
-    // Comuna filter
-    if (filtroComuna !== "todos") {
-      const comuna = (c.linkedComuna || c.ciudad || "").trim();
-      if (comuna !== filtroComuna) return false;
+    // Region filter
+    if (filtroRegion !== "todos") {
+      const region = (c.linkedRegion || c.linkedProvincia || c.region || "").trim();
+      if (region !== filtroRegion) return false;
     }
     // Segmento filter
     if (filtroSegmento !== "todos") {
@@ -311,16 +311,16 @@ export default function SeguimientoClientes() {
               </Select>
             )}
 
-            {/* Comuna filter */}
-            <Select value={filtroComuna} onValueChange={setFiltroComuna}>
-              <SelectTrigger className="w-[180px]" data-testid="select-comuna-filter">
+            {/* Región filter */}
+            <Select value={filtroRegion} onValueChange={setFiltroRegion}>
+              <SelectTrigger className="w-[180px]" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue placeholder="Comuna" />
+                <SelectValue placeholder="Región" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todas las comunas</SelectItem>
-                {uniqueComunas.map((comuna: string) => (
-                  <SelectItem key={comuna} value={comuna}>{fixEncoding(comuna)}</SelectItem>
+                <SelectItem value="todos">Todas las regiones</SelectItem>
+                {uniqueRegiones.map((region: string) => (
+                  <SelectItem key={region} value={region}>{fixEncoding(region)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -354,18 +354,19 @@ export default function SeguimientoClientes() {
             </p>
           </div>
           <div className="overflow-x-auto">
-            <Table className="w-full min-w-[1000px]">
+            <Table className="w-full min-w-[1050px] table-fixed">
               <TableHeader>
                 <TableRow className="bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-50/80">
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3 pl-5">Cliente</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Comuna</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Segmento</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Teléfono</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Condición Pago</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Vendedor</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Último Pedido</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3">Contacto</TableHead>
-                  <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-muted-foreground py-3 pr-5 w-[50px]"></TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pl-4 w-[180px]">Cliente</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[75px]">Contacto</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[75px]">Región</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[72px]">Segmento</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[90px]">Teléfono</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[90px]">Cond. Pago</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[120px]">Vendedor</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[80px]">Últ. Pedido</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[80px]">Estado</TableHead>
+                  <TableHead className="text-right font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pr-4 w-[40px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -380,66 +381,23 @@ export default function SeguimientoClientes() {
                       onClick={() => handleViewClient(client)}
                     >
                       {/* Cliente */}
-                      <TableCell className="py-3.5 pl-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm">
+                      <TableCell className="py-2.5 pl-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                             {initials}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm text-foreground truncate max-w-[200px]">{client.nombre}</p>
+                            <p className="font-semibold text-xs text-foreground truncate">{client.nombre}</p>
                             {client.empresa && client.empresa !== client.nombre && (
-                              <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">{client.empresa}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{client.empresa}</p>
                             )}
                           </div>
                         </div>
                       </TableCell>
-                      {/* Comuna */}
-                      <TableCell className="py-3.5">
-                        <span className="text-sm text-foreground/80">{fixEncoding(client.linkedComuna || client.ciudad) || '—'}</span>
-                      </TableCell>
-                      {/* Segmento */}
-                      <TableCell className="py-3.5">
-                        {(client.segmento || client.linkedSegmento) ? (
-                          <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700">
-                            {client.segmento || client.linkedSegmento}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/50">—</span>
-                        )}
-                      </TableCell>
-                      {/* Teléfono */}
-                      <TableCell className="py-3.5">
-                        <div className="flex flex-col">
-                          <span className="text-sm tabular-nums">{client.linkedFoen || client.telefono || '—'}</span>
-                          {(client.linkedPurchasingContact) && (
-                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate max-w-[140px]">{fixEncoding(client.linkedPurchasingContact)}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {/* Condición Pago */}
-                      <TableCell className="py-3.5">
-                        {client.linkedCpen?.trim() ? (
-                          <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 border-slate-200 dark:border-slate-700">
-                            {client.linkedCpen.trim()}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/50">—</span>
-                        )}
-                      </TableCell>
-                      {/* Vendedor */}
-                      <TableCell className="py-3.5">
-                        <span className="text-xs font-medium text-foreground/70">{client.vendedorNombre || '—'}</span>
-                      </TableCell>
-                      {/* Último Pedido */}
-                      <TableCell className="py-3.5">
-                        <span className="text-xs text-foreground/70">
-                          {client.ultimaCompraDate ? formatDate(client.ultimaCompraDate) : '—'}
-                        </span>
-                      </TableCell>
                       {/* Contacto */}
-                      <TableCell className="py-3.5">
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`text-xs font-semibold ${isStale ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      <TableCell className="py-2.5">
+                        <div className="flex flex-col">
+                          <span className={`text-[11px] font-semibold ${isStale ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                             {timeAgo(client.ultimoContacto)}
                           </span>
                           <span className="text-[10px] text-muted-foreground/60">
@@ -447,15 +405,70 @@ export default function SeguimientoClientes() {
                           </span>
                         </div>
                       </TableCell>
+                      {/* Región */}
+                      <TableCell className="py-2.5">
+                        <span className="text-[11px] text-foreground/80 truncate block">{fixEncoding(client.linkedRegion || client.linkedProvincia || client.region) || '—'}</span>
+                      </TableCell>
+                      {/* Segmento */}
+                      <TableCell className="py-2.5">
+                        {(client.segmento || client.linkedSegmento) ? (
+                          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700">
+                            {client.segmento || client.linkedSegmento}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/50">—</span>
+                        )}
+                      </TableCell>
+                      {/* Teléfono */}
+                      <TableCell className="py-2.5">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] tabular-nums truncate">{client.linkedFoen || client.telefono || '—'}</span>
+                          {(client.contactoEncargado || client.linkedPurchasingContact) && (
+                            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium truncate">{fixEncoding(client.contactoEncargado || client.linkedPurchasingContact)}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      {/* Condición Pago */}
+                      <TableCell className="py-2.5">
+                        {(client.condicionPago || client.linkedCpen?.trim()) ? (
+                          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                            {client.condicionPago || client.linkedCpen.trim()}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/50">—</span>
+                        )}
+                      </TableCell>
+                      {/* Vendedor */}
+                      <TableCell className="py-2.5">
+                        <span className="text-[11px] font-medium text-foreground/70 truncate block">{client.vendedorNombre || '—'}</span>
+                      </TableCell>
+                      {/* Último Pedido */}
+                      <TableCell className="py-2.5">
+                        <span className="text-[11px] text-foreground/70 whitespace-nowrap">
+                          {client.ultimaCompraDate ? formatDate(client.ultimaCompraDate) : '—'}
+                        </span>
+                      </TableCell>
+                      {/* Estado */}
+                      <TableCell className="py-2.5" onClick={e => e.stopPropagation()}>
+                        {(() => {
+                          const eConfig = getEstadoConfig(client.estado);
+                          return (
+                            <Badge className={`${eConfig.badge} border-0 text-[9px] font-medium px-1.5 py-0 whitespace-nowrap`}>
+                              <eConfig.icon className="w-2.5 h-2.5 mr-0.5" />
+                              {eConfig.label}
+                            </Badge>
+                          );
+                        })()}
+                      </TableCell>
                       {/* Action */}
-                      <TableCell className="text-right py-3.5 pr-5" onClick={e => e.stopPropagation()}>
+                      <TableCell className="text-right py-2.5 pr-4" onClick={e => e.stopPropagation()}>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600"
                           onClick={() => handleViewClient(client)}
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -463,7 +476,7 @@ export default function SeguimientoClientes() {
                 })}
                 {filteredClientes.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                       <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
                       <p className="text-sm font-medium">No se encontraron clientes</p>
                       <p className="text-xs mt-1">Intenta ajustar los filtros o crear un nuevo cliente</p>

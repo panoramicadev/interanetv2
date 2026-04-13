@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import {
@@ -61,6 +61,9 @@ export default function BillingSummary() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'transfer' | 'credit'>('transfer');
+  const [purchaseOrderPdfUrl, setPurchaseOrderPdfUrl] = useState<string | null>(null);
+  const [purchaseOrderFileName, setPurchaseOrderFileName] = useState<string | null>(null);
+  const [isUploadingOC, setIsUploadingOC] = useState(false);
 
   // Delivery method: 'despacho' or 'retiro'
   const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {
@@ -334,7 +337,8 @@ export default function BillingSummary() {
         notes: orderNotes.trim() || null,
         shippingAddress: finalShippingAddress || null,
         paymentCondition: clientData?.cpen || null,
-        paymentMethod: selectedPaymentMethod
+        paymentMethod: selectedPaymentMethod,
+        purchaseOrderPdfUrl: purchaseOrderPdfUrl || null,
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {
@@ -879,6 +883,102 @@ export default function BillingSummary() {
             className="resize-none"
             data-testid="textarea-order-notes"
           />
+        </div>
+
+        {/* Purchase Order PDF Upload (optional) */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+            <FileUp className="h-4 w-4" />
+            Orden de Compra (opcional)
+          </Label>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 -mt-1">
+            Puedes adjuntar tu OC en formato PDF para que acompañe el pedido.
+          </p>
+          
+          {purchaseOrderPdfUrl ? (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
+                <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200 truncate">
+                  {purchaseOrderFileName || 'Orden de Compra.pdf'}
+                </p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">✓ Adjunto al pedido</p>
+              </div>
+              <button
+                onClick={() => {
+                  setPurchaseOrderPdfUrl(null);
+                  setPurchaseOrderFileName(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-500 hover:text-red-500 transition-colors flex-shrink-0"
+                title="Eliminar archivo"
+                data-testid="button-remove-purchase-order"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <Label
+                htmlFor="purchase-order-upload"
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                  isUploadingOC
+                    ? 'border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/30'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-[#FF6E23]/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20'
+                }`}
+              >
+                {isUploadingOC ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                    <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Subiendo...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Adjuntar PDF de Orden de Compra</span>
+                  </>
+                )}
+              </Label>
+              <Input
+                id="purchase-order-upload"
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                disabled={isUploadingOC}
+                data-testid="input-purchase-order-upload"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ title: 'Archivo muy grande', description: 'El PDF no puede superar 10 MB.', variant: 'destructive' });
+                    e.target.value = '';
+                    return;
+                  }
+                  setIsUploadingOC(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch('/api/upload', {
+                      method: 'POST',
+                      credentials: 'include',
+                      body: formData,
+                    });
+                    if (!res.ok) throw new Error('Error al subir archivo');
+                    const data = await res.json();
+                    setPurchaseOrderPdfUrl(data.url);
+                    setPurchaseOrderFileName(file.name);
+                    toast({ title: '✓ OC adjuntada', description: `"${file.name}" será incluida en tu pedido.` });
+                  } catch (err: any) {
+                    toast({ title: 'Error', description: err.message || 'No se pudo subir el archivo', variant: 'destructive' });
+                  } finally {
+                    setIsUploadingOC(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </>
+          )}
         </div>
 
         {/* Confirm Order Button */}

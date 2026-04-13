@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,13 +7,14 @@ import {
   MessageSquare, PhoneCall, FileText,
   MapPin, AlertTriangle, CheckCircle2, Truck, ShoppingCart,
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
-  ArrowLeft, Plus, Calendar, Clock, CreditCard, Save, X, Tags
+  ArrowLeft, Plus, Calendar, Clock, CreditCard, Save, X, Tags, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +51,19 @@ const REGIONES_CHILE = [
   "Magallanes y la Antártica Chilena",
 ];
 
+// Common payment conditions
+const CONDICIONES_PAGO = [
+  "CONTADO",
+  "CREDITO 15 DIAS",
+  "CREDITO 30 DIAS",
+  "CREDITO 45 DIAS",
+  "CREDITO 60 DIAS",
+  "CREDITO 90 DIAS",
+  "CREDITO 120 DIAS",
+  "CONTRA ENTREGA",
+  "TRANSFERENCIA",
+];
+
 // ─── Main Detail Page ─────────────────────────────────────────────────
 export default function SeguimientoClienteDetalle() {
   const { user } = useAuth();
@@ -70,6 +84,9 @@ export default function SeguimientoClienteDetalle() {
   const [rutInput, setRutInput] = useState("");
   const [detectedPurchases, setDetectedPurchases] = useState<any[] | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
+  const comunaInputRef = useRef<HTMLInputElement>(null);
+  const comunaDropdownRef = useRef<HTMLDivElement>(null);
 
   const BIT_TIPOS = [
     { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
@@ -98,6 +115,16 @@ export default function SeguimientoClienteDetalle() {
       return res.json();
     },
     enabled: isAdminOrSupervisor,
+  });
+
+  // ─── Comunas query (for autocomplete) ──────────────────────────
+  const { data: comunasSugeridas = [] } = useQuery<string[]>({
+    queryKey: ["/api/crm/comunas"],
+    queryFn: async () => {
+      const res = await fetch("/api/crm/comunas");
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   // ─── Bitácora query ─────────────────────────────────────────────
@@ -129,13 +156,31 @@ export default function SeguimientoClienteDetalle() {
       }
       return res.json();
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      await refetch();
+    // Optimistic update: update cache immediately before API responds
+    onMutate: async (data: any) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/crm/seguimiento", clientId] });
+      // Snapshot previous value for rollback
+      const previousClient = queryClient.getQueryData(["/api/crm/seguimiento", clientId]);
+      // Optimistically set new data in cache
+      queryClient.setQueryData(["/api/crm/seguimiento", clientId], (old: any) => {
+        if (!old) return old;
+        return { ...old, ...data };
+      });
+      return { previousClient };
+    },
+    onSuccess: () => {
       toast({ title: "✅ Datos actualizados" });
       setIsEditing(false);
+      // Background invalidation (non-blocking)
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/comunas"] });
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _data, context) => {
+      // Rollback to previous data on failure
+      if (context?.previousClient) {
+        queryClient.setQueryData(["/api/crm/seguimiento", clientId], context.previousClient);
+      }
       toast({ title: "Error al actualizar", description: err.message, variant: "destructive" });
     },
   });
@@ -252,25 +297,29 @@ export default function SeguimientoClienteDetalle() {
       notas: client.notas || "",
       region: client.region || "",
       segmento: client.segmento || "",
+      contactoEncargado: client.contactoEncargado || "",
+      comuna: client.comuna || "",
+      condicionPago: client.condicionPago || "",
     });
     setIsEditing(true);
   };
 
   const handleSaveEdit = () => {
-    const changes: any = {};
-    if (editForm.nombre !== (client.nombre || "")) changes.nombre = editForm.nombre;
-    if (editForm.empresa !== (client.empresa || "")) changes.empresa = editForm.empresa;
-    if (editForm.telefono !== (client.telefono || "")) changes.telefono = editForm.telefono;
-    if (editForm.email !== (client.email || "")) changes.email = editForm.email;
-    if (editForm.notas !== (client.notas || "")) changes.notas = editForm.notas;
-    if (editForm.region !== (client.region || "")) changes.region = editForm.region;
-    if (editForm.segmento !== (client.segmento || "")) changes.segmento = editForm.segmento;
+    // Always send all editable fields to ensure comuna and contactoEncargado are persisted
+    const changes: any = {
+      nombre: editForm.nombre,
+      empresa: editForm.empresa,
+      telefono: editForm.telefono,
+      email: editForm.email,
+      notas: editForm.notas,
+      region: editForm.region,
+      segmento: editForm.segmento,
+      contactoEncargado: editForm.contactoEncargado,
+      comuna: editForm.comuna,
+      condicionPago: editForm.condicionPago,
+    };
     
-    if (Object.keys(changes).length > 0) {
-      updateMutation.mutate(changes);
-    } else {
-      setIsEditing(false);
-    }
+    updateMutation.mutate(changes);
   };
 
   const handleDetectPurchases = async () => {
@@ -328,8 +377,11 @@ export default function SeguimientoClienteDetalle() {
   const cv = client.clienteVinculado;
   const isStaleContact = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
   const displayPhone = cv?.foen || client.linkedFoen || client.telefono || "—";
-  const displayComuna = fixEncoding(cv?.comuna || client.linkedComuna || client.ciudad);
+  const displayComuna = fixEncoding(client.comuna || cv?.comuna || client.linkedComuna || client.ciudad);
+  const displayRegion = client.region || fixEncoding(client.linkedRegion || cv?.provincia || client.linkedProvincia);
+  const displayContacto = fixEncoding(client.contactoEncargado || cv?.purchasingContactName || client.linkedPurchasingContact);
   const displayEmail = client.email || cv?.email || "—";
+  const displayCondicionPago = client.condicionPago || (cv?.cpen || client.linkedCpen || "")?.trim() || "—";
 
   // ─── Render ─────────────────────────────────────────────────────
   return (
@@ -349,10 +401,28 @@ export default function SeguimientoClienteDetalle() {
             Volver al Seguimiento
           </Button>
           <div className="flex items-center gap-2">
-            <Badge className={`${estadoConfig.badge} border-0 text-xs`}>
-              <estadoConfig.icon className="w-3 h-3 mr-1" />
-              {estadoConfig.label}
-            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium ${estadoConfig.badge} border-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all`}>
+                  <estadoConfig.icon className="w-3 h-3 mr-1" />
+                  {estadoConfig.label}
+                  <ChevronDown className="w-3 h-3 ml-1 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {ESTADOS.map(e => (
+                  <DropdownMenuItem
+                    key={e.value}
+                    onClick={() => updateMutation.mutate({ estado: e.value })}
+                    disabled={e.value === client.estado}
+                    className="text-xs"
+                  >
+                    <e.icon className="w-3.5 h-3.5 mr-2" />
+                    {e.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="sm"
@@ -446,14 +516,14 @@ export default function SeguimientoClienteDetalle() {
           {/* ─── Summary Grid (Always visible) ─── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-4 pt-4 border-t border-dashed">
             <SummaryItem icon={MapPin} label="Comuna" value={displayComuna} />
-            <SummaryItem icon={MapPin} label="Región" value={client.region || fixEncoding(cv?.provincia || client.linkedProvincia)} />
-            <SummaryItem icon={CreditCard} label="Método de Pago" value={(cv?.cpen || client.linkedCpen || "")?.trim() || "—"} />
+            <SummaryItem icon={MapPin} label="Región" value={displayRegion || "—"} />
+            <SummaryItem icon={CreditCard} label="Método de Pago" value={displayCondicionPago} />
             <SummaryItem icon={User} label="Vendedor" value={client.vendedorNombre || "—"} />
             <SummaryItem icon={Calendar} label="Último Pedido" value={formatDate(client.ultimaCompraDate)} />
             <SummaryItem 
               icon={Phone} 
               label="Contacto Enc." 
-              value={fixEncoding(cv?.purchasingContactName || client.linkedPurchasingContact) || "—"} 
+              value={displayContacto || "—"} 
             />
             <SummaryItem icon={Tags} label="Segmento" value={client.segmento || client.linkedSegmento || "—"} />
           </div>
@@ -516,6 +586,61 @@ export default function SeguimientoClienteDetalle() {
                   </div>
                 )}
                 <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Contacto Encargado</label>
+                  <Input
+                    value={editForm.contactoEncargado}
+                    onChange={e => setEditForm((f: any) => ({ ...f, contactoEncargado: e.target.value }))}
+                    placeholder={fixEncoding(cv?.purchasingContactName || client.linkedPurchasingContact) || "Nombre del encargado..."}
+                    className="h-9"
+                  />
+                </div>
+                <div className="relative">
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Comuna</label>
+                  <Input
+                    ref={comunaInputRef}
+                    value={editForm.comuna}
+                    onChange={e => {
+                      setEditForm((f: any) => ({ ...f, comuna: e.target.value }));
+                      setShowComunaSuggestions(true);
+                    }}
+                    onFocus={() => setShowComunaSuggestions(true)}
+                    onBlur={() => { setTimeout(() => setShowComunaSuggestions(false), 200); }}
+                    placeholder={fixEncoding(cv?.comuna || client.linkedComuna) || "Escribir o seleccionar comuna..."}
+                    className="h-9"
+                    autoComplete="off"
+                  />
+                  {showComunaSuggestions && (() => {
+                    const filtered = comunasSugeridas.filter((c: string) =>
+                      c.toLowerCase().includes((editForm.comuna || "").toLowerCase())
+                    );
+                    if (filtered.length === 0) return null;
+                    // Don't show if exact match already typed
+                    if (filtered.length === 1 && filtered[0].toLowerCase() === (editForm.comuna || "").toLowerCase()) return null;
+                    return (
+                      <div
+                        ref={comunaDropdownRef}
+                        className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg"
+                      >
+                        {filtered.slice(0, 15).map((c: string) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setEditForm((f: any) => ({ ...f, comuna: c }));
+                              setShowComunaSuggestions(false);
+                            }}
+                          >
+                            <MapPin className="w-3 h-3 inline mr-2 text-muted-foreground" />
+                            {fixEncoding(c)}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div>
                   <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Región</label>
                   <select
                     className="w-full text-sm bg-background border rounded-md px-3 py-1.5 h-9 cursor-pointer hover:border-indigo-400 transition-colors"
@@ -538,6 +663,19 @@ export default function SeguimientoClienteDetalle() {
                     <option value="">Seleccionar segmento...</option>
                     {SEGMENTOS_CRM.map((s) => (
                       <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Condición de Pago</label>
+                  <select
+                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 h-9 cursor-pointer hover:border-indigo-400 transition-colors"
+                    value={editForm.condicionPago || ""}
+                    onChange={(e) => setEditForm((f: any) => ({ ...f, condicionPago: e.target.value }))}
+                  >
+                    <option value="">Seleccionar condición...</option>
+                    {CONDICIONES_PAGO.map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>

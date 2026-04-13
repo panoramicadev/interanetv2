@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import * as XLSX from "xlsx";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useFilter } from "@/contexts/FilterContext";
@@ -667,28 +668,34 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     const gastosParaExportar = getFilteredGastos();
     if (gastosParaExportar.length === 0) return;
 
-    const headers = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado', 'Proveedor'];
-    const rows = gastosParaExportar.map(g => [
-      formatFullDate((g.fechaEmision || g.createdAt) as any),
-      g.descripcion,
-      g.categoria,
-      g.monto,
-      g.estado,
-      g.proveedor || '-'
-    ]);
+    const excelData = gastosParaExportar.map(g => ({
+      'Fecha': formatFullDate((g.fechaEmision || g.createdAt) as any),
+      'Descripción': g.descripcion,
+      'Categoría': g.categoria,
+      'Monto': Number(g.monto) || 0,
+      'Estado': g.estado,
+      'Proveedor': g.proveedor || '-',
+    }));
 
-    // Agregar info de filtros al nombre del archivo
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    ws['!cols'] = [
+      { wch: 14 }, // Fecha
+      { wch: 35 }, // Descripción
+      { wch: 18 }, // Categoría
+      { wch: 14 }, // Monto
+      { wch: 12 }, // Estado
+      { wch: 25 }, // Proveedor
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Gastos');
+
+    // Build filename with filters
     let fileName = `gastos_${anio}_${mes}`;
     if (diaDesde || diaHasta) fileName += `_${diaDesde || 'inicio'}_a_${diaHasta || 'fin'}`;
     if (estadoFilter !== 'todos') fileName += `_${estadoFilter}`;
     if (categoriaFilter !== 'todos') fileName += `_${categoriaFilter.replace(/\s+/g, '_')}`;
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${fileName}.csv`;
-    link.click();
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
   };
 
   const renderChartToImage = (chartData: any, chartType: 'pie' | 'bar' | 'doughnut', width: number, height: number): Promise<string> => {
@@ -1575,7 +1582,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 data-testid="button-export-csv"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Exportar CSV
+                Exportar Excel
               </Button>
             </div>
           )}
