@@ -290,16 +290,45 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
 
   // ─── Branch (Sucursal) Management ─────────────────────
   const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const [useExistingUser, setUseExistingUser] = useState(false);
+  const [branchUserSearch, setBranchUserSearch] = useState("");
   const [branchForm, setBranchForm] = useState({
     branchLabel: "",
     username: "",
     email: "",
     password: "",
+    existingUserId: "",
     salesRepCode: "",
     pickupWarehouseId: "none",
     creditLimit: "",
     paymentCondition: client.paymentCondition || "CONTADO",
     lcen: client.lcen || "",
+  });
+
+  // Fetch all client users for existing user selector
+  const { data: allClientUsers = [] } = useQuery<ClientUser[]>({
+    queryKey: ["/api/users/clients"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/users/clients");
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+    enabled: showBranchDialog,
+  });
+
+  // Filter client users for selector (exclude current client)
+  const availableExistingUsers = allClientUsers.filter((u) => {
+    if (u.id === client.id) return false;
+    const q = branchUserSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      u.clientName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.rut?.toLowerCase().includes(q)
+    );
   });
 
   // Fetch sibling branches
@@ -330,7 +359,9 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients/branches"] });
       setShowBranchDialog(false);
-      setBranchForm({ branchLabel: "", username: "", email: "", password: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
+      setUseExistingUser(false);
+      setBranchUserSearch("");
+      setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserId: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -1116,36 +1147,115 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               />
             </div>
 
-            {/* Credentials */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Usuario *</Label>
-                <Input
-                  placeholder="Ej: sucursal-stgo"
-                  value={branchForm.username}
-                  onChange={(e) => setBranchForm(p => ({ ...p, username: e.target.value }))}
-                />
+            {/* Toggle: New user vs Existing user */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-violet-50/70 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-800">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-violet-500" />
+                <span className="text-sm font-medium text-violet-800 dark:text-violet-200">Usar usuario existente</span>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Contraseña *</Label>
-                <Input
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                  value={branchForm.password}
-                  onChange={(e) => setBranchForm(p => ({ ...p, password: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Email (opcional)</Label>
-              <Input
-                type="email"
-                placeholder="sucursal@empresa.cl"
-                value={branchForm.email}
-                onChange={(e) => setBranchForm(p => ({ ...p, email: e.target.value }))}
+              <Switch
+                checked={useExistingUser}
+                onCheckedChange={(checked) => {
+                  setUseExistingUser(checked);
+                  if (checked) {
+                    setBranchForm(p => ({ ...p, username: "", password: "", email: "" }));
+                  } else {
+                    setBranchForm(p => ({ ...p, existingUserId: "" }));
+                  }
+                }}
               />
             </div>
+
+            {useExistingUser ? (
+              /* Existing user selector */
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Seleccionar Usuario Existente *</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Buscar por nombre, email o RUT..."
+                    value={branchUserSearch}
+                    onChange={(e) => setBranchUserSearch(e.target.value)}
+                    className="h-9"
+                  />
+                  <div className="max-h-[180px] overflow-y-auto rounded-lg border bg-background">
+                    {availableExistingUsers.length === 0 ? (
+                      <div className="text-center py-6 text-sm text-muted-foreground">
+                        {branchUserSearch ? "Sin resultados" : "No hay usuarios disponibles"}
+                      </div>
+                    ) : (
+                      availableExistingUsers.slice(0, 20).map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => setBranchForm(p => ({ ...p, existingUserId: u.id }))}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
+                            branchForm.existingUserId === u.id
+                              ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
+                              : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                            branchForm.existingUserId === u.id
+                              ? "bg-violet-600 text-white"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}>
+                            {(u.clientName || u.email)?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{u.clientName || u.email}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {u.email}{u.rut ? ` · ${u.rut}` : ""}
+                              {u.branchLabel ? ` · ${u.branchLabel}` : ""}
+                            </p>
+                          </div>
+                          {branchForm.existingUserId === u.id && (
+                            <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {branchForm.existingUserId && (
+                    <p className="text-xs text-emerald-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Usuario seleccionado: {allClientUsers.find(u => u.id === branchForm.existingUserId)?.clientName || ""}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* New user credentials */
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Usuario *</Label>
+                    <Input
+                      placeholder="Ej: sucursal-stgo"
+                      value={branchForm.username}
+                      onChange={(e) => setBranchForm(p => ({ ...p, username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Contraseña *</Label>
+                    <Input
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={branchForm.password}
+                      onChange={(e) => setBranchForm(p => ({ ...p, password: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Email (opcional)</Label>
+                  <Input
+                    type="email"
+                    placeholder="sucursal@empresa.cl"
+                    value={branchForm.email}
+                    onChange={(e) => setBranchForm(p => ({ ...p, email: e.target.value }))}
+                  />
+                </div>
+              </>
+            )}
 
             <hr className="my-2" />
 
@@ -1236,19 +1346,28 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
             <Button variant="outline" onClick={() => setShowBranchDialog(false)}>Cancelar</Button>
             <Button
               className="bg-violet-600 hover:bg-violet-700"
-              disabled={!branchForm.branchLabel || !branchForm.username || !branchForm.password || branchForm.password.length < 6 || createBranchMutation.isPending}
+              disabled={
+                !branchForm.branchLabel ||
+                (useExistingUser ? !branchForm.existingUserId : (!branchForm.username || !branchForm.password || branchForm.password.length < 6)) ||
+                createBranchMutation.isPending
+              }
               onClick={() => {
-                createBranchMutation.mutate({
+                const payload: any = {
                   branchLabel: branchForm.branchLabel,
-                  username: branchForm.username,
-                  email: branchForm.email || null,
-                  password: branchForm.password,
                   salesRepCode: branchForm.salesRepCode || null,
                   pickupWarehouseId: branchForm.pickupWarehouseId === "none" ? null : branchForm.pickupWarehouseId,
                   creditLimit: branchForm.creditLimit ? parseFloat(branchForm.creditLimit) : null,
                   paymentCondition: branchForm.paymentCondition || null,
                   lcen: branchForm.lcen || null,
-                });
+                };
+                if (useExistingUser) {
+                  payload.existingUserId = branchForm.existingUserId;
+                } else {
+                  payload.username = branchForm.username;
+                  payload.email = branchForm.email || null;
+                  payload.password = branchForm.password;
+                }
+                createBranchMutation.mutate(payload);
               }}
             >
               {createBranchMutation.isPending ? "Creando..." : "Crear Sucursal"}

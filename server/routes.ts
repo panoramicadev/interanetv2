@@ -9947,16 +9947,20 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen } = req.body;
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId } = req.body;
 
-      if (!branchLabel || !username || !password) {
-        return res.status(400).json({ message: "branchLabel, username y password son requeridos" });
+      if (!branchLabel) {
+        return res.status(400).json({ message: "branchLabel es requerido" });
+      }
+
+      // Validate: either existingUserId OR (username + password) must be provided
+      if (!existingUserId && (!username || !password)) {
+        return res.status(400).json({ message: "Debe proporcionar un usuario existente o crear uno nuevo (username y password requeridos)" });
       }
 
       const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
       const { eq } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
-      const bcrypt = await import('bcryptjs');
 
       // Get the parent user and their linked client
       const [parentUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, userId)).limit(1);
@@ -9978,26 +9982,43 @@ export function registerRoutes(app: Express): Server {
       // The parent becomes the "parent" — ensure it doesn't already have a parent (avoid nesting)
       const parentClientId = parentClient.parentClientId || parentClient.id;
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
-
-      // Create the salespeople_users record for the branch
+      let branchUser: any;
       const branchName = `${parentClient.nokoen || parentUser.salespersonName} - ${branchLabel}`;
-      const [branchUser] = await dbInstance.insert(spTable).values({
-        salespersonName: branchName,
-        username,
-        email: email || null,
-        password: passwordHash,
-        isActive: true,
-        role: 'client',
-        clientRut: parentClient.rten || parentUser.clientRut || null,
-      }).returning();
+
+      if (existingUserId) {
+        // Use an existing user — verify it exists and is a client
+        const [existingUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, existingUserId)).limit(1);
+        if (!existingUser) {
+          return res.status(404).json({ message: "Usuario seleccionado no encontrado" });
+        }
+        if (existingUser.role !== 'client') {
+          return res.status(400).json({ message: "El usuario seleccionado debe ser de tipo cliente" });
+        }
+        branchUser = existingUser;
+        console.log(`[CREATE-BRANCH] Using existing user ${existingUserId} for branch "${branchLabel}"`);
+      } else {
+        // Create a new user for the branch
+        const bcrypt = await import('bcryptjs');
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        const [newUser] = await dbInstance.insert(spTable).values({
+          salespersonName: branchName,
+          username,
+          email: email || null,
+          password: passwordHash,
+          isActive: true,
+          role: 'client',
+          clientRut: parentClient.rten || parentUser.clientRut || null,
+        }).returning();
+        branchUser = newUser;
+      }
 
       // Create the clients record for the branch
+      const branchEmail = existingUserId ? (branchUser.email || branchUser.publicEmail || parentClient.email || null) : (email || parentClient.email || null);
       const [branchClient] = await dbInstance.insert(clientsTable).values({
         nokoen: branchName,
         rten: parentClient.rten || null,
-        email: email || parentClient.email || null,
+        email: branchEmail,
         foen: parentClient.foen || null,
         dien: parentClient.dien || null,
         cmen: parentClient.cmen || null,
@@ -10014,7 +10035,7 @@ export function registerRoutes(app: Express): Server {
         lcen: lcen || parentClient.lcen || null,
       }).returning();
 
-      // Link user to client
+      // Link user to the new branch client record
       await dbInstance.update(spTable)
         .set({ clientId: branchClient.id, updatedAt: new Date() })
         .where(eq(spTable.id, branchUser.id));
