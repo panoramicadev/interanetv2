@@ -1412,7 +1412,14 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/inventario', search],
-    enabled: true,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      const url = `/api/marketing/inventario${params.toString() ? `?${params}` : ''}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al cargar inventario');
+      return res.json();
+    },
   });
 
   const { data: summary } = useQuery<{
@@ -1421,7 +1428,11 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
     valorTotal: number;
   }>({
     queryKey: ['/api/marketing/inventario/summary'],
-    enabled: true,
+    queryFn: async () => {
+      const res = await fetch('/api/marketing/inventario/summary', { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al cargar resumen');
+      return res.json();
+    },
   });
 
   const deleteMutation = useMutation({

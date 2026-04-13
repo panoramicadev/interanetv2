@@ -10,6 +10,7 @@ interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  cc?: string;
   attachments?: Array<{
     filename: string;
     content: Buffer;
@@ -100,6 +101,7 @@ class EmailService {
           const info = await oauthTransporter.sendMail({
             from: config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email,
             to: options.to,
+            cc: options.cc || undefined,
             subject: options.subject,
             html: options.html,
             attachments: options.attachments,
@@ -137,6 +139,7 @@ class EmailService {
         const info = await dbTransporter.sendMail({
           from: fromAddress,
           to: options.to,
+          cc: options.cc || undefined,
           subject: options.subject,
           html: options.html,
           attachments: options.attachments,
@@ -159,6 +162,7 @@ class EmailService {
       const info = await this.transporter.sendMail({
         from: process.env.SMTP_USER,
         to: options.to,
+        cc: options.cc || undefined,
         subject: options.subject,
         html: options.html,
         attachments: options.attachments,
@@ -239,6 +243,31 @@ class EmailService {
 
   isConfigured(): boolean {
     return this.transporter !== null;
+  }
+
+  /**
+   * Checks if ANY email sending method is configured (OAuth, DB password, or env vars).
+   * Use this instead of isConfigured() when deciding whether to allow email sending.
+   */
+  async isAnyMethodConfigured(): Promise<boolean> {
+    // Check env vars transporter
+    if (this.transporter !== null) return true;
+    
+    // Check DB config (OAuth or password)
+    try {
+      const config = await this.getDbConfig();
+      if (config?.authMethod === 'oauth') {
+        const tokenInfo = await getValidAccessToken();
+        return !!tokenInfo;
+      }
+      if (config?.authMethod === 'password' && config.email && config.password) {
+        return true;
+      }
+    } catch (error) {
+      console.error('Error checking email configuration:', error);
+    }
+    
+    return false;
   }
 }
 

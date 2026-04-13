@@ -1084,6 +1084,21 @@ export function registerRoutes(app: Express): Server {
   // ═══════════════════════════════════════════════════════════
   app.get('/api/dashboard/stock-breaks', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      // Warehouses that determine quiebre/alert status
+      // Only these 4 warehouses are evaluated for stock breaks
+      const RELEVANT_WAREHOUSES = [
+        'BODEGA CONCEPCION',
+        'BODEGA DEL SUR',
+        'PRODUCTOS TERMINADOS',
+        'SANTIAGO',
+      ];
+
+      // Helper to check if a warehouse name is relevant for quiebre evaluation
+      const isRelevantWarehouse = (name: string): boolean => {
+        const upper = (name || '').toUpperCase().trim();
+        return RELEVANT_WAREHOUSES.some(rw => upper === rw);
+      };
+
       // Get all warehouse-level stock for line products (those in price_list)
       const result = await db.execute(sql`
         SELECT 
@@ -1105,13 +1120,16 @@ export function registerRoutes(app: Express): Server {
         sku: string;
         producto: string;
         formato: string;
-        bodegas: { nombre: string; stock: number }[];
+        bodegas: { nombre: string; stock: number; isRelevant: boolean }[];
         hasQuiebre: boolean;
         stockTotal: number;
       }>();
 
       for (const row of rows) {
         const stock = parseFloat(row.stock) || 0;
+        const bodegaNombre = row.bodega_nombre || '—';
+        const relevant = isRelevantWarehouse(bodegaNombre);
+
         if (!skuMap.has(row.sku)) {
           skuMap.set(row.sku, {
             sku: row.sku,
@@ -1124,16 +1142,18 @@ export function registerRoutes(app: Express): Server {
         }
         const entry = skuMap.get(row.sku)!;
         entry.bodegas.push({
-          nombre: row.bodega_nombre || '—',
+          nombre: bodegaNombre,
           stock: Math.round(stock * 100) / 100,
+          isRelevant: relevant,
         });
         entry.stockTotal += stock;
-        if (stock <= 0) {
+        // Only mark quiebre if the warehouse is one of the relevant ones
+        if (stock <= 0 && relevant) {
           entry.hasQuiebre = true;
         }
       }
 
-      // Filter only products with at least 1 warehouse at 0
+      // Filter only products with quiebre in at least 1 RELEVANT warehouse
       const items = Array.from(skuMap.values())
         .filter(item => item.hasQuiebre)
         .map(item => ({
@@ -1164,6 +1184,7 @@ export function registerRoutes(app: Express): Server {
           totalLinea,
           conQuiebre: items.length,
           warehouses,
+          relevantWarehouses: RELEVANT_WAREHOUSES,
         },
         items,
       });
@@ -10986,6 +11007,92 @@ export function registerRoutes(app: Express): Server {
       }
 
       const order = await storage.convertQuoteToOrder(id, user.id);
+
+      // Send email notification for cotizacion_convertida if configured
+      try {
+        const settings = await db.select()
+          .from(emailNotificationSettings)
+          .where(eq(emailNotificationSettings.notificationType, 'cotizacion_convertida'));
+        
+        const setting = settings[0];
+        if (setting?.enabled && setting?.recipients) {
+          const recipients = setting.recipients.split(',').map((e: string) => e.trim()).filter(Boolean);
+          const ccRecipients = setting.ccRecipients
+            ? setting.ccRecipients.split(',').map((e: string) => e.trim()).filter(Boolean).join(', ')
+            : undefined;
+          
+          const subject = `Cotización #${quote.quoteNumber} Convertida a Pedido - Panorámica`;
+          const htmlBody = wrapEmailContent(`
+            <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">
+              Cotización Convertida a Pedido
+            </h2>
+            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+              La cotización <strong>#${quote.quoteNumber}</strong> del cliente <strong>${quote.clientName}</strong> ha sido convertida a pedido.
+            </p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 20px;">
+              <tr>
+                <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+                  <span style="font-weight: bold; color: #fd6301;">N° Cotización:</span>
+                  <span style="color: #333; margin-left: 8px;">${quote.quoteNumber}</span>
+                </td>
+              </tr>
+              <tr><td style="height: 8px;"></td></tr>
+              <tr>
+                <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
+                  <span style="font-weight: bold; color: #fd6301;">Cliente:</span>
+                  <span style="color: #333; margin-left: 8px;">${quote.clientName}</span>
+                </td>
+              </tr>
+              <tr><td style="height: 8px;"></td></tr>
+              <tr>
+                <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
+                  <span style="font-weight: bold; color: #fd6301;">Convertido por:</span>
+                  <span style="color: #333; margin-left: 8px;">${user.firstName || ''} ${user.lastName || ''}</span>
+                </td>
+              </tr>
+            </table>
+            <div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <p style="color: #2e7d32; margin: 0; font-size: 14px;">
+                ✓ La cotización ha sido convertida exitosamente a pedido.
+              </p>
+            </div>
+          `);
+
+          for (const recipient of recipients) {
+            try {
+              await emailService.sendEmail({
+                to: recipient,
+                cc: ccRecipients,
+                subject,
+                html: htmlBody,
+              });
+              await db.insert(emailLogs).values({
+                recipient,
+                subject,
+                notificationType: 'cotizacion_convertida',
+                status: 'sent',
+                sentAt: new Date(),
+                createdAt: new Date(),
+              });
+              console.log(`📧 Email cotización convertida enviado a ${recipient}`);
+            } catch (emailError: any) {
+              console.error(`❌ Error enviando email cotización convertida a ${recipient}:`, emailError.message);
+              await db.insert(emailLogs).values({
+                recipient,
+                subject,
+                notificationType: 'cotizacion_convertida',
+                status: 'failed',
+                errorMessage: emailError.message,
+                createdAt: new Date(),
+              });
+            }
+          }
+        }
+      } catch (emailError) {
+        // Don't fail the conversion if email fails
+        console.error('Error sending cotizacion_convertida email:', emailError);
+      }
+
       res.status(201).json(order);
     } catch (error) {
       console.error("Error converting quote to order:", error);
@@ -11297,10 +11404,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "PDF data is required" });
       }
 
-      // Check if email service is configured
-      if (!emailService.isConfigured()) {
+      // Check if any email sending method is configured (OAuth, DB password, or env vars)
+      const isEmailConfigured = await emailService.isAnyMethodConfigured();
+      if (!isEmailConfigured) {
         return res.status(503).json({
-          message: "Email service not configured. Please contact administrator.",
+          message: "Email service not configured. Please configure SMTP or connect Gmail via OAuth.",
           configured: false
         });
       }
@@ -11322,6 +11430,7 @@ export function registerRoutes(app: Express): Server {
 
       // Send email with default recipient or custom one
       const recipient = recipientEmail || 'contacto@pinturaspanoramica.cl';
+      const subject = `Nueva Cotización Convertida a Pedido - ${quote.quoteNumber}`;
       await emailService.sendQuoteEmail(
         quote.quoteNumber,
         quote.clientName,
@@ -11329,12 +11438,36 @@ export function registerRoutes(app: Express): Server {
         recipient
       );
 
+      // Log the email in email_logs
+      await db.insert(emailLogs).values({
+        recipient,
+        subject,
+        notificationType: 'cotizacion_email',
+        status: 'sent',
+        sentAt: new Date(),
+        createdAt: new Date(),
+      });
+
       res.json({
         message: "Email sent successfully",
         sentTo: recipient
       });
     } catch (error) {
       console.error("Error sending quote email:", error);
+
+      // Log the failure
+      try {
+        const { recipientEmail } = req.body;
+        await db.insert(emailLogs).values({
+          recipient: recipientEmail || 'contacto@pinturaspanoramica.cl',
+          subject: 'Cotización - Error de envío',
+          notificationType: 'cotizacion_email',
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          createdAt: new Date(),
+        });
+      } catch (_) { /* ignore logging errors */ }
+
       res.status(500).json({
         message: "Failed to send email",
         error: error instanceof Error ? error.message : "Unknown error"
@@ -27427,6 +27560,21 @@ Instrucciones extra:
   // CRM — SEGUIMIENTO DE CLIENTES (Pipeline de Ventas)
   // ==================================================================================
 
+  // GET /api/crm/seguimiento/segmentos — Available segments from stg_tabru
+  app.get('/api/crm/seguimiento/segmentos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const result = await db.execute(sql`SELECT koru, nokoru FROM ventas.stg_tabru ORDER BY nokoru`);
+      const segmentos = (result.rows || []).map((r: any) => ({
+        code: r.koru,
+        name: r.nokoru,
+      }));
+      res.json(segmentos);
+    } catch (e: any) {
+      console.error('Error fetching segmentos:', e.message);
+      res.json([]);
+    }
+  }));
+
   // GET /api/crm/seguimiento/stats — Pipeline statistics
   app.get('/api/crm/seguimiento/stats', requireAuth, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
@@ -27518,7 +27666,17 @@ Instrucciones extra:
     const results = await db.select({
         ...getTableColumns(crmSeguimientoClientes),
         ciudad: clients.cmen,
-        ultimaCompraDate: clients.feultr
+        ultimaCompraDate: clients.feultr,
+        linkedComuna: clients.comuna,
+        linkedProvincia: clients.provincia,
+        linkedCpen: clients.cpen,
+        linkedOben: clients.oben,
+        linkedFoen: clients.foen,
+        linkedCnen: clients.cnen,
+        linkedCnen2: clients.cnen2,
+        linkedPurchasingContact: clients.purchasingContactName,
+        linkedRuen: clients.ruen,
+        linkedSegmento: sql<string>`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`.as('linked_segmento'),
       })
       .from(crmSeguimientoClientes)
       .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
@@ -27549,7 +27707,53 @@ Instrucciones extra:
       ultimoHito: hitosMap[r.id] || null,
     }));
 
-    res.json(enriched);
+    // Compute real last order dates from salesTransactions for linked clients
+    // Get all linked client names (nokoen) for a batch query
+    const linkedClientIds = results.filter(r => r.clienteId).map(r => r.clienteId!);
+    let lastOrderMap: Record<string, string> = {};
+    if (linkedClientIds.length > 0) {
+      try {
+        // Get koen (client code) for each clienteId
+        const linkedClients = await db.select({
+          id: clients.id,
+          koen: clients.koen,
+        })
+          .from(clients)
+          .where(inArray(clients.id, linkedClientIds));
+
+        const clientCodes = linkedClients.filter(c => c.koen).map(c => c.koen!);
+        if (clientCodes.length > 0) {
+          // Query fact_ventas (ETL table) for the most recent invoice date per client
+          const lastOrders = await db.execute(
+            sql`SELECT endo, MAX(feemdo) as max_date 
+                FROM ventas.fact_ventas 
+                WHERE endo IN (${sql.join(clientCodes.map(c => sql`${c}`), sql`, `)})
+                  AND tido != 'GDV'
+                  AND feemdo IS NOT NULL
+                GROUP BY endo`
+          );
+
+          // Build map: clientId -> maxDate
+          const codeToDate: Record<string, string> = {};
+          for (const lo of (lastOrders.rows || [])) {
+            if ((lo as any).endo && (lo as any).max_date) codeToDate[(lo as any).endo] = (lo as any).max_date;
+          }
+          for (const lc of linkedClients) {
+            if (lc.koen && codeToDate[lc.koen]) {
+              lastOrderMap[lc.id] = codeToDate[lc.koen];
+            }
+          }
+        }
+      } catch { /* fallback to feultr silently */ }
+    }
+
+    // Override ultimaCompraDate with real last order dates
+    const finalResults = enriched.map(r => ({
+      ...r,
+      ultimaCompraDate: (r.clienteId && lastOrderMap[r.clienteId]) || r.ultimaCompraDate,
+    }));
+
+    res.json(finalResults);
   }));
 
   // GET /api/crm/seguimiento/:id — Client detail with milestones
@@ -27557,8 +27761,24 @@ Instrucciones extra:
     const { id } = req.params;
     const user = req.user;
 
-    const [cliente] = await db.select()
+    // Join with clients table to get linked fields (same as list endpoint)
+    const [cliente] = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        ciudad: clients.cmen,
+        ultimaCompraDate: clients.feultr,
+        linkedComuna: clients.comuna,
+        linkedProvincia: clients.provincia,
+        linkedCpen: clients.cpen,
+        linkedOben: clients.oben,
+        linkedFoen: clients.foen,
+        linkedCnen: clients.cnen,
+        linkedCnen2: clients.cnen2,
+        linkedPurchasingContact: clients.purchasingContactName,
+        linkedRuen: clients.ruen,
+        linkedSegmento: sql<string>`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`.as('linked_segmento'),
+      })
       .from(crmSeguimientoClientes)
+      .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
       .where(eq(crmSeguimientoClientes.id, id))
       .limit(1);
 
@@ -27579,7 +27799,7 @@ Instrucciones extra:
       .where(eq(crmSeguimientoHitos.seguimientoId, id))
       .orderBy(desc(crmSeguimientoHitos.createdAt));
 
-    // Get linked client info if RUT is set
+    // Get linked client info if clienteId is set
     let clienteVinculado = null;
     if (cliente.clienteId) {
       const [linked] = await db.select()
@@ -27589,8 +27809,30 @@ Instrucciones extra:
       clienteVinculado = linked || null;
     }
 
+    // Compute last order date from fact_ventas (ETL table - more reliable than clients.feultr)
+    let ultimoPedidoReal = cliente.ultimaCompraDate;
+    const clientCode = clienteVinculado?.koen;
+    if (clientCode) {
+      try {
+        const result = await db.execute(
+          sql`SELECT MAX(feemdo) as max_date 
+              FROM ventas.fact_ventas 
+              WHERE endo = ${clientCode}
+                AND tido != 'GDV'
+                AND feemdo IS NOT NULL`
+        );
+        const row = (result.rows || [])[0] as any;
+        if (row?.max_date) {
+          ultimoPedidoReal = row.max_date;
+        }
+      } catch (err) {
+        // Fallback to feultr silently
+      }
+    }
+
     res.json({
       ...cliente,
+      ultimaCompraDate: ultimoPedidoReal,
       hitos,
       clienteVinculado,
     });
@@ -27645,6 +27887,8 @@ Instrucciones extra:
       proximoContacto: req.body.proximoContacto ? new Date(req.body.proximoContacto) : null,
       montoEstimado: req.body.montoEstimado || null,
       origen: req.body.origen || 'manual',
+      region: req.body.region || null,
+      segmento: req.body.segmento || null,
     };
 
     if (!data.nombre) {
@@ -27707,7 +27951,7 @@ Instrucciones extra:
     }
 
     const updateData: any = { updatedAt: new Date() };
-    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto'];
+    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto', 'region', 'segmento'];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {

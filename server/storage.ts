@@ -2336,6 +2336,10 @@ export class DatabaseStorage implements IStorage {
       const [salesperson] = await db.select().from(salespeopleUsers)
         .where(eq(salespeopleUsers.email, user.email));
       if (salesperson) {
+        // IMPORTANT: Preserve admin/supervisor role from the users table.
+        // Only use the salesperson role if the users table role is not a privileged role.
+        const privilegedRoles = ['admin', 'supervisor'];
+        const effectiveRole = privilegedRoles.includes(user.role) ? user.role : salesperson.role;
         return {
           ...user,
           salespersonName: salesperson.salespersonName,
@@ -2344,7 +2348,7 @@ export class DatabaseStorage implements IStorage {
           supervisorId: salesperson.supervisorId,
           assignedSegment: salesperson.assignedSegment,
           publicSlug: salesperson.publicSlug,
-          role: salesperson.role, // Use the salesperson role (vendedor)
+          role: effectiveRole,
         } as User;
       }
       return user;
@@ -2387,6 +2391,10 @@ export class DatabaseStorage implements IStorage {
       const [salesperson] = await db.select().from(salespeopleUsers)
         .where(ilike(salespeopleUsers.email, email));
       if (salesperson) {
+        // IMPORTANT: Preserve admin/supervisor role from the users table.
+        // Only use the salesperson role if the users table role is not a privileged role.
+        const privilegedRoles = ['admin', 'supervisor'];
+        const effectiveRole = privilegedRoles.includes(user.role) ? user.role : salesperson.role;
         return {
           ...user,
           salespersonName: salesperson.salespersonName,
@@ -2395,7 +2403,7 @@ export class DatabaseStorage implements IStorage {
           supervisorId: salesperson.supervisorId,
           assignedSegment: salesperson.assignedSegment,
           publicSlug: salesperson.publicSlug,
-          role: salesperson.role, // Use the salesperson role (vendedor)
+          role: effectiveRole,
         } as User;
       }
       return user;

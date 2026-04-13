@@ -511,6 +511,7 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pickup_warehouse_id VARCHAR`);
     await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS assigned_salesperson_user_id VARCHAR`);
     await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS user_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS purchasing_contact_name TEXT`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_clients_parent" ON clients(parent_client_id)`);
 
     // 13. Ensure store_config has all required columns (ad_settings, checkout_settings)

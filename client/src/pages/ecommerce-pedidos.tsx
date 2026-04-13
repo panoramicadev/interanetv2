@@ -31,11 +31,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   EcommerceOrder, OrderDetailView, formatPrice, statusConfig, timeAgo, getOrderItems
 } from "@/components/ecommerce/order-detail-view";
+import { useLocation } from "wouter";
 // ==================== MAIN PAGE ====================
 export default function EcommercePedidos() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
+  const [, navigate] = useLocation();
 
   const { data: orders = [], isLoading } = useQuery<EcommerceOrder[]>({
     queryKey: ['/api/ecommerce/orders', statusFilter],
@@ -71,7 +73,11 @@ export default function EcommercePedidos() {
   if (selectedOrder) {
     return (
       <div className="max-w-6xl mx-auto p-6">
-        <OrderDetailView order={selectedOrder} onBack={() => setSelectedOrder(null)} onOrderDeleted={() => setSelectedOrder(null)} />
+        <OrderDetailView 
+          order={selectedOrder} 
+          onBack={() => setSelectedOrder(null)} 
+          onOrderDeleted={() => setSelectedOrder(null)} 
+        />
       </div>
     );
   }

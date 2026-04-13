@@ -24,6 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { EcommerceQuoteModal } from "./ecommerce-quote-modal";
 
 // Export the types so order lists can use them
 export interface OrderItem {
@@ -123,10 +124,11 @@ interface OrderDetailViewProps {
   order: EcommerceOrder;
   onBack: () => void;
   onOrderDeleted?: () => void;
+  onGenerateQuote?: () => void;
   isClientView?: boolean; // Determines if admin actions are hidden
 }
 
-export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = false }: OrderDetailViewProps) {
+export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote, isClientView = false }: OrderDetailViewProps) {
   const items = getOrderItems(order);
   const statusKey = order.status?.toLowerCase() || 'pending';
   const status = statusConfig[statusKey] || statusConfig.pending;
@@ -137,6 +139,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState<number | null>(null);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
   const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
   const subtotal = parseFloat(order.subtotal || '0') || items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0);
@@ -327,7 +330,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-sm">
+            <Button size="sm" className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-sm" onClick={() => setShowQuoteModal(true)}>
               <FileText className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Generar Cotización</span>
             </Button>
@@ -372,6 +375,15 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        )}
+
+        {/* Quick Quote Modal */}
+        {showQuoteModal && (
+          <EcommerceQuoteModal 
+            order={currentOrder} 
+            open={showQuoteModal} 
+            onOpenChange={setShowQuoteModal} 
+          />
         )}
       </div>
 

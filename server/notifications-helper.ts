@@ -1,6 +1,9 @@
 import { db } from './db';
-import { notifications } from '@shared/schema';
+import { notifications, emailNotificationSettings, emailLogs } from '@shared/schema';
 import { nanoid } from 'nanoid';
+import { emailService } from './services/email';
+import { wrapEmailContent } from './email-templates';
+import { eq } from 'drizzle-orm';
 
 interface NotificationData {
   targetType: 'general' | 'personal' | 'departamento';
@@ -13,7 +16,7 @@ interface NotificationData {
   createdByName: string;
 }
 
-export async function createAutoNotification(data: NotificationData) {
+export async function createAutoNotification(data: NotificationData & { emailNotificationType?: string }) {
   try {
     const result = await db.insert(notifications).values({
       userId: data.targetUserId || null,
@@ -33,10 +36,99 @@ export async function createAutoNotification(data: NotificationData) {
 
     const notificationId = result[0]?.id;
     console.log(`✅ Notificación automática creada: ${data.title}`);
+
+    // Send email notification if configured
+    if (data.emailNotificationType) {
+      await sendEmailForNotification(data.emailNotificationType, data.title, data.message);
+    }
+
     return notificationId;
   } catch (error) {
     console.error('Error creando notificación automática:', error);
     return null;
+  }
+}
+
+/**
+ * Checks email_notification_settings for the given type and sends emails
+ * to configured recipients if enabled.
+ */
+async function sendEmailForNotification(notificationType: string, title: string, message: string) {
+  try {
+    const settings = await db.select()
+      .from(emailNotificationSettings)
+      .where(eq(emailNotificationSettings.notificationType, notificationType));
+    
+    const setting = settings[0];
+    if (!setting || !setting.enabled || !setting.recipients) {
+      return; // Not enabled or no recipients
+    }
+
+    const recipients = setting.recipients.split(',').map(e => e.trim()).filter(Boolean);
+    if (recipients.length === 0) return;
+
+    // Clean emoji from title for email subject
+    const cleanTitle = title.replace(/[\u{1F600}-\u{1F6FF}\u{2600}-\u{2B55}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}]/gu, '').trim();
+    const subject = `${cleanTitle} - Panorámica`;
+
+    const priorityColors: Record<string, string> = {
+      critica: '#dc2626',
+      alta: '#ea580c',
+      media: '#2563eb',
+      baja: '#6b7280',
+    };
+
+    const htmlBody = wrapEmailContent(`
+      <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">
+        ${title}
+      </h2>
+      <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+        ${message}
+      </p>
+      <div style="background-color: #f0f9ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin: 20px 0;">
+        <p style="color: #0369a1; margin: 0; font-size: 13px;">
+          Este es un correo automático generado por el sistema de notificaciones Panorámica.
+        </p>
+      </div>
+    `);
+
+    const ccRecipients = setting.ccRecipients
+      ? setting.ccRecipients.split(',').map(e => e.trim()).filter(Boolean).join(', ')
+      : undefined;
+
+    for (const recipient of recipients) {
+      try {
+        await emailService.sendEmail({
+          to: recipient,
+          cc: ccRecipients,
+          subject,
+          html: htmlBody,
+        });
+
+        await db.insert(emailLogs).values({
+          recipient,
+          subject,
+          notificationType,
+          status: 'sent',
+          sentAt: new Date(),
+          createdAt: new Date(),
+        });
+
+        console.log(`📧 Email de notificación enviado a ${recipient} (tipo: ${notificationType})`);
+      } catch (error: any) {
+        console.error(`❌ Error enviando email a ${recipient}:`, error.message);
+        await db.insert(emailLogs).values({
+          recipient,
+          subject,
+          notificationType,
+          status: 'failed',
+          errorMessage: error.message,
+          createdAt: new Date(),
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error en sendEmailForNotification:', error);
   }
 }
 
@@ -49,6 +141,7 @@ export async function notifyReclamoCreated(reclamoId: string, motivo: string, cl
     priority: 'alta',
     actionUrl: `/reclamos-generales`,
     createdByName: `Sistema - ${createdBy}`,
+    emailNotificationType: 'reclamo_nuevo',
   });
 }
 
@@ -99,6 +192,7 @@ export async function notifyMantencionCreada(equipmentName: string, severity: st
     targetDepartment: 'Producción',
     actionUrl: `/mantenciones`,
     createdByName: `Sistema - ${createdBy}`,
+    emailNotificationType: 'mantencion_preventiva',
   });
 }
 
@@ -123,6 +217,7 @@ export async function notifyNuevaOrden(orderNumber: string, clientName: string, 
     targetDepartment: 'Logística',
     actionUrl: `/ecommerce`,
     createdByName: 'Sistema - E-commerce',
+    emailNotificationType: 'pedido_nuevo',
   });
 }
 
@@ -171,6 +266,7 @@ export async function notifyStockBajo(productName: string, stock: number, minSto
     targetDepartment: 'Logística',
     actionUrl: `/inventario`,
     createdByName: 'Sistema - Inventario',
+    emailNotificationType: 'stock_bajo',
   });
 }
 
@@ -196,6 +292,7 @@ export async function notifyVisitaTecnicaCreada(clientName: string, visitType: s
     priority: 'media',
     actionUrl: `/visitas-tecnicas`,
     createdByName: `Sistema - ${createdBy}`,
+    emailNotificationType: 'visita_tecnica',
   });
 }
 

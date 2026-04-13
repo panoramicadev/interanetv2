@@ -517,7 +517,7 @@ const pdfStyles = StyleSheet.create({
 });
 
 // React-PDF Document Component
-const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false }: { quote: any; items: any[]; shippingCost?: number; showDiscount?: boolean }) => {
+export const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false }: { quote: any; items: any[]; shippingCost?: number; showDiscount?: boolean }) => {
   const formatCurrency = (value: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -766,6 +766,17 @@ export default function TomadorPedidos() {
     }
   }, [location]);
 
+  // Auto-load ecommerce order for quoting when ecommerceOrderId is in URL
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const ecommerceOrderId = searchParams.get('ecommerceOrderId');
+
+    if (ecommerceOrderId) {
+      loadEcommerceOrderFromUrl(ecommerceOrderId);
+      setActiveTab('constructor');
+    }
+  }, [location]);
+
   // Function to load a quote for editing
   const loadQuoteForEditing = async (quoteId: string) => {
     try {
@@ -926,6 +937,43 @@ export default function TomadorPedidos() {
     setCart(cartItems);
     setShowQuoteBuilder(true);
     setDefaultMobileTab("cart");
+  };
+
+  const loadEcommerceOrderFromUrl = async (orderId: string) => {
+    try {
+      const response = await apiRequest(`/api/ecommerce/orders/${orderId}`);
+      if (!response.ok) throw new Error('Failed to load order');
+      const order = await response.json();
+      
+      const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+      
+      const quoteData: QuoteFromOrderData = {
+        clientName: order.clientName,
+        clientEmail: order.clientEmail || '',
+        clientPhone: order.clientPhone || '',
+        clientCompany: order.clientCompany || '',
+        notes: order.notes ? `[Pedido ecommerce] ${order.notes}` : '[Pedido ecommerce]',
+        items: items.map((item: any) => ({
+          productCode: item.productCode || item.sku || '',
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.price || item.unitPrice || 0,
+        })),
+      };
+      
+      await loadEcommerceOrderForQuote(quoteData);
+      
+      // Clean up URL
+      const currentPath = location.split('?')[0];
+      navigate(currentPath, { replace: true });
+    } catch (error) {
+      console.error('Error loading ecommerce order for quote:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el pedido para cotizar",
+        variant: "destructive",
+      });
+    }
   };
 
   const [searchTerm, setSearchTerm] = useState("");

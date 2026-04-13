@@ -1394,109 +1394,157 @@ export default function EcommerceUsuarios() {
 
   const formatDate = (date: string | null) => {
     if (!date) return "—";
-    const associatedClients = filteredClients.filter((c) => c.clientId);
+    try {
+      return new Date(date).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+    } catch {
+      return "—";
+    }
+  };
+
+  const associatedClients = filteredClients.filter((c) => c.clientId);
   const nonAssociatedClients = filteredClients.filter((c) => !c.clientId);
 
-  const renderClientsList = (list: ClientUser[], emptyMessage: string) => {
+  // ─── If a client is selected, show the profile detail panel ───
+  if (selectedClient) {
+    return (
+      <ClientProfile
+        client={selectedClient}
+        onBack={() => setSelectedClient(null)}
+        onClientUpdated={(updated) => setSelectedClient(updated)}
+      />
+    );
+  }
+
+  // ─── Render user table rows ───
+  const renderUsersTable = (list: ClientUser[], emptyMessage: string) => {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
+            <p className="text-sm text-gray-400">Cargando usuarios...</p>
+          </div>
         </div>
       );
     }
     if (list.length === 0) {
       return (
-        <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
-          <CardContent className="py-16 text-center">
-            <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-500">
-              {searchTerm ? "Sin resultados" : emptyMessage}
-            </h3>
-            <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
-              {searchTerm ? "Intenta con otro término de búsqueda" : ""}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-20 px-6">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+            <Users className="h-8 w-8 text-gray-300" />
+          </div>
+          <h3 className="text-base font-semibold text-gray-500">
+            {searchTerm ? "Sin resultados" : emptyMessage}
+          </h3>
+          <p className="text-sm text-gray-400 mt-1.5 max-w-sm text-center">
+            {searchTerm ? "Intenta con otro término de búsqueda." : "Crea un nuevo usuario para comenzar."}
+          </p>
+        </div>
       );
     }
     return (
-      <div className="space-y-3">
-        {list.map((client) => (
-          <Card
-            key={client.id}
-            className="bg-white dark:bg-gray-800 hover:shadow-md transition-all cursor-pointer group border border-gray-100 hover:border-blue-200"
-            onClick={() => setSelectedClient(client)}
-          >
-            <CardContent className="p-4">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                {/* Avatar + Name */}
-                <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm">
-                    {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                        {client.clientName}
-                      </h3>
-                    </div>
-                    {client.email && (
-                      <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
-                        <Mail className="h-3 w-3 flex-shrink-0 opacity-70" />
-                        {client.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
+      <div className="overflow-hidden">
+        {/* Table Header */}
+        <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-5 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
+          <div className="col-span-4">Cliente</div>
+          <div className="col-span-2">Identificación</div>
+          <div className="col-span-2">Contacto</div>
+          <div className="col-span-2">Estado</div>
+          <div className="col-span-2 text-right">Registro</div>
+        </div>
 
-                {/* Info pills */}
-                <div className="flex flex-wrap items-center gap-2 lg:flex-1">
-                  {client.clientCode && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                      <Hash className="h-3.5 w-3.5 opacity-60" /> {client.clientCode}
-                    </span>
-                  )}
-                  {client.rut && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                      <Building2 className="h-3.5 w-3.5 opacity-60" /> {client.rut}
-                    </span>
-                  )}
-                  {client.phone && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                      <Phone className="h-3.5 w-3.5 opacity-60" /> {client.phone}
-                    </span>
-                  )}
-                  {client.branchLabel && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-violet-50/80 text-violet-600 px-2.5 py-1 rounded-md border border-violet-100 font-medium">
-                      <GitBranch className="h-3.5 w-3.5 opacity-60" /> Sucursal: {client.branchLabel}
-                    </span>
+        {/* Table Rows */}
+        <div className="divide-y divide-gray-50">
+          {list.map((client, idx) => (
+            <div
+              key={client.id}
+              onClick={() => setSelectedClient(client)}
+              className={`group grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 px-5 py-4 cursor-pointer transition-all duration-150 hover:bg-blue-50/40 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+            >
+              {/* Client Name + Avatar */}
+              <div className="col-span-4 flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all">
+                  {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                    {client.clientName}
+                  </p>
+                  {client.email && (
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{client.email}</p>
                   )}
                 </div>
+              </div>
 
-                {/* Date + Action */}
-                <div className="flex items-center gap-4 text-xs text-gray-400 lg:w-auto lg:flex-shrink-0">
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 opacity-60" />
-                    {formatDate(client.createdAt)}
+              {/* Identification */}
+              <div className="col-span-2 flex flex-col justify-center gap-1">
+                {client.clientCode && (
+                  <span className="text-xs text-gray-600 font-mono bg-gray-100 rounded px-1.5 py-0.5 w-fit">{client.clientCode}</span>
+                )}
+                {client.rut && (
+                  <span className="text-xs text-gray-500">{client.rut}</span>
+                )}
+                {!client.clientCode && !client.rut && (
+                  <span className="text-xs text-gray-300 italic">Sin datos</span>
+                )}
+              </div>
+
+              {/* Contact */}
+              <div className="col-span-2 flex flex-col justify-center gap-1">
+                {client.phone && (
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <Phone className="h-3 w-3 text-gray-400" /> {client.phone}
                   </span>
+                )}
+                {client.branchLabel && (
+                  <span className="text-xs text-violet-600 flex items-center gap-1 font-medium">
+                    <GitBranch className="h-3 w-3" /> {client.branchLabel}
+                  </span>
+                )}
+                {!client.phone && !client.branchLabel && (
+                  <span className="text-xs text-gray-300">—</span>
+                )}
+              </div>
+
+              {/* Status */}
+              <div className="col-span-2 flex items-center">
+                {client.clientId ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Vinculado SAP
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    Sin ficha
+                  </span>
+                )}
+              </div>
+
+              {/* Date + Action */}
+              <div className="col-span-2 flex items-center justify-end gap-3">
+                <span className="text-xs text-gray-400 hidden lg:block">{formatDate(client.createdAt)}</span>
+                <div className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-700"
+                    className="h-7 px-2.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1.5" />
-                    Ver perfil
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    Ver
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          ))}
+        </div>
 
-        <p className="text-xs text-gray-400 text-center pt-2">
-          Mostrando {list.length} usuarios
-        </p>
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/30 flex items-center justify-between">
+          <p className="text-xs text-gray-400">
+            {list.length} usuario{list.length !== 1 ? 's' : ''}
+          </p>
+        </div>
       </div>
     );
   };
@@ -1506,218 +1554,203 @@ export default function EcommerceUsuarios() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 flex items-center gap-2">
-            <ShoppingBag className="h-7 w-7 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-sm">
+              <ShoppingBag className="h-5 w-5 text-white" />
+            </div>
             Usuarios eCommerce
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 mt-1.5 ml-[46px]">
             Gestión de clientes con acceso al portal de compras
           </p>
         </div>
         <Button
           onClick={() => setIsCreateClientDialogOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg transition-all rounded-full h-10 px-5"
+          className="bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md transition-all h-9 px-4 text-sm font-medium"
         >
           <UserPlus className="w-4 h-4 mr-2" />
-          Nuevo Usuario Cliente
+          Nuevo Usuario
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Total Usuarios</p>
-              <p className="text-3xl font-black text-blue-900 mt-1 drop-shadow-sm">{clients.length}</p>
-            </div>
-            <div className="bg-blue-200/50 p-3 rounded-xl">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Con Ficha SAP (RUT)</p>
-              <p className="text-3xl font-black text-green-900 mt-1 drop-shadow-sm">{associatedClients.length}</p>
-            </div>
-            <div className="bg-green-200/50 p-3 rounded-xl">
-              <Building2 className="h-6 w-6 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest">Sin Ficha SAP</p>
-              <p className="text-3xl font-black text-purple-900 mt-1 drop-shadow-sm">{nonAssociatedClients.length}</p>
-            </div>
-            <div className="bg-purple-200/50 p-3 rounded-xl">
-              <KeyRound className="h-6 w-6 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Users className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{clients.length}</p>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Total</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{associatedClients.length}</p>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Vinculados SAP</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+            <KeyRound className="h-5 w-5 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{nonAssociatedClients.length}</p>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Sin ficha</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+            <FileText className="h-5 w-5 text-rose-500" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{pendingRequests.length}</p>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Solicitudes</p>
+          </div>
+        </div>
       </div>
 
-      {/* Global Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Buscar por nombre, email, RUT o código..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 text-sm rounded-xl border-gray-200 shadow-sm focus-visible:ring-blue-500 h-10"
-        />
-      </div>
+      {/* Search + Tabs Container */}
+      <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm overflow-hidden">
+        {/* Search & Tabs Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 pt-5 pb-4">
+          <Tabs defaultValue="asociados" className="w-full" onValueChange={() => {}}>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+              <TabsList className="h-9 bg-gray-100/80 rounded-lg p-0.5 gap-0.5">
+                <TabsTrigger value="asociados" className="h-8 text-xs px-3 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-700 font-medium">
+                  Vinculados
+                  <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700 border-none">{associatedClients.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="no-asociados" className="h-8 text-xs px-3 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-amber-700 font-medium">
+                  Sin ficha
+                  {nonAssociatedClients.length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-none">{nonAssociatedClients.length}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="requests" className="h-8 text-xs px-3 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm font-medium relative">
+                  Solicitudes
+                  {pendingRequests.length > 0 && (
+                    <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 min-w-4 flex items-center justify-center border-none">
+                      {pendingRequests.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-      <Tabs defaultValue="asociados" className="w-full">
-        <TabsList className="w-full sm:w-auto inline-flex h-auto p-1.5 bg-slate-100/80 rounded-2xl gap-1.5">
-          <TabsTrigger value="asociados" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm">
-            <Building2 className="h-4 w-4" /> Asociados a RUT
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 border-none">{associatedClients.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="no-asociados" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm">
-            <KeyRound className="h-4 w-4" /> No Asociados
-            {nonAssociatedClients.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 border-none">{nonAssociatedClients.length}</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="requests" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all relative data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <FileText className="h-4 w-4" /> Solicitudes Pendientes
-            {pendingRequests.length > 0 && (
-              <Badge variant="destructive" className="ml-1 px-1.5 py-0 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] rounded-full sm:static sm:mr-0 border-none shadow-sm">
-                {pendingRequests.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="asociados" className="mt-6 animation-fade-in">
-          {renderClientsList(associatedClients, "No hay clientes asociados a RUT en este momento.")}
-        </TabsContent>
-
-        <TabsContent value="no-asociados" className="mt-6 animation-fade-in">
-          {renderClientsList(nonAssociatedClients, "No hay clientes sin asociar.")}
-        </TabsContent>         </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              <p className="text-xs text-gray-400 text-center pt-2">
-                Mostrando {filteredClients.length} de {clients.length} usuarios
-              </p>
+              <div className="relative sm:ml-auto sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <Input
+                  placeholder="Buscar usuario..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 text-sm rounded-lg border-gray-200 bg-gray-50/50 focus-visible:bg-white focus-visible:ring-blue-500"
+                />
+              </div>
             </div>
-          )}
-        </TabsContent>
 
-        <TabsContent value="requests" className="space-y-6 mt-6">
-          {loadingRequests ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            </div>
-          ) : rawRequests.length === 0 ? (
-            <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
-              <CardContent className="py-16 text-center">
-                <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">
-                  No hay solicitudes de cuentas registradas
-                </h3>
-                <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
-                  Cuando los clientes llenan el formulario de registro en la tienda virtual, aparecerán aquí para ser procesados.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {/* Pending Section */}
-              {pendingRequests.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                     <span className="w-2 h-2 rounded-full bg-amber-500" />
-                     Nuevas Solicitudes Pendientes ({pendingRequests.length})
-                  </h3>
-                  {pendingRequests.map((req: any) => (
-                    <Card key={req.id} className="border-amber-200/50 hover:border-amber-300 transition-all shadow-sm">
-                       <CardContent className="p-4 sm:p-5">
-                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-3">
-                                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
-                                      {req.empresa?.[0]?.toUpperCase() || "?"}
-                                   </div>
-                                   <div>
-                                      <h4 className="text-base font-bold text-gray-900 leading-tight">{req.empresa}</h4>
-                                      <span className="text-xs font-medium text-gray-500">{formatDate(req.createdAt)} • RUT: {req.rut}</span>
-                                   </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-gray-50">
-                                   <div className="space-y-1">
-                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Contacto</span>
-                                      <p className="text-sm text-gray-700 font-medium">{req.contacto || '—'}</p>
-                                   </div>
-                                   <div className="space-y-1">
-                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Email</span>
-                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><Mail className="w-3 h-3 opacity-60"/> {req.email || '—'}</p>
-                                   </div>
-                                   <div className="space-y-1">
-                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Teléfono</span>
-                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><Phone className="w-3 h-3 opacity-60"/> {req.telefono || '—'}</p>
-                                   </div>
-                                   <div className="space-y-1">
-                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Ciudad</span>
-                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><MapPin className="w-3 h-3 opacity-60"/> {req.ciudad || '—'}</p>
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="flex md:flex-col gap-2 pt-4 md:pt-0 border-t border-gray-100 md:border-0 shrink-0">
-                                <Button size="sm" variant="outline" className="w-full text-xs bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
-                                   onClick={() => {
-                                      if (confirm(`¿Marcar la solicitud de ${req.empresa} como revisada / aprobada?`)) {
-                                         updateRequestStatus.mutate({ id: req.id, status: 'aprobado' });
-                                      }
-                                   }}
-                                >
-                                   Marcar como revisado
-                                </Button>
-                             </div>
-                          </div>
-                       </CardContent>
-                    </Card>
-                  ))}
+            <TabsContent value="asociados" className="mt-0 pt-0 -mx-5">
+              {renderUsersTable(associatedClients, "No hay clientes vinculados a SAP.")}
+            </TabsContent>
+
+            <TabsContent value="no-asociados" className="mt-0 pt-0 -mx-5">
+              {renderUsersTable(nonAssociatedClients, "No hay clientes sin ficha SAP.")}
+            </TabsContent>
+
+            <TabsContent value="requests" className="mt-4 space-y-4">
+              {loadingRequests ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
                 </div>
-              )}
-
-              {/* Processed Section */}
-              {processedRequests.length > 0 && (
-                <div className="space-y-3 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-500">
-                     <span className="w-2 h-2 rounded-full bg-gray-300" />
-                     Solicitudes Procesadas
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                     {processedRequests.map((req: any) => (
-                        <Card key={req.id} className="border-gray-100 shadow-none bg-gray-50">
-                           <CardContent className="p-3 sm:p-4">
-                              <div className="flex justify-between items-start">
-                                 <div>
-                                    <h4 className="text-sm font-bold text-gray-700">{req.empresa}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">{req.contacto} • {req.email}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{req.rut} / {req.telefono}</p>
-                                 </div>
-                                 <Badge variant="outline" className="text-[10px] bg-white text-gray-500 font-medium">
-                                    Revisada
-                                 </Badge>
-                              </div>
-                           </CardContent>
-                        </Card>
-                     ))}
+              ) : rawRequests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                    <FileText className="h-8 w-8 text-gray-300" />
                   </div>
+                  <h3 className="text-base font-semibold text-gray-500">No hay solicitudes</h3>
+                  <p className="text-sm text-gray-400 mt-1.5 max-w-sm text-center">
+                    Cuando los clientes se registren en la tienda virtual, aparecerán aquí.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {/* Pending Section */}
+                  {pendingRequests.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold flex items-center gap-2 text-gray-500 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        Pendientes ({pendingRequests.length})
+                      </h3>
+                      {pendingRequests.map((req: any) => (
+                        <div key={req.id} className="border border-amber-100 rounded-xl p-4 bg-amber-50/30 hover:bg-amber-50/60 transition-colors">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                                {req.empresa?.[0]?.toUpperCase() || "?"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-gray-900 truncate">{req.empresa}</p>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500">
+                                  <span>RUT: {req.rut}</span>
+                                  {req.contacto && <span>• {req.contacto}</span>}
+                                  {req.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {req.email}</span>}
+                                  {req.telefono && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {req.telefono}</span>}
+                                  {req.ciudad && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {req.ciudad}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-gray-400">{formatDate(req.createdAt)}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                                onClick={() => {
+                                  if (confirm(`¿Marcar la solicitud de ${req.empresa} como revisada?`)) {
+                                    updateRequestStatus.mutate({ id: req.id, status: 'aprobado' });
+                                  }
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" />
+                                Revisada
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Processed Section */}
+                  {processedRequests.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-gray-100">
+                      <h3 className="text-xs font-semibold flex items-center gap-2 text-gray-400 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-gray-300" />
+                        Procesadas
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {processedRequests.map((req: any) => (
+                          <div key={req.id} className="border border-gray-100 rounded-lg p-3 bg-gray-50/50">
+                            <div className="flex justify-between items-start">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-600 truncate">{req.empresa}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{req.contacto} • {req.email}</p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] text-gray-400 font-medium shrink-0 ml-2">
+                                Revisada
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
 
       {/* ─── Dialog Crear Usuario Cliente ───────────────────── */}
       <Dialog open={isCreateClientDialogOpen} onOpenChange={setIsCreateClientDialogOpen}>

@@ -655,6 +655,9 @@ export const clients = pgTable("clients", {
   pagnocan: numeric("pagnocan", { precision: 15, scale: 2 }), // Uncanceled payments
   anticipos: numeric("anticipos", { precision: 15, scale: 2 }), // Advances
 
+  // CRM fields
+  purchasingContactName: text("purchasing_contact_name"), // Nombre del encargado de compras
+
   // Branch hierarchy (sucursales)
   parentClientId: varchar("parent_client_id"), // FK auto-ref → clients.id (empresa matriz)
   branchLabel: varchar("branch_label"), // Etiqueta de sucursal ("Santiago Centro", "Valparaíso", etc.)
@@ -7089,6 +7092,8 @@ export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
   email: varchar("email"),
   empresa: varchar("empresa"),
   rut: varchar("rut"), // RUT asociado (opcional, vincula con clients.rten)
+  region: varchar("region"), // Región de Chile (editable)
+  segmento: varchar("segmento"), // Segmento del cliente (editable, ej: FERRETERIAS, CONSTRUCCION)
   clienteId: varchar("cliente_id"), // FK a clients.id si se vincula un RUT
   vendedorId: varchar("vendedor_id").notNull(), // FK a salespeople_users.id
   vendedorNombre: varchar("vendedor_nombre").notNull(), // Denormalizado para performance

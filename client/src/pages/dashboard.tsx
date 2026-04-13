@@ -405,12 +405,12 @@ export default function Dashboard() {
 
   // Stock breaks query - lightweight, fetches on demand
   const { data: stockBreaks, isLoading: isLoadingStockBreaks, error: stockBreaksError } = useQuery<{
-    summary: { totalLinea: number; conQuiebre: number; warehouses: string[] };
+    summary: { totalLinea: number; conQuiebre: number; warehouses: string[]; relevantWarehouses?: string[] };
     items: {
       sku: string;
       producto: string;
       formato: string;
-      bodegas: { nombre: string; stock: number }[];
+      bodegas: { nombre: string; stock: number; isRelevant?: boolean }[];
       hasQuiebre: boolean;
       stockTotal: number;
     }[];
@@ -2126,7 +2126,7 @@ export default function Dashboard() {
               Información importante
             </DialogTitle>
             <DialogDescription>
-              Quiebres de stock de productos de línea — productos con stock 0 en al menos una bodega.
+              Quiebres de stock de productos de línea — productos con stock 0 en bodegas clave: <strong>Concepción, Del Sur, Productos Terminados y Santiago</strong>.
             </DialogDescription>
           </DialogHeader>
 
@@ -2154,63 +2154,80 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Items list */}
+              {/* Items grouped by warehouse */}
               {stockBreaks.items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <CheckCircle className="h-10 w-10 text-green-500 mb-3" />
                   <p className="font-semibold text-green-700 dark:text-green-400">Sin quiebres de stock</p>
-                  <p className="text-sm text-muted-foreground">Todos los productos de línea tienen stock en todas las bodegas.</p>
+                  <p className="text-sm text-muted-foreground">Todos los productos de línea tienen stock en las bodegas evaluadas.</p>
                 </div>
-              ) : (
-                <div className="overflow-auto max-h-[50vh] rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-800/60 sticky top-0 z-10">
-                      <tr>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">SKU</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Producto</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">Formato</th>
-                        {stockBreaks.summary.warehouses.map(wh => (
-                          <th key={wh} className="text-center px-2 py-2 text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
-                            {wh}
-                          </th>
-                        ))}
-                        <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {stockBreaks.items.map((item, idx) => {
-                        // Build a map of warehouse name -> stock for quick lookup
-                        const whStockMap = new Map<string, number>();
-                        for (const b of item.bodegas) {
-                          whStockMap.set(b.nombre, b.stock);
-                        }
-                        return (
-                          <tr key={`${item.sku}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
-                            <td className="px-3 py-1.5 font-mono text-[11px] text-gray-600 dark:text-gray-400 whitespace-nowrap">{item.sku}</td>
-                            <td className="px-3 py-1.5 text-xs max-w-[200px] truncate" title={item.producto}>{item.producto}</td>
-                            <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{item.formato}</td>
-                            {stockBreaks.summary.warehouses.map(wh => {
-                              const stock = whStockMap.get(wh);
-                              const isZero = stock !== undefined && stock <= 0;
-                              const hasStock = stock !== undefined && stock > 0;
+              ) : (() => {
+                // Group products by relevant warehouse with zero stock
+                const relevantWarehouses = stockBreaks.summary.relevantWarehouses || [];
+                const warehouseGroups: { warehouse: string; products: typeof stockBreaks.items }[] = [];
+
+                for (const rw of relevantWarehouses) {
+                  const productsInQuiebre = stockBreaks.items.filter(item => {
+                    const bodega = item.bodegas.find(b => b.nombre.toUpperCase().trim() === rw.toUpperCase());
+                    return bodega !== undefined && bodega.stock <= 0;
+                  });
+                  if (productsInQuiebre.length > 0) {
+                    warehouseGroups.push({ warehouse: rw, products: productsInQuiebre });
+                  }
+                }
+
+                return (
+                  <div className="overflow-auto max-h-[50vh] space-y-4">
+                    {warehouseGroups.map(group => (
+                      <div key={group.warehouse} className="rounded-lg border overflow-hidden">
+                        {/* Warehouse header */}
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-red-50 to-amber-50 dark:from-red-900/20 dark:to-amber-900/20 border-b">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                            <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                              {group.warehouse}
+                            </h4>
+                          </div>
+                          <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700 text-xs px-2">
+                            {group.products.length} {group.products.length === 1 ? 'producto sin stock' : 'productos sin stock'}
+                          </Badge>
+                        </div>
+                        {/* Products table for this warehouse */}
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50/80 dark:bg-gray-800/40">
+                            <tr>
+                              <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">SKU</th>
+                              <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Producto</th>
+                              <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Formato</th>
+                              <th className="text-center px-3 py-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Stock</th>
+                              <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Stock Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {group.products.map((item, idx) => {
+                              const bodega = item.bodegas.find(b => b.nombre.toUpperCase().trim() === group.warehouse.toUpperCase());
+                              const stockInWarehouse = bodega ? Math.round(bodega.stock) : 0;
                               return (
-                                <td key={wh} className={`px-2 py-1.5 text-center text-xs font-medium tabular-nums whitespace-nowrap ${
-                                  isZero ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-bold' :
-                                  hasStock ? 'text-green-700 dark:text-green-400' :
-                                  'text-gray-300'
-                                }`}>
-                                  {stock !== undefined ? Math.round(stock) : '—'}
-                                </td>
+                                <tr key={`${group.warehouse}-${item.sku}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+                                  <td className="px-3 py-1.5 font-mono text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{item.sku}</td>
+                                  <td className="px-3 py-1.5 text-xs max-w-[250px] truncate" title={item.producto}>{item.producto}</td>
+                                  <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{item.formato}</td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                                      {stockInWarehouse}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right text-xs font-semibold tabular-nums text-gray-600 dark:text-gray-300">{Math.round(item.stockTotal)}</td>
+                                </tr>
                               );
                             })}
-                            <td className="px-3 py-1.5 text-right text-xs font-bold tabular-nums">{Math.round(item.stockTotal)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           ) : null}
 

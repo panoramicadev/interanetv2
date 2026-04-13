@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -30,10 +31,15 @@ import {
   Plus,
   ShoppingCart,
   Gift,
-  ChevronRight
+  ChevronRight,
+  BookOpen,
+  MessageSquare,
+  Trash2,
+  AlertCircle,
+  Send
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,6 +65,12 @@ interface Client {
   gien: string | null;
   sien: string | null;
   ruen: string | null;
+  comuna: string | null;
+  provincia: string | null;
+  oben: string | null;
+  cnen: string | null;
+  cnen2: string | null;
+  purchasingContactName: string | null;
   totalTransactions?: number;
   totalSales?: number;
   lastTransactionDate?: string;
@@ -66,6 +78,46 @@ interface Client {
   lastTransactionAmount?: number;
   salesSegment?: string;
 }
+
+interface BitacoraEntry {
+  id: string;
+  documentoTipo: string;
+  documentoId: string;
+  documentoNumero?: string;
+  clienteNombre?: string;
+  clienteRut?: string;
+  nota: string;
+  tipo: string;
+  autorId: string;
+  autorNombre: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const BITACORA_TYPES = [
+  { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-gray-100 text-gray-700" },
+  { value: "llamada", label: "Llamada", icon: Phone, color: "bg-blue-100 text-blue-700" },
+  { value: "visita", label: "Visita", icon: MapPin, color: "bg-green-100 text-green-700" },
+  { value: "seguimiento", label: "Seguimiento", icon: BookOpen, color: "bg-purple-100 text-purple-700" },
+  { value: "problema", label: "Problema", icon: AlertCircle, color: "bg-red-100 text-red-700" },
+];
+
+const getTimeAgo = (dateString: string) => {
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const minutes = Math.floor(diffInMs / (1000 * 60));
+    if (days > 0) return `hace ${days}d`;
+    if (hours > 0) return `hace ${hours}h`;
+    if (minutes > 0) return `hace ${minutes}m`;
+    return "ahora";
+  } catch {
+    return "";
+  }
+};
 
 const formatCurrency = (amount: string | number | null) => {
   if (!amount) return "CLP $0";
@@ -95,6 +147,10 @@ export default function Clients() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
 
+  // Bitácora state
+  const [newBitacoraNota, setNewBitacoraNota] = useState("");
+  const [newBitacoraTipo, setNewBitacoraTipo] = useState("nota");
+
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [newClientData, setNewClientData] = useState({
     nokoen: "",
@@ -103,6 +159,7 @@ export default function Clients() {
     email: "",
     foen: "",
     dien: "",
+    purchasingContactName: "",
   });
 
   const [selectedSegment, setSelectedSegment] = useState<string>("");
@@ -197,6 +254,74 @@ export default function Clients() {
     staleTime: 10 * 60 * 1000,
   });
 
+  // Bitácora query — loads entries for the selected client by name
+  const { data: bitacoraEntries = [], isLoading: bitacoraLoading } = useQuery<BitacoraEntry[]>({
+    queryKey: ["/api/bitacora", "cliente", selectedClient?.nokoen],
+    queryFn: async () => {
+      if (!selectedClient) return [];
+      const params = new URLSearchParams({
+        documentoTipo: "cliente",
+        documentoId: selectedClient.koen || selectedClient.id,
+      });
+      const response = await fetch(`/api/bitacora?${params}`, { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!selectedClient && isClientModalOpen,
+  });
+
+  // Create bitácora entry
+  const createBitacoraMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch("/api/bitacora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Error al crear entrada");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      setNewBitacoraNota("");
+      setNewBitacoraTipo("nota");
+      toast({ title: "✅ Entrada agregada a la bitácora" });
+    },
+    onError: () => {
+      toast({ title: "❌ Error al agregar entrada", variant: "destructive" });
+    },
+  });
+
+  // Delete bitácora entry
+  const deleteBitacoraMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/bitacora/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Error al eliminar");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      toast({ title: "Entrada eliminada" });
+    },
+  });
+
+  const handleAddBitacora = () => {
+    if (!selectedClient || !newBitacoraNota.trim()) return;
+    createBitacoraMutation.mutate({
+      documentoTipo: "cliente",
+      documentoId: selectedClient.koen || selectedClient.id,
+      documentoNumero: selectedClient.koen || null,
+      clienteNombre: selectedClient.nokoen,
+      clienteRut: selectedClient.rten || null,
+      nota: newBitacoraNota.trim(),
+      tipo: newBitacoraTipo,
+    });
+  };
+
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
   }, []);
@@ -204,6 +329,8 @@ export default function Clients() {
   const openClientDetails = useCallback((client: Client) => {
     setSelectedClient(client);
     setIsClientModalOpen(true);
+    setNewBitacoraNota("");
+    setNewBitacoraTipo("nota");
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -401,6 +528,7 @@ export default function Clients() {
         email: "",
         foen: "",
         dien: "",
+        purchasingContactName: "",
       });
     },
     onError: (error) => {
@@ -830,7 +958,7 @@ export default function Clients() {
                     <TableRow
                       key={client.id}
                       className="group hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+                      onClick={() => openClientDetails(client)}
                     >
                       <TableCell className="py-4 pl-6">
                         <div className="flex items-center gap-3">
@@ -911,7 +1039,7 @@ export default function Clients() {
                 <Card
                   key={client.id}
                   className="border-0 shadow-sm rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
-                  onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+                  onClick={() => openClientDetails(client)}
                 >
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between">
@@ -1113,200 +1241,199 @@ export default function Clients() {
         </>
       )}
 
-      {/* Client Details Modal */}
+      {/* Client Details Modal — Full CRM View */}
       <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <User className="h-5 w-5 text-primary" />
-              <span>Detalles del Cliente</span>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-lg shadow-indigo-500/20">
+                {selectedClient?.nokoen?.charAt(0) || "?"}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-foreground truncate text-lg">{selectedClient?.nokoen}</p>
+                <p className="text-xs text-muted-foreground font-normal">
+                  Código: {selectedClient?.koen || "S/C"} {selectedClient?.rten ? `· RUT: ${selectedClient.rten}` : ""}
+                </p>
+              </div>
             </DialogTitle>
           </DialogHeader>
 
           {selectedClient && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Building2 className="h-4 w-4" />
-                      <span>Información Básica</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Nombre del Cliente</label>
-                      <p className="text-lg font-semibold">{selectedClient.nokoen}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Código Cliente</label>
-                      <p className="font-medium">{selectedClient.koen || "N/A"}</p>
-                    </div>
-                    {selectedClient.rten && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">RUT</label>
-                        <p className="font-medium">{selectedClient.rten}</p>
-                      </div>
-                    )}
-                    {selectedClient.gien && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Tipo de Negocio</label>
-                        <p className="font-medium">{selectedClient.gien}</p>
-                      </div>
-                    )}
-                    {selectedClient.sien && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Sector Industrial</label>
-                        <p className="font-medium">{selectedClient.sien}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+            <div className="space-y-4 pt-1">
+              {/* Grid: Comuna, Región, Método de Pago */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Comuna */}
+                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Comuna</p>
+                  <p className="text-sm font-semibold text-foreground mt-0.5">
+                    {selectedClient.comuna || "—"}
+                  </p>
+                </div>
+                {/* Región */}
+                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Región</p>
+                  <p className="text-sm font-semibold text-foreground mt-0.5">
+                    {selectedClient.provincia || "—"}
+                  </p>
+                </div>
+                {/* Método de Pago */}
+                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Método de Pago</p>
+                  <p className="text-sm font-semibold text-foreground mt-0.5">
+                    {selectedClient.cpen?.trim() || "—"}
+                  </p>
+                </div>
+              </div>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Phone className="h-4 w-4" />
-                      <span>Información de Contacto</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {selectedClient.email && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Email</label>
-                        <p className="font-medium flex items-center">
-                          <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                          {selectedClient.email}
-                        </p>
-                      </div>
-                    )}
+              {/* Anotaciones de Cobranza */}
+              <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones de Cobranza</p>
+                </div>
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {selectedClient.oben?.trim() || "Sin anotaciones"}
+                </p>
+              </div>
+
+              {/* Teléfonos de Contacto */}
+              <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200/50 dark:border-blue-800/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Phone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400">Teléfonos de Contacto</p>
+                </div>
+                <div className="space-y-2">
+                  {/* Teléfono principal */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{selectedClient.foen || "Sin teléfono principal"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedClient.purchasingContactName
+                          ? `Encargado: ${selectedClient.purchasingContactName}`
+                          : "Contacto principal"}
+                      </p>
+                    </div>
                     {selectedClient.foen && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Teléfono</label>
-                        <p className="font-medium flex items-center">
-                          <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                          {selectedClient.foen}
-                        </p>
-                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0 bg-blue-50 text-blue-700 border-blue-200">Principal</Badge>
                     )}
-                    {selectedClient.dien && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Dirección</label>
-                        <p className="font-medium flex items-start">
-                          <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
-                          <span>{selectedClient.dien}</span>
-                        </p>
+                  </div>
+                  {/* Contacto 2 (cnen) */}
+                  {selectedClient.cnen && (
+                    <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{selectedClient.cnen}</p>
+                        <p className="text-xs text-muted-foreground">Contacto alternativo</p>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      <Badge variant="outline" className="text-[10px] shrink-0">Secundario</Badge>
+                    </div>
+                  )}
+                  {/* Contacto 3 (cnen2) */}
+                  {selectedClient.cnen2 && (
+                    <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{selectedClient.cnen2}</p>
+                        <p className="text-xs text-muted-foreground">Contacto adicional</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">Adicional</Badge>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <Separator />
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center space-x-2">
-                    <CreditCard className="h-4 w-4" />
-                    <span>Información de Crédito</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* Payment Condition Badge */}
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-wider font-bold text-slate-400 mb-1">Condición de Pago</p>
-                      <p className="text-lg font-semibold text-slate-800">
-                        {selectedClient.cpen?.trim() || "Sin datos"}
-                      </p>
-                    </div>
-                    <Badge className={`${getCreditStatus(selectedClient).color} text-white`}>
-                      {getCreditStatus(selectedClient).text}
-                    </Badge>
+              {/* Bitácora Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen className="h-4 w-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-foreground">Bitácora del Cliente</h3>
+                  <Badge variant="secondary" className="text-[10px] ml-auto">{bitacoraEntries.length} {bitacoraEntries.length === 1 ? "entrada" : "entradas"}</Badge>
+                </div>
+
+                {/* New entry form */}
+                <div className="space-y-2 border rounded-xl p-3 bg-gray-50/50 dark:bg-gray-900/30 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Select value={newBitacoraTipo} onValueChange={setNewBitacoraTipo}>
+                      <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BITACORA_TYPES.map(t => (
+                          <SelectItem key={t.value} value={t.value}>
+                            <div className="flex items-center gap-1.5">
+                              <t.icon className="h-3 w-3" />
+                              {t.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <div className="text-xl font-bold text-blue-600">
-                        {selectedClient.diprve && parseFloat(selectedClient.diprve) > 0
-                          ? `${parseFloat(selectedClient.diprve)} días`
-                          : "-"}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Plazo</div>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <div className="text-xl font-bold text-green-600">
-                        {formatCurrency(selectedClient.crto)}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Crédito Total</div>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <div className="text-xl font-bold text-purple-600">
-                        {formatCurrency(selectedClient.crsd)}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Saldo / Deuda</div>
-                    </div>
-                    <div className="text-center p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                      <div className="text-xl font-bold text-amber-600 text-sm">
-                        {selectedClient.fevecren && selectedClient.fevecren !== "NULL"
-                          ? new Date(selectedClient.fevecren).toLocaleDateString('es-CL')
-                          : "-"}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Vencimiento Crédito</div>
-                    </div>
-                  </div>
-
-                  {/* Additional legacy fields if they have data */}
-                  {(selectedClient.crlt && parseFloat(selectedClient.crlt as string) > 0) && (
-                    <div className="mt-3 grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-slate-50 rounded-lg">
-                        <div className="text-lg font-bold text-slate-600">{formatCurrency(selectedClient.crlt)}</div>
-                        <div className="text-xs text-gray-500">Límite Formal</div>
-                      </div>
-                      <div className="text-center p-3 bg-slate-50 rounded-lg">
-                        <div className="text-lg font-bold text-slate-600">{formatCurrency(selectedClient.cren)}</div>
-                        <div className="text-xs text-gray-500">Disponible</div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Separator />
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center space-x-2">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>Estadísticas de Ventas</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                      <div className="text-2xl font-bold text-indigo-600">
-                        {formatCurrency(selectedClient.totalSales || 0)}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total en Ventas</div>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <div className="text-2xl font-bold text-purple-600">
-                        {selectedClient.totalTransactions || 0}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Transacciones</div>
-                    </div>
-                    {selectedClient.lastTransactionDate && (
-                      <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                        <div className="text-lg font-bold text-orange-600 flex items-center justify-center">
-                          <Calendar className="h-4 w-4 mr-2" />
-                          {formatDate(selectedClient.lastTransactionDate)}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Última Compra</div>
-                      </div>
+                  <Textarea
+                    placeholder="Escribir nota sobre este cliente..."
+                    value={newBitacoraNota}
+                    onChange={(e) => setNewBitacoraNota(e.target.value)}
+                    className="min-h-[50px] text-sm rounded-lg resize-none"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleAddBitacora}
+                    disabled={!newBitacoraNota.trim() || createBitacoraMutation.isPending}
+                    className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    {createBitacoraMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1" />
                     )}
-                  </div>
-                </CardContent>
-              </Card>
+                    Agregar Entrada
+                  </Button>
+                </div>
+
+                {/* Entries list */}
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {bitacoraLoading ? (
+                    <div className="text-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-gray-400 mx-auto" />
+                    </div>
+                  ) : bitacoraEntries.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400">
+                      <BookOpen className="h-7 w-7 mx-auto mb-2 opacity-40" />
+                      <p className="text-xs">Sin entradas en la bitácora</p>
+                      <p className="text-[10px]">Agrega una nota para comenzar el seguimiento</p>
+                    </div>
+                  ) : (
+                    bitacoraEntries.map((entry) => {
+                      const typeConfig = BITACORA_TYPES.find(t => t.value === entry.tipo) || BITACORA_TYPES[0];
+                      const TypeIcon = typeConfig.icon;
+                      return (
+                        <div key={entry.id} className="border rounded-xl p-3 space-y-1 bg-white dark:bg-gray-900 hover:shadow-sm transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${typeConfig.color} text-[10px] gap-1`}>
+                                <TypeIcon className="w-2.5 h-2.5" />
+                                {typeConfig.label}
+                              </Badge>
+                              <span className="text-[10px] text-gray-400">
+                                {new Date(entry.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })} · {getTimeAgo(entry.createdAt)}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => deleteBitacoraMutation.mutate(entry.id)}
+                              className="text-gray-300 hover:text-red-500 transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{entry.nota}</p>
+                          <p className="text-[10px] text-gray-400">por {entry.autorNombre}</p>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -1401,6 +1528,19 @@ export default function Clients() {
                 data-testid="input-client-address"
               />
             </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Encargado de Compras
+              </label>
+              <Input
+                value={newClientData.purchasingContactName}
+                onChange={(e) => setNewClientData({ ...newClientData, purchasingContactName: e.target.value })}
+                placeholder="Nombre del encargado de compras"
+                className="mt-1"
+                data-testid="input-client-purchasing-contact"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1415,6 +1555,7 @@ export default function Clients() {
                   email: "",
                   foen: "",
                   dien: "",
+                  purchasingContactName: "",
                 });
               }}
               data-testid="button-cancel-new-client"

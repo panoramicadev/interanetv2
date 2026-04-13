@@ -39,7 +39,10 @@ import {
   LockKeyhole,
   UserPlus,
   Truck,
-  Tag
+  Tag,
+  Zap,
+  Barcode,
+  ArrowRight
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -243,6 +246,450 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
   return Math.max(rules.minQuantity, Math.floor(quantity / rules.stepQuantity) * rules.stepQuantity);
 };
 
+// ═══════════════════════════════════════════════════════
+// SKU QUICK ORDER MODAL — for clients who know their SKUs
+// ═══════════════════════════════════════════════════════
+
+interface SkuQuickOrderModalProps {
+  onClose: () => void;
+  clientPriceList: string | null;
+  offersMap: Map<string, number>;
+  addItem: (item: any) => void;
+  setShowFloatingCart: (show: boolean) => void;
+}
+
+function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [skuSearch, setSkuSearch] = useState('');
+  const [debouncedSku, setDebouncedSku] = useState('');
+  const [skuQuantities, setSkuQuantities] = useState<Record<string, number>>({});
+  const [addedItems, setAddedItems] = useState<Array<{ sku: string; name: string; color: string; format: string; qty: number; price: number }>>([]);
+
+  // Auto-focus input on mount
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
+  // Debounce SKU search — faster than catalog (200ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSku(skuSearch.trim());
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [skuSearch]);
+
+  // Fetch grouped data filtered by SKU search
+  const { data: searchResults, isLoading } = useQuery<StoreCatalogResponse>({
+    queryKey: ['/api/store/products/grouped', debouncedSku, '', clientPriceList, 'sku-modal'],
+    queryFn: async () => {
+      if (!debouncedSku) return { catalog: [], totalProducts: 0 };
+      const params = new URLSearchParams();
+      params.append('search', debouncedSku);
+      if (clientPriceList) params.append('priceList', clientPriceList);
+      const response = await fetch(`/api/store/products/grouped?${params.toString()}`);
+      if (!response.ok) throw new Error('Error al buscar');
+      return response.json();
+    },
+    enabled: debouncedSku.length >= 2,
+    staleTime: 15_000,
+  });
+
+  // Extract matching variants from the grouped results (exact SKU matches first)
+  const matchedVariants = useMemo(() => {
+    if (!searchResults?.catalog || !debouncedSku) return [];
+
+    const searchUpper = debouncedSku.toUpperCase();
+    const results: Array<{
+      genericName: string;
+      variant: StoreFormatVariant;
+      imageUrl: string | null | undefined;
+      isExactMatch: boolean;
+    }> = [];
+
+    searchResults.catalog.forEach(product => {
+      Object.values(product.colors).flat().forEach((variant: StoreFormatVariant) => {
+        const skuUpper = (variant.sku || '').toUpperCase();
+        const isExact = skuUpper === searchUpper;
+        const isPartial = skuUpper.includes(searchUpper) || searchUpper.includes(skuUpper);
+
+        if (isExact || isPartial) {
+          // Apply offer price from offersMap
+          const offerPrice = offersMap.get(skuUpper) || variant.offerPrice || null;
+
+          results.push({
+            genericName: product.genericName,
+            variant: { ...variant, offerPrice },
+            imageUrl: product.imageUrl,
+            isExactMatch: isExact,
+          });
+        }
+      });
+    });
+
+    // Sort: exact matches first, then partial
+    return results.sort((a, b) => {
+      if (a.isExactMatch && !b.isExactMatch) return -1;
+      if (!a.isExactMatch && b.isExactMatch) return 1;
+      return 0;
+    }).slice(0, 10); // Limit to 10 results
+  }, [searchResults, debouncedSku, offersMap]);
+
+  // Add a variant to cart from the SKU modal
+  const handleAddVariant = (variant: StoreFormatVariant, genericName: string) => {
+    const qty = skuQuantities[variant.sku] || variant.minUnit || 1;
+    const basePrice = variant.price || 0;
+    const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
+
+    if (effectivePrice === 0) {
+      toast({
+        title: "Error",
+        description: "Producto sin precio disponible",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const validation = validateCartQuantity(qty, variant.format);
+    const validatedQuantity = validation.validQuantity;
+
+    try {
+      addItem({
+        productId: variant.sku,
+        productCode: variant.sku,
+        productName: genericName,
+        selectedPackaging: variant.format,
+        selectedColor: variant.color,
+        unit: variant.format,
+        unitPrice: effectivePrice,
+        originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+        quantity: validatedQuantity,
+        minQuantity: validation.minQuantity,
+        quantityStep: validation.stepQuantity,
+        imageUrl: variant.imageUrl || undefined,
+      });
+
+      // Track in session added items
+      setAddedItems(prev => [...prev, {
+        sku: variant.sku,
+        name: genericName,
+        color: variant.color,
+        format: variant.format,
+        qty: validatedQuantity,
+        price: effectivePrice * validatedQuantity,
+      }]);
+
+      toast({
+        title: "✓ Agregado al carrito",
+        description: `${validatedQuantity}x ${genericName} (${variant.color}, ${variant.format})`,
+      });
+
+      // Reset search and quantities for next SKU
+      setSkuSearch('');
+      setSkuQuantities({});
+      setTimeout(() => inputRef.current?.focus(), 50);
+
+    } catch {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el producto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Session total
+  const sessionTotal = addedItems.reduce((sum, item) => sum + item.price, 0);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 mt-[5vh] md:mt-[10vh] max-h-[85vh] overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#FF6E23] to-[#E55E13] px-5 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-lg">Pedido Rápido por SKU</h2>
+              <p className="text-white/70 text-xs">Busca un código SKU para agregar productos directamente</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+          <div className="relative">
+            {skuSearch !== debouncedSku && debouncedSku ? (
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            )}
+            <input
+              ref={inputRef}
+              type="text"
+              value={skuSearch}
+              onChange={e => setSkuSearch(e.target.value.toUpperCase())}
+              placeholder="Ingresa un código SKU (ej: EP-001-BL-GL)"
+              className="w-full pl-12 pr-10 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
+              data-testid="input-sku-search"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {skuSearch && (
+              <button
+                onClick={() => { setSkuSearch(''); setSkuQuantities({}); inputRef.current?.focus(); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {debouncedSku && matchedVariants.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 pl-1">
+              {matchedVariants.length} resultado{matchedVariants.length !== 1 ? 's' : ''} encontrado{matchedVariants.length !== 1 ? 's' : ''}
+              {matchedVariants.some(m => m.isExactMatch) && (
+                <span className="text-emerald-600 font-semibold ml-1">• Coincidencia exacta</span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Results / Content Area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Empty state */}
+          {!debouncedSku && addedItems.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+              <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-4">
+                <Barcode className="h-8 w-8 text-[#FF6E23]/50" />
+              </div>
+              <h3 className="text-base font-bold text-gray-800 mb-1">Busca por código SKU</h3>
+              <p className="text-sm text-gray-500 max-w-xs">
+                Digita el código del producto que necesitas para agregarlo directamente al carrito sin navegar el catálogo.
+              </p>
+              <div className="flex items-center gap-2 mt-5 text-xs text-gray-400">
+                <span className="bg-gray-100 px-2.5 py-1 rounded-lg font-mono font-bold">SKU</span>
+                <ArrowRight className="h-3 w-3" />
+                <span className="bg-gray-100 px-2.5 py-1 rounded-lg">Cantidad</span>
+                <ArrowRight className="h-3 w-3" />
+                <span className="bg-orange-100 text-[#FF6E23] px-2.5 py-1 rounded-lg font-bold">Agregar</span>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {isLoading && debouncedSku && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-[#FF6E23] mr-2" />
+              <span className="text-sm text-gray-500">Buscando SKU...</span>
+            </div>
+          )}
+
+          {/* No results */}
+          {!isLoading && debouncedSku && debouncedSku.length >= 2 && matchedVariants.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <Package className="h-10 w-10 text-gray-300 mb-3" />
+              <h3 className="text-sm font-bold text-gray-700 mb-1">Sin resultados para "{debouncedSku}"</h3>
+              <p className="text-xs text-gray-500">
+                Verifica el código SKU e intenta nuevamente.
+              </p>
+            </div>
+          )}
+
+          {/* Search Results */}
+          {!isLoading && matchedVariants.length > 0 && (
+            <div className="px-5 py-3 space-y-2.5">
+              {matchedVariants.map(({ genericName, variant, imageUrl, isExactMatch }) => {
+                const qty = skuQuantities[variant.sku] || 0;
+                const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : (variant.price || 0);
+                const hasOffer = variant.offerPrice && variant.offerPrice > 0 && variant.price && variant.price > variant.offerPrice;
+                const rules = getFormatQuantityRules(variant.format);
+
+                return (
+                  <div
+                    key={variant.sku}
+                    className={`rounded-xl border-2 p-3.5 transition-all ${
+                      isExactMatch
+                        ? 'border-[#FF6E23]/40 bg-orange-50/30 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      {/* Product Image */}
+                      <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                        {(variant.imageUrl || imageUrl) ? (
+                          <img
+                            src={variant.imageUrl || imageUrl || ''}
+                            alt={genericName}
+                            className="w-full h-full object-contain p-1"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-gray-200" />
+                        )}
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate">{genericName}</h4>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isExactMatch ? 'bg-[#FF6E23]/10 text-[#FF6E23]' : 'bg-gray-100 text-gray-600'}`}>
+                                {variant.sku}
+                              </span>
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                {variant.format}
+                              </span>
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+                                {variant.color}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Price */}
+                          <div className="text-right flex-shrink-0">
+                            {hasOffer ? (
+                              <>
+                                <span className="text-[10px] line-through text-gray-400 block">{formatPrice(variant.price)}</span>
+                                <span className="text-sm font-black text-rose-600">{formatPrice(variant.offerPrice)}</span>
+                              </>
+                            ) : effectivePrice > 0 ? (
+                              <span className="text-sm font-black text-[#FF6E23]">{formatPrice(effectivePrice)}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Consultar</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quantity + Add Row */}
+                        <div className="flex items-center justify-between mt-2.5 gap-2">
+                          {/* Packaging rule hint */}
+                          <span className="text-[9px] text-gray-400 font-medium">
+                            {rules.minQuantity > 1 ? `Mín: ${rules.minQuantity} · Saltos de ${rules.stepQuantity}` : 'Mín: 1 unidad'}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            {/* Subtotal preview */}
+                            {qty > 0 && effectivePrice > 0 && (
+                              <span className="text-xs font-bold text-gray-500">
+                                {formatPrice(effectivePrice * qty)}
+                              </span>
+                            )}
+
+                            {/* Quantity controls */}
+                            <div className="inline-flex items-center rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm h-8">
+                              <button
+                                onClick={() => setSkuQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, (prev[variant.sku] || 0) - (variant.stepSize || rules.stepQuantity)) }))}
+                                className="w-8 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+                                disabled={qty === 0}
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <input
+                                type="number"
+                                value={qty || ''}
+                                placeholder="0"
+                                onChange={e => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                  if (!isNaN(val)) setSkuQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, val) }));
+                                }}
+                                className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                min="0"
+                                step={variant.stepSize || rules.stepQuantity}
+                              />
+                              <button
+                                onClick={() => {
+                                  const current = skuQuantities[variant.sku] || 0;
+                                  const next = current === 0 ? (variant.minUnit || rules.minQuantity) : current + (variant.stepSize || rules.stepQuantity);
+                                  setSkuQuantities(prev => ({ ...prev, [variant.sku]: next }));
+                                }}
+                                className="w-8 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Add button */}
+                            <button
+                              onClick={() => handleAddVariant(variant, genericName)}
+                              disabled={qty === 0 || effectivePrice === 0}
+                              className="h-8 px-3 rounded-lg bg-[#FF6E23] hover:bg-[#E55E13] text-white text-xs font-bold transition-all shadow-sm hover:shadow disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span className="hidden sm:inline">Agregar</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Session Added Items Summary */}
+          {addedItems.length > 0 && (
+            <div className="px-5 py-3 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Productos Agregados ({addedItems.length})</span>
+                <span className="text-xs font-bold text-gray-700">Subtotal: {formatPrice(sessionTotal)}</span>
+              </div>
+              <div className="space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar">
+                {addedItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-1.5 px-2.5 bg-emerald-50/50 rounded-lg border border-emerald-100/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-gray-800 truncate block">{item.name}</span>
+                        <span className="text-[10px] text-gray-500">
+                          {item.sku} · {item.color} · {item.format} · x{item.qty}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 flex-shrink-0 ml-2">{formatPrice(item.price)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between flex-shrink-0 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
+          >
+            Cerrar
+          </button>
+          {addedItems.length > 0 && (
+            <button
+              onClick={() => { setShowFloatingCart(true); onClose(); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Ver Carrito ({addedItems.length} item{addedItems.length !== 1 ? 's' : ''})
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TiendaPage() {
   const { user, logoutMutation } = useAuth();
   const isMobile = useIsMobile();
@@ -284,6 +731,9 @@ export default function TiendaPage() {
   
   // FAQ modal state
   const [showFaqModal, setShowFaqModal] = useState(false);
+
+  // SKU Quick Order modal state
+  const [showSkuQuickOrder, setShowSkuQuickOrder] = useState(false);
 
   // Header height tracking for sticky filter bar
   const headerRef = useRef<HTMLElement>(null);
@@ -1148,6 +1598,17 @@ export default function TiendaPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
+
+              {/* Quick Order by SKU */}
+              <button
+                onClick={() => setShowSkuQuickOrder(true)}
+                className="relative flex items-center gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-xl bg-gradient-to-r from-[#FF6E23]/10 to-amber-50 hover:from-[#FF6E23]/20 hover:to-amber-100 border border-[#FF6E23]/20 hover:border-[#FF6E23]/40 transition-all duration-200 group"
+                data-testid="button-sku-quick-order"
+                title="Pedido Rápido por SKU"
+              >
+                <Zap className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF6E23] group-hover:scale-110 transition-transform" />
+                <span className="hidden lg:inline text-xs font-bold text-[#FF6E23]">Pedido Rápido</span>
+              </button>
 
               {/* Cart */}
               <CartToggle onClick={() => setShowFloatingCart(true)} />
@@ -2352,6 +2813,17 @@ export default function TiendaPage() {
       isOpen={showFloatingCart} 
       onClose={() => setShowFloatingCart(false)} 
     />
+
+    {/* ─── SKU Quick Order Modal ─── */}
+    {showSkuQuickOrder && (
+      <SkuQuickOrderModal
+        onClose={() => setShowSkuQuickOrder(false)}
+        clientPriceList={clientPriceList}
+        offersMap={offersMap}
+        addItem={addItem}
+        setShowFloatingCart={setShowFloatingCart}
+      />
+    )}
 
     {/* Product Info Modal */}
     {infoModal.open && (
