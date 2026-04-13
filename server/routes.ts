@@ -28333,6 +28333,33 @@ Instrucciones extra:
     res.json(vendedores);
   }));
 
+  // GET /api/erp/vendedores — Get ERP vendedores (from stg_maeven staging table)
+  app.get('/api/erp/vendedores', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT DISTINCT kofu as code, nokofu as name 
+        FROM ventas.stg_maeven 
+        WHERE kofu IS NOT NULL AND nokofu IS NOT NULL AND TRIM(nokofu) != ''
+        ORDER BY nokofu
+      `);
+      res.json(result.rows || []);
+    } catch (e: any) {
+      console.error('Error fetching ERP vendedores:', e.message);
+      // Fallback: try from fact_ventas unique vendedores
+      try {
+        const fallback = await db.execute(sql`
+          SELECT DISTINCT kofudo as code, nokofu as name 
+          FROM ventas.fact_ventas 
+          WHERE kofudo IS NOT NULL AND nokofu IS NOT NULL AND TRIM(nokofu) != ''
+          ORDER BY nokofu
+        `);
+        res.json(fallback.rows || []);
+      } catch {
+        res.json([]);
+      }
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }

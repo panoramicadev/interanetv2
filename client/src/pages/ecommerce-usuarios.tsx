@@ -178,6 +178,19 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     },
   });
 
+  // Fetch ERP vendedores (real salesperson codes from ERP system)
+  const { data: erpVendedores = [] } = useQuery<{ code: string; name: string }[]>({
+    queryKey: ["/api/erp/vendedores"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/erp/vendedores");
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
+
   // Helper to resolve list name from code
   const getListName = (code: string | null) => {
     if (!code || code === 'LP01') return 'Lista Comercial';
@@ -691,7 +704,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Código Vendedor</Label>
+                        <Label className="text-xs">Vendedor Asignado</Label>
                         <Select 
                           value={commercialForm.salesRepCode || "unassigned"} 
                           onValueChange={(val) => setCommercialForm(p => ({ ...p, salesRepCode: val === "unassigned" ? "" : val }))}
@@ -701,9 +714,9 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unassigned" className="text-muted-foreground italic">Sin vendedor asignado</SelectItem>
-                            {salespeople.map((sp: SalespersonUser) => (
-                              <SelectItem key={sp.id} value={sp.username || sp.salespersonName.substring(0,3).toUpperCase()}>
-                                {sp.salespersonName} {sp.username ? `(${sp.username.toUpperCase()})` : ''}
+                            {erpVendedores.map((v: any) => (
+                              <SelectItem key={v.code} value={v.code}>
+                                {v.name} ({v.code})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -848,7 +861,10 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   <>
                     {[
                       { label: "Condición de Pago", value: client.paymentCondition },
-                      { label: "Código Vendedor", value: client.salesRepCode },
+                      { label: "Vendedor", value: (() => {
+                        const v = erpVendedores.find((v: any) => v.code === client.salesRepCode);
+                        return v ? `${v.name} (${v.code})` : client.salesRepCode;
+                      })() },
                       { label: "Lista de Precios", value: getListName(client.lcen) || '—' },
                       { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
                       { label: "Crédito Usado", value: formatCurrency(client.creditUsed) },
@@ -1052,7 +1068,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                             {branch.isRoot && <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>}
                             {branch.branchLabel && <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">{branch.branchLabel}</Badge>}
-                            {branch.salesRepCode && <span>Vendedor: {branch.salesRepCode}</span>}
+                            {branch.salesRepCode && <span>Vendedor: {erpVendedores.find((v: any) => v.code === branch.salesRepCode)?.name || branch.salesRepCode}</span>}
                           </div>
                         </div>
                       </div>
@@ -1144,9 +1160,9 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   <SelectTrigger className="h-8 text-sm truncate"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned" className="text-muted-foreground italic">Heredar del padre</SelectItem>
-                    {salespeople.map((sp: any) => (
-                      <SelectItem key={sp.id} value={sp.username || sp.salespersonName.substring(0,3).toUpperCase()}>
-                        {sp.salespersonName} {sp.username ? `(${sp.username.toUpperCase()})` : ''}
+                    {erpVendedores.map((v: any) => (
+                      <SelectItem key={v.code} value={v.code}>
+                        {v.name} ({v.code})
                       </SelectItem>
                     ))}
                   </SelectContent>
