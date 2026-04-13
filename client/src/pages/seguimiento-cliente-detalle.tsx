@@ -211,6 +211,7 @@ export default function SeguimientoClienteDetalle() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
       setNewBitNota("");
       setNewBitTipo("nota");
       toast({ title: "✅ Entrada agregada a la bitácora" });

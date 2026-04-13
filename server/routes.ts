@@ -8015,7 +8015,10 @@ export function registerRoutes(app: Express): Server {
     `);
     let requests: any[] = [];
     if (existingResult.rows?.length > 0) {
-      try { requests = JSON.parse(existingResult.rows[0].value as string); } catch {}
+      const raw = existingResult.rows[0].value;
+      try {
+        requests = typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch {}
     }
 
     // Add new request
@@ -8027,11 +8030,11 @@ export function registerRoutes(app: Express): Server {
     };
     requests.push(newRequest);
 
-    // Upsert
+    // Upsert with proper JSONB cast
     if (existingResult.rows?.length > 0) {
-      await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)} WHERE key = 'ecommerce_account_requests'`);
+      await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)}::jsonb WHERE key = 'ecommerce_account_requests'`);
     } else {
-      await db.execute(sql`INSERT INTO app_config (key, value) VALUES ('ecommerce_account_requests', ${JSON.stringify(requests)})`);
+      await db.execute(sql`INSERT INTO app_config (key, value) VALUES ('ecommerce_account_requests', ${JSON.stringify(requests)}::jsonb)`);
     }
 
     res.json({ success: true, id: newRequest.id });
@@ -8047,7 +8050,10 @@ export function registerRoutes(app: Express): Server {
     const result = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'`);
     let requests: any[] = [];
     if (result.rows?.length > 0) {
-      try { requests = JSON.parse(result.rows[0].value as string); } catch {}
+      const raw = result.rows[0].value;
+      try {
+        requests = typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch {}
     }
     res.json(requests);
   }));
@@ -8066,7 +8072,10 @@ export function registerRoutes(app: Express): Server {
     
     let requests: any[] = [];
     if (result.rows?.length > 0) {
-      try { requests = JSON.parse(result.rows[0].value as string); } catch {}
+      const raw = result.rows[0].value;
+      try {
+        requests = typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch {}
     }
     
     const index = requests.findIndex(r => r.id === id);
@@ -8126,7 +8135,7 @@ export function registerRoutes(app: Express): Server {
     }
 
     requests[index].status = status;
-    await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)} WHERE key = 'ecommerce_account_requests'`);
+    await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)}::jsonb WHERE key = 'ecommerce_account_requests'`);
     
     res.json(requests[index]);
   }));
@@ -27552,6 +27561,30 @@ Instrucciones extra:
           autorNombre: req.user.fullName || req.user.username || 'Sistema',
         })
         .returning();
+
+      // Reset último contacto when a bitácora entry is added for a CRM client
+      if (documentoTipo === 'cliente' && documentoId) {
+        try {
+          // documentoId can be either the clienteId (linked SAP client) or the CRM seguimiento id
+          // Try matching by clienteId first, then by id
+          const updated = await db
+            .update(crmSeguimientoClientes)
+            .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+            .where(
+              or(
+                eq(crmSeguimientoClientes.clienteId, documentoId),
+                eq(crmSeguimientoClientes.id, documentoId)
+              )!
+            )
+            .returning();
+          if (updated.length > 0) {
+            console.log(`[BITACORA] Updated ultimoContacto for CRM client ${documentoId}`);
+          }
+        } catch (err: any) {
+          console.error('[BITACORA] Error updating ultimoContacto:', err.message);
+          // Don't fail the bitácora creation if the CRM update fails
+        }
+      }
 
       res.status(201).json(entry);
     } catch (error: any) {
