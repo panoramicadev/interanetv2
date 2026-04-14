@@ -10167,6 +10167,149 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get all users linked to a client group (empresa)
+  app.get('/api/users/clients/:clientId/users', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { clientId } = req.params;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq, or, inArray, isNotNull } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Find the client record
+      const [clientRecord] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+      if (!clientRecord) {
+        return res.status(404).json({ message: "Cliente no encontrado" });
+      }
+
+      // Determine the root parent ID
+      const rootId = clientRecord.parentClientId || clientRecord.id;
+
+      // Get all client records under this root (including the root itself)
+      const allGroupClients = await dbInstance.select().from(clientsTable)
+        .where(
+          or(
+            eq(clientsTable.id, rootId),
+            eq(clientsTable.parentClientId, rootId)
+          )
+        );
+
+      const allClientIds = allGroupClients.map(c => c.id);
+
+      // Get all salespeople_users that are linked to any of these client records
+      const linkedUsers = allClientIds.length > 0
+        ? await dbInstance.select().from(spTable)
+            .where(inArray(spTable.clientId, allClientIds))
+        : [];
+
+      // Enrich with branch info
+      const enrichedUsers = linkedUsers.map(u => {
+        const linkedClient = allGroupClients.find(c => c.id === u.clientId);
+        return {
+          id: u.id,
+          salespersonName: u.salespersonName,
+          username: u.username,
+          email: u.email || u.publicEmail,
+          phone: u.publicPhone,
+          role: u.role,
+          isActive: u.isActive,
+          clientId: u.clientId,
+          clientRut: u.clientRut,
+          createdAt: u.createdAt,
+          // Branch info
+          branchLabel: linkedClient?.branchLabel || null,
+          branchName: linkedClient?.nokoen || null,
+          isRoot: linkedClient ? !linkedClient.parentClientId : false,
+        };
+      });
+
+      res.json(enrichedUsers);
+    } catch (error) {
+      console.error("Error fetching group users:", error);
+      res.status(500).json({ message: "Error al obtener usuarios del grupo" });
+    }
+  });
+
+  // Create a new user for a company group
+  app.post('/api/users/clients/:clientId/users', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { clientId } = req.params;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { salespersonName, username, email, password, phone } = req.body;
+
+      if (!salespersonName || !username || !password) {
+        return res.status(400).json({ message: "Nombre, usuario y contraseña son requeridos" });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+      const bcrypt = await import('bcryptjs');
+
+      // Find the client record to get group info
+      const [clientRecord] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+      if (!clientRecord) {
+        return res.status(404).json({ message: "Cliente no encontrado" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create user
+      const [newUser] = await dbInstance.insert(spTable).values({
+        salespersonName,
+        username,
+        email: email || null,
+        password: passwordHash,
+        publicPhone: phone || null,
+        isActive: true,
+        role: 'client',
+        clientRut: clientRecord.rten || null,
+        clientId: clientId, // Link to the company's client record
+      }).returning();
+
+      console.log(`[CREATE-USER] Created user "${salespersonName}" (${newUser.id}) linked to client ${clientId} by ${user.id}`);
+      res.json({
+        success: true,
+        message: `Usuario "${salespersonName}" creado exitosamente`,
+        user: {
+          id: newUser.id,
+          salespersonName: newUser.salespersonName,
+          username: newUser.username,
+          email: newUser.email,
+          phone: newUser.publicPhone,
+          role: newUser.role,
+          isActive: newUser.isActive,
+          clientId: newUser.clientId,
+          clientRut: newUser.clientRut,
+          createdAt: newUser.createdAt,
+          branchLabel: clientRecord.branchLabel || null,
+          branchName: clientRecord.nokoen || null,
+          isRoot: !clientRecord.parentClientId,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error creating group user:", error);
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Ya existe un usuario con ese nombre de usuario o email" });
+      }
+      res.status(500).json({ message: "Error al crear usuario" });
+    }
+  });
+
 
   // ============================================
   // NOTIFICATION ENDPOINTS - Sistema robusto de notificaciones internas

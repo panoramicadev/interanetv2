@@ -358,10 +358,70 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       toast({ title: "Sucursal creada", description: "La sucursal se ha creado exitosamente." });
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients/branches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
       setShowBranchDialog(false);
       setUseExistingUser(false);
       setBranchUserSearch("");
       setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserId: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
+  // ─── User Management ──────────────────────────────────
+  const [showUserDialog, setShowUserDialog] = useState(false);
+  const [userForm, setUserForm] = useState({
+    salespersonName: "",
+    username: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+
+  // Fetch group users
+  interface GroupUser {
+    id: string;
+    salespersonName: string;
+    username: string | null;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    isActive: boolean;
+    clientId: string | null;
+    clientRut: string | null;
+    createdAt: string;
+    branchLabel: string | null;
+    branchName: string | null;
+    isRoot: boolean;
+  }
+
+  const { data: groupUsers = [] } = useQuery<GroupUser[]>({
+    queryKey: ["/api/users/clients/users", client.clientId],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/users/clients/${client.clientId}/users`);
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!client.clientId,
+  });
+
+  // Mutation: Create user for group
+  const createUserMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/users/clients/${client.clientId}/users`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Usuario creado", description: "El usuario se ha creado exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      setShowUserDialog(false);
+      setUserForm({ salespersonName: "", username: "", email: "", password: "", phone: "" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -1124,6 +1184,108 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         </Card>
       )}
 
+      {/* ─── Users Section ───────────────────────────── */}
+      {client.clientId && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-500" />
+              Usuarios de la Empresa
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+              onClick={() => setShowUserDialog(true)}
+            >
+              <UserPlus className="h-3.5 w-3.5 mr-1" />
+              Crear Usuario
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {groupUsers.length > 0 ? (
+              <div className="space-y-2">
+                {/* Summary badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                    {groupUsers.length} {groupUsers.length === 1 ? 'usuario' : 'usuarios'}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs px-2 py-0.5 text-green-600 border-green-200">
+                    {groupUsers.filter(u => u.isActive).length} activos
+                  </Badge>
+                </div>
+
+                {/* User list */}
+                {groupUsers.map((gUser) => (
+                  <div
+                    key={gUser.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      gUser.id === client.id
+                        ? "bg-blue-50/70 border-blue-200 dark:bg-blue-950/30 dark:border-blue-700"
+                        : "bg-muted/20 border-muted hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                        gUser.isActive
+                          ? "bg-gradient-to-br from-blue-400 to-indigo-500 text-white"
+                          : "bg-gray-300 text-gray-500"
+                      }`}>
+                        {(gUser.salespersonName || gUser.email)?.[0]?.toUpperCase() || "?"}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{gUser.salespersonName}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                          {gUser.username && (
+                            <span className="flex items-center gap-0.5">
+                              <KeyRound className="h-2.5 w-2.5" />
+                              {gUser.username}
+                            </span>
+                          )}
+                          {gUser.email && (
+                            <span className="flex items-center gap-0.5">
+                              <Mail className="h-2.5 w-2.5" />
+                              {gUser.email}
+                            </span>
+                          )}
+                          {gUser.branchLabel && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                              <GitBranch className="h-2.5 w-2.5 mr-0.5" />
+                              {gUser.branchLabel}
+                            </Badge>
+                          )}
+                          {gUser.isRoot && (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[9px] px-1.5 py-0.5 ${
+                          gUser.isActive
+                            ? "bg-green-100 text-green-700 border-green-200"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {gUser.isActive ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Users className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No hay usuarios registrados para esta empresa.</p>
+                <p className="text-xs text-muted-foreground mt-1">Crea usuarios para que puedan acceder al eCommerce y luego vincúlalos a sucursales.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ─── Dialog Crear Sucursal ───────────────────── */}
       <Dialog open={showBranchDialog} onOpenChange={setShowBranchDialog}>
         <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
@@ -1371,6 +1533,112 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               }}
             >
               {createBranchMutation.isPending ? "Creando..." : "Crear Sucursal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog Crear Usuario ───────────────────── */}
+      <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-blue-600" />
+              Crear Nuevo Usuario
+            </DialogTitle>
+            <DialogDescription>
+              Crea un usuario para <span className="font-semibold">{client.clientName}</span> que podrá acceder al portal eCommerce.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Nombre Completo *</Label>
+              <Input
+                placeholder="Ej: Juan Pérez"
+                value={userForm.salespersonName}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setUserForm(p => {
+                    // Auto-generate username from name
+                    const parts = name.trim().toLowerCase().split(' ');
+                    const autoUsername = parts.length < 2
+                      ? parts[0]?.substring(0, 6) || ''
+                      : parts[0].charAt(0) + parts[1];
+                    return { ...p, salespersonName: name, username: autoUsername };
+                  });
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Usuario *</Label>
+                <Input
+                  placeholder="Ej: jperez"
+                  value={userForm.username}
+                  onChange={(e) => setUserForm(p => ({ ...p, username: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Contraseña *</Label>
+                <Input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={userForm.password}
+                  onChange={(e) => setUserForm(p => ({ ...p, password: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Email (opcional)</Label>
+                <Input
+                  type="email"
+                  placeholder="usuario@empresa.cl"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm(p => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Teléfono (opcional)</Label>
+                <Input
+                  placeholder="+56 9 1234 5678"
+                  value={userForm.phone}
+                  onChange={(e) => setUserForm(p => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-800">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <strong>Nota:</strong> El usuario será creado con acceso al portal de compras eCommerce vinculado a <strong>{client.clientName}</strong>. Luego podrás asignarlo a una sucursal específica.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUserDialog(false)}>Cancelar</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={
+                !userForm.salespersonName ||
+                !userForm.username ||
+                !userForm.password ||
+                userForm.password.length < 6 ||
+                createUserMutation.isPending
+              }
+              onClick={() => {
+                createUserMutation.mutate({
+                  salespersonName: userForm.salespersonName,
+                  username: userForm.username,
+                  email: userForm.email || null,
+                  password: userForm.password,
+                  phone: userForm.phone || null,
+                });
+              }}
+            >
+              {createUserMutation.isPending ? "Creando..." : "Crear Usuario"}
             </Button>
           </DialogFooter>
         </DialogContent>
