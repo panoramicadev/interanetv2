@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check } from "lucide-react";
+import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check } from "lucide-react";
 
 // Response includes JOINed fields from price_list
 interface MixItem {
@@ -47,6 +47,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
   const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
   const [bulkAdjustRoundToDecena, setBulkAdjustRoundToDecena] = useState(true);
   const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const itemsPerPage = 50;
 
@@ -159,6 +160,31 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
     return `$${Math.round(num).toLocaleString("es-CL")}`;
   };
 
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      const url = `/api/custom-price-lists/${listCode}/items/export/excel${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `lista_${listCode}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Exportación exitosa", description: "El archivo Excel se descargó correctamente" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: `No se pudo exportar la lista ${listName}` });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -180,6 +206,17 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
           >
             <Percent className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ajuste Masivo</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1.5 text-xs" 
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            data-testid="button-export-excel"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Exportar</span>
           </Button>
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>

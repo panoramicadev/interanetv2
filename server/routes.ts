@@ -12794,6 +12794,53 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Export custom price list items to Excel
+  app.get('/api/custom-price-lists/:code/items/export/excel', requireAuth, async (req: any, res) => {
+    try {
+      const { code } = req.params;
+      const { search } = req.query;
+
+      let whereClause = `WHERE cpli.list_code = '${code.replace(/'/g, "''")}'`;
+      if (search) {
+        const s = (search as string).replace(/'/g, "''");
+        whereClause += ` AND (cpli.codigo ILIKE '%${s}%' OR pl.producto ILIKE '%${s}%')`;
+      }
+
+      const items = await db.execute(sql.raw(
+        `SELECT cpli.id, cpli.list_code, cpli.codigo, cpli.precio, cpli.created_at, cpli.updated_at,
+                pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
+         FROM custom_price_list_items cpli
+         LEFT JOIN price_list pl ON UPPER(cpli.codigo) = UPPER(pl.codigo)
+         ${whereClause}
+         ORDER BY pl.producto NULLS LAST, cpli.codigo
+         LIMIT 100000`
+      ));
+
+      const excelData = items.rows.map((item: any) => ({
+        Codigo: item.codigo || '',
+        Producto: item.producto || '',
+        Formato: item.unidad || '',
+        'Precio Mix': item.precio || '',
+        'Costo Produccion': item.costoProduccion || ''
+      }));
+
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Lista Mix");
+
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const fileName = `lista_${code}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.send(buf);
+    } catch (error) {
+      console.error("Error exporting custom list Excel:", error);
+      res.status(500).json({ message: "Failed to export custom list" });
+    }
+  });
+
   // Add item to a custom price list
   app.post('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
     try {
@@ -13032,6 +13079,52 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching price list offers:", error);
       res.status(500).json({ message: "Failed to fetch price list offers" });
+    }
+  });
+
+  // Export offers to Excel
+  app.get('/api/price-list-offers/export/excel', requireAuth, async (req: any, res) => {
+    try {
+      const { search } = req.query;
+
+      let whereClause = '';
+      if (search) {
+        const s = (search as string).replace(/'/g, "''");
+        whereClause = `WHERE (o.codigo ILIKE '%${s}%' OR pl.producto ILIKE '%${s}%')`;
+      }
+      
+      const items = await db.execute(sql.raw(
+        `SELECT o.id, o.codigo, o.precio, o.created_at, o.updated_at,
+                pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
+         FROM price_list_offers o 
+         LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo)
+         ${whereClause}
+         ORDER BY pl.producto NULLS LAST, o.codigo
+         LIMIT 100000`
+      ));
+
+      const excelData = items.rows.map((item: any) => ({
+        Codigo: item.codigo || '',
+        Producto: item.producto || '',
+        Formato: item.unidad || '',
+        'Precio Oferta': item.precio || '',
+        'Costo Produccion': item.costoProduccion || ''
+      }));
+
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Lista Ofertas");
+
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const fileName = `lista_ofertas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.send(buf);
+    } catch (error) {
+      console.error("Error exporting offers Excel:", error);
+      res.status(500).json({ message: "Failed to export offers" });
     }
   });
 

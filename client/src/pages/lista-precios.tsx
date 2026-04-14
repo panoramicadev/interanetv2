@@ -283,26 +283,26 @@ export default function ListaPrecios() {
     });
   };
 
-  const handleExportCSV = async () => {
+  const handleExportExcel = async () => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (selectedUnidad) params.append('unidad', selectedUnidad);
       if (selectedColor) params.append('color', selectedColor);
-      const url = `/api/price-list/export/csv${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `/api/price-list/export/excel${params.toString() ? '?' + params.toString() : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Export failed');
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `lista_precios_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `lista_precios_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
-      toast({ title: "Exportación exitosa", description: "El archivo CSV se descargó correctamente" });
+      toast({ title: "Exportación exitosa", description: "El archivo Excel se descargó correctamente" });
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo exportar la lista de precios" });
     } finally {
@@ -448,9 +448,9 @@ export default function ListaPrecios() {
             variant="outline" 
             size="sm" 
             className="flex items-center gap-1.5 text-xs" 
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             disabled={isExporting}
-            data-testid="button-export-csv"
+            data-testid="button-export-excel"
           >
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>

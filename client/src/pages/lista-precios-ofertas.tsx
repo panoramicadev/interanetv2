@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag } from "lucide-react";
+import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag } from "lucide-react";
 
 interface OffersItem {
   id: string;
@@ -46,6 +46,7 @@ export default function ListaPreciosOfertas() {
   const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
   const [bulkAdjustRoundToDecena, setBulkAdjustRoundToDecena] = useState(true);
   const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const itemsPerPage = 50;
 
@@ -157,6 +158,31 @@ export default function ListaPreciosOfertas() {
     return `$${Math.round(num).toLocaleString("es-CL")}`;
   };
 
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      const url = `/api/price-list-offers/export/excel${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `lista_ofertas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Exportación exitosa", description: "El archivo Excel se descargó correctamente" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: `No se pudo exportar la lista de ofertas` });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -177,6 +203,17 @@ export default function ListaPreciosOfertas() {
           >
             <Percent className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ajuste Masivo</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1.5 text-xs" 
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            data-testid="button-export-excel"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Exportar</span>
           </Button>
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
