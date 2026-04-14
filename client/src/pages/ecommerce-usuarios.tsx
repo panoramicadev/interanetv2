@@ -297,7 +297,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     username: "",
     email: "",
     password: "",
-    existingUserId: "",
+    existingUserIds: [] as string[],
     salesRepCode: "",
     pickupWarehouseId: "none",
     creditLimit: "",
@@ -312,7 +312,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     username: "",
     email: "",
     password: "",
-    existingUserId: "",
+    existingUserIds: [] as string[],
     salesRepCode: "",
     pickupWarehouseId: "none",
     creditLimit: "",
@@ -320,31 +320,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     lcen: "",
   });
 
-  // Fetch all client users for existing user selector
-  const { data: allClientUsers = [] } = useQuery<ClientUser[]>({
-    queryKey: ["/api/users/clients"],
-    queryFn: async () => {
-      try {
-        const res = await apiRequest("GET", "/api/users/clients");
-        return await res.json();
-      } catch {
-        return [];
-      }
-    },
-    enabled: showBranchDialog,
-  });
 
-  // Filter client users for selector (exclude current client)
-  const availableExistingUsers = allClientUsers.filter((u) => {
-    if (u.id === client.id) return false;
-    const q = branchUserSearch.toLowerCase();
-    if (!q) return true;
-    return (
-      u.clientName?.toLowerCase().includes(q) ||
-      u.email?.toLowerCase().includes(q) ||
-      u.rut?.toLowerCase().includes(q)
-    );
-  });
 
   // Fetch sibling branches
   const { data: branchGroup } = useQuery<BranchGroup>({
@@ -377,7 +353,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       setShowBranchDialog(false);
       setUseExistingUser(false);
       setBranchUserSearch("");
-      setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserId: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
+      setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -400,7 +376,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       setEditingBranchId(null);
       setUseExistingUser(false);
       setBranchUserSearch("");
-      setEditBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserId: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: "", lcen: "" });
+      setEditBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: "", lcen: "" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -416,7 +392,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       username: "",
       email: "",
       password: "",
-      existingUserId: "",
+      existingUserIds: [],
       salesRepCode: branch.salesRepCode || "",
       pickupWarehouseId: branch.pickupWarehouseId || "none",
       creditLimit: branch.creditLimit !== null ? branch.creditLimit.toString() : "",
@@ -428,6 +404,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
 
   // ─── User Management ──────────────────────────────────
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userIsActive, setUserIsActive] = useState(true);
   const [userForm, setUserForm] = useState({
     salespersonName: "",
     username: "",
@@ -435,6 +413,14 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     password: "",
     phone: "",
   });
+
+  // Optional: when opening to CREATE a new user, clear state
+  const handleCreateUser = () => {
+    setEditingUserId(null);
+    setUserIsActive(true);
+    setUserForm({ salespersonName: "", username: "", email: "", password: "", phone: "" });
+    setShowUserDialog(true);
+  };
 
   // Fetch group users
   interface GroupUser {
@@ -466,6 +452,17 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     enabled: !!client.clientId,
   });
 
+  // Filter group users for selector
+  const availableExistingUsers = groupUsers.filter((u) => {
+    const q = branchUserSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      u.salespersonName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.clientRut?.toLowerCase().includes(q)
+    );
+  });
+
   // Mutation: Create user for group
   const createUserMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -484,6 +481,54 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       toast({ title: "Error", description: msg, variant: "destructive" });
     }
   });
+
+  const editUserMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("PUT", `/api/users/salespeople/${editingUserId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Usuario actualizado", description: "El usuario se ha actualizado exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      setShowUserDialog(false);
+      setEditingUserId(null);
+      setUserForm({ salespersonName: "", username: "", email: "", password: "", phone: "" });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/users/salespeople/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Usuario eliminado", description: "El usuario se ha eliminado exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
+  const handleEditUser = (user: GroupUser) => {
+    setEditingUserId(user.id);
+    setUserIsActive(user.isActive);
+    setUserForm({
+      salespersonName: user.salespersonName || "",
+      username: user.username || "",
+      email: user.email || "",
+      password: "", // Leave blank, only submit if changed
+      phone: user.phone || "",
+    });
+    setShowUserDialog(true);
+  };
 
   // Fetch client orders
   const { data: orders = [] } = useQuery<any[]>({
@@ -1340,6 +1385,26 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                       >
                         {gUser.isActive ? "Activo" : "Inactivo"}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                        onClick={() => handleEditUser(gUser)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
+                        onClick={() => {
+                          if (confirm('¿Estás seguro de que deseas eliminar este usuario?')) {
+                            deleteUserMutation.mutate(gUser.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -1391,7 +1456,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   if (checked) {
                     setBranchForm(p => ({ ...p, username: "", password: "", email: "" }));
                   } else {
-                    setBranchForm(p => ({ ...p, existingUserId: "" }));
+                    setBranchForm(p => ({ ...p, existingUserIds: [] }));
                   }
                 }}
               />
@@ -1400,7 +1465,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
             {useExistingUser ? (
               /* Existing user selector */
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Seleccionar Usuario Existente *</Label>
+                <Label className="text-sm font-medium">Seleccionar Usuarios Existentes *</Label>
                 <div className="space-y-2">
                   <Input
                     placeholder="Buscar por nombre, email o RUT..."
@@ -1414,42 +1479,57 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         {branchUserSearch ? "Sin resultados" : "No hay usuarios disponibles"}
                       </div>
                     ) : (
-                      availableExistingUsers.slice(0, 20).map((u) => (
-                        <div
-                          key={u.id}
-                          onClick={() => setBranchForm(p => ({ ...p, existingUserId: u.id }))}
-                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
-                            branchForm.existingUserId === u.id
-                              ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
-                              : "hover:bg-muted/50"
-                          }`}
-                        >
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                            branchForm.existingUserId === u.id
-                              ? "bg-violet-600 text-white"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                          }`}>
-                            {(u.clientName || u.email)?.[0]?.toUpperCase() || "?"}
+                      availableExistingUsers.slice(0, 20).map((u) => {
+                        const isSelected = branchForm.existingUserIds.includes(u.id);
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setBranchForm(p => {
+                                const newIds = p.existingUserIds.includes(u.id)
+                                  ? p.existingUserIds.filter(id => id !== u.id)
+                                  : [...p.existingUserIds, u.id];
+                                return { ...p, existingUserIds: newIds };
+                              });
+                            }}
+                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
+                              isSelected
+                                ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
+                                : "hover:bg-muted/50"
+                            }`}
+                          >
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                              isSelected
+                                ? "bg-violet-600 text-white"
+                                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                            }`}>
+                              {(u.salespersonName || u.email)?.[0]?.toUpperCase() || "?"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{u.salespersonName || u.email}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {u.email}{u.clientRut ? ` · ${u.clientRut}` : ""}
+                                {u.branchLabel ? ` · ${u.branchLabel}` : ""}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
+                            )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{u.clientName || u.email}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {u.email}{u.rut ? ` · ${u.rut}` : ""}
-                              {u.branchLabel ? ` · ${u.branchLabel}` : ""}
-                            </p>
-                          </div>
-                          {branchForm.existingUserId === u.id && (
-                            <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
-                          )}
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
-                  {branchForm.existingUserId && (
-                    <p className="text-xs text-emerald-600 flex items-center gap-1">
-                      <Check className="h-3 w-3" />
-                      Usuario seleccionado: {allClientUsers.find(u => u.id === branchForm.existingUserId)?.clientName || ""}
-                    </p>
+                  {branchForm.existingUserIds.length > 0 && (
+                    <div className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded-md">
+                      <p className="font-medium mb-1">Usuarios seleccionados ({branchForm.existingUserIds.length}):</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        {branchForm.existingUserIds.map(uid => {
+                          const u = groupUsers.find(cu => cu.id === uid);
+                          return <li key={uid}>{u?.salespersonName || u?.email || "Desconocido"}</li>;
+                        })}
+                      </ul>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1579,7 +1659,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               className="bg-violet-600 hover:bg-violet-700"
               disabled={
                 !branchForm.branchLabel ||
-                (useExistingUser ? !branchForm.existingUserId : (!branchForm.username || !branchForm.password || branchForm.password.length < 6)) ||
+                (useExistingUser ? branchForm.existingUserIds.length === 0 : (!branchForm.username || !branchForm.password || branchForm.password.length < 6)) ||
                 createBranchMutation.isPending
               }
               onClick={() => {
@@ -1591,8 +1671,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   paymentCondition: branchForm.paymentCondition || null,
                   lcen: branchForm.lcen || null,
                 };
-                if (useExistingUser) {
-                  payload.existingUserId = branchForm.existingUserId;
+                if (useExistingUser && branchForm.existingUserIds.length > 0) {
+                  payload.existingUserIds = branchForm.existingUserIds;
                 } else {
                   payload.username = branchForm.username;
                   payload.email = branchForm.email || null;
@@ -1643,7 +1723,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   if (checked) {
                     setEditBranchForm(p => ({ ...p, username: "", password: "", email: "" }));
                   } else {
-                    setEditBranchForm(p => ({ ...p, existingUserId: "" }));
+                    setEditBranchForm(p => ({ ...p, existingUserIds: [] }));
                   }
                 }}
               />
@@ -1652,7 +1732,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
             {useExistingUser ? (
               /* Existing user selector */
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Seleccionar Usuario Existente</Label>
+                <Label className="text-sm font-medium">Seleccionar Usuarios Existentes</Label>
                 <div className="space-y-2">
                   <Input
                     placeholder="Buscar por nombre, email o RUT..."
@@ -1666,42 +1746,57 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         {branchUserSearch ? "Sin resultados" : "No hay usuarios disponibles"}
                       </div>
                     ) : (
-                      availableExistingUsers.slice(0, 20).map((u) => (
-                        <div
-                          key={u.id}
-                          onClick={() => setEditBranchForm(p => ({ ...p, existingUserId: u.id }))}
-                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
-                            editBranchForm.existingUserId === u.id
-                              ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
-                              : "hover:bg-muted/50"
-                          }`}
-                        >
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                            editBranchForm.existingUserId === u.id
-                              ? "bg-violet-600 text-white"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                          }`}>
-                            {(u.clientName || u.email)?.[0]?.toUpperCase() || "?"}
+                      availableExistingUsers.slice(0, 20).map((u) => {
+                        const isSelected = editBranchForm.existingUserIds.includes(u.id);
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setEditBranchForm(p => {
+                                const newIds = p.existingUserIds.includes(u.id)
+                                  ? p.existingUserIds.filter(id => id !== u.id)
+                                  : [...p.existingUserIds, u.id];
+                                return { ...p, existingUserIds: newIds };
+                              });
+                            }}
+                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
+                              isSelected
+                                ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
+                                : "hover:bg-muted/50"
+                            }`}
+                          >
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                              isSelected
+                                ? "bg-violet-600 text-white"
+                                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                            }`}>
+                              {(u.salespersonName || u.email)?.[0]?.toUpperCase() || "?"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{u.salespersonName || u.email}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {u.email}{u.clientRut ? ` · ${u.clientRut}` : ""}
+                                {u.branchLabel ? ` · ${u.branchLabel}` : ""}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
+                            )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{u.clientName || u.email}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {u.email}{u.rut ? ` · ${u.rut}` : ""}
-                              {u.branchLabel ? ` · ${u.branchLabel}` : ""}
-                            </p>
-                          </div>
-                          {editBranchForm.existingUserId === u.id && (
-                            <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
-                          )}
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
-                  {editBranchForm.existingUserId && (
-                    <p className="text-xs text-emerald-600 flex items-center gap-1">
-                      <Check className="h-3 w-3" />
-                      Usuario seleccionado: {allClientUsers.find(u => u.id === editBranchForm.existingUserId)?.clientName || ""}
-                    </p>
+                  {editBranchForm.existingUserIds.length > 0 && (
+                    <div className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded-md">
+                      <p className="font-medium mb-1">Usuarios seleccionados ({editBranchForm.existingUserIds.length}):</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        {editBranchForm.existingUserIds.map(uid => {
+                          const u = groupUsers.find(cu => cu.id === uid);
+                          return <li key={uid}>{u?.salespersonName || u?.email || "Desconocido"}</li>;
+                        })}
+                      </ul>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1846,8 +1941,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   paymentCondition: editBranchForm.paymentCondition || null,
                   lcen: editBranchForm.lcen || null,
                 };
-                if (useExistingUser && editBranchForm.existingUserId) {
-                  payload.existingUserId = editBranchForm.existingUserId;
+                if (useExistingUser && editBranchForm.existingUserIds.length > 0) {
+                  payload.existingUserIds = editBranchForm.existingUserIds;
                 } else if (!useExistingUser && editBranchForm.username && editBranchForm.password) {
                   payload.username = editBranchForm.username;
                   payload.email = editBranchForm.email || null;
@@ -1868,10 +1963,10 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-blue-600" />
-              Crear Nuevo Usuario
+              {editingUserId ? "Editar Usuario" : "Crear Nuevo Usuario"}
             </DialogTitle>
             <DialogDescription>
-              Crea un usuario para <span className="font-semibold">{client.clientName}</span> que podrá acceder al portal eCommerce.
+              {editingUserId ? "Modifica los datos del usuario." : <>Crea un usuario para <span className="font-semibold">{client.clientName}</span> que podrá acceder al portal eCommerce.</>}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -1904,15 +1999,28 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Contraseña *</Label>
+                <Label className="text-sm font-medium">Contraseña {editingUserId ? "(Opcional)" : "*"}</Label>
                 <Input
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={editingUserId ? "Dejar en blanco para mantener actual" : "Mínimo 6 caracteres"}
                   value={userForm.password}
                   onChange={(e) => setUserForm(p => ({ ...p, password: e.target.value }))}
                 />
               </div>
             </div>
+
+            {editingUserId && (
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Estado del Usuario</Label>
+                  <p className="text-xs text-muted-foreground">Si desactivas el usuario no podrá acceder al portal.</p>
+                </div>
+                <Switch
+                  checked={userIsActive}
+                  onCheckedChange={setUserIsActive}
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -1934,11 +2042,13 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-800">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Nota:</strong> El usuario será creado con acceso al portal de compras eCommerce vinculado a <strong>{client.clientName}</strong>. Luego podrás asignarlo a una sucursal específica.
-              </p>
-            </div>
+            {!editingUserId && (
+              <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-800">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>Nota:</strong> El usuario será creado con acceso al portal de compras eCommerce vinculado a <strong>{client.clientName}</strong>. Luego podrás asignarlo a una sucursal específica.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -1948,21 +2058,31 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               disabled={
                 !userForm.salespersonName ||
                 !userForm.username ||
-                !userForm.password ||
-                userForm.password.length < 6 ||
-                createUserMutation.isPending
+                (!editingUserId && (!userForm.password || userForm.password.length < 6)) ||
+                (editingUserId && userForm.password && userForm.password.length > 0 && userForm.password.length < 6) ||
+                createUserMutation.isPending ||
+                editUserMutation.isPending
               }
               onClick={() => {
-                createUserMutation.mutate({
+                const payload: any = {
                   salespersonName: userForm.salespersonName,
                   username: userForm.username,
                   email: userForm.email || null,
-                  password: userForm.password,
                   phone: userForm.phone || null,
-                });
+                };
+                if (userForm.password) {
+                  payload.password = userForm.password;
+                }
+                
+                if (editingUserId) {
+                  payload.isActive = userIsActive;
+                  editUserMutation.mutate(payload);
+                } else {
+                  createUserMutation.mutate(payload);
+                }
               }}
             >
-              {createUserMutation.isPending ? "Creando..." : "Crear Usuario"}
+              {createUserMutation.isPending || editUserMutation.isPending ? "Guardando..." : (editingUserId ? "Guardar Cambios" : "Crear Usuario")}
             </Button>
           </DialogFooter>
         </DialogContent>

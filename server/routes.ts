@@ -9985,28 +9985,31 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId } = req.body;
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds } = req.body;
 
       if (!branchLabel) {
         return res.status(400).json({ message: "branchLabel es requerido" });
       }
 
-      // Validate: either existingUserId OR (username + password) must be provided
-      if (!existingUserId && (!username || !password)) {
+      const userIdsToLink = existingUserIds && Array.isArray(existingUserIds) && existingUserIds.length > 0
+        ? existingUserIds
+        : (existingUserId ? [existingUserId] : []);
+
+      // Validate: either existing users OR (username + password) must be provided
+      if (userIdsToLink.length === 0 && (!username || !password)) {
         return res.status(400).json({ message: "Debe proporcionar un usuario existente o crear uno nuevo (username y password requeridos)" });
       }
 
       const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
-      const { eq } = await import('drizzle-orm');
+      const { eq, inArray } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
 
-      // Get the parent user and their linked client
+      //... rest of the file setup...
       const [parentUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, userId)).limit(1);
       if (!parentUser || parentUser.role !== 'client') {
         return res.status(404).json({ message: "Usuario cliente padre no encontrado" });
       }
 
-      // Get the parent's client record to inherit data
       let parentClient: any = null;
       if (parentUser.clientId) {
         const [pc] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, parentUser.clientId)).limit(1);
@@ -10017,23 +10020,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "El usuario padre debe tener una ficha de cliente vinculada para crear sucursales" });
       }
 
-      // The parent becomes the "parent" — ensure it doesn't already have a parent (avoid nesting)
       const parentClientId = parentClient.parentClientId || parentClient.id;
-
-      let branchUser: any;
+      let branchUsers: any[] = [];
       const branchName = `${parentClient.nokoen || parentUser.salespersonName} - ${branchLabel}`;
 
-      if (existingUserId) {
-        // Use an existing user — verify it exists and is a client
-        const [existingUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, existingUserId)).limit(1);
-        if (!existingUser) {
-          return res.status(404).json({ message: "Usuario seleccionado no encontrado" });
+      if (userIdsToLink.length > 0) {
+        // Use existing users — verify they exist and are clients
+        const existingUsers = await dbInstance.select().from(spTable).where(inArray(spTable.id, userIdsToLink));
+        if (existingUsers.length !== userIdsToLink.length) {
+          return res.status(404).json({ message: "Alguno de los usuarios seleccionados no fue encontrado" });
         }
-        if (existingUser.role !== 'client') {
-          return res.status(400).json({ message: "El usuario seleccionado debe ser de tipo cliente" });
+        for (const eu of existingUsers) {
+          if (eu.role !== 'client') {
+            return res.status(400).json({ message: `El usuario ${eu.email || eu.salespersonName} debe ser de tipo cliente` });
+          }
         }
-        branchUser = existingUser;
-        console.log(`[CREATE-BRANCH] Using existing user ${existingUserId} for branch "${branchLabel}"`);
+        branchUsers = existingUsers;
+        console.log(`[CREATE-BRANCH] Using existing users [${userIdsToLink.join(', ')}] for branch "${branchLabel}"`);
       } else {
         // Create a new user for the branch
         const bcrypt = await import('bcryptjs');
@@ -10048,11 +10051,12 @@ export function registerRoutes(app: Express): Server {
           role: 'client',
           clientRut: parentClient.rten || parentUser.clientRut || null,
         }).returning();
-        branchUser = newUser;
+        branchUsers = [newUser];
       }
 
       // Create the clients record for the branch
-      const branchEmail = existingUserId ? (branchUser.email || branchUser.publicEmail || parentClient.email || null) : (email || parentClient.email || null);
+      // Take the first user's email as default
+      const branchEmail = branchUsers.length > 0 ? (branchUsers[0].email || branchUsers[0].publicEmail || parentClient.email || null) : (email || parentClient.email || null);
       const [branchClient] = await dbInstance.insert(clientsTable).values({
         nokoen: branchName,
         rten: parentClient.rten || null,
@@ -10061,7 +10065,7 @@ export function registerRoutes(app: Express): Server {
         dien: parentClient.dien || null,
         cmen: parentClient.cmen || null,
         comuna: parentClient.comuna || null,
-        userId: branchUser.id,
+        userId: branchUsers.length > 0 ? branchUsers[0].id : null,
         parentClientId: parentClientId,
         branchLabel,
         kofuen: salesRepCode || parentClient.kofuen || null,
@@ -10073,25 +10077,21 @@ export function registerRoutes(app: Express): Server {
         lcen: lcen || parentClient.lcen || null,
       }).returning();
 
-      // Link user to the new branch client record
+      // Link users to the new branch client record
       // IMPORTANT: Only update clientId if user doesn't already have one (new users).
-      // For existing users, the client hierarchy is tracked via the clients table's
-      // parentClientId/userId fields — we must NOT overwrite their original clientId
-      // or they'll lose access to their primary branch.
-      if (!branchUser.clientId) {
-        await dbInstance.update(spTable)
-          .set({ clientId: branchClient.id, updatedAt: new Date() })
-          .where(eq(spTable.id, branchUser.id));
+      for (const branchUser of branchUsers) {
+        if (!branchUser.clientId) {
+          await dbInstance.update(spTable)
+            .set({ clientId: branchClient.id, updatedAt: new Date() })
+            .where(eq(spTable.id, branchUser.id));
+        }
       }
 
-      // If the parent doesn't have parentClientId set yet, and it IS the root, leave it as null (root marker)
-      // Mark the parent client as root by ensuring parentClientId stays null for the actual root
-
-      console.log(`[CREATE-BRANCH] Created branch "${branchLabel}" (client ${branchClient.id}, user ${branchUser.id}) under parent ${parentClientId}`);
+      console.log(`[CREATE-BRANCH] Created branch "${branchLabel}" (client ${branchClient.id}) under parent ${parentClientId}`);
       res.json({
         success: true,
         message: `Sucursal "${branchLabel}" creada exitosamente`,
-        branchUser,
+        branchUsers,
         branchClient,
       });
     } catch (error: any) {
@@ -10113,14 +10113,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId } = req.body;
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds } = req.body;
 
       if (!branchLabel) {
         return res.status(400).json({ message: "branchLabel es requerido" });
       }
 
       const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
-      const { eq } = await import('drizzle-orm');
+      const { eq, inArray } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
 
       // Verify branch exists
@@ -10131,18 +10131,24 @@ export function registerRoutes(app: Express): Server {
 
       const branchName = `${branchClient.nokoen?.split(' - ')[0] || branchClient.nokoen} - ${branchLabel}`;
 
+      const userIdsToLink = existingUserIds && Array.isArray(existingUserIds) && existingUserIds.length > 0
+        ? existingUserIds
+        : (existingUserId ? [existingUserId] : []);
+
       // Handle user association if provided
-      let branchUser = null;
-      if (existingUserId) {
-        // Link existing user
-        const [existingUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, existingUserId)).limit(1);
-        if (existingUser && existingUser.role === 'client') {
-          await dbInstance.update(spTable)
-            .set({ clientId: branchClient.id, updatedAt: new Date() })
-            .where(eq(spTable.id, existingUserId));
-          branchUser = existingUser;
-          console.log(`[EDIT-BRANCH] Linked existing user ${existingUserId} to branch "${branchLabel}"`);
+      let branchUsers = [];
+      if (userIdsToLink.length > 0) {
+        // Link existing users
+        const existingUsers = await dbInstance.select().from(spTable).where(inArray(spTable.id, userIdsToLink));
+        for (const eu of existingUsers) {
+          if (eu.role === 'client') {
+            await dbInstance.update(spTable)
+              .set({ clientId: branchClient.id, updatedAt: new Date() })
+              .where(eq(spTable.id, eu.id));
+            branchUsers.push(eu);
+          }
         }
+        console.log(`[EDIT-BRANCH] Linked existing users [${userIdsToLink.join(', ')}] to branch "${branchLabel}"`);
       } else if (username && password) {
         // Create new user linked to this branch
         const bcrypt = await import('bcryptjs');
@@ -10157,7 +10163,7 @@ export function registerRoutes(app: Express): Server {
           clientRut: branchClient.rten || null,
           clientId: branchClient.id,
         }).returning();
-        branchUser = newUser;
+        branchUsers = [newUser];
         console.log(`[EDIT-BRANCH] Created new user ${newUser.id} for branch "${branchLabel}"`);
       }
 
@@ -10177,7 +10183,7 @@ export function registerRoutes(app: Express): Server {
       res.json({
         success: true,
         message: `Sucursal "${branchLabel}" actualizada exitosamente`,
-        branchUser
+        branchUsers
       });
     } catch (error: any) {
       console.error("Error editing branch:", error);
@@ -11826,8 +11832,8 @@ export function registerRoutes(app: Express): Server {
 
   // Price List endpoints
 
-  // Export price list as CSV
-  app.get('/api/price-list/export/csv', requireAuth, async (req: any, res) => {
+  // Export price list as Excel (XLSX)
+  app.get('/api/price-list/export/excel', requireAuth, async (req: any, res) => {
     try {
       const { search, unidad, color } = req.query;
 
@@ -11840,37 +11846,35 @@ export function registerRoutes(app: Express): Server {
         offset: 0,
       });
 
-      // Build CSV header
-      const headers = ['codigo', 'producto', 'unidad', 'lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'costoProduccion', 'rendimiento', 'unidadMedida'];
-      const csvRows = [headers.join(',')];
+      // Prepare data for Excel
+      const excelData = result.items.map(item => ({
+        Codigo: item.codigo || '',
+        Producto: item.producto || '',
+        Formato: item.unidad || '',
+        'Precio Lista': item.lista || '',
+        'Desc 10%': item.desc10 || '',
+        'Desc 10+5%': item.desc10_5 || '',
+        'Desc 10+5+3%': item.desc10_5_3 || '',
+        Minimo: item.minimo || '',
+        'Canal Digital': item.canalDigital || '',
+        'Costo Produccion': (item as any).costoProduccion || '',
+        Rendimiento: (item as any).rendimiento || '',
+        'Unidad Medida': (item as any).unidadMedida || ''
+      }));
 
-      for (const item of result.items) {
-        const row = [
-          `"${(item.codigo || '').replace(/"/g, '""')}"`,
-          `"${(item.producto || '').replace(/"/g, '""')}"`,
-          `"${(item.unidad || '').replace(/"/g, '""')}"`,
-          item.lista || '',
-          item.desc10 || '',
-          item.desc10_5 || '',
-          item.desc10_5_3 || '',
-          item.minimo || '',
-          item.canalDigital || '',
-          (item as any).costoProduccion || '',
-          (item as any).rendimiento || '',
-          `"${((item as any).unidadMedida || '').replace(/"/g, '""')}"`,
-        ];
-        csvRows.push(row.join(','));
-      }
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Lista de Precios");
+      
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const fileName = `lista_precios_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-      const csvContent = csvRows.join('\n');
-      const fileName = `lista_precios_${new Date().toISOString().slice(0, 10)}.csv`;
-
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-      // BOM for UTF-8 Excel compatibility
-      res.send('\uFEFF' + csvContent);
+      res.send(buf);
     } catch (error) {
-      console.error("Error exporting price list CSV:", error);
+      console.error("Error exporting price list Excel:", error);
       res.status(500).json({ message: "Failed to export price list" });
     }
   });
