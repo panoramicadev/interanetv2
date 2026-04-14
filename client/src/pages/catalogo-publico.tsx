@@ -342,7 +342,8 @@ export default function CatalogoPublico() {
   const [tempRut, setTempRut] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
   const [rutError, setRutError] = useState('');
-  const [dialogStep, setDialogStep] = useState<'choose' | 'rut' | 'newClient'>('choose');
+  const [dialogStep, setDialogStep] = useState<'choose' | 'rut' | 'newClient' | 'branch'>('choose');
+  const [availableBranches, setAvailableBranches] = useState<any[]>([]);
   const [newClientForm, setNewClientForm] = useState({ nombre: '', empresa: '', rut: '', ciudad: '', email: '', telefono: '', mensaje: '' });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -403,15 +404,14 @@ export default function CatalogoPublico() {
       const result = await response.json();
 
       if (response.ok && result.found) {
-        setClientBusinessName(result.clientName);
-        setClientEmail(result.clientEmail || '');
-        setClientPhone(result.clientPhone || '');
-        setClientLoyaltyTier(result.loyaltyTier || null);
-        setClientNextTier(result.nextTier || null);
-        setClientAmountToNextTier(result.amountToNextTier || 0);
-        setClientTotalSales(result.totalSalesLast90Days || 0);
-        setIsClientDialogOpen(false);
-        setTempRut('');
+        if (result.branches && result.branches.length > 1) {
+          setAvailableBranches(result.branches);
+          setDialogStep('branch');
+        } else {
+          // single branch or legacy response format
+          const branch = result.branches ? result.branches[0] : result;
+          selectClientBranch(branch);
+        }
       } else {
         setRutError(result.message || 'Cliente no encontrado. Verifica el RUT ingresado.');
       }
@@ -420,6 +420,19 @@ export default function CatalogoPublico() {
     } finally {
       setIsSearchingClient(false);
     }
+  };
+
+  const selectClientBranch = (branch: any) => {
+    setClientBusinessName(branch.branchLabel ? `${branch.clientName} - Sucursal ${branch.branchLabel}` : branch.clientName);
+    setClientEmail(branch.clientEmail || '');
+    setClientPhone(branch.clientPhone || '');
+    setClientLoyaltyTier(branch.loyaltyTier || null);
+    setClientNextTier(branch.nextTier || null);
+    setClientAmountToNextTier(branch.amountToNextTier || 0);
+    setClientTotalSales(branch.totalSalesLast90Days || 0);
+    setIsClientDialogOpen(false);
+    setTempRut('');
+    setDialogStep('choose'); // reset for next time
   };
 
   const handleClearClient = () => {
@@ -597,8 +610,54 @@ export default function CatalogoPublico() {
                       Buscando...
                     </>
                   ) : (
-                    'Ver precios'
+                    'Siguiente'
                   )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 2a-2: Branch Selection (if multiple branches exist) */}
+          {dialogStep === 'branch' && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Store className="w-5 h-5 text-amber-500" />
+                  Selecciona una Sucursal
+                </DialogTitle>
+                <DialogDescription>
+                  Encontramos múltiples sucursales para este RUT. Selecciona con cuál operar.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-4 max-h-[50vh] overflow-y-auto">
+                {availableBranches.map((branch, idx) => (
+                  <button
+                    key={branch.id || idx}
+                    onClick={() => selectClientBranch(branch)}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 transition-all group text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      {branch.isParent ? (
+                        <Building className="w-5 h-5 text-amber-600" />
+                      ) : (
+                        <Store className="w-5 h-5 text-amber-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800 group-hover:text-amber-700">
+                        {branch.isParent ? 'Casa Matriz' : `Sucursal: ${branch.branchLabel || branch.clientName}`}
+                      </p>
+                      <p className="text-xs text-slate-500">{branch.clientName}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setDialogStep('rut')}
+                >
+                  Atrás
                 </Button>
               </DialogFooter>
             </>

@@ -541,6 +541,38 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_code ON ecommerce_coupons(UPPER(code))`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_active ON ecommerce_coupons(is_active)`);
+    // 15. Crear tabla crm_ayuda_memoria si no existe
+    console.log('  📝 Verificando tabla crm_ayuda_memoria...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS crm_ayuda_memoria (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        cliente_seguimiento_id VARCHAR,
+        cliente_nombre TEXT NOT NULL,
+        rut VARCHAR,
+        giro TEXT,
+        direccion TEXT,
+        ciudad VARCHAR,
+        tipo_cliente VARCHAR,
+        contacto_principal TEXT,
+        telefono_contacto VARCHAR,
+        email_contacto VARCHAR,
+        productos_interes TEXT,
+        frecuencia_compra VARCHAR,
+        condiciones_pago TEXT,
+        competencia TEXT,
+        fortalezas TEXT,
+        debilidades TEXT,
+        oportunidades TEXT,
+        observaciones TEXT,
+        creado_por VARCHAR NOT NULL,
+        creado_por_nombre TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_cliente" ON crm_ayuda_memoria (cliente_seguimiento_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_creado_por" ON crm_ayuda_memoria (creado_por)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_created" ON crm_ayuda_memoria (created_at)`);
 
     console.log('✅ Bootstrap de base de datos completado');
     

@@ -1607,7 +1607,7 @@ export default function TiendaPage() {
                 title="Pedido Rápido por SKU"
               >
                 <Zap className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF6E23] group-hover:scale-110 transition-transform" />
-                <span className="hidden lg:inline text-xs font-bold text-[#FF6E23]">Pedido Rápido</span>
+                <span className="hidden lg:inline text-xs font-bold text-[#FF6E23]">Buscar por SKU</span>
               </button>
 
               {/* Cart */}

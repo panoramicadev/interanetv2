@@ -335,9 +335,23 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
             {/* Price Information */}
             <div className="space-y-2">
               <div className="text-sm text-gray-500 dark:text-gray-400">Precio unitario:</div>
-              <div className="text-xl font-bold text-gray-900 dark:text-white" data-testid={`text-unit-price-${item.productId}`}>
-                {formatPrice(item.unitPrice)}
-              </div>
+              {item.discountAmount && item.discountAmount > 0 ? (
+                <>
+                  <div className="text-sm text-gray-400 line-through" data-testid={`text-unit-price-original-${item.productId}`}>
+                    {formatPrice(item.unitPrice)}
+                  </div>
+                  <div className="text-xl font-bold text-emerald-600" data-testid={`text-unit-price-${item.productId}`}>
+                    {formatPrice(item.unitPriceAfterDiscount || item.unitPrice)}
+                  </div>
+                  <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
+                    🏷️ Descuento aplicado
+                  </div>
+                </>
+              ) : (
+                <div className="text-xl font-bold text-gray-900 dark:text-white" data-testid={`text-unit-price-${item.productId}`}>
+                  {formatPrice(item.unitPrice)}
+                </div>
+              )}
               <div className="text-xs text-gray-400">
                 Por {currentPackaging.toLowerCase()}
               </div>
@@ -412,12 +426,28 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Subtotal:</div>
-                <div className="text-2xl font-bold text-[#FF6E23]" data-testid={`text-subtotal-${item.productId}`}>
-                  {formatPrice(item.subtotal)}
-                </div>
-                <div className="text-xs text-gray-400">
-                  {formatPrice(item.unitPrice)} × {item.quantity}
-                </div>
+                {item.discountAmount && item.discountAmount > 0 ? (
+                  <>
+                    <div className="text-sm text-gray-400 line-through">
+                      {formatPrice(item.subtotal)}
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-600" data-testid={`text-subtotal-${item.productId}`}>
+                      {formatPrice(item.subtotalAfterDiscount || item.subtotal)}
+                    </div>
+                    <div className="text-xs text-emerald-600 font-medium">
+                      -{formatPrice(item.discountAmount)} dcto.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-[#FF6E23]" data-testid={`text-subtotal-${item.productId}`}>
+                      {formatPrice(item.subtotal)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatPrice(item.unitPrice)} × {item.quantity}
+                    </div>
+                  </>
+                )}
               </div>
               
               <Button

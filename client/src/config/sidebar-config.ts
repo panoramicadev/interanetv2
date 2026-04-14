@@ -32,7 +32,8 @@ import {
   Sparkles,
   Gift,
   PackageSearch,
-  UserCheck
+  UserCheck,
+  BookOpen
 } from "lucide-react";
 
 interface SidebarItem {
@@ -120,6 +121,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/seguimiento-clientes",
           label: "Seguimiento CRM",
           icon: UserCheck,
+        },
+        {
+          href: "/ayuda-memoria",
+          label: "Ayuda Memoria",
+          icon: BookOpen,
         },
       ],
     },
@@ -413,6 +419,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Seguimiento CRM",
           icon: UserCheck,
         },
+        {
+          href: "/ayuda-memoria",
+          label: "Ayuda Memoria",
+          icon: BookOpen,
+        },
       ],
     },
     {
@@ -562,6 +573,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/seguimiento-clientes",
           label: "Seguimiento CRM",
           icon: UserCheck,
+        },
+        {
+          href: "/ayuda-memoria",
+          label: "Ayuda Memoria",
+          icon: BookOpen,
         },
       ],
     },

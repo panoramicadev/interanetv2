@@ -93,6 +93,7 @@ import MisPedidos from "@/pages/mis-pedidos";
 import SeguimientoPedidos from "@/pages/seguimiento-pedidos";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import SeguimientoClienteDetalle from "@/pages/seguimiento-cliente-detalle";
+import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
@@ -227,6 +228,7 @@ function Router() {
             <Route path="/seguimiento-pedidos" component={SeguimientoPedidos} />
             <Route path="/seguimiento-clientes/:id" component={SeguimientoClienteDetalle} />
             <Route path="/seguimiento-clientes" component={SeguimientoClientes} />
+            <Route path="/ayuda-memoria" component={AyudaMemoriaPage} />
             <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />

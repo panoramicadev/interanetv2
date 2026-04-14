@@ -1195,6 +1195,7 @@ export interface IStorage {
   getClientByKoen(koen: string): Promise<Client | undefined>;
   getClientByUserId(userId: string): Promise<Client | undefined>;
   getClientByRut(rut: string): Promise<Client | undefined>;
+  getClientsByRut(rut: string): Promise<Client[]>;
   insertClient(client: InsertClient): Promise<Client>;
   insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
   // SIMPLE and RELIABLE client import - identical to order system
@@ -12010,6 +12011,23 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return result[0];
+  }
+
+  async getClientsByRut(rut: string) {
+    // Clean RUT for comparison (remove dots, dashes, spaces)
+    const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').replace(/\s/g, '').toUpperCase();
+
+    // Search with LIKE to handle different RUT formats stored in DB
+    // Return all matches, as a single RUT can have multiple branches
+    const result = await db
+      .select()
+      .from(clients)
+      .where(
+        sql`REPLACE(REPLACE(REPLACE(UPPER(${clients.rten}), '.', ''), '-', ''), ' ', '') = ${cleanRut}`
+      )
+      .orderBy(sql`${clients.parentClientId} NULLS FIRST`); 
+
+    return result;
   }
 
   async insertClient(client: InsertClient) {

@@ -186,19 +186,113 @@ export const calculateTotal = (subtotal: number, taxAmount: number, discountAmou
 };
 
 /**
+ * Distribute discount proportionally to each cart item.
+ * For percentage coupons: each item gets `item.subtotal * (percent / 100)`.
+ * For fixed coupons: distributed by weight `fixedAmount * (item.subtotal / cartSubtotal)`.
+ * For product-specific coupons: only the matching item receives the discount.
+ * Ensures the sum of per-item discounts equals the global discountAmount (rounding adjusted on last item).
+ */
+export const distributeDiscountToItems = (
+  items: CartItem[],
+  coupons: CartState['appliedCoupons'],
+  cartSubtotal: number
+): CartItem[] => {
+  if (coupons.length === 0 || cartSubtotal <= 0) {
+    // No coupons — clear any previous discount fields
+    return items.map(item => ({
+      ...item,
+      discountAmount: 0,
+      unitPriceAfterDiscount: item.unitPrice,
+      subtotalAfterDiscount: item.subtotal,
+    }));
+  }
+
+  // Accumulate per-item discount from all coupons
+  const itemDiscounts = new Array(items.length).fill(0);
+
+  for (const coupon of coupons) {
+    if (coupon.type === 'free_shipping') continue;
+
+    if (coupon.appliesTo === 'product' && coupon.productSku) {
+      // Product-specific coupon — only the matching item gets the discount
+      const idx = items.findIndex(
+        i => i.productCode === coupon.productSku || i.productId === coupon.productSku
+      );
+      if (idx >= 0) {
+        const item = items[idx];
+        if (coupon.type === 'percentage') {
+          itemDiscounts[idx] += Math.round(item.subtotal * (coupon.discount / 100));
+        } else {
+          itemDiscounts[idx] += Math.min(coupon.discount, item.subtotal);
+        }
+      }
+    } else {
+      // Cart-wide coupon — distribute proportionally
+      if (coupon.type === 'percentage') {
+        // Each item gets its own percentage
+        let distributed = 0;
+        items.forEach((item, idx) => {
+          if (idx === items.length - 1) {
+            // Last item gets remainder to avoid rounding errors
+            const totalDiscount = Math.round(cartSubtotal * (coupon.discount / 100));
+            itemDiscounts[idx] += totalDiscount - distributed;
+          } else {
+            const disc = Math.round(item.subtotal * (coupon.discount / 100));
+            itemDiscounts[idx] += disc;
+            distributed += disc;
+          }
+        });
+      } else {
+        // Fixed amount — distribute by weight (item.subtotal / cartSubtotal)
+        const fixedAmount = Math.min(coupon.discount, cartSubtotal);
+        let distributed = 0;
+        items.forEach((item, idx) => {
+          if (idx === items.length - 1) {
+            itemDiscounts[idx] += fixedAmount - distributed;
+          } else {
+            const disc = Math.round(fixedAmount * (item.subtotal / cartSubtotal));
+            itemDiscounts[idx] += disc;
+            distributed += disc;
+          }
+        });
+      }
+    }
+  }
+
+  // Apply accumulated discounts to each item
+  return items.map((item, idx) => {
+    const discount = Math.min(itemDiscounts[idx], item.subtotal); // Never exceed subtotal
+    const subtotalAfterDiscount = item.subtotal - discount;
+    const unitPriceAfterDiscount = item.quantity > 0
+      ? Math.round(subtotalAfterDiscount / item.quantity)
+      : item.unitPrice;
+
+    return {
+      ...item,
+      discountAmount: discount,
+      unitPriceAfterDiscount,
+      subtotalAfterDiscount,
+    };
+  });
+};
+
+/**
  * Recalculate all cart totals
  */
 export const recalculateCartTotals = (state: CartState): CartState => {
   // Recalculate item subtotals
-  const updatedItems = state.items.map(item => ({
+  const baseItems = state.items.map(item => ({
     ...item,
     subtotal: calculateItemSubtotal(item.unitPrice, item.quantity)
   }));
   
-  const subtotal = calculateCartSubtotal(updatedItems);
+  const subtotal = calculateCartSubtotal(baseItems);
   const taxAmount = calculateTax(subtotal);
-  const discountAmount = calculateDiscount(subtotal, state.appliedCoupons, updatedItems);
+  const discountAmount = calculateDiscount(subtotal, state.appliedCoupons, baseItems);
   const total = calculateTotal(subtotal, taxAmount, discountAmount);
+
+  // Distribute discount proportionally to each item
+  const updatedItems = distributeDiscountToItems(baseItems, state.appliedCoupons, subtotal);
   
   return {
     ...state,

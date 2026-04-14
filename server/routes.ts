@@ -66,6 +66,8 @@ import {
   crmSeguimientoHitos,
   insertCrmSeguimientoClienteSchema,
   insertCrmSeguimientoHitoSchema,
+  // CRM Ayuda Memoria
+  crmAyudaMemoria,
   salespeopleUsers,
   // Coupons
   ecommerceCoupons,
@@ -5881,52 +5883,76 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'RUT inválido' });
       }
 
-      // Search client by RUT in the clients table
-      const client = await storage.getClientByRut(cleanRut);
+      // Search clients by RUT in the clients table
+      const clientsList = await storage.getClientsByRut(cleanRut);
 
-      if (!client) {
+      if (!clientsList || clientsList.length === 0) {
         return res.status(404).json({ message: 'Cliente no encontrado' });
       }
 
-      // Get client's loyalty status based on their purchase history
-      let loyaltyTier = null;
-      let nextTier = null;
-      let amountToNextTier = 0;
-      let totalSalesLast90Days = 0;
-      try {
-        const loyaltyStatus = await storage.getClientLoyaltyStatus(client.nokoen);
-        if (loyaltyStatus) {
-          if (loyaltyStatus.currentTier) {
-            loyaltyTier = {
-              code: loyaltyStatus.currentTier.codigo,
-              name: loyaltyStatus.currentTier.nombre
-            };
+      // Format all clients found
+      const formattedClients = await Promise.all(clientsList.map(async (client) => {
+        let loyaltyTier = null;
+        let nextTier = null;
+        let amountToNextTier = 0;
+        let totalSalesLast90Days = 0;
+        
+        // We only really need to fetch loyalty status for the parent, but fetching for each is fine
+        // as getClientLoyaltyStatus groups by RUT internally.
+        try {
+          const loyaltyStatus = await storage.getClientLoyaltyStatus(client.nokoen);
+          if (loyaltyStatus) {
+            if (loyaltyStatus.currentTier) {
+              loyaltyTier = {
+                code: loyaltyStatus.currentTier.codigo,
+                name: loyaltyStatus.currentTier.nombre
+              };
+            }
+            if (loyaltyStatus.nextTier) {
+              nextTier = {
+                code: loyaltyStatus.nextTier.codigo,
+                name: loyaltyStatus.nextTier.nombre,
+                minAmount: Number(loyaltyStatus.nextTier.montoMinimo)
+              };
+            }
+            amountToNextTier = loyaltyStatus.amountToNextTier;
+            totalSalesLast90Days = loyaltyStatus.totalSalesLast90Days;
           }
-          if (loyaltyStatus.nextTier) {
-            nextTier = {
-              code: loyaltyStatus.nextTier.codigo,
-              name: loyaltyStatus.nextTier.nombre,
-              minAmount: Number(loyaltyStatus.nextTier.montoMinimo)
-            };
-          }
-          amountToNextTier = loyaltyStatus.amountToNextTier;
-          totalSalesLast90Days = loyaltyStatus.totalSalesLast90Days;
+        } catch (e) {
+          console.error('Error fetching loyalty status:', e);
         }
-      } catch (e) {
-        console.error('Error fetching loyalty status:', e);
-      }
+
+        return {
+          id: client.id,
+          clientName: client.nokoen,
+          clientCode: client.koen,
+          clientEmail: client.emailen || null,
+          clientPhone: client.telen || null,
+          branchLabel: client.branchLabel || null,
+          isParent: !client.parentClientId,
+          clientId: client.id, 
+          loyaltyTier,
+          nextTier,
+          amountToNextTier,
+          totalSalesLast90Days
+        };
+      }));
 
       // Return client info with loyalty tier and progress to next tier
       res.json({
         found: true,
-        clientName: client.nokoen,
-        clientCode: client.koen,
-        clientEmail: client.emailen || null,
-        clientPhone: client.telen || null,
-        loyaltyTier,
-        nextTier,
-        amountToNextTier,
-        totalSalesLast90Days
+        // Kept for backward compatibility, returns the root/first client details at top level
+        clientName: formattedClients[0].clientName,
+        clientCode: formattedClients[0].clientCode,
+        clientEmail: formattedClients[0].clientEmail,
+        clientPhone: formattedClients[0].clientPhone,
+        loyaltyTier: formattedClients[0].loyaltyTier,
+        nextTier: formattedClients[0].nextTier,
+        amountToNextTier: formattedClients[0].amountToNextTier,
+        totalSalesLast90Days: formattedClients[0].totalSalesLast90Days,
+        
+        // New array containing all branches
+        branches: formattedClients,
       });
     } catch (error) {
       console.error('Error searching client by RUT:', error);
@@ -6809,10 +6835,22 @@ export function registerRoutes(app: Express): Server {
           quantity: z.number().positive(),
           unitPrice: z.number().nonnegative(),
           totalPrice: z.number().nonnegative(),
+          discountAmount: z.number().nonnegative().optional(),
+          unitPriceAfterDiscount: z.number().nonnegative().optional(),
+          totalPriceAfterDiscount: z.number().nonnegative().optional(),
         }).passthrough()),
         subtotal: z.number().nonnegative(),
         tax: z.number().nonnegative(),
         total: z.number().nonnegative(),
+        discount: z.number().nonnegative().optional(),
+        appliedCoupons: z.array(z.object({
+          code: z.string(),
+          type: z.string(),
+          discount: z.number().nonnegative(),
+          description: z.string().optional().nullable(),
+          appliesTo: z.string().optional().nullable(),
+          productSku: z.string().optional().nullable(),
+        })).optional(),
         notes: z.string().optional().nullable(),
         shippingAddress: z.string().optional().nullable(),
         paymentCondition: z.string().optional().nullable(),
@@ -10036,9 +10074,15 @@ export function registerRoutes(app: Express): Server {
       }).returning();
 
       // Link user to the new branch client record
-      await dbInstance.update(spTable)
-        .set({ clientId: branchClient.id, updatedAt: new Date() })
-        .where(eq(spTable.id, branchUser.id));
+      // IMPORTANT: Only update clientId if user doesn't already have one (new users).
+      // For existing users, the client hierarchy is tracked via the clients table's
+      // parentClientId/userId fields — we must NOT overwrite their original clientId
+      // or they'll lose access to their primary branch.
+      if (!branchUser.clientId) {
+        await dbInstance.update(spTable)
+          .set({ clientId: branchClient.id, updatedAt: new Date() })
+          .where(eq(spTable.id, branchUser.id));
+      }
 
       // If the parent doesn't have parentClientId set yet, and it IS the root, leave it as null (root marker)
       // Mark the parent client as root by ensuring parentClientId stays null for the actual root
@@ -12271,7 +12315,8 @@ export function registerRoutes(app: Express): Server {
       
       // Detect if CSV has headers: check if first value looks like a SKU (starts with letters+numbers)
       const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
-      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
+      const headerKeywords = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo', 'producto'];
+      const hasHeaders = headerKeywords.includes(firstVal.toLowerCase()) || firstLine.toLowerCase().includes('precio');
       
       console.log(`[Lista Mix Import] Delimiter: "${delimiter}", hasHeaders: ${hasHeaders}, firstLine: "${firstLine.substring(0, 100)}"`);
       
@@ -12292,6 +12337,7 @@ export function registerRoutes(app: Express): Server {
         else if (/^\d+,\d+$/.test(cleaned)) {
           cleaned = cleaned.replace(',', '.');
         }
+        if (isNaN(Number(cleaned)) || cleaned === '') return '';
         return cleaned;
       };
 
@@ -12647,7 +12693,8 @@ export function registerRoutes(app: Express): Server {
       else if (firstLine.includes('\t')) delimiter = '\t';
       
       const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
-      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
+      const headerKeywords = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo', 'producto'];
+      const hasHeaders = headerKeywords.includes(firstVal.toLowerCase()) || firstLine.toLowerCase().includes('precio');
 
       // Chilean number format: 4.370 means 4370
       const parseChileanPrice = (val: any): string => {
@@ -12657,6 +12704,7 @@ export function registerRoutes(app: Express): Server {
         if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) cleaned = cleaned.replace(/\./g, '');
         else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) cleaned = cleaned.replace(/\./g, '').replace(',', '.');
         else if (/^\d+,\d+$/.test(cleaned)) cleaned = cleaned.replace(',', '.');
+        if (isNaN(Number(cleaned)) || cleaned === '') return '';
         return cleaned;
       };
 
@@ -12893,7 +12941,8 @@ export function registerRoutes(app: Express): Server {
       else if (firstLine.includes('\t')) delimiter = '\t';
       
       const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
-      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
+      const headerKeywords = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo', 'producto'];
+      const hasHeaders = headerKeywords.includes(firstVal.toLowerCase()) || firstLine.toLowerCase().includes('precio');
       
       const parseChileanPrice = (val: any): string => {
         if (val === null || val === undefined) return '';
@@ -12908,6 +12957,7 @@ export function registerRoutes(app: Express): Server {
         else if (/^\d+,\d+$/.test(cleaned)) {
           cleaned = cleaned.replace(',', '.');
         }
+        if (isNaN(Number(cleaned)) || cleaned === '') return '';
         return cleaned;
       };
 
@@ -28412,6 +28462,179 @@ Instrucciones extra:
         res.json([]);
       }
     }
+  }));
+
+  // ==================================================================================
+  // CRM — AYUDA MEMORIA (Fichas de cliente para vendedores)
+  // ==================================================================================
+
+  // GET /api/crm/ayuda-memoria — List all fichas
+  app.get('/api/crm/ayuda-memoria', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { busqueda, vendedor, limit: limitStr, offset: offsetStr } = req.query;
+
+    const conditions: any[] = [];
+
+    // Role-based filtering: salespeople only see their own fichas
+    if (user.role === 'salesperson') {
+      conditions.push(eq(crmAyudaMemoria.creadoPor, user.id));
+    } else if (vendedor && (user.role === 'admin' || user.role === 'supervisor')) {
+      conditions.push(eq(crmAyudaMemoria.creadoPor, vendedor as string));
+    }
+
+    if (busqueda) {
+      const search = `%${busqueda}%`;
+      conditions.push(
+        or(
+          ilike(crmAyudaMemoria.clienteNombre, search),
+          ilike(crmAyudaMemoria.rut, search),
+          ilike(crmAyudaMemoria.giro, search),
+          ilike(crmAyudaMemoria.ciudad, search),
+          ilike(crmAyudaMemoria.observaciones, search)
+        )!
+      );
+    }
+
+    const queryLimit = parseInt(limitStr as string) || 100;
+    const queryOffset = parseInt(offsetStr as string) || 0;
+
+    const results = await db.select()
+      .from(crmAyudaMemoria)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(crmAyudaMemoria.updatedAt))
+      .limit(queryLimit)
+      .offset(queryOffset);
+
+    res.json(results);
+  }));
+
+  // GET /api/crm/ayuda-memoria/:id — Detail of a ficha
+  app.get('/api/crm/ayuda-memoria/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [ficha] = await db.select()
+      .from(crmAyudaMemoria)
+      .where(eq(crmAyudaMemoria.id, id))
+      .limit(1);
+
+    if (!ficha) {
+      return res.status(404).json({ message: 'Ficha no encontrada' });
+    }
+
+    // Verify access for salesperson
+    if (user.role === 'salesperson' && ficha.creadoPor !== user.id) {
+      return res.status(403).json({ message: 'No tienes acceso a esta ficha' });
+    }
+
+    res.json(ficha);
+  }));
+
+  // POST /api/crm/ayuda-memoria — Create new ficha
+  app.post('/api/crm/ayuda-memoria', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+
+    const creadoPorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+    const data = {
+      clienteSeguimientoId: req.body.clienteSeguimientoId || null,
+      clienteNombre: req.body.clienteNombre,
+      rut: req.body.rut || null,
+      giro: req.body.giro || null,
+      direccion: req.body.direccion || null,
+      ciudad: req.body.ciudad || null,
+      tipoCliente: req.body.tipoCliente || null,
+      contactoPrincipal: req.body.contactoPrincipal || null,
+      telefonoContacto: req.body.telefonoContacto || null,
+      emailContacto: req.body.emailContacto || null,
+      productosInteres: req.body.productosInteres || null,
+      frecuenciaCompra: req.body.frecuenciaCompra || null,
+      condicionesPago: req.body.condicionesPago || null,
+      competencia: req.body.competencia || null,
+      fortalezas: req.body.fortalezas || null,
+      debilidades: req.body.debilidades || null,
+      oportunidades: req.body.oportunidades || null,
+      observaciones: req.body.observaciones || null,
+      creadoPor: user.id,
+      creadoPorNombre,
+    };
+
+    if (!data.clienteNombre) {
+      return res.status(400).json({ message: 'El nombre del cliente es requerido' });
+    }
+
+    const [created] = await db.insert(crmAyudaMemoria)
+      .values(data)
+      .returning();
+
+    res.status(201).json(created);
+  }));
+
+  // PUT /api/crm/ayuda-memoria/:id — Update ficha
+  app.put('/api/crm/ayuda-memoria/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [existing] = await db.select()
+      .from(crmAyudaMemoria)
+      .where(eq(crmAyudaMemoria.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Ficha no encontrada' });
+    }
+
+    // Verify access
+    if (user.role === 'salesperson' && existing.creadoPor !== user.id) {
+      return res.status(403).json({ message: 'No tienes acceso a modificar esta ficha' });
+    }
+
+    const allowedFields = [
+      'clienteNombre', 'rut', 'giro', 'direccion', 'ciudad', 'tipoCliente',
+      'contactoPrincipal', 'telefonoContacto', 'emailContacto',
+      'productosInteres', 'frecuenciaCompra', 'condicionesPago', 'competencia',
+      'fortalezas', 'debilidades', 'oportunidades', 'observaciones',
+      'clienteSeguimientoId',
+    ];
+
+    const updateData: any = { updatedAt: new Date() };
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field] || null;
+      }
+    }
+
+    const [updated] = await db.update(crmAyudaMemoria)
+      .set(updateData)
+      .where(eq(crmAyudaMemoria.id, id))
+      .returning();
+
+    res.json(updated);
+  }));
+
+  // DELETE /api/crm/ayuda-memoria/:id — Delete ficha
+  app.delete('/api/crm/ayuda-memoria/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [existing] = await db.select()
+      .from(crmAyudaMemoria)
+      .where(eq(crmAyudaMemoria.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Ficha no encontrada' });
+    }
+
+    // Only creator or admin can delete
+    if (user.role !== 'admin' && existing.creadoPor !== user.id) {
+      return res.status(403).json({ message: 'No tienes permiso para eliminar esta ficha' });
+    }
+
+    await db.delete(crmAyudaMemoria)
+      .where(eq(crmAyudaMemoria.id, id));
+
+    res.json({ success: true });
   }));
 
   const httpServer = createServer(app);

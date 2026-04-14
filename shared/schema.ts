@@ -2659,6 +2659,11 @@ export interface CartItem {
   quantity: number; // Selected quantity (must follow validation rules)
   subtotal: number; // unitPrice * quantity (calculated)
 
+  // Coupon discount distribution (populated when cart-level coupons are applied)
+  discountAmount?: number;           // Total discount amount distributed to this item
+  unitPriceAfterDiscount?: number;   // Unit price after proportional discount
+  subtotalAfterDiscount?: number;    // subtotal - discountAmount
+
   // Product information for display
   imageUrl?: string; // Primary product image
   category?: string; // Product category
@@ -2776,6 +2781,9 @@ export const cartItemSchema = z.object({
   originalPrice: z.number().min(0).optional(),
   quantity: z.number().int().min(1),
   subtotal: z.number().min(0),
+  discountAmount: z.number().min(0).optional(),
+  unitPriceAfterDiscount: z.number().min(0).optional(),
+  subtotalAfterDiscount: z.number().min(0).optional(),
   imageUrl: z.string().optional(),
   category: z.string().optional(),
   addedAt: z.string(),
@@ -7179,3 +7187,91 @@ export const insertCrmSeguimientoHitoSchema = createInsertSchema(crmSeguimientoH
   id: true,
   createdAt: true,
 });
+
+// ==================================================================================
+// CRM — AYUDA MEMORIA (Fichas de cliente para vendedores)
+// ==================================================================================
+
+export const crmAyudaMemoria = pgTable("crm_ayuda_memoria", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Vinculación con cliente CRM (opcional)
+  clienteSeguimientoId: varchar("cliente_seguimiento_id"), // FK a crm_seguimiento_clientes.id
+  clienteNombre: text("cliente_nombre").notNull(),
+  rut: varchar("rut"),
+
+  // Info del negocio
+  giro: text("giro"),
+  direccion: text("direccion"),
+  ciudad: varchar("ciudad"),
+  tipoCliente: varchar("tipo_cliente"), // ferreteria, construccion, industrial, etc.
+
+  // Contactos
+  contactoPrincipal: text("contacto_principal"),
+  telefonoContacto: varchar("telefono_contacto"),
+  emailContacto: varchar("email_contacto"),
+
+  // Comercial
+  productosInteres: text("productos_interes"),
+  frecuenciaCompra: varchar("frecuencia_compra"),
+  condicionesPago: text("condiciones_pago"),
+  competencia: text("competencia"),
+
+  // Análisis FODA
+  fortalezas: text("fortalezas"),
+  debilidades: text("debilidades"),
+  oportunidades: text("oportunidades"),
+
+  // Notas
+  observaciones: text("observaciones"),
+
+  // Metadata
+  creadoPor: varchar("creado_por").notNull(),
+  creadoPorNombre: text("creado_por_nombre").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  clienteIdx: index("IDX_ayuda_mem_cliente").on(table.clienteSeguimientoId),
+  creadoPorIdx: index("IDX_ayuda_mem_creado_por").on(table.creadoPor),
+  createdIdx: index("IDX_ayuda_mem_created").on(table.createdAt),
+  nombreIdx: index("IDX_ayuda_mem_nombre").on(table.clienteNombre),
+}));
+
+// Relations
+export const crmAyudaMemoriaRelations = relations(crmAyudaMemoria, ({ one }) => ({
+  clienteSeguimiento: one(crmSeguimientoClientes, {
+    fields: [crmAyudaMemoria.clienteSeguimientoId],
+    references: [crmSeguimientoClientes.id],
+  }),
+}));
+
+// Types
+export type CrmAyudaMemoria = typeof crmAyudaMemoria.$inferSelect;
+export type InsertCrmAyudaMemoria = typeof crmAyudaMemoria.$inferInsert;
+
+// Validation schema
+export const insertCrmAyudaMemoriaSchema = createInsertSchema(crmAyudaMemoria, {
+  clienteNombre: z.string().min(1, "Nombre del cliente es requerido"),
+  rut: z.string().optional().nullable(),
+  giro: z.string().optional().nullable(),
+  direccion: z.string().optional().nullable(),
+  ciudad: z.string().optional().nullable(),
+  tipoCliente: z.string().optional().nullable(),
+  contactoPrincipal: z.string().optional().nullable(),
+  telefonoContacto: z.string().optional().nullable(),
+  emailContacto: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
+  productosInteres: z.string().optional().nullable(),
+  frecuenciaCompra: z.string().optional().nullable(),
+  condicionesPago: z.string().optional().nullable(),
+  competencia: z.string().optional().nullable(),
+  fortalezas: z.string().optional().nullable(),
+  debilidades: z.string().optional().nullable(),
+  oportunidades: z.string().optional().nullable(),
+  observaciones: z.string().optional().nullable(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCrmAyudaMemoriaInput = z.infer<typeof insertCrmAyudaMemoriaSchema>;
