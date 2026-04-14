@@ -49,7 +49,11 @@ const sanitizeAddress = (text?: string) => {
     .replace(/,$/, '');      // Removes trailing comma
 };
 
-export default function BillingSummary() {
+interface BillingSummaryProps {
+  onShippingChange?: (cost: number, method: 'retiro' | 'despacho') => void;
+}
+
+export default function BillingSummary({ onShippingChange }: BillingSummaryProps = {}) {
   const { state, applyCoupon, removeCoupon } = useCart();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -318,21 +322,41 @@ export default function BillingSummary() {
         finalShippingAddress = wh ? `RETIRO EN BODEGA: ${wh.name}${wh.location ? ' - ' + wh.location : ''}` : 'RETIRO EN BODEGA';
       }
 
+      const mappedItems = state.items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.productCode || item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.quantity * item.unitPrice,
+        discountAmount: item.discountAmount || 0,
+        unitPriceAfterDiscount: item.unitPriceAfterDiscount || item.unitPrice,
+        totalPriceAfterDiscount: item.subtotalAfterDiscount || (item.quantity * item.unitPrice),
+        imageUrl: item.imageUrl || null,
+        selectedColor: item.selectedColor || null,
+        selectedPackaging: item.selectedPackaging || null,
+      }));
+
+      // AÑADIR FLETE COMO PUNTO DE FACTURACIÓN
+      if (deliveryMethod === 'despacho' && shippingCost > 0) {
+        mappedItems.push({
+          productId: "FLETE-001",
+          productName: "Flete / Despacho a Domicilio",
+          sku: "FLETE-001",
+          quantity: 1,
+          unitPrice: shippingCost,
+          totalPrice: shippingCost,
+          discountAmount: 0,
+          unitPriceAfterDiscount: shippingCost,
+          totalPriceAfterDiscount: shippingCost,
+          imageUrl: null,
+          selectedColor: null,
+          selectedPackaging: null,
+        });
+      }
+
       const orderData = {
-        items: state.items.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.productCode || item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.quantity * item.unitPrice,
-          discountAmount: item.discountAmount || 0,
-          unitPriceAfterDiscount: item.unitPriceAfterDiscount || item.unitPrice,
-          totalPriceAfterDiscount: item.subtotalAfterDiscount || (item.quantity * item.unitPrice),
-          imageUrl: item.imageUrl || null,
-          selectedColor: item.selectedColor || null,
-          selectedPackaging: item.selectedPackaging || null,
-        })),
+        items: mappedItems,
         subtotal: state.subtotal - state.discountAmount,
         tax: state.taxAmount,
         shipping: deliveryMethod === 'despacho' ? shippingCost : 0,
@@ -430,6 +454,13 @@ export default function BillingSummary() {
   
   // Final total (includes shipping only if despacho)
   const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
+
+  // Inform parent of shipping cost and method changes
+  useEffect(() => {
+    if (onShippingChange) {
+      onShippingChange(shippingCost, deliveryMethod);
+    }
+  }, [shippingCost, deliveryMethod, onShippingChange]);
   const total = state.total + effectiveShipping;
 
   // Determine payment instructions based on condition

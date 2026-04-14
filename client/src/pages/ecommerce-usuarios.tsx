@@ -305,6 +305,21 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     lcen: client.lcen || "",
   });
 
+  const [showEditBranchDialog, setShowEditBranchDialog] = useState(false);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [editBranchForm, setEditBranchForm] = useState({
+    branchLabel: "",
+    username: "",
+    email: "",
+    password: "",
+    existingUserId: "",
+    salesRepCode: "",
+    pickupWarehouseId: "none",
+    creditLimit: "",
+    paymentCondition: "",
+    lcen: "",
+  });
+
   // Fetch all client users for existing user selector
   const { data: allClientUsers = [] } = useQuery<ClientUser[]>({
     queryKey: ["/api/users/clients"],
@@ -369,6 +384,47 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       toast({ title: "Error", description: msg, variant: "destructive" });
     }
   });
+
+  // Mutation: Edit branch
+  const editBranchMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("PUT", `/api/users/clients/branches/${editingBranchId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sucursal actualizada", description: "La sucursal se ha actualizado exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/branches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
+      setShowEditBranchDialog(false);
+      setEditingBranchId(null);
+      setUseExistingUser(false);
+      setBranchUserSearch("");
+      setEditBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserId: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: "", lcen: "" });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
+  const handleEditBranch = (branch: BranchInfo) => {
+    setEditingBranchId(branch.id);
+    setUseExistingUser(false);
+    setEditBranchForm({
+      branchLabel: branch.branchLabel || "",
+      username: "",
+      email: "",
+      password: "",
+      existingUserId: "",
+      salesRepCode: branch.salesRepCode || "",
+      pickupWarehouseId: branch.pickupWarehouseId || "none",
+      creditLimit: branch.creditLimit !== null ? branch.creditLimit.toString() : "",
+      paymentCondition: branch.paymentCondition || "CONTADO",
+      lcen: client.lcen || "", // Fallback to client if not available on branch, unfortunately branch object doesn't return lcen currently
+    });
+    setShowEditBranchDialog(true);
+  };
 
   // ─── User Management ──────────────────────────────────
   const [showUserDialog, setShowUserDialog] = useState(false);
@@ -1160,14 +1216,27 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                             {branch.isRoot && <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>}
                             {branch.branchLabel && <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">{branch.branchLabel}</Badge>}
                             {branch.salesRepCode && <span>Vendedor: {erpVendedores.find((v: any) => v.code === branch.salesRepCode)?.name || branch.salesRepCode}</span>}
+                            {(() => {
+                              const bUsers = groupUsers.filter(u => u.clientId === branch.id);
+                              const bEmails = bUsers.map(u => u.email || u.username).filter(Boolean);
+                              return bEmails.length > 0 ? (
+                                <span className="flex items-center gap-1 text-slate-500">
+                                  <UserCircle className="h-3 w-3" />
+                                  {bEmails.join(', ')}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right flex-shrink-0 ml-3">
+                      <div className="text-right flex-shrink-0 ml-3 flex flex-col items-end gap-1">
                         <p className="text-xs font-medium">{formatCurrency(branch.creditLimit)}</p>
                         <p className="text-[10px] text-muted-foreground">
                           Usado: {formatCurrency(branch.creditUsed)}
                         </p>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 mt-1" onClick={() => handleEditBranch(branch)}>
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -1533,6 +1602,261 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               }}
             >
               {createBranchMutation.isPending ? "Creando..." : "Crear Sucursal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog Editar Sucursal ───────────────────── */}
+      <Dialog open={showEditBranchDialog} onOpenChange={setShowEditBranchDialog}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5 text-violet-600" />
+              Editar Sucursal
+            </DialogTitle>
+            <DialogDescription>
+              Modifica los detalles comerciales o agrega un usuario a esta sucursal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Branch label */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Nombre de la Sucursal *</Label>
+              <Input
+                placeholder="Ej: Santiago Centro, Valparaíso, Concepción..."
+                value={editBranchForm.branchLabel}
+                onChange={(e) => setEditBranchForm(p => ({ ...p, branchLabel: e.target.value }))}
+              />
+            </div>
+
+            {/* Toggle: Add User to Branch */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-violet-50/70 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-800">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-violet-500" />
+                <span className="text-sm font-medium text-violet-800 dark:text-violet-200">Asignar / Crear Usuario para esta sucursal (Opcional)</span>
+              </div>
+              <Switch
+                checked={useExistingUser}
+                onCheckedChange={(checked) => {
+                  setUseExistingUser(checked);
+                  if (checked) {
+                    setEditBranchForm(p => ({ ...p, username: "", password: "", email: "" }));
+                  } else {
+                    setEditBranchForm(p => ({ ...p, existingUserId: "" }));
+                  }
+                }}
+              />
+            </div>
+
+            {useExistingUser ? (
+              /* Existing user selector */
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Seleccionar Usuario Existente</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Buscar por nombre, email o RUT..."
+                    value={branchUserSearch}
+                    onChange={(e) => setBranchUserSearch(e.target.value)}
+                    className="h-9"
+                  />
+                  <div className="max-h-[180px] overflow-y-auto rounded-lg border bg-background">
+                    {availableExistingUsers.length === 0 ? (
+                      <div className="text-center py-6 text-sm text-muted-foreground">
+                        {branchUserSearch ? "Sin resultados" : "No hay usuarios disponibles"}
+                      </div>
+                    ) : (
+                      availableExistingUsers.slice(0, 20).map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => setEditBranchForm(p => ({ ...p, existingUserId: u.id }))}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b last:border-0 ${
+                            editBranchForm.existingUserId === u.id
+                              ? "bg-violet-50 dark:bg-violet-950/30 border-l-2 border-l-violet-500"
+                              : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                            editBranchForm.existingUserId === u.id
+                              ? "bg-violet-600 text-white"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}>
+                            {(u.clientName || u.email)?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{u.clientName || u.email}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {u.email}{u.rut ? ` · ${u.rut}` : ""}
+                              {u.branchLabel ? ` · ${u.branchLabel}` : ""}
+                            </p>
+                          </div>
+                          {editBranchForm.existingUserId === u.id && (
+                            <Check className="h-4 w-4 text-violet-600 flex-shrink-0" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {editBranchForm.existingUserId && (
+                    <p className="text-xs text-emerald-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Usuario seleccionado: {allClientUsers.find(u => u.id === editBranchForm.existingUserId)?.clientName || ""}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* New user credentials - Optional since we might just be editing commercial info */
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Nuevo Usuario (Opcional)</Label>
+                    <Input
+                      placeholder="Ej: sucursal-stgo"
+                      value={editBranchForm.username}
+                      onChange={(e) => setEditBranchForm(p => ({ ...p, username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Contraseña</Label>
+                    <Input
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={editBranchForm.password}
+                      disabled={!editBranchForm.username}
+                      onChange={(e) => setEditBranchForm(p => ({ ...p, password: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {editBranchForm.username && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Email (opcional)</Label>
+                    <Input
+                      type="email"
+                      placeholder="sucursal@empresa.cl"
+                      value={editBranchForm.email}
+                      onChange={(e) => setEditBranchForm(p => ({ ...p, email: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            <hr className="my-2" />
+
+            {/* Commercial info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vendedor Asignado</Label>
+                <Select
+                  value={editBranchForm.salesRepCode || "unassigned"}
+                  onValueChange={(val) => setEditBranchForm(p => ({ ...p, salesRepCode: val === "unassigned" ? "" : val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm truncate"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned" className="text-muted-foreground italic">Heredar del padre</SelectItem>
+                    {erpVendedores.map((v: any) => (
+                      <SelectItem key={v.code} value={v.code}>
+                        {v.name} ({v.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Condición de Pago</Label>
+                <Select
+                  value={editBranchForm.paymentCondition}
+                  onValueChange={(val) => setEditBranchForm(p => ({ ...p, paymentCondition: val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CONTADO">Contado</SelectItem>
+                    <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                    <SelectItem value="CREDITO">Crédito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Límite de Crédito ($)</Label>
+                <Input
+                  type="number"
+                  className="h-8 text-sm"
+                  placeholder="Ej: 5000000"
+                  value={editBranchForm.creditLimit}
+                  onChange={(e) => setEditBranchForm(p => ({ ...p, creditLimit: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Bodega de Retiro</Label>
+                <Select
+                  value={editBranchForm.pickupWarehouseId}
+                  onValueChange={(val) => setEditBranchForm(p => ({ ...p, pickupWarehouseId: val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm truncate"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {warehouses
+                      .filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL'))
+                      .map((w: any) => (
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Lista de Precios</Label>
+              <Select
+                value={editBranchForm.lcen || "__none__"}
+                onValueChange={(val) => setEditBranchForm(p => ({ ...p, lcen: val === "__none__" ? "" : val }))}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Heredar del padre" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Heredar del padre</SelectItem>
+                  <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
+                  {customPriceLists.filter(l => l.active).map(list => (
+                    <SelectItem key={list.code} value={list.code}>{list.name} ({list.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditBranchDialog(false)}>Cancelar</Button>
+            <Button
+              className="bg-violet-600 hover:bg-violet-700"
+              disabled={
+                !editBranchForm.branchLabel ||
+                (!useExistingUser && editBranchForm.username && (!editBranchForm.password || editBranchForm.password.length < 6)) ||
+                editBranchMutation.isPending
+              }
+              onClick={() => {
+                const payload: any = {
+                  branchLabel: editBranchForm.branchLabel,
+                  salesRepCode: editBranchForm.salesRepCode || null,
+                  pickupWarehouseId: editBranchForm.pickupWarehouseId === "none" ? null : editBranchForm.pickupWarehouseId,
+                  creditLimit: editBranchForm.creditLimit ? parseFloat(editBranchForm.creditLimit) : null,
+                  paymentCondition: editBranchForm.paymentCondition || null,
+                  lcen: editBranchForm.lcen || null,
+                };
+                if (useExistingUser && editBranchForm.existingUserId) {
+                  payload.existingUserId = editBranchForm.existingUserId;
+                } else if (!useExistingUser && editBranchForm.username && editBranchForm.password) {
+                  payload.username = editBranchForm.username;
+                  payload.email = editBranchForm.email || null;
+                  payload.password = editBranchForm.password;
+                }
+                editBranchMutation.mutate(payload);
+              }}
+            >
+              {editBranchMutation.isPending ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>

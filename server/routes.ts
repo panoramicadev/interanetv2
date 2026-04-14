@@ -10103,6 +10103,91 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Edit an existing branch (sucursal)
+  app.put('/api/users/clients/branches/:branchId', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { branchId } = req.params;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId } = req.body;
+
+      if (!branchLabel) {
+        return res.status(400).json({ message: "branchLabel es requerido" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Verify branch exists
+      const [branchClient] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, branchId)).limit(1);
+      if (!branchClient) {
+        return res.status(404).json({ message: "Sucursal no encontrada" });
+      }
+
+      const branchName = `${branchClient.nokoen?.split(' - ')[0] || branchClient.nokoen} - ${branchLabel}`;
+
+      // Handle user association if provided
+      let branchUser = null;
+      if (existingUserId) {
+        // Link existing user
+        const [existingUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, existingUserId)).limit(1);
+        if (existingUser && existingUser.role === 'client') {
+          await dbInstance.update(spTable)
+            .set({ clientId: branchClient.id, updatedAt: new Date() })
+            .where(eq(spTable.id, existingUserId));
+          branchUser = existingUser;
+          console.log(`[EDIT-BRANCH] Linked existing user ${existingUserId} to branch "${branchLabel}"`);
+        }
+      } else if (username && password) {
+        // Create new user linked to this branch
+        const bcrypt = await import('bcryptjs');
+        const passwordHash = await bcrypt.hash(password, 10);
+        const [newUser] = await dbInstance.insert(spTable).values({
+          salespersonName: branchName,
+          username,
+          email: email || null,
+          password: passwordHash,
+          isActive: true,
+          role: 'client',
+          clientRut: branchClient.rten || null,
+          clientId: branchClient.id,
+        }).returning();
+        branchUser = newUser;
+        console.log(`[EDIT-BRANCH] Created new user ${newUser.id} for branch "${branchLabel}"`);
+      }
+
+      // Update the branch client record
+      await dbInstance.update(clientsTable).set({
+        nokoen: branchName,
+        branchLabel,
+        kofuen: salesRepCode !== undefined ? (salesRepCode || null) : branchClient.kofuen,
+        pickupWarehouseId: pickupWarehouseId !== undefined ? (pickupWarehouseId === 'none' ? null : pickupWarehouseId) : branchClient.pickupWarehouseId,
+        crlt: creditLimit !== undefined ? (creditLimit ? String(creditLimit) : null) : branchClient.crlt,
+        cren: creditLimit !== undefined ? (creditLimit ? String(creditLimit) : null) : branchClient.cren,
+        cpen: paymentCondition !== undefined ? (paymentCondition || null) : branchClient.cpen,
+        lcen: lcen !== undefined ? (lcen || null) : branchClient.lcen,
+        updatedAt: new Date()
+      }).where(eq(clientsTable.id, branchId));
+
+      res.json({
+        success: true,
+        message: `Sucursal "${branchLabel}" actualizada exitosamente`,
+        branchUser
+      });
+    } catch (error: any) {
+      console.error("Error editing branch:", error);
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Ya existe un usuario con ese nombre de usuario o email" });
+      }
+      res.status(500).json({ message: "Error al actualizar sucursal" });
+    }
+  });
+
   // Get sibling branches for a client (all branches under same parent)
   app.get('/api/users/clients/:clientId/branches', requireCommercialAccess, async (req: any, res) => {
     try {

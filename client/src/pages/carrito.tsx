@@ -47,6 +47,10 @@ export default function Carrito() {
   const [mounted, setMounted] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  
+  // Track shipping for PDF generation
+  const [shippingCost, setShippingCost] = useState(0);
+  const [deliveryMethod, setDeliveryMethod] = useState<'retiro' | 'despacho'>('retiro');
 
   useEffect(() => {
     setMounted(true);
@@ -138,14 +142,30 @@ export default function Carrito() {
     updateQuantity(item.id, newQty);
   };
 
-  // PDF Export — mirrors tomador-pedidos style
+  // PDF Export — mirrors tomador-pedidos style with cart accurate totals
   const handleExportPDF = () => {
-    const subtotal = state.items.reduce((sum, item) => sum + item.subtotal, 0);
-    const shipping = 0; // Calculated elsewhere
-    const tax = subtotal * 0.19;
-    const total = subtotal + tax;
     const formatCurrency = (n: number) => `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
     const now = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const totalProducts = state.subtotal;
+    const discount = state.discountAmount;
+    const tax = state.taxAmount;
+    const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
+    const finalTotal = state.total + effectiveShipping;
+
+    const discountRow = discount > 0 ? `
+      <div class="total-row">
+        <span style="color: #ef4444;">Descuento Aplicado:</span>
+        <span style="color: #ef4444;">-${formatCurrency(discount)}</span>
+      </div>
+    ` : '';
+
+    const shippingRow = effectiveShipping > 0 ? `
+      <div class="total-row">
+        <span style="color: #fd6301;">Flete / Despacho a Domicilio:</span>
+        <span style="color: #fd6301; font-weight: 600;">${formatCurrency(effectiveShipping)}</span>
+      </div>
+    ` : '';
 
     const productRows = state.items.map(item => {
       const color = item.selectedColor || extractColor(item.productCode);
@@ -247,15 +267,17 @@ export default function Carrito() {
       <div class="totals">
         <div class="total-row">
           <span>Subtotal (Neto):</span>
-          <span>${formatCurrency(subtotal)}</span>
+          <span>${formatCurrency(totalProducts)}</span>
         </div>
+        ${discountRow}
+        ${shippingRow}
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
         </div>
         <div class="total-row final-total">
-          <span>Total:</span>
-          <span>${formatCurrency(total)}</span>
+          <span>Total Final:</span>
+          <span>${formatCurrency(finalTotal)}</span>
         </div>
       </div>
     </div>
@@ -556,7 +578,12 @@ export default function Carrito() {
           {/* Right Side - Billing Summary */}
           <div className="lg:col-span-1">
             <div className="sticky top-8">
-              <BillingSummary />
+              <BillingSummary 
+                onShippingChange={(cost, method) => {
+                  setShippingCost(cost);
+                  setDeliveryMethod(method);
+                }} 
+              />
             </div>
           </div>
         </div>
