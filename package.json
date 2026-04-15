@@ -148,5 +148,11 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "@react-pdf/renderer": {
+      "@react-pdf/layout": "4.4.1",
+      "@react-pdf/image": "3.0.3"
+    }
   }
 }
