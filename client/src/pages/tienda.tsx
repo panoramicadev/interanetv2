@@ -1292,305 +1292,186 @@ export default function TiendaPage() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
 
-  // Login Gate — show exclusive access screen when not authenticated
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-white font-sans text-gray-900 selection:bg-[#FF6E23]/20 selection:text-[#FF6E23]">
-        {/* Navbar */}
-        <nav className="fixed top-0 inset-x-0 bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 transition-all duration-300">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src={storeConfig?.logoUrl || "/panoramica-logo.png"}
-                alt="Panorámica Market"
-                className="h-10 sm:h-12 drop-shadow-sm"
-              />
-              <span className="text-xl font-black tracking-tight text-gray-800 hidden sm:block">Market</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <a href="/login" className="text-sm font-bold text-gray-600 hover:text-[#FF6E23] transition-colors hidden sm:block">
-                Iniciar Sesión
-              </a>
-              <button
-                onClick={() => setShowRegisterForm(true)}
-                className="bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40"
-              >
-                Solicitar Cuenta
-              </button>
-            </div>
-          </div>
-        </nav>
+  // Login Gate — determine if we need the auth overlay
+  const isGuest = !user;
 
-        {/* Landing Page Content */}
-        <div className="relative pt-24 pb-20 lg:pt-32 lg:pb-32 overflow-hidden bg-gray-50 border-b-8 border-[#FF6E23]">
-          {/* Decorative Background Elements */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none opacity-40">
-            <div className="absolute top-1/4 left-0 w-96 h-96 bg-orange-400/20 rounded-full mix-blend-multiply filter blur-3xl" />
-            <div className="absolute top-1/4 right-0 w-96 h-96 bg-rose-400/20 rounded-full mix-blend-multiply filter blur-3xl" />
-            <div className="absolute -bottom-1/4 left-1/4 w-96 h-96 bg-yellow-400/20 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" />
-          </div>
-
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
-            <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
-              
-              {/* Left Column: Hero Text */}
-              <div className="text-center lg:text-left pt-10">
-                <div className="inline-flex items-center gap-2 bg-white text-[#FF6E23] px-5 py-2 rounded-full text-sm font-bold mb-8 shadow-sm border border-orange-100 ring-4 ring-orange-50 uppercase tracking-widest">
-                  <Sparkles className="h-4 w-4" />
-                  Bienvenido a Market
-                </div>
-                
-                <h1 className="text-5xl md:text-6xl lg:text-[5.5rem] font-black tracking-tighter text-slate-900 mb-8 leading-[1.1] uppercase">
-                  TU<br />
-                  ABASTECIMIENTO,<br />
-                  <span className="text-[#FF6E23]">
-                    LLEVADO AL<br />
-                    SIGUIENTE NIVEL.
-                  </span>
-                </h1>
-                
-                <p className="text-lg md:text-xl text-slate-500 max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed font-medium">
-                  Únete a la plataforma B2B exclusiva y optimiza tus compras con precios especiales, gestión de sucursales, facturación rápida y control total de tu inventario.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center">
-                  <a
-                    href="/login"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold px-8 py-4 rounded-xl transition-all border-2 border-slate-200 text-sm uppercase tracking-widest shadow-sm hover:border-slate-300"
-                  >
-                    <LockKeyhole className="h-4 w-4 text-[#FF6E23]" />
-                    YA TENGO CUENTA
-                  </a>
-                </div>
-              </div>
-
-              {/* Right Column: Registration Form */}
-              <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-slate-100 relative overflow-hidden mt-8 lg:mt-0 lg:ml-auto lg:max-w-md w-full">
-                <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-[#FF6E23] to-[#FF6E23]/80" />
-                
-                {!registerSuccess ? (
-                  <>
-                    <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">SOLICITAR ACCESO VIP</h3>
-                    <p className="text-slate-500 mb-8 text-sm font-medium leading-relaxed">Completa el formulario y un ejecutivo te contactará para crear tus credenciales corporativas.</p>
-                    
-                    <div className="space-y-5">
-                      <div className="grid sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Empresa / Razón Social *</label>
-                          <input
-                            type="text"
-                            value={registerForm.empresa}
-                            onChange={e => setRegisterForm(p => ({ ...p, empresa: e.target.value }))}
-                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                            placeholder="Constructora ABC"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">RUT Empresa *</label>
-                          <input
-                            type="text"
-                            value={registerForm.rut}
-                            onChange={e => setRegisterForm(p => ({ ...p, rut: e.target.value }))}
-                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                            placeholder="76.123.456-7"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Tu Nombre *</label>
-                          <input
-                            type="text"
-                            value={registerForm.contacto}
-                            onChange={e => setRegisterForm(p => ({ ...p, contacto: e.target.value }))}
-                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                            placeholder="Juan Pérez"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Teléfono *</label>
-                          <input
-                            type="tel"
-                            value={registerForm.telefono}
-                            onChange={e => setRegisterForm(p => ({ ...p, telefono: e.target.value }))}
-                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                            placeholder="+56 9 1234 5678"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Correo Electrónico *</label>
-                        <input
-                          type="email"
-                          value={registerForm.email}
-                          onChange={e => setRegisterForm(p => ({ ...p, email: e.target.value }))}
-                          className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                          placeholder="contacto@empresa.cl"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Ciudad</label>
-                        <input
-                          type="text"
-                          value={registerForm.ciudad}
-                          onChange={e => setRegisterForm(p => ({ ...p, ciudad: e.target.value }))}
-                          className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
-                          placeholder="Santiago"
-                        />
-                      </div>
-
-                      <button
-                        onClick={async () => {
-                          if (!registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono) {
-                            toast({ title: 'Error', description: 'Por favor completa todos los campos requeridos (*).', variant: 'destructive' });
-                            return;
-                          }
-                          setRegisterLoading(true);
-                          try {
-                            await fetch('/api/ecommerce/account-request', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify(registerForm),
-                            });
-                            setRegisterSuccess(true);
-                          } catch (err) {
-                            console.error(err);
-                            toast({ title: 'Error', description: 'Ocurrió un error al enviar la solicitud.', variant: 'destructive' });
-                          } finally {
-                            setRegisterLoading(false);
-                          }
-                        }}
-                        disabled={registerLoading || !registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono}
-                        className="w-full py-4 mt-2 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white font-black uppercase text-[13px] tracking-wide transition-all shadow-lg shadow-orange-500/25 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {registerLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Rocket className="h-5 w-5" />}
-                        {registerLoading ? 'ENVIANDO...' : 'UNIRME A PANORÁMICA MARKET'}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-50 flex items-center justify-center ring-8 ring-emerald-50/50">
-                      <Check className="h-10 w-10 text-emerald-500" />
-                    </div>
-                    <h3 className="text-2xl font-black text-gray-900 mb-4 uppercase tracking-tight">¡SOLICITUD ENVIADA!</h3>
-                    <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">
-                      Gracias por tu interés en Panorámica Market. Nuestro equipo comercial ha recibido tus datos y te contactará a la brevedad para configurar tu cuenta.
-                    </p>
-                    <button
-                      onClick={() => { setRegisterSuccess(false); setRegisterForm({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' }); }}
-                      className="inline-flex items-center justify-center gap-2 w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold px-8 py-4 rounded-xl transition-all border-2 border-gray-200 text-sm uppercase"
-                    >
-                      ENVIAR NUEVA SOLICITUD
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Benefits Grid Section */}
-        <div className="py-24 bg-white relative z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 uppercase tracking-tight">¿POR QUÉ UNIRTE A PANORÁMICA MARKET?</h2>
-              <p className="text-lg text-gray-500 max-w-2xl mx-auto">Diseñado para simplificar la manera en que adquieres productos para tu negocio.</p>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* Feature 1 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-orange-100 text-[#FF6E23] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Tag className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">PRECIOS EXCLUSIVOS</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Accede a listas de precios personalizadas y descuentos por volumen creados específicamente para tu empresa y modelo de negocio.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Building className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">MÚLTIPLES SUCURSALES</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Administra las compras de diferentes puntos de venta desde una sola cuenta. Cada sucursal puede tener sus propios límites y catálogos.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Box className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">STOCK EN TIEMPO REAL</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Visualiza el inventario disponible al instante. Nunca más te quedes esperando por productos que no están en la bodega.
-                </p>
-              </div>
-
-              {/* Feature 4 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <FileText className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">PEDIDOS RÁPIDOS</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Herramienta de pedido rápido por SKU para que no pierdas tiempo navegando. Ingresa tus códigos, la cantidad y directo al carrito.
-                </p>
-              </div>
-
-              {/* Feature 5 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <PieChart className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">HISTORIAL Y FACTURACIÓN</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Revisa tu historial de compras, descarga facturas y repite pedidos anteriores con un solo clic, mejorando tu contabilidad.
-                </p>
-              </div>
-
-              {/* Feature 6 */}
-              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
-                <div className="w-14 h-14 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Truck className="h-7 w-7" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">DESPACHO PRIORITARIO</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">
-                  Nuestros clientes B2B registrados disfrutan de despachos más rápidos y seguimiento en tiempo real de sus órdenes.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-gray-500 text-sm gap-6">
-            <div className="flex items-center gap-4">
-              <img src={storeConfig?.logoUrl || "/panoramica-logo.png"} alt="Logo" className="h-6 opacity-50 grayscale" />
-              <span>© {new Date().getFullYear()} Panorámica. Todos los derechos reservados.</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <span className="flex items-center gap-2"><Phone className="h-4 w-4" /> {storeConfig?.phone || "+56 2 2345 6789"}</span>
-              <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> {storeConfig?.email || "contacto@panoramica.cl"}</span>
-            </div>
-          </div>
-        </footer>
-      </div>
-    );
-  }
+  // Lock scroll when guest overlay is active and not showing register form
+  useEffect(() => {
+    if (isGuest) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [isGuest]);
 
   return (
     <>
-    <div className="min-h-screen bg-[#f8f9fb]">
+    {/* ═══════════════════════════════════════════════════════════════════════
+        GUEST OVERLAY — Blurred store with login/register modal
+        ═══════════════════════════════════════════════════════════════════════ */}
+    {isGuest && (
+      <div className="fixed inset-0 z-[9999]" style={{ pointerEvents: 'auto' }}>
+        {/* Dark overlay with blur backing */}
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+        {/* Centered Modal */}
+        <div className="absolute inset-0 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="relative bg-white rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.25)] border border-white/50 w-full max-w-md animate-in zoom-in-95 fade-in duration-500"
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            {/* Top accent bar */}
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#FF6E23] via-[#FF8F50] to-[#FF6E23] rounded-t-[2rem]" />
+
+            <div className="px-8 pt-10 pb-8 sm:px-10">
+              {/* Logo & Title */}
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-[#FF6E23] to-[#E55E13] rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/30 ring-4 ring-orange-100">
+                  <LockKeyhole className="h-8 w-8 text-white" />
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight uppercase mb-2">
+                  Acceso Exclusivo
+                </h2>
+                <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-xs mx-auto">
+                  Para ver precios, catálogo completo y realizar pedidos necesitas una cuenta autorizada.
+                </p>
+              </div>
+
+              {!showRegisterForm ? (
+                /* ── Default view: Two action buttons ── */
+                <div className="space-y-4">
+                  {/* Login Button */}
+                  <a
+                    href="/login"
+                    className="w-full flex items-center justify-center gap-3 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] text-sm uppercase tracking-widest"
+                  >
+                    <User className="h-5 w-5" />
+                    Iniciar Sesión
+                  </a>
+
+                  {/* Divider */}
+                  <div className="relative flex items-center gap-4">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">o</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+
+                  {/* Request Access Button */}
+                  <button
+                    onClick={() => setShowRegisterForm(true)}
+                    className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-bold py-4 px-6 rounded-xl transition-all border-2 border-gray-200 hover:border-[#FF6E23]/40 hover:text-[#FF6E23] text-sm uppercase tracking-widest"
+                  >
+                    <UserPlus className="h-5 w-5" />
+                    Solicitar Acceso
+                  </button>
+
+                  {/* Trust badges */}
+                  <div className="flex items-center justify-center gap-6 pt-4">
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-semibold">
+                      <Tag className="h-3.5 w-3.5 text-[#FF6E23]/60" />
+                      Precios B2B
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-semibold">
+                      <Truck className="h-3.5 w-3.5 text-[#FF6E23]/60" />
+                      Despacho
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-semibold">
+                      <Box className="h-3.5 w-3.5 text-[#FF6E23]/60" />
+                      Stock Real
+                    </div>
+                  </div>
+                </div>
+              ) : !registerSuccess ? (
+                /* ── Registration Form ── */
+                <div>
+                  <button
+                    onClick={() => setShowRegisterForm(false)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-[#FF6E23] transition-colors mb-6"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Volver
+                  </button>
+                  <h3 className="text-lg font-black text-gray-900 mb-1 uppercase tracking-tight">Solicitar Cuenta</h3>
+                  <p className="text-xs text-gray-500 mb-6 font-medium">Completa el formulario y te contactaremos para crear tus credenciales.</p>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">Empresa *</label>
+                        <input type="text" value={registerForm.empresa} onChange={e => setRegisterForm(p => ({ ...p, empresa: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="Constructora ABC" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">RUT *</label>
+                        <input type="text" value={registerForm.rut} onChange={e => setRegisterForm(p => ({ ...p, rut: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="76.123.456-7" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">Nombre *</label>
+                        <input type="text" value={registerForm.contacto} onChange={e => setRegisterForm(p => ({ ...p, contacto: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="Juan Pérez" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">Teléfono *</label>
+                        <input type="tel" value={registerForm.telefono} onChange={e => setRegisterForm(p => ({ ...p, telefono: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="+56 9 1234 5678" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">Correo *</label>
+                      <input type="email" value={registerForm.email} onChange={e => setRegisterForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="contacto@empresa.cl" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-600 mb-1 block uppercase tracking-wide">Ciudad</label>
+                      <input type="text" value={registerForm.ciudad} onChange={e => setRegisterForm(p => ({ ...p, ciudad: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all text-sm" placeholder="Santiago" />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono) {
+                          toast({ title: 'Error', description: 'Por favor completa todos los campos requeridos (*).', variant: 'destructive' });
+                          return;
+                        }
+                        setRegisterLoading(true);
+                        try {
+                          await fetch('/api/ecommerce/account-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(registerForm) });
+                          setRegisterSuccess(true);
+                        } catch (err) {
+                          console.error(err);
+                          toast({ title: 'Error', description: 'Ocurrió un error al enviar la solicitud.', variant: 'destructive' });
+                        } finally {
+                          setRegisterLoading(false);
+                        }
+                      }}
+                      disabled={registerLoading || !registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono}
+                      className="w-full py-3.5 mt-1 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white font-black uppercase text-xs tracking-wide transition-all shadow-lg shadow-orange-500/25 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {registerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                      {registerLoading ? 'ENVIANDO...' : 'SOLICITAR ACCESO'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ── Success State ── */
+                <div className="py-4 text-center">
+                  <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-emerald-50 flex items-center justify-center ring-8 ring-emerald-50/50">
+                    <Check className="h-8 w-8 text-emerald-500" />
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 mb-3 uppercase tracking-tight">¡Solicitud Enviada!</h3>
+                  <p className="text-gray-500 text-sm mb-6 leading-relaxed font-medium">
+                    Nuestro equipo comercial te contactará a la brevedad para configurar tu cuenta.
+                  </p>
+                  <button
+                    onClick={() => { setRegisterSuccess(false); setShowRegisterForm(false); setRegisterForm({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' }); }}
+                    className="inline-flex items-center justify-center gap-2 w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl transition-all border-2 border-gray-200 text-sm uppercase"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <div className={`min-h-screen bg-[#f8f9fb] ${isGuest ? 'blur-[6px] grayscale-[30%] pointer-events-none select-none' : ''}`}>
       {/* Header — Modern SaaS */}
       <header ref={headerRef} className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

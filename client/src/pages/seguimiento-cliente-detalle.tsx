@@ -704,12 +704,12 @@ export default function SeguimientoClienteDetalle() {
         <div className="flex-1 lg:border-r overflow-y-auto">
           <div className="p-4 sm:p-6 space-y-5">
 
-            {/* Anotaciones de Cobranza */}
+            {/* Anotaciones del Cliente */}
             {((cv?.oben || client.linkedOben || "")?.trim() || client.notas) && (
               <div className="p-3.5 rounded-xl bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200/40 dark:border-amber-800/30">
                 <div className="flex items-center gap-2 mb-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones de Cobranza</p>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones del Cliente</p>
                 </div>
                 <p className="text-sm text-foreground whitespace-pre-wrap">
                   {fixEncoding((cv?.oben || client.linkedOben || "")?.trim() || client.notas)}

@@ -7133,6 +7133,7 @@ export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
   montoEstimado: numeric("monto_estimado", { precision: 15, scale: 2 }), // Monto estimado de la oportunidad
   origen: varchar("origen").default("manual"), // manual, referido, web, llamada
   active: boolean("active").default(true).notNull(),
+  flagged: boolean("flagged").default(false).notNull(), // Marca de alerta — los clientes flaggeados aparecen primero
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({

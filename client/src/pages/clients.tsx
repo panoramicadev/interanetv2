@@ -1285,11 +1285,11 @@ export default function Clients() {
                 </div>
               </div>
 
-              {/* Anotaciones de Cobranza */}
+              {/* Anotaciones del Cliente */}
               <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
                 <div className="flex items-center gap-2 mb-1">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones de Cobranza</p>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones del Cliente</p>
                 </div>
                 <p className="text-sm text-foreground whitespace-pre-wrap">
                   {selectedClient.oben?.trim() || "Sin anotaciones"}
