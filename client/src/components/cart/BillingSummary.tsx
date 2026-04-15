@@ -145,6 +145,18 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     enabled: !!user?.id && user?.role === 'client',
   });
 
+  // Fetch user branches for branch-specific delivery addresses
+  const { data: branchesData } = useQuery<{ branches: Array<{ id: string; name: string; branchLabel: string | null; address: string | null; isRoot: boolean }> }>({
+    queryKey: ['/api/store/my-branches'],
+    queryFn: async () => {
+      const res = await fetch('/api/store/my-branches', { credentials: 'include' });
+      if (!res.ok) return { branches: [] };
+      return res.json();
+    },
+    enabled: !!user?.id && user?.role === 'client',
+    staleTime: 300_000,
+  });
+
   // Build list of available addresses
   const availableAddresses = [];
   if (clientData?.dien) {
@@ -155,6 +167,25 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       address: sanitizeAddress(clientData.dien),
       fullAddress: sanitizeAddress(rawAddress)
     });
+  }
+
+  // Add branch addresses (only branches that have an address and are not the root/default)
+  if (branchesData?.branches) {
+    for (const branch of branchesData.branches) {
+      if (branch.address) {
+        // Skip if it's the same as the default address
+        const branchAddr = sanitizeAddress(branch.address);
+        const alreadyAdded = availableAddresses.some(a => a.address === branchAddr);
+        if (!alreadyAdded) {
+          availableAddresses.push({
+            value: `branch-${branch.id}`,
+            label: branch.branchLabel || branch.name || 'Sucursal',
+            address: branchAddr,
+            fullAddress: branchAddr,
+          });
+        }
+      }
+    }
   }
 
   // Set initial address option based on available addresses

@@ -10081,12 +10081,21 @@ export function registerRoutes(app: Express): Server {
         lcen: lcen || parentClient.lcen || null,
       }).returning();
 
-      // Link users to the new branch client record
-      // Always update clientId to point to this branch (moves user from previous branch if any)
+      // Link users to the new branch client record via junction table (multi-branch support)
+      const { userBranchAssignments } = await import('@shared/schema');
       for (const branchUser of branchUsers) {
-        await dbInstance.update(spTable)
-          .set({ clientId: branchClient.id, updatedAt: new Date() })
-          .where(eq(spTable.id, branchUser.id));
+        // Insert into junction table (ON CONFLICT DO NOTHING for idempotency)
+        await dbInstance.insert(userBranchAssignments).values({
+          userId: branchUser.id,
+          clientId: branchClient.id,
+        }).onConflictDoNothing();
+
+        // Only set clientId if the user doesn't have one yet (first assignment / backwards compat)
+        if (!branchUser.clientId) {
+          await dbInstance.update(spTable)
+            .set({ clientId: branchClient.id, updatedAt: new Date() })
+            .where(eq(spTable.id, branchUser.id));
+        }
       }
 
       console.log(`[CREATE-BRANCH] Created branch "${branchLabel}" (client ${branchClient.id}) under parent ${parentClientId}`);
@@ -10122,7 +10131,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
-      const { eq, inArray } = await import('drizzle-orm');
+      const { eq, inArray, and } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
 
       // Verify branch exists
@@ -10137,21 +10146,50 @@ export function registerRoutes(app: Express): Server {
         ? existingUserIds
         : (existingUserId ? [existingUserId] : []);
 
-      // Handle user association if provided
+      // Handle user association if provided — use junction table for multi-branch support
       let branchUsers = [];
+      const { userBranchAssignments } = await import('@shared/schema');
       console.log(`[EDIT-BRANCH] branchId=${branchId}, branchLabel=${branchLabel}, existingUserIds=${JSON.stringify(existingUserIds)}, existingUserId=${existingUserId}, userIdsToLink=${JSON.stringify(userIdsToLink)}`);
       if (userIdsToLink.length > 0) {
-        // Link existing users
+        // Sync junction table: remove deselected, add new ones
+        // 1. Get current assignments for this branch
+        const currentAssignments = await dbInstance.select()
+          .from(userBranchAssignments)
+          .where(eq(userBranchAssignments.clientId, branchClient.id));
+        const currentUserIds = currentAssignments.map(a => a.userId);
+
+        // 2. Remove users that were deselected from this branch (only from THIS branch)
+        const toRemove = currentUserIds.filter(uid => !userIdsToLink.includes(uid));
+        for (const uid of toRemove) {
+          await dbInstance.delete(userBranchAssignments)
+            .where(
+              and(
+                eq(userBranchAssignments.userId, uid),
+                eq(userBranchAssignments.clientId, branchClient.id)
+              )
+            );
+        }
+
+        // 3. Add new users to this branch
         const existingUsers = await dbInstance.select().from(spTable).where(inArray(spTable.id, userIdsToLink));
         for (const eu of existingUsers) {
           if (eu.role === 'client') {
-            await dbInstance.update(spTable)
-              .set({ clientId: branchClient.id, updatedAt: new Date() })
-              .where(eq(spTable.id, eu.id));
+            // Insert junction entry (idempotent)
+            await dbInstance.insert(userBranchAssignments).values({
+              userId: eu.id,
+              clientId: branchClient.id,
+            }).onConflictDoNothing();
+
+            // Set clientId only if user doesn't have one yet
+            if (!eu.clientId) {
+              await dbInstance.update(spTable)
+                .set({ clientId: branchClient.id, updatedAt: new Date() })
+                .where(eq(spTable.id, eu.id));
+            }
             branchUsers.push(eu);
           }
         }
-        console.log(`[EDIT-BRANCH] Linked existing users [${userIdsToLink.join(', ')}] to branch "${branchLabel}"`);
+        console.log(`[EDIT-BRANCH] Synced users for branch "${branchLabel}": added ${userIdsToLink.length - currentUserIds.filter(uid => userIdsToLink.includes(uid)).length}, removed ${toRemove.length}`);
       } else if (username && password) {
         // Create new user linked to this branch
         const bcrypt = await import('bcryptjs');
@@ -10166,6 +10204,11 @@ export function registerRoutes(app: Express): Server {
           clientRut: branchClient.rten || null,
           clientId: branchClient.id,
         }).returning();
+        // Also create junction entry for the new user
+        await dbInstance.insert(userBranchAssignments).values({
+          userId: newUser.id,
+          clientId: branchClient.id,
+        }).onConflictDoNothing();
         branchUsers = [newUser];
         console.log(`[EDIT-BRANCH] Created new user ${newUser.id} for branch "${branchLabel}"`);
       }
@@ -10276,7 +10319,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get all users linked to a client group (empresa)
+  // Get all users linked to a client group (empresa) — uses junction table for multi-branch support
   app.get('/api/users/clients/:clientId/users', requireCommercialAccess, async (req: any, res) => {
     try {
       const { clientId } = req.params;
@@ -10286,7 +10329,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { salespeopleUsers: spTable, clients: clientsTable, userBranchAssignments } = await import('@shared/schema');
       const { eq, or, inArray, isNotNull } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
 
@@ -10310,15 +10353,58 @@ export function registerRoutes(app: Express): Server {
 
       const allClientIds = allGroupClients.map(c => c.id);
 
-      // Get all salespeople_users that are linked to any of these client records
-      const linkedUsers = allClientIds.length > 0
+      // Get all junction assignments for branches in this group
+      const allAssignments = allClientIds.length > 0
+        ? await dbInstance.select().from(userBranchAssignments)
+            .where(inArray(userBranchAssignments.clientId, allClientIds))
+        : [];
+
+      // Also get users linked via legacy clientId (for backward compatibility)
+      const legacyLinkedUsers = allClientIds.length > 0
         ? await dbInstance.select().from(spTable)
             .where(inArray(spTable.clientId, allClientIds))
         : [];
 
-      // Enrich with branch info
-      const enrichedUsers = linkedUsers.map(u => {
-        const linkedClient = allGroupClients.find(c => c.id === u.clientId);
+      // Collect all unique user IDs (from junction + legacy)
+      const allUserIds = Array.from(new Set([
+        ...allAssignments.map(a => a.userId),
+        ...legacyLinkedUsers.map(u => u.id),
+      ]));
+
+      // Fetch all user records
+      const allUsers = allUserIds.length > 0
+        ? await dbInstance.select().from(spTable).where(inArray(spTable.id, allUserIds))
+        : [];
+
+      // Build a map: userId → array of branch assignments
+      const userBranchMap = new Map<string, Array<{ clientId: string; branchLabel: string | null; branchName: string | null }>>();
+      for (const assignment of allAssignments) {
+        const branch = allGroupClients.find(c => c.id === assignment.clientId);
+        if (!userBranchMap.has(assignment.userId)) {
+          userBranchMap.set(assignment.userId, []);
+        }
+        userBranchMap.get(assignment.userId)!.push({
+          clientId: assignment.clientId,
+          branchLabel: branch?.branchLabel || null,
+          branchName: branch?.nokoen || null,
+        });
+      }
+
+      // Enrich with branch info (use junction table data, fallback to legacy clientId)
+      const enrichedUsers = allUsers.map(u => {
+        const branches = userBranchMap.get(u.id) || [];
+        // Fallback: if no junction entries, use legacy clientId
+        if (branches.length === 0 && u.clientId) {
+          const legacyClient = allGroupClients.find(c => c.id === u.clientId);
+          if (legacyClient) {
+            branches.push({
+              clientId: legacyClient.id,
+              branchLabel: legacyClient.branchLabel || null,
+              branchName: legacyClient.nokoen || null,
+            });
+          }
+        }
+        const primaryBranch = branches[0] || null;
         return {
           id: u.id,
           salespersonName: u.salespersonName,
@@ -10330,10 +10416,12 @@ export function registerRoutes(app: Express): Server {
           clientId: u.clientId,
           clientRut: u.clientRut,
           createdAt: u.createdAt,
-          // Branch info
-          branchLabel: linkedClient?.branchLabel || null,
-          branchName: linkedClient?.nokoen || null,
-          isRoot: linkedClient ? !linkedClient.parentClientId : false,
+          // Primary branch info (backward compat)
+          branchLabel: primaryBranch?.branchLabel || null,
+          branchName: primaryBranch?.branchName || null,
+          isRoot: primaryBranch ? !allGroupClients.find(c => c.id === primaryBranch.clientId)?.parentClientId : false,
+          // Multi-branch assignments
+          branchAssignments: branches,
         };
       });
 
@@ -14104,33 +14192,53 @@ export function registerRoutes(app: Express): Server {
         return res.json({ branches: [] });
       }
 
-      const { clients: clientsTable } = await import('@shared/schema');
-      const { eq, or } = await import('drizzle-orm');
+      const { clients: clientsTable, userBranchAssignments } = await import('@shared/schema');
+      const { eq, or, inArray } = await import('drizzle-orm');
       const { db: dbInstance } = await import('./db');
 
-      // Resolve the user's current client record
+      // Resolve the user's current client record (for backward compat / default branch)
       const clientRecord = await storage.getClientByUserId(req.user.id);
-      if (!clientRecord) {
+
+      // Strategy: combine branches from junction table + parent hierarchy
+      const branchClientIds = new Set<string>();
+
+      // 1. Get branches from junction table (new multi-branch system)
+      const junctionAssignments = await dbInstance.select()
+        .from(userBranchAssignments)
+        .where(eq(userBranchAssignments.userId, req.user.id));
+
+      for (const a of junctionAssignments) {
+        branchClientIds.add(a.clientId);
+      }
+
+      // 2. Get branches from parent hierarchy (legacy / backward compat)
+      if (clientRecord) {
+        const rootId = clientRecord.parentClientId || clientRecord.id;
+        const hierarchyBranches = await dbInstance.select().from(clientsTable)
+          .where(
+            or(
+              eq(clientsTable.id, rootId),
+              eq(clientsTable.parentClientId, rootId)
+            )
+          );
+        for (const b of hierarchyBranches) {
+          branchClientIds.add(b.id);
+        }
+      }
+
+      if (branchClientIds.size === 0) {
         return res.json({ branches: [] });
       }
 
-      // Find root parent
-      const rootId = clientRecord.parentClientId || clientRecord.id;
-
-      // Get all branches under this root (including root)
+      // Fetch all branch records
       const allBranches = await dbInstance.select().from(clientsTable)
-        .where(
-          or(
-            eq(clientsTable.id, rootId),
-            eq(clientsTable.parentClientId, rootId)
-          )
-        );
+        .where(inArray(clientsTable.id, Array.from(branchClientIds)));
 
       const branches = allBranches.map(b => ({
         id: b.id,
         name: b.nokoen || b.branchLabel || 'Sin nombre',
         branchLabel: b.branchLabel || null,
-        isRoot: !b.parentClientId || b.id === rootId,
+        isRoot: !b.parentClientId,
         address: b.dien || null,
         discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
         priceList: b.lcen || null,
@@ -14138,7 +14246,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json({
         branches,
-        currentBranchId: clientRecord.id,
+        currentBranchId: clientRecord?.id || (branches.length > 0 ? branches[0].id : null),
       });
     } catch (error) {
       console.error('Error fetching user branches:', error);

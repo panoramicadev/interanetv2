@@ -406,19 +406,29 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     }
 
     // Pre-populate existingUserIds with users currently assigned to this branch
-    // Strategy: try multiple matching methods
+    // Primary strategy: use branchAssignments array (from junction table)
     let currentBranchUserIds = freshUsers
-      .filter((u: any) => u.clientId === branch.id)
+      .filter((u: any) => {
+        const assignments = u.branchAssignments || [];
+        return assignments.some((a: any) => a.clientId === branch.id);
+      })
       .map((u: any) => u.id);
     
-    // Fallback 1: match by branchLabel
+    // Fallback 1: match by clientId (legacy)
+    if (currentBranchUserIds.length === 0) {
+      currentBranchUserIds = freshUsers
+        .filter((u: any) => u.clientId === branch.id)
+        .map((u: any) => u.id);
+    }
+
+    // Fallback 2: match by branchLabel
     if (currentBranchUserIds.length === 0 && branch.branchLabel) {
       currentBranchUserIds = freshUsers
         .filter((u: any) => u.branchLabel === branch.branchLabel)
         .map((u: any) => u.id);
     }
 
-    // Fallback 2: match by branchName (auto-generated "COMPANY - LABEL")
+    // Fallback 3: match by branchName (auto-generated "COMPANY - LABEL")
     if (currentBranchUserIds.length === 0 && branch.name) {
       currentBranchUserIds = freshUsers
         .filter((u: any) => u.branchName === branch.name)
@@ -477,6 +487,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     branchLabel: string | null;
     branchName: string | null;
     isRoot: boolean;
+    branchAssignments?: Array<{ clientId: string; branchLabel: string | null; branchName: string | null }>;
   }
 
   const { data: groupUsers = [] } = useQuery<GroupUser[]>({
@@ -1413,15 +1424,21 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                               {gUser.email}
                             </span>
                           )}
-                          {gUser.branchLabel && (
+                          {(gUser.branchAssignments && gUser.branchAssignments.length > 0) ? (
+                            gUser.branchAssignments.map((ba, idx) => (
+                              <Badge key={idx} variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                                <GitBranch className="h-2.5 w-2.5 mr-0.5" />
+                                {ba.branchLabel || ba.branchName || 'Matriz'}
+                              </Badge>
+                            ))
+                          ) : gUser.branchLabel ? (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
                               <GitBranch className="h-2.5 w-2.5 mr-0.5" />
                               {gUser.branchLabel}
                             </Badge>
-                          )}
-                          {gUser.isRoot && (
+                          ) : gUser.isRoot ? (
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>

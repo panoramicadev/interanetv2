@@ -574,6 +574,28 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_creado_por" ON crm_ayuda_memoria (creado_por)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_created" ON crm_ayuda_memoria (created_at)`);
 
+    // 16. Crear tabla user_branch_assignments (relación muchos-a-muchos usuario ↔ sucursal)
+    console.log('  🔗 Verificando tabla user_branch_assignments...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_branch_assignments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        client_id VARCHAR NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_uba_user" ON user_branch_assignments (user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_uba_client" ON user_branch_assignments (client_id)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_uba_user_client" ON user_branch_assignments (user_id, client_id)`);
+
+    // Seed: poblar desde salespeople_users.client_id existentes (migrar relación 1:1 a muchos-a-muchos)
+    await db.execute(sql`
+      INSERT INTO user_branch_assignments (user_id, client_id)
+      SELECT id, client_id FROM salespeople_users
+      WHERE client_id IS NOT NULL AND role = 'client'
+      ON CONFLICT (user_id, client_id) DO NOTHING
+    `);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {

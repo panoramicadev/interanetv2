@@ -1263,6 +1263,21 @@ export const salespeopleUsers = pgTable("salespeople_users", {
 export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
 export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
 
+// Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
+export const userBranchAssignments = pgTable("user_branch_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),     // FK → salespeople_users.id
+  clientId: varchar("client_id").notNull(),  // FK → clients.id (branch client record)
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("IDX_uba_user").on(table.userId),
+  clientIdx: index("IDX_uba_client").on(table.clientId),
+  uniqueAssignment: uniqueIndex("UQ_uba_user_client").on(table.userId, table.clientId),
+}));
+
+export type UserBranchAssignment = typeof userBranchAssignments.$inferSelect;
+export type InsertUserBranchAssignment = typeof userBranchAssignments.$inferInsert;
+
 // Relaciones para usuarios vendedores
 export const salespeopleUsersRelations = relations(salespeopleUsers, ({ one, many }) => ({
   supervisor: one(salespeopleUsers, {
