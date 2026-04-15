@@ -160,12 +160,11 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   // Build list of available addresses
   const availableAddresses = [];
   if (clientData?.dien) {
-    const rawAddress = `${clientData.dien}${clientData.comuna ? ', ' + clientData.comuna : ''}${clientData.cmen ? ', ' + clientData.cmen : ''}`;
     availableAddresses.push({
       value: 'default',
       label: 'Dirección principal',
       address: sanitizeAddress(clientData.dien),
-      fullAddress: sanitizeAddress(rawAddress)
+      fullAddress: sanitizeAddress(clientData.dien)
     });
   }
 

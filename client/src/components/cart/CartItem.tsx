@@ -46,6 +46,10 @@ const getPackagingDisplay = (unit: string, selectedPackaging?: string): string =
 export default function CartItem({ item, compact = false }: CartItemProps) {
   const { updateQuantity, removeItem } = useCart();
 
+  const discountPercent = item.discountAmount && item.subtotal > 0 
+    ? Math.round((item.discountAmount / item.subtotal) * 100) 
+    : 0;
+
   const handleQuantityChange = (newQuantity: number) => {
     if (newQuantity <= 0) {
       removeItem(item.id);
@@ -136,6 +140,9 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
               </span>
               <span className="text-sm font-semibold text-emerald-600" data-testid={`text-cart-item-subtotal-${item.productId}`}>
                 {formatPrice(item.subtotalAfterDiscount || item.subtotal)}
+              </span>
+              <span className="text-[10px] text-emerald-600 font-medium block">
+                -{formatPrice(item.discountAmount)} dcto. {discountPercent > 0 && `(-${discountPercent}%)`}
               </span>
             </div>
           ) : (
@@ -250,6 +257,9 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
                     <>
                       <p className="text-sm text-gray-400 line-through">{formatPrice(item.unitPrice)}</p>
                       <p className="font-semibold text-emerald-600">{formatPrice(item.unitPriceAfterDiscount || item.unitPrice)}</p>
+                      <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-1">
+                        🏷️ {discountPercent > 0 ? `Descuento aplicado (-${discountPercent}%)` : 'Descuento aplicado'}
+                      </div>
                     </>
                   ) : (
                     <p className="font-semibold">{formatPrice(item.unitPrice)}</p>
@@ -295,6 +305,9 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
                       <p className="text-sm text-gray-400 line-through">{formatPrice(item.subtotal)}</p>
                       <p className="text-xl font-bold text-emerald-600" data-testid={`text-subtotal-full-${item.productId}`}>
                         {formatPrice(item.subtotalAfterDiscount || item.subtotal)}
+                      </p>
+                      <p className="text-xs text-emerald-600 font-medium mt-1">
+                        -{formatPrice(item.discountAmount)} dcto. {discountPercent > 0 && `(-${discountPercent}%)`}
                       </p>
                     </>
                   ) : (

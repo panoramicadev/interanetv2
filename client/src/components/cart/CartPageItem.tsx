@@ -61,6 +61,10 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
   const availablePackaging = getAvailablePackaging(item.unit);
   const availableColors = getAvailableColors();
 
+  const discountPercent = item.discountAmount && item.subtotal > 0 
+    ? Math.round((item.discountAmount / item.subtotal) * 100) 
+    : 0;
+
   // Real-time quantity validation
   const validateQuantity = (inputValue: string): { isValid: boolean; message: string; status: 'valid' | 'warning' | 'error' } => {
     const numValue = parseInt(inputValue);
@@ -344,7 +348,7 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                     {formatPrice(item.unitPriceAfterDiscount || item.unitPrice)}
                   </div>
                   <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
-                    🏷️ Descuento aplicado
+                    🏷️ {discountPercent > 0 ? `Descuento aplicado (-${discountPercent}%)` : 'Descuento aplicado'}
                   </div>
                 </>
               ) : (
@@ -435,7 +439,7 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                       {formatPrice(item.subtotalAfterDiscount || item.subtotal)}
                     </div>
                     <div className="text-xs text-emerald-600 font-medium">
-                      -{formatPrice(item.discountAmount)} dcto.
+                      -{formatPrice(item.discountAmount)} dcto. {discountPercent > 0 && `(-${discountPercent}%)`}
                     </div>
                   </>
                 ) : (

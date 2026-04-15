@@ -46,6 +46,9 @@ import {
   Building,
   GitBranch,
   ChevronsUpDown,
+  Sparkles,
+  PieChart,
+  Rocket,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -403,8 +406,7 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
         description: `${validatedQuantity}x ${genericName} (${variant.color}, ${variant.format})`,
       });
 
-      // Reset search and quantities for next SKU
-      setSkuSearch('');
+      // Reset only quantities after adding — keep search for continued browsing
       setSkuQuantities({});
       setTimeout(() => inputRef.current?.focus(), 50);
 
@@ -461,7 +463,7 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
               value={skuSearch}
               onChange={e => setSkuSearch(e.target.value.toUpperCase())}
               placeholder="Ingresa un código SKU (ej: EP-001-BL-GL)"
-              className="w-full pl-12 pr-10 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
+              className="w-full pl-12 pr-24 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
               data-testid="input-sku-search"
               autoComplete="off"
               spellCheck={false}
@@ -469,9 +471,11 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
             {skuSearch && (
               <button
                 onClick={() => { setSkuSearch(''); setSkuQuantities({}); inputRef.current?.focus(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors text-[11px] font-semibold"
+                title="Limpiar búsqueda"
               >
                 <X className="h-3 w-3" />
+                Limpiar
               </button>
             )}
           </div>
@@ -1291,182 +1295,295 @@ export default function TiendaPage() {
   // Login Gate — show exclusive access screen when not authenticated
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-        {/* Subtle pattern */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
-
-        <div className="relative text-center max-w-md mx-auto w-full">
-          {/* Logo */}
-          <div className="mb-8">
-            <img
-              src={storeConfig?.logoUrl || "/panoramica-logo.png"}
-              alt="Panorámica"
-              className="h-20 sm:h-24 mx-auto drop-shadow-2xl"
-            />
-          </div>
-
-          {!showRegisterForm && !registerSuccess && (
-            <>
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-[#FF6E23]/20 text-[#FF6E23] px-4 py-1.5 rounded-full text-sm font-bold mb-6 backdrop-blur-sm border border-[#FF6E23]/30">
-                <ShoppingCart className="h-4 w-4" />
-                Plataforma eCommerce
-              </div>
-
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
-                Plataforma exclusiva<br />para clientes Panorámica
-              </h1>
-
-              <p className="text-gray-400 text-base sm:text-lg mb-8 leading-relaxed">
-                Accede a nuestro catálogo completo con precios especiales, realiza pedidos y gestiona tu cuenta.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <a
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 text-base"
-                >
-                  <LockKeyhole className="h-4 w-4" />
-                  Iniciar Sesión
-                </a>
-                <button
-                  onClick={() => setShowRegisterForm(true)}
-                  className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-3 rounded-xl transition-all backdrop-blur-sm border border-white/20 text-base"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Crear Cuenta
-                </button>
-              </div>
-
-              <p className="text-gray-500 text-xs mt-10">
-                ¿Necesitas ayuda? Contáctanos al {storeConfig?.phone || "+56 2 2345 6789"}
-              </p>
-            </>
-          )}
-
-          {/* Registration Form */}
-          {showRegisterForm && !registerSuccess && (
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-left">
-              <h2 className="text-xl font-bold text-white mb-1">Solicitar Cuenta</h2>
-              <p className="text-gray-400 text-sm mb-5">Completa tus datos y te contactaremos para activar tu acceso.</p>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Empresa / Razón Social *</label>
-                  <input
-                    type="text"
-                    value={registerForm.empresa}
-                    onChange={e => setRegisterForm(p => ({ ...p, empresa: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                    placeholder="Ej: Constructora ABC Ltda."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">RUT Empresa *</label>
-                  <input
-                    type="text"
-                    value={registerForm.rut}
-                    onChange={e => setRegisterForm(p => ({ ...p, rut: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                    placeholder="Ej: 76.123.456-7"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Nombre Contacto *</label>
-                    <input
-                      type="text"
-                      value={registerForm.contacto}
-                      onChange={e => setRegisterForm(p => ({ ...p, contacto: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                      placeholder="Juan Pérez"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Teléfono *</label>
-                    <input
-                      type="tel"
-                      value={registerForm.telefono}
-                      onChange={e => setRegisterForm(p => ({ ...p, telefono: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                      placeholder="+56 9 1234 5678"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Correo Electrónico *</label>
-                  <input
-                    type="email"
-                    value={registerForm.email}
-                    onChange={e => setRegisterForm(p => ({ ...p, email: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                    placeholder="contacto@empresa.cl"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Ciudad</label>
-                  <input
-                    type="text"
-                    value={registerForm.ciudad}
-                    onChange={e => setRegisterForm(p => ({ ...p, ciudad: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
-                    placeholder="Santiago"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-5">
-                <button
-                  onClick={() => setShowRegisterForm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-all border border-white/20"
-                >
-                  Volver
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono) return;
-                    setRegisterLoading(true);
-                    try {
-                      await fetch('/api/ecommerce/account-request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(registerForm),
-                      });
-                      setRegisterSuccess(true);
-                    } catch (err) {
-                      console.error(err);
-                    } finally {
-                      setRegisterLoading(false);
-                    }
-                  }}
-                  disabled={registerLoading || !registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold text-sm transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {registerLoading ? 'Enviando...' : 'Enviar Solicitud'}
-                </button>
-              </div>
+      <div className="min-h-screen bg-white font-sans text-gray-900 selection:bg-[#FF6E23]/20 selection:text-[#FF6E23]">
+        {/* Navbar */}
+        <nav className="fixed top-0 inset-x-0 bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 transition-all duration-300">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={storeConfig?.logoUrl || "/panoramica-logo.png"}
+                alt="Panorámica Market"
+                className="h-10 sm:h-12 drop-shadow-sm"
+              />
+              <span className="text-xl font-black tracking-tight text-gray-800 hidden sm:block">Market</span>
             </div>
-          )}
-
-          {/* Success message */}
-          {registerSuccess && (
-            <div className="bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/30 rounded-2xl p-6 text-center">
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <Check className="h-7 w-7 text-emerald-400" />
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">¡Solicitud Enviada!</h2>
-              <p className="text-gray-400 text-sm mb-5">
-                Hemos recibido tu solicitud. Nuestro equipo la revisará y te contactará a la brevedad para activar tu cuenta.
-              </p>
+            <div className="flex items-center gap-4">
+              <a href="/login" className="text-sm font-bold text-gray-600 hover:text-[#FF6E23] transition-colors hidden sm:block">
+                Iniciar Sesión
+              </a>
               <button
-                onClick={() => { setRegisterSuccess(false); setShowRegisterForm(false); setRegisterForm({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' }); }}
-                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-2.5 rounded-xl transition-all border border-white/20 text-sm"
+                onClick={() => setShowRegisterForm(true)}
+                className="bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40"
               >
-                Volver al inicio
+                Solicitar Cuenta
               </button>
             </div>
-          )}
+          </div>
+        </nav>
+
+        {/* Landing Page Content */}
+        <div className="relative pt-24 pb-20 lg:pt-32 lg:pb-32 overflow-hidden bg-gray-50 border-b-8 border-[#FF6E23]">
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none opacity-40">
+            <div className="absolute top-1/4 left-0 w-96 h-96 bg-orange-400/20 rounded-full mix-blend-multiply filter blur-3xl" />
+            <div className="absolute top-1/4 right-0 w-96 h-96 bg-rose-400/20 rounded-full mix-blend-multiply filter blur-3xl" />
+            <div className="absolute -bottom-1/4 left-1/4 w-96 h-96 bg-yellow-400/20 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" />
+          </div>
+
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+              
+              {/* Left Column: Hero Text */}
+              <div className="text-center lg:text-left pt-10">
+                <div className="inline-flex items-center gap-2 bg-white text-[#FF6E23] px-5 py-2 rounded-full text-sm font-bold mb-8 shadow-sm border border-orange-100 ring-4 ring-orange-50 uppercase tracking-widest">
+                  <Sparkles className="h-4 w-4" />
+                  Bienvenido a Market
+                </div>
+                
+                <h1 className="text-5xl md:text-6xl lg:text-[5.5rem] font-black tracking-tighter text-slate-900 mb-8 leading-[1.1] uppercase">
+                  TU<br />
+                  ABASTECIMIENTO,<br />
+                  <span className="text-[#FF6E23]">
+                    LLEVADO AL<br />
+                    SIGUIENTE NIVEL.
+                  </span>
+                </h1>
+                
+                <p className="text-lg md:text-xl text-slate-500 max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed font-medium">
+                  Únete a la plataforma B2B exclusiva y optimiza tus compras con precios especiales, gestión de sucursales, facturación rápida y control total de tu inventario.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center">
+                  <a
+                    href="/login"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold px-8 py-4 rounded-xl transition-all border-2 border-slate-200 text-sm uppercase tracking-widest shadow-sm hover:border-slate-300"
+                  >
+                    <LockKeyhole className="h-4 w-4 text-[#FF6E23]" />
+                    YA TENGO CUENTA
+                  </a>
+                </div>
+              </div>
+
+              {/* Right Column: Registration Form */}
+              <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-slate-100 relative overflow-hidden mt-8 lg:mt-0 lg:ml-auto lg:max-w-md w-full">
+                <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-[#FF6E23] to-[#FF6E23]/80" />
+                
+                {!registerSuccess ? (
+                  <>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">SOLICITAR ACCESO VIP</h3>
+                    <p className="text-slate-500 mb-8 text-sm font-medium leading-relaxed">Completa el formulario y un ejecutivo te contactará para crear tus credenciales corporativas.</p>
+                    
+                    <div className="space-y-5">
+                      <div className="grid sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Empresa / Razón Social *</label>
+                          <input
+                            type="text"
+                            value={registerForm.empresa}
+                            onChange={e => setRegisterForm(p => ({ ...p, empresa: e.target.value }))}
+                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                            placeholder="Constructora ABC"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">RUT Empresa *</label>
+                          <input
+                            type="text"
+                            value={registerForm.rut}
+                            onChange={e => setRegisterForm(p => ({ ...p, rut: e.target.value }))}
+                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                            placeholder="76.123.456-7"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Tu Nombre *</label>
+                          <input
+                            type="text"
+                            value={registerForm.contacto}
+                            onChange={e => setRegisterForm(p => ({ ...p, contacto: e.target.value }))}
+                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                            placeholder="Juan Pérez"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Teléfono *</label>
+                          <input
+                            type="tel"
+                            value={registerForm.telefono}
+                            onChange={e => setRegisterForm(p => ({ ...p, telefono: e.target.value }))}
+                            className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                            placeholder="+56 9 1234 5678"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Correo Electrónico *</label>
+                        <input
+                          type="email"
+                          value={registerForm.email}
+                          onChange={e => setRegisterForm(p => ({ ...p, email: e.target.value }))}
+                          className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                          placeholder="contacto@empresa.cl"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 mb-2 block uppercase tracking-wide">Ciudad</label>
+                        <input
+                          type="text"
+                          value={registerForm.ciudad}
+                          onChange={e => setRegisterForm(p => ({ ...p, ciudad: e.target.value }))}
+                          className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border-2 border-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF6E23] focus:bg-white transition-all font-medium text-sm"
+                          placeholder="Santiago"
+                        />
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          if (!registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono) {
+                            toast({ title: 'Error', description: 'Por favor completa todos los campos requeridos (*).', variant: 'destructive' });
+                            return;
+                          }
+                          setRegisterLoading(true);
+                          try {
+                            await fetch('/api/ecommerce/account-request', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(registerForm),
+                            });
+                            setRegisterSuccess(true);
+                          } catch (err) {
+                            console.error(err);
+                            toast({ title: 'Error', description: 'Ocurrió un error al enviar la solicitud.', variant: 'destructive' });
+                          } finally {
+                            setRegisterLoading(false);
+                          }
+                        }}
+                        disabled={registerLoading || !registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono}
+                        className="w-full py-4 mt-2 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white font-black uppercase text-[13px] tracking-wide transition-all shadow-lg shadow-orange-500/25 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {registerLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Rocket className="h-5 w-5" />}
+                        {registerLoading ? 'ENVIANDO...' : 'UNIRME A PANORÁMICA MARKET'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-50 flex items-center justify-center ring-8 ring-emerald-50/50">
+                      <Check className="h-10 w-10 text-emerald-500" />
+                    </div>
+                    <h3 className="text-2xl font-black text-gray-900 mb-4 uppercase tracking-tight">¡SOLICITUD ENVIADA!</h3>
+                    <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">
+                      Gracias por tu interés en Panorámica Market. Nuestro equipo comercial ha recibido tus datos y te contactará a la brevedad para configurar tu cuenta.
+                    </p>
+                    <button
+                      onClick={() => { setRegisterSuccess(false); setRegisterForm({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' }); }}
+                      className="inline-flex items-center justify-center gap-2 w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold px-8 py-4 rounded-xl transition-all border-2 border-gray-200 text-sm uppercase"
+                    >
+                      ENVIAR NUEVA SOLICITUD
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Benefits Grid Section */}
+        <div className="py-24 bg-white relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 uppercase tracking-tight">¿POR QUÉ UNIRTE A PANORÁMICA MARKET?</h2>
+              <p className="text-lg text-gray-500 max-w-2xl mx-auto">Diseñado para simplificar la manera en que adquieres productos para tu negocio.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {/* Feature 1 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-orange-100 text-[#FF6E23] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Tag className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">PRECIOS EXCLUSIVOS</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Accede a listas de precios personalizadas y descuentos por volumen creados específicamente para tu empresa y modelo de negocio.
+                </p>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Building className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">MÚLTIPLES SUCURSALES</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Administra las compras de diferentes puntos de venta desde una sola cuenta. Cada sucursal puede tener sus propios límites y catálogos.
+                </p>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Box className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">STOCK EN TIEMPO REAL</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Visualiza el inventario disponible al instante. Nunca más te quedes esperando por productos que no están en la bodega.
+                </p>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <FileText className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">PEDIDOS RÁPIDOS</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Herramienta de pedido rápido por SKU para que no pierdas tiempo navegando. Ingresa tus códigos, la cantidad y directo al carrito.
+                </p>
+              </div>
+
+              {/* Feature 5 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <PieChart className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">HISTORIAL Y FACTURACIÓN</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Revisa tu historial de compras, descarga facturas y repite pedidos anteriores con un solo clic, mejorando tu contabilidad.
+                </p>
+              </div>
+
+              {/* Feature 6 */}
+              <div className="bg-gray-50 rounded-3xl p-8 hover:shadow-xl hover:shadow-gray-200/50 transition-all hover:-translate-y-1 border border-gray-100 group">
+                <div className="w-14 h-14 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Truck className="h-7 w-7" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 uppercase tracking-tight">DESPACHO PRIORITARIO</h3>
+                <p className="text-gray-500 leading-relaxed text-sm">
+                  Nuestros clientes B2B registrados disfrutan de despachos más rápidos y seguimiento en tiempo real de sus órdenes.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="bg-white border-t border-gray-200 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-gray-500 text-sm gap-6">
+            <div className="flex items-center gap-4">
+              <img src={storeConfig?.logoUrl || "/panoramica-logo.png"} alt="Logo" className="h-6 opacity-50 grayscale" />
+              <span>© {new Date().getFullYear()} Panorámica. Todos los derechos reservados.</span>
+            </div>
+            <div className="flex items-center gap-6">
+              <span className="flex items-center gap-2"><Phone className="h-4 w-4" /> {storeConfig?.phone || "+56 2 2345 6789"}</span>
+              <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> {storeConfig?.email || "contacto@panoramica.cl"}</span>
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -1532,13 +1649,13 @@ export default function TiendaPage() {
               </div>
             </Link>
 
-            {/* Search Bar — Desktop */}
-            <div className="hidden md:flex flex-1 max-w-lg">
-              <div className="relative w-full group">
+            {/* Search Bar — Desktop (with integrated SKU button) */}
+            <div className="hidden md:flex flex-1 max-w-xl">
+              <div className="relative w-full group flex">
                 {searchTerm !== debouncedSearch ? (
-                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin z-10" />
                 ) : (
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6E23] transition-colors" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6E23] transition-colors z-10" />
                 )}
                 <Input
                   placeholder="Buscar productos, familias..."
@@ -1550,27 +1667,36 @@ export default function TiendaPage() {
                       setSelectedTag(null);
                     }
                   }}
-                  className="pl-10 pr-10 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
+                  className="pl-10 pr-10 h-10 text-sm rounded-l-xl rounded-r-none border-gray-200 border-r-0 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
                   data-testid="input-search-tienda"
                 />
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                    className="absolute right-[120px] top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors z-10"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 )}
+                <button
+                  onClick={() => setShowSkuQuickOrder(true)}
+                  className="flex items-center gap-1.5 px-4 h-10 rounded-r-xl bg-gradient-to-r from-[#FF6E23] to-[#E55E13] hover:from-[#E55E13] hover:to-[#D44E03] text-white text-xs font-bold transition-all shadow-sm whitespace-nowrap border border-[#FF6E23] flex-shrink-0"
+                  data-testid="button-sku-quick-order"
+                  title="Pedido Rápido por SKU"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>Buscar por SKU</span>
+                </button>
               </div>
             </div>
 
-            {/* Mobile Search Bar — inline */}
+            {/* Mobile Search Bar — inline (with integrated SKU button) */}
             <div className="md:hidden flex-1 mx-1">
-              <div className="relative w-full">
+              <div className="relative w-full flex">
                 {searchTerm !== debouncedSearch ? (
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin z-10" />
                 ) : (
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 z-10" />
                 )}
                 <Input
                   placeholder="Buscar productos..."
@@ -1582,17 +1708,25 @@ export default function TiendaPage() {
                       setSelectedTag(null);
                     }
                   }}
-                  className="pl-8 pr-8 text-xs h-9 border-gray-200 rounded-lg bg-gray-50/80 shadow-sm"
+                  className="pl-8 pr-8 text-xs h-9 border-gray-200 rounded-l-lg rounded-r-none border-r-0 bg-gray-50/80 shadow-sm"
                   data-testid="input-search-mobile"
                 />
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                    className="absolute right-[42px] top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors z-10"
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
                 )}
+                <button
+                  onClick={() => setShowSkuQuickOrder(true)}
+                  className="flex items-center justify-center w-10 h-9 rounded-r-lg bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white transition-all shadow-sm border border-[#FF6E23] flex-shrink-0"
+                  data-testid="button-sku-quick-order-mobile"
+                  title="Buscar por SKU"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
 
@@ -1610,11 +1744,6 @@ export default function TiendaPage() {
                       <span className="hidden md:inline text-xs font-semibold text-violet-700 max-w-[120px] truncate">
                         {activeBranch?.branchLabel || activeBranch?.name || 'Sucursal'}
                       </span>
-                      {activeBranch?.discountPercent ? (
-                        <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                          -{activeBranch.discountPercent}%
-                        </Badge>
-                      ) : null}
                       <ChevronsUpDown className="h-3 w-3 text-violet-400" />
                     </button>
                   </DropdownMenuTrigger>
@@ -1647,11 +1776,6 @@ export default function TiendaPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {branch.discountPercent > 0 && (
-                            <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                              -{branch.discountPercent}%
-                            </Badge>
-                          )}
                           {branch.id === selectedBranchId && (
                             <Check className="h-4 w-4 text-violet-600" />
                           )}
@@ -1717,16 +1841,7 @@ export default function TiendaPage() {
                 </DropdownMenu>
               )}
 
-              {/* Quick Order by SKU */}
-              <button
-                onClick={() => setShowSkuQuickOrder(true)}
-                className="relative flex items-center gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-xl bg-gradient-to-r from-[#FF6E23]/10 to-amber-50 hover:from-[#FF6E23]/20 hover:to-amber-100 border border-[#FF6E23]/20 hover:border-[#FF6E23]/40 transition-all duration-200 group"
-                data-testid="button-sku-quick-order"
-                title="Pedido Rápido por SKU"
-              >
-                <Zap className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF6E23] group-hover:scale-110 transition-transform" />
-                <span className="hidden lg:inline text-xs font-bold text-[#FF6E23]">Buscar por SKU</span>
-              </button>
+
 
               {/* Cart */}
               <CartToggle onClick={() => setShowFloatingCart(true)} />
@@ -2239,20 +2354,23 @@ export default function TiendaPage() {
                          : formatsList[0];
                       const variantsForFormat = formatsMap.get(activeFormat) || [];
                       
-                      const activeFormatData = variantsForFormat[0];
+                      // Prefer a variant with offerPrice to represent the format, so the OFERTA badge shows
+                      const activeFormatData = variantsForFormat.find(v => v.offerPrice && v.offerPrice > 0) || variantsForFormat[0];
                       const formatImg = product.imageUrl;
                       
-                      // Calculate Total for the active format
+                      // Calculate Total for the active format (use offerPrice when available)
                       const formatTotal = variantsForFormat.reduce((acc, v) => {
                         const q = quantities[v.sku] || 0;
-                        return acc + ((v.price || 0) * q);
+                        const ep = (v.offerPrice && v.offerPrice > 0) ? v.offerPrice : (v.price || 0);
+                        return acc + (ep * q);
                       }, 0);
                       
                       // Calculate overarching global total for the entire grouped product
                       const allProductVariants = Object.values(product.colors).flat();
                       const globalProductTotal = allProductVariants.reduce((acc, v) => {
                         const q = quantities[v.sku] || 0;
-                        return acc + ((v.price || 0) * q);
+                        const ep = (v.offerPrice && v.offerPrice > 0) ? v.offerPrice : (v.price || 0);
+                        return acc + (ep * q);
                       }, 0);
                       const globalProductItemCount = allProductVariants.reduce((acc, v) => {
                         const q = quantities[v.sku] || 0;
@@ -2356,6 +2474,7 @@ export default function TiendaPage() {
                                         </div>
                                         <div className="min-w-0">
                                           <div className="text-xs font-bold text-gray-800 truncate">{variant.color}</div>
+                                          {/* Mobile: full offer display */}
                                           <div className="text-[10px] text-gray-400 mt-0.5 md:hidden">
                                             {variant.offerPrice && variant.offerPrice > 0 ? (
                                               <>
@@ -2375,17 +2494,32 @@ export default function TiendaPage() {
                                               variant.price ? formatPrice(variant.price) : 'Consultar'
                                             )}
                                           </div>
+                                          {/* Desktop: show offer price inline */}
+                                          {variant.offerPrice && variant.offerPrice > 0 ? (
+                                            <div className="hidden md:flex items-center gap-1.5 mt-0.5">
+                                              <span className="text-[10px] line-through text-gray-300">{formatPrice(variant.price)}</span>
+                                              <span className="text-xs font-bold text-rose-600">{formatPrice(variant.offerPrice)}</span>
+                                            </div>
+                                          ) : variant.originalPrice && variant.originalPrice > (variant.price || 0) ? (
+                                            <div className="hidden md:flex items-center gap-1.5 mt-0.5">
+                                              <span className="text-[10px] line-through text-gray-300">{formatPrice(variant.originalPrice)}</span>
+                                              <span className="text-xs font-bold text-emerald-600">{formatPrice(variant.price)}</span>
+                                            </div>
+                                          ) : null}
                                         </div>
                                       </div>
                                       
                                       {/* Quantity Controls */}
                                       <div className="flex items-center gap-3 flex-shrink-0">
-                                        {/* Subtotal preview if > 0 */}
-                                        {variantQty > 0 && variant.price && (
-                                          <div className="hidden sm:block text-xs font-bold text-[#FF6E23]">
-                                            {formatPrice(variant.price * variantQty)}
-                                          </div>
-                                        )}
+                                        {/* Subtotal preview if > 0 — use offer price when available */}
+                                        {variantQty > 0 && variant.price && (() => {
+                                          const effectiveUnitPrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : variant.price;
+                                          return (
+                                            <div className={`hidden sm:block text-xs font-bold ${variant.offerPrice && variant.offerPrice > 0 ? 'text-rose-600' : 'text-[#FF6E23]'}`}>
+                                              {formatPrice(effectiveUnitPrice * variantQty)}
+                                            </div>
+                                          );
+                                        })()}
                                         
                                         <div className="inline-flex items-center rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm h-9">
                                           <button
