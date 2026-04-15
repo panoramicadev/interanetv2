@@ -885,7 +885,7 @@ function CheckoutSettings() {
         </div>
         <div>
           <h3 className="font-semibold text-emerald-900 text-sm">Configuración de Checkout</h3>
-          <p className="text-xs text-emerald-700">Aplica descuentos automáticos en el carrito de compras</p>
+          <p className="text-xs text-emerald-700">Aplica descuentos automáticos para conceptos de envío en el carrito de compras</p>
         </div>
       </div>
       <div className="md:ml-auto flex items-end gap-3 bg-white p-3 rounded-lg shadow-sm w-full md:w-auto mt-2 md:mt-0">

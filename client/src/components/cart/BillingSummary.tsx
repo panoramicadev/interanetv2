@@ -464,6 +464,8 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     }
   });
 
+  let originalShippingCost = shippingCost;
+  
   // Apply free shipping if neto meets threshold OR a free_shipping coupon is applied
   const hasCouponFreeShipping = state.appliedCoupons.some(c => c.type === 'free_shipping');
   const hasFreeShipping = hasCouponFreeShipping || (FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD);
@@ -637,9 +639,16 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                   </span>
                 )}
               </div>
-              <span className={`font-medium ${hasFreeShipping ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white'}`} data-testid="text-billing-shipping">
-                {hasFreeShipping ? 'Gratis' : formatPrice(shippingCost)}
-              </span>
+              <div className="flex items-center gap-2">
+                {!hasFreeShipping && shippingDiscountPercent > 0 && originalShippingCost > shippingCost && (
+                  <span className="text-sm line-through text-gray-400">
+                    {formatPrice(originalShippingCost)}
+                  </span>
+                )}
+                <span className={`font-medium ${hasFreeShipping ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white'}`} data-testid="text-billing-shipping">
+                  {hasFreeShipping ? 'Gratis' : formatPrice(shippingCost)}
+                </span>
+              </div>
             </div>
           )}
 
