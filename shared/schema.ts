@@ -661,6 +661,7 @@ export const clients = pgTable("clients", {
   // Branch hierarchy (sucursales)
   parentClientId: varchar("parent_client_id"), // FK auto-ref → clients.id (empresa matriz)
   branchLabel: varchar("branch_label"), // Etiqueta de sucursal ("Santiago Centro", "Valparaíso", etc.)
+  branchDiscountPercent: numeric("branch_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"), // Descuento global de sucursal (0-100%)
 }, (table) => ({
   // Indexes for performance
   clientCodeIdx: index("IDX_clients_koen").on(table.koen),

@@ -71,6 +71,8 @@ interface BranchInfo {
   salesRepCode: string | null;
   pickupWarehouseId: string | null;
   paymentCondition: string | null;
+  address: string | null;
+  discountPercent: number;
 }
 
 interface BranchGroup {
@@ -303,6 +305,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     creditLimit: "",
     paymentCondition: client.paymentCondition || "CONTADO",
     lcen: client.lcen || "",
+    address: client.address || "",
+    discountPercent: "0",
   });
 
   const [showEditBranchDialog, setShowEditBranchDialog] = useState(false);
@@ -318,6 +322,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     creditLimit: "",
     paymentCondition: "",
     lcen: "",
+    address: "",
+    discountPercent: "0",
   });
 
 
@@ -353,7 +359,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       setShowBranchDialog(false);
       setUseExistingUser(false);
       setBranchUserSearch("");
-      setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
+      setBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "", address: client.address || "", discountPercent: "0" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -376,7 +382,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       setEditingBranchId(null);
       setUseExistingUser(false);
       setBranchUserSearch("");
-      setEditBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: "", lcen: "" });
+      setEditBranchForm({ branchLabel: "", username: "", email: "", password: "", existingUserIds: [], salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: "", lcen: "", address: "", discountPercent: "0" });
     },
     onError: (error: any) => {
       const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
@@ -384,20 +390,54 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     }
   });
 
-  const handleEditBranch = (branch: BranchInfo) => {
+  const handleEditBranch = async (branch: BranchInfo) => {
     setEditingBranchId(branch.id);
     setUseExistingUser(false);
+    
+    // Refetch users with fresh data before pre-populating
+    let freshUsers = groupUsers;
+    try {
+      const res = await apiRequest("GET", `/api/users/clients/${client.clientId}/users`);
+      freshUsers = await res.json();
+      // Also update the query cache
+      queryClient.setQueryData(["/api/users/clients/users", client.clientId], freshUsers);
+    } catch {
+      // fallback to cached groupUsers
+    }
+
+    // Pre-populate existingUserIds with users currently assigned to this branch
+    // Strategy: try multiple matching methods
+    let currentBranchUserIds = freshUsers
+      .filter((u: any) => u.clientId === branch.id)
+      .map((u: any) => u.id);
+    
+    // Fallback 1: match by branchLabel
+    if (currentBranchUserIds.length === 0 && branch.branchLabel) {
+      currentBranchUserIds = freshUsers
+        .filter((u: any) => u.branchLabel === branch.branchLabel)
+        .map((u: any) => u.id);
+    }
+
+    // Fallback 2: match by branchName (auto-generated "COMPANY - LABEL")
+    if (currentBranchUserIds.length === 0 && branch.name) {
+      currentBranchUserIds = freshUsers
+        .filter((u: any) => u.branchName === branch.name)
+        .map((u: any) => u.id);
+    }
+
     setEditBranchForm({
       branchLabel: branch.branchLabel || "",
       username: "",
       email: "",
       password: "",
-      existingUserIds: [],
+      existingUserIds: currentBranchUserIds,
       salesRepCode: branch.salesRepCode || "",
       pickupWarehouseId: branch.pickupWarehouseId || "none",
       creditLimit: branch.creditLimit !== null ? branch.creditLimit.toString() : "",
       paymentCondition: branch.paymentCondition || "CONTADO",
-      lcen: client.lcen || "", // Fallback to client if not available on branch, unfortunately branch object doesn't return lcen currently
+      lcen: client.lcen || "",
+      address: branch.address || "",
+      discountPercent: branch.discountPercent != null ? branch.discountPercent.toString() : "0",
     });
     setShowEditBranchDialog(true);
   };
@@ -1257,9 +1297,20 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{branch.name}</p>
+                          {branch.address && (
+                            <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                              <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
+                              {branch.address}
+                            </p>
+                          )}
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                             {branch.isRoot && <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>}
                             {branch.branchLabel && <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">{branch.branchLabel}</Badge>}
+                            {branch.discountPercent > 0 && (
+                              <Badge className="text-[9px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                                -{branch.discountPercent}%
+                              </Badge>
+                            )}
                             {branch.salesRepCode && <span>Vendedor: {erpVendedores.find((v: any) => v.code === branch.salesRepCode)?.name || branch.salesRepCode}</span>}
                             {(() => {
                               const bUsers = groupUsers.filter(u => u.clientId === branch.id);
@@ -1441,6 +1492,39 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                 value={branchForm.branchLabel}
                 onChange={(e) => setBranchForm(p => ({ ...p, branchLabel: e.target.value }))}
               />
+            </div>
+
+            {/* Address */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Dirección</Label>
+              <Input
+                placeholder="Ej: Av. Libertador 1234, Santiago"
+                value={branchForm.address}
+                onChange={(e) => setBranchForm(p => ({ ...p, address: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Se hereda del padre si no se modifica.</p>
+            </div>
+
+            {/* Discount */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Descuento Global (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0"
+                value={branchForm.discountPercent}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0 && val <= 100) {
+                    setBranchForm(p => ({ ...p, discountPercent: e.target.value }));
+                  } else if (e.target.value === '') {
+                    setBranchForm(p => ({ ...p, discountPercent: '' }));
+                  }
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground">Descuento aplicado sobre todos los productos en /tienda (0-100). 0 = sin descuento.</p>
             </div>
 
             {/* Toggle: New user vs Existing user */}
@@ -1670,6 +1754,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   creditLimit: branchForm.creditLimit ? parseFloat(branchForm.creditLimit) : null,
                   paymentCondition: branchForm.paymentCondition || null,
                   lcen: branchForm.lcen || null,
+                  address: branchForm.address || null,
+                  discountPercent: branchForm.discountPercent ? parseFloat(branchForm.discountPercent) : 0,
                 };
                 if (useExistingUser && branchForm.existingUserIds.length > 0) {
                   payload.existingUserIds = branchForm.existingUserIds;
@@ -1710,11 +1796,77 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               />
             </div>
 
+            {/* Address */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Dirección</Label>
+              <Input
+                placeholder="Ej: Av. Libertador 1234, Santiago"
+                value={editBranchForm.address}
+                onChange={(e) => setEditBranchForm(p => ({ ...p, address: e.target.value }))}
+              />
+            </div>
+
+            {/* Discount */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Descuento Global (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0"
+                value={editBranchForm.discountPercent}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0 && val <= 100) {
+                    setEditBranchForm(p => ({ ...p, discountPercent: e.target.value }));
+                  } else if (e.target.value === '') {
+                    setEditBranchForm(p => ({ ...p, discountPercent: '' }));
+                  }
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground">Descuento aplicado sobre todos los productos en /tienda (0-100). 0 = sin descuento.</p>
+            </div>
+
+            {/* Currently assigned users — always visible */}
+            {(() => {
+              // Use pre-populated existingUserIds to find assigned users (set in handleEditBranch)
+              const assignedUsers = editBranchForm.existingUserIds.length > 0
+                ? editBranchForm.existingUserIds
+                    .map(uid => groupUsers.find(u => u.id === uid))
+                    .filter((u): u is GroupUser => !!u)
+                : groupUsers.filter(u => u.clientId === editingBranchId);
+              if (assignedUsers.length === 0) return null;
+              return (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Usuarios Asignados ({assignedUsers.length})</Label>
+                  <div className="rounded-lg border bg-slate-50/50 dark:bg-slate-950/20 divide-y">
+                    {assignedUsers.map(u => (
+                      <div key={u.id} className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-violet-600 text-white">
+                          {(u.salespersonName || u.email)?.[0]?.toUpperCase() || "?"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{u.salespersonName || u.email}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {u.email}{u.username ? ` · @${u.username}` : ""}{u.clientRut ? ` · ${u.clientRut}` : ""}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 flex-shrink-0">
+                          {u.isActive ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Toggle: Add User to Branch */}
             <div className="flex items-center justify-between p-3 rounded-lg bg-violet-50/70 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-800">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-violet-500" />
-                <span className="text-sm font-medium text-violet-800 dark:text-violet-200">Asignar / Crear Usuario para esta sucursal (Opcional)</span>
+                <span className="text-sm font-medium text-violet-800 dark:text-violet-200">Agregar / Reasignar Usuarios (Opcional)</span>
               </div>
               <Switch
                 checked={useExistingUser}
@@ -1723,7 +1875,11 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   if (checked) {
                     setEditBranchForm(p => ({ ...p, username: "", password: "", email: "" }));
                   } else {
-                    setEditBranchForm(p => ({ ...p, existingUserIds: [] }));
+                    // Restore to current branch users, don't clear
+                    const currentBranchUserIds = groupUsers
+                      .filter(u => u.clientId === editingBranchId)
+                      .map(u => u.id);
+                    setEditBranchForm(p => ({ ...p, existingUserIds: currentBranchUserIds }));
                   }
                 }}
               />
@@ -1940,10 +2096,15 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   creditLimit: editBranchForm.creditLimit ? parseFloat(editBranchForm.creditLimit) : null,
                   paymentCondition: editBranchForm.paymentCondition || null,
                   lcen: editBranchForm.lcen || null,
+                  address: editBranchForm.address || null,
+                  discountPercent: editBranchForm.discountPercent ? parseFloat(editBranchForm.discountPercent) : 0,
                 };
-                if (useExistingUser && editBranchForm.existingUserIds.length > 0) {
+                // Always send user associations to maintain them
+                if (editBranchForm.existingUserIds.length > 0) {
                   payload.existingUserIds = editBranchForm.existingUserIds;
-                } else if (!useExistingUser && editBranchForm.username && editBranchForm.password) {
+                }
+                // Also create a new user if credentials provided
+                if (!useExistingUser && editBranchForm.username && editBranchForm.password) {
                   payload.username = editBranchForm.username;
                   payload.email = editBranchForm.email || null;
                   payload.password = editBranchForm.password;

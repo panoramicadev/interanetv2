@@ -42,7 +42,10 @@ import {
   Tag,
   Zap,
   Barcode,
-  ArrowRight
+  ArrowRight,
+  Building,
+  GitBranch,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -250,15 +253,28 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
 // SKU QUICK ORDER MODAL — for clients who know their SKUs
 // ═══════════════════════════════════════════════════════
 
+// Branch type for branch selector
+interface StoreBranch {
+  id: string;
+  name: string;
+  branchLabel: string | null;
+  isRoot: boolean;
+  address: string | null;
+  discountPercent: number;
+  priceList: string | null;
+}
+
 interface SkuQuickOrderModalProps {
   onClose: () => void;
   clientPriceList: string | null;
   offersMap: Map<string, number>;
+  isClient: boolean;
+  selectedBranchId: string | null;
   addItem: (item: any) => void;
   setShowFloatingCart: (show: boolean) => void;
 }
 
-function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
+function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, selectedBranchId, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [skuSearch, setSkuSearch] = useState('');
@@ -287,6 +303,7 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, addItem, setS
       const params = new URLSearchParams();
       params.append('search', debouncedSku);
       if (clientPriceList) params.append('priceList', clientPriceList);
+      if (selectedBranchId) params.append('branchId', selectedBranchId);
       const response = await fetch(`/api/store/products/grouped?${params.toString()}`);
       if (!response.ok) throw new Error('Error al buscar');
       return response.json();
@@ -314,8 +331,8 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, addItem, setS
         const isPartial = skuUpper.includes(searchUpper) || searchUpper.includes(skuUpper);
 
         if (isExact || isPartial) {
-          // Apply offer price from offersMap
-          const offerPrice = offersMap.get(skuUpper) || variant.offerPrice || null;
+          // Apply offer price from offersMap (skip for client users — server already applied discount)
+          const offerPrice = isClient ? (variant.offerPrice || null) : (offersMap.get(skuUpper) || variant.offerPrice || null);
 
           results.push({
             genericName: product.genericName,
@@ -708,7 +725,27 @@ export default function TiendaPage() {
     enabled: !!user?.id && isClient,
   });
 
-  const clientPriceList = clientData?.lcen || null;
+  // Fetch branches accessible to this client user
+  const { data: branchesData } = useQuery<{ branches: StoreBranch[]; currentBranchId: string }>({
+    queryKey: ['/api/store/my-branches'],
+    enabled: isClient,
+  });
+
+  const availableBranches = branchesData?.branches || [];
+  const defaultBranchId = branchesData?.currentBranchId || null;
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+
+  // Set default branch on first load
+  useEffect(() => {
+    if (defaultBranchId && !selectedBranchId) {
+      setSelectedBranchId(defaultBranchId);
+    }
+  }, [defaultBranchId]);
+
+  const activeBranch = availableBranches.find(b => b.id === selectedBranchId) || null;
+  const clientPriceList = activeBranch?.priceList || clientData?.lcen || null;
+  const showBranchSelector = isClient && availableBranches.length > 1;
+
 
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
@@ -970,12 +1007,13 @@ export default function TiendaPage() {
 
   // Fetch grouped store products (same grouping logic as salesperson catalog, with prices)
   const { data: groupedData, isLoading: productsLoading } = useQuery<StoreCatalogResponse>({
-    queryKey: ['/api/store/products/grouped', debouncedSearch, selectedCategory, clientPriceList],
+    queryKey: ['/api/store/products/grouped', debouncedSearch, selectedCategory, clientPriceList, selectedBranchId],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append('search', debouncedSearch);
       if (selectedCategory && selectedCategory !== 'all') params.append('category', selectedCategory);
       if (clientPriceList) params.append('priceList', clientPriceList);
+      if (selectedBranchId) params.append('branchId', selectedBranchId);
       
       const url = `/api/store/products/grouped${params.toString() ? '?' + params.toString() : ''}`;
       const response = await fetch(url);
@@ -1011,8 +1049,15 @@ export default function TiendaPage() {
   }, [offersData]);
 
   // Merge offer prices into grouped data
+  // NOTE: For client users, the backend already applies branch discount to both price & offerPrice.
+  // The offersMap from /api/price-list-offers has RAW (undiscounted) prices, so we must NOT
+  // override the server-side discounted prices for clients.
   const groupedDataWithOffers = useMemo(() => {
     if (!groupedData?.catalog) return groupedData;
+
+    // Skip offersMap merge for client users — trust server-side pricing
+    if (isClient) return groupedData;
+
     const updatedCatalog = groupedData.catalog.map((genericProduct) => {
       const updatedColors: { [color: string]: StoreFormatVariant[] } = {};
       Object.entries(genericProduct.colors).forEach(([color, variants]) => {
@@ -1033,7 +1078,7 @@ export default function TiendaPage() {
       ...groupedData,
       catalog: updatedCatalog,
     };
-  }, [groupedData, offersMap]);
+  }, [groupedData, offersMap, isClient]);
 
   const groupedCatalog: StoreGenericProduct[] = useMemo(() => {
     let catalog = groupedDataWithOffers?.catalog || [];
@@ -1544,6 +1589,70 @@ export default function TiendaPage() {
 
             {/* Right section */}
             <div className="flex items-center gap-1">
+              {/* Branch Selector */}
+              {showBranchSelector && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-xl bg-gradient-to-r from-violet-50 to-indigo-50 hover:from-violet-100 hover:to-indigo-100 border border-violet-200/60 hover:border-violet-300 transition-all duration-200 group"
+                      data-testid="branch-selector"
+                    >
+                      <GitBranch className="h-3.5 w-3.5 text-violet-600" />
+                      <span className="hidden md:inline text-xs font-semibold text-violet-700 max-w-[120px] truncate">
+                        {activeBranch?.branchLabel || activeBranch?.name || 'Sucursal'}
+                      </span>
+                      {activeBranch?.discountPercent ? (
+                        <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                          -{activeBranch.discountPercent}%
+                        </Badge>
+                      ) : null}
+                      <ChevronsUpDown className="h-3 w-3 text-violet-400" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72 rounded-xl shadow-xl border-gray-200/80 p-1">
+                    <DropdownMenuLabel className="px-2">
+                      <p className="text-xs font-medium text-gray-500">Seleccionar Sucursal</p>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {availableBranches.map(branch => (
+                      <DropdownMenuItem
+                        key={branch.id}
+                        onClick={() => setSelectedBranchId(branch.id)}
+                        className={`flex items-center gap-3 cursor-pointer rounded-lg px-2 py-2.5 ${
+                          branch.id === selectedBranchId
+                            ? 'bg-violet-50 border border-violet-200'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                          branch.isRoot
+                            ? 'bg-gradient-to-br from-violet-400 to-indigo-500 text-white'
+                            : 'bg-gradient-to-br from-cyan-400 to-blue-500 text-white'
+                        }`}>
+                          {branch.isRoot ? <Building className="h-3.5 w-3.5" /> : <GitBranch className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{branch.branchLabel || branch.name}</p>
+                          {branch.address && (
+                            <p className="text-[10px] text-muted-foreground truncate">{branch.address}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {branch.discountPercent > 0 && (
+                            <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                              -{branch.discountPercent}%
+                            </Badge>
+                          )}
+                          {branch.id === selectedBranchId && (
+                            <Check className="h-4 w-4 text-violet-600" />
+                          )}
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               {/* User Menu */}
               {user && (
                 <DropdownMenu>
@@ -2820,6 +2929,8 @@ export default function TiendaPage() {
         onClose={() => setShowSkuQuickOrder(false)}
         clientPriceList={clientPriceList}
         offersMap={offersMap}
+        isClient={isClient}
+        selectedBranchId={selectedBranchId}
         addItem={addItem}
         setShowFloatingCart={setShowFloatingCart}
       />

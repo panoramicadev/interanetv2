@@ -11933,6 +11933,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientByUserId(userId: string) {
+    // Attempt 0: Lookup via salespeopleUsers.clientId (most reliable for branch users)
+    const spLookup = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, userId))
+      .limit(1);
+
+    if (spLookup.length > 0 && spLookup[0].clientId) {
+      const [clientBySpLink] = await db
+        .select()
+        .from(clients)
+        .where(eq(clients.id, spLookup[0].clientId))
+        .limit(1);
+      if (clientBySpLink) {
+        console.log(`[getClientByUserId] Attempt 0 match via salespeopleUsers.clientId: user ${userId} -> client ${clientBySpLink.id}`);
+        return clientBySpLink;
+      }
+    }
+
     // Attempt 1: Direct match by userId (most reliable)
     const result = await db
       .select()

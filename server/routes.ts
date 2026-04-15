@@ -9985,7 +9985,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds } = req.body;
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds, address, discountPercent } = req.body;
 
       if (!branchLabel) {
         return res.status(400).json({ message: "branchLabel es requerido" });
@@ -10057,17 +10057,21 @@ export function registerRoutes(app: Express): Server {
       // Create the clients record for the branch
       // Take the first user's email as default
       const branchEmail = branchUsers.length > 0 ? (branchUsers[0].email || branchUsers[0].publicEmail || parentClient.email || null) : (email || parentClient.email || null);
+      // Validate discount range
+      const safeDiscount = Math.min(100, Math.max(0, parseFloat(discountPercent) || 0));
+
       const [branchClient] = await dbInstance.insert(clientsTable).values({
         nokoen: branchName,
         rten: parentClient.rten || null,
         email: branchEmail,
         foen: parentClient.foen || null,
-        dien: parentClient.dien || null,
+        dien: address !== undefined ? (address || null) : (parentClient.dien || null),
         cmen: parentClient.cmen || null,
         comuna: parentClient.comuna || null,
         userId: branchUsers.length > 0 ? branchUsers[0].id : null,
         parentClientId: parentClientId,
         branchLabel,
+        branchDiscountPercent: String(safeDiscount),
         kofuen: salesRepCode || parentClient.kofuen || null,
         pickupWarehouseId: pickupWarehouseId || null,
         crlt: creditLimit ? String(creditLimit) : parentClient.crlt || null,
@@ -10078,13 +10082,11 @@ export function registerRoutes(app: Express): Server {
       }).returning();
 
       // Link users to the new branch client record
-      // IMPORTANT: Only update clientId if user doesn't already have one (new users).
+      // Always update clientId to point to this branch (moves user from previous branch if any)
       for (const branchUser of branchUsers) {
-        if (!branchUser.clientId) {
-          await dbInstance.update(spTable)
-            .set({ clientId: branchClient.id, updatedAt: new Date() })
-            .where(eq(spTable.id, branchUser.id));
-        }
+        await dbInstance.update(spTable)
+          .set({ clientId: branchClient.id, updatedAt: new Date() })
+          .where(eq(spTable.id, branchUser.id));
       }
 
       console.log(`[CREATE-BRANCH] Created branch "${branchLabel}" (client ${branchClient.id}) under parent ${parentClientId}`);
@@ -10113,7 +10115,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds } = req.body;
+      const { branchLabel, username, email, password, salesRepCode, pickupWarehouseId, creditLimit, paymentCondition, lcen, existingUserId, existingUserIds, address, discountPercent } = req.body;
 
       if (!branchLabel) {
         return res.status(400).json({ message: "branchLabel es requerido" });
@@ -10137,6 +10139,7 @@ export function registerRoutes(app: Express): Server {
 
       // Handle user association if provided
       let branchUsers = [];
+      console.log(`[EDIT-BRANCH] branchId=${branchId}, branchLabel=${branchLabel}, existingUserIds=${JSON.stringify(existingUserIds)}, existingUserId=${existingUserId}, userIdsToLink=${JSON.stringify(userIdsToLink)}`);
       if (userIdsToLink.length > 0) {
         // Link existing users
         const existingUsers = await dbInstance.select().from(spTable).where(inArray(spTable.id, userIdsToLink));
@@ -10168,7 +10171,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Update the branch client record
-      await dbInstance.update(clientsTable).set({
+      const updateData: Record<string, any> = {
         nokoen: branchName,
         branchLabel,
         kofuen: salesRepCode !== undefined ? (salesRepCode || null) : branchClient.kofuen,
@@ -10178,7 +10181,20 @@ export function registerRoutes(app: Express): Server {
         cpen: paymentCondition !== undefined ? (paymentCondition || null) : branchClient.cpen,
         lcen: lcen !== undefined ? (lcen || null) : branchClient.lcen,
         updatedAt: new Date()
-      }).where(eq(clientsTable.id, branchId));
+      };
+
+      // Address update
+      if (address !== undefined) {
+        updateData.dien = address || null;
+      }
+
+      // Discount update (validate 0-100)
+      if (discountPercent !== undefined) {
+        const safeDiscount = Math.min(100, Math.max(0, parseFloat(discountPercent) || 0));
+        updateData.branchDiscountPercent = String(safeDiscount);
+      }
+
+      await dbInstance.update(clientsTable).set(updateData).where(eq(clientsTable.id, branchId));
 
       res.json({
         success: true,
@@ -10244,6 +10260,8 @@ export function registerRoutes(app: Express): Server {
           salesRepCode: b.kofuen,
           pickupWarehouseId: b.pickupWarehouseId,
           paymentCondition: b.cpen,
+          address: b.dien || null,
+          discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
         })),
         groupTotals: {
           creditLimit: groupCreditLimit,
@@ -14079,6 +14097,55 @@ export function registerRoutes(app: Express): Server {
     return result2;
   };
 
+  // ─── Get branches accessible to current client user ───
+  app.get('/api/store/my-branches', async (req: any, res) => {
+    try {
+      if (!req.user || req.user.role !== 'client') {
+        return res.json({ branches: [] });
+      }
+
+      const { clients: clientsTable } = await import('@shared/schema');
+      const { eq, or } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Resolve the user's current client record
+      const clientRecord = await storage.getClientByUserId(req.user.id);
+      if (!clientRecord) {
+        return res.json({ branches: [] });
+      }
+
+      // Find root parent
+      const rootId = clientRecord.parentClientId || clientRecord.id;
+
+      // Get all branches under this root (including root)
+      const allBranches = await dbInstance.select().from(clientsTable)
+        .where(
+          or(
+            eq(clientsTable.id, rootId),
+            eq(clientsTable.parentClientId, rootId)
+          )
+        );
+
+      const branches = allBranches.map(b => ({
+        id: b.id,
+        name: b.nokoen || b.branchLabel || 'Sin nombre',
+        branchLabel: b.branchLabel || null,
+        isRoot: !b.parentClientId || b.id === rootId,
+        address: b.dien || null,
+        discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
+        priceList: b.lcen || null,
+      }));
+
+      res.json({
+        branches,
+        currentBranchId: clientRecord.id,
+      });
+    } catch (error) {
+      console.error('Error fetching user branches:', error);
+      res.status(500).json({ message: 'Error al obtener sucursales' });
+    }
+  });
+
   app.get('/api/store/products/grouped', async (req: any, res) => {
     try {
       const { search, category, priceList } = req.query;
@@ -14102,10 +14169,58 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Strip internal _searchText field before sending
-      const cleanCatalog = filtered.map(({ _searchText, ...rest }: any) => rest);
+      let cleanCatalog = filtered.map(({ _searchText, ...rest }: any) => rest);
 
-      // Cache for 30s on browser side (disable cache when client has custom price list)
-      if (priceList && priceList !== 'LP01') {
+      // ─── Apply branch discount for authenticated client users ───
+      let branchDiscountApplied = 0;
+      if (req.user && req.user.role === 'client') {
+        try {
+          const { branchId } = req.query;
+          let clientRecord;
+
+          if (branchId) {
+            // Explicit branch selection — look up directly
+            const { clients: clientsLookup } = await import('@shared/schema');
+            const { eq: eqLookup } = await import('drizzle-orm');
+            const { db: dbLookup } = await import('./db');
+            const [explicitBranch] = await dbLookup.select().from(clientsLookup).where(eqLookup(clientsLookup.id, branchId as string)).limit(1);
+            if (explicitBranch) {
+              clientRecord = explicitBranch;
+            }
+          } else {
+            // Auto-resolve from user
+            clientRecord = await storage.getClientByUserId(req.user.id);
+          }
+
+          if (clientRecord && clientRecord.branchDiscountPercent) {
+            const discountPct = parseFloat(clientRecord.branchDiscountPercent as string);
+            if (discountPct > 0 && discountPct <= 100) {
+              branchDiscountApplied = discountPct;
+              const factor = 1 - discountPct / 100;
+              // Deep copy to avoid polluting shared cache
+              cleanCatalog = cleanCatalog.map((product: any) => {
+                const newColors: Record<string, any[]> = {};
+                for (const [color, variants] of Object.entries(product.colors)) {
+                  newColors[color] = (variants as any[]).map((v: any) => ({
+                    ...v,
+                    price: v.price != null ? Math.max(0, Math.round(v.price * factor)) : v.price,
+                    offerPrice: v.offerPrice != null && v.offerPrice > 0
+                      ? Math.max(0, Math.round(v.offerPrice * factor))
+                      : v.offerPrice,
+                  }));
+                }
+                return { ...product, colors: newColors };
+              });
+              console.log(`[STORE] Applied branch discount ${discountPct}% for client user ${req.user.id}${branchId ? ` (branch: ${branchId})` : ''}`);
+            }
+          }
+        } catch (discountError) {
+          console.warn('[STORE] Error resolving branch discount, serving without discount:', discountError);
+        }
+      }
+
+      // Cache control: disable cache when client has custom price list OR branch discount
+      if ((priceList && priceList !== 'LP01') || branchDiscountApplied > 0) {
         res.set('Cache-Control', 'no-store');
       } else {
         res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
