@@ -10507,6 +10507,56 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Set the default branch for a user (updates salespeople_users.client_id)
+  app.put('/api/users/:userId/default-branch', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { branchClientId } = req.body;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      if (!branchClientId) {
+        return res.status(400).json({ message: "branchClientId es requerido" });
+      }
+
+      const { salespeopleUsers: spTable, userBranchAssignments } = await import('@shared/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Verify user exists
+      const [targetUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, userId)).limit(1);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      // Verify the user is assigned to the requested branch via junction table
+      const [assignment] = await dbInstance.select().from(userBranchAssignments)
+        .where(and(
+          eq(userBranchAssignments.userId, userId),
+          eq(userBranchAssignments.clientId, branchClientId)
+        ))
+        .limit(1);
+
+      if (!assignment) {
+        return res.status(400).json({ message: "El usuario no está asignado a esa sucursal" });
+      }
+
+      // Update the user's default branch
+      await dbInstance.update(spTable)
+        .set({ clientId: branchClientId, updatedAt: new Date() })
+        .where(eq(spTable.id, userId));
+
+      console.log(`[DEFAULT-BRANCH] Set default branch for user ${userId} to client ${branchClientId}`);
+      res.json({ success: true, message: "Sucursal por defecto actualizada" });
+    } catch (error) {
+      console.error("Error setting default branch:", error);
+      res.status(500).json({ message: "Error al actualizar sucursal por defecto" });
+    }
+  });
+
 
   // ============================================
   // NOTIFICATION ENDPOINTS - Sistema robusto de notificaciones internas

@@ -568,6 +568,22 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     }
   });
 
+  // Set default branch for a user
+  const setDefaultBranchMutation = useMutation({
+    mutationFn: async ({ userId, branchClientId }: { userId: string; branchClientId: string }) => {
+      const res = await apiRequest("PUT", `/api/users/${userId}/default-branch`, { branchClientId });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sucursal por defecto actualizada", description: "El usuario ahora tiene una nueva sucursal por defecto." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/users", client.clientId] });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
   const handleEditUser = (user: GroupUser) => {
     setEditingUserId(user.id);
     setUserIsActive(user.isActive);
@@ -1425,12 +1441,32 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                             </span>
                           )}
                           {(gUser.branchAssignments && gUser.branchAssignments.length > 0) ? (
-                            gUser.branchAssignments.map((ba, idx) => (
-                              <Badge key={idx} variant="outline" className="text-[9px] px-1.5 py-0 h-4">
-                                <GitBranch className="h-2.5 w-2.5 mr-0.5" />
-                                {ba.branchLabel || ba.branchName || 'Matriz'}
-                              </Badge>
-                            ))
+                            gUser.branchAssignments.map((ba, idx) => {
+                              const isDefault = gUser.clientId === ba.clientId;
+                              const canSetDefault = gUser.branchAssignments!.length > 1;
+                              return (
+                                <Badge
+                                  key={idx}
+                                  variant={isDefault ? "default" : "outline"}
+                                  className={`text-[9px] px-1.5 py-0 h-4 ${
+                                    isDefault
+                                      ? "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                      : canSetDefault
+                                      ? "cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                      : ""
+                                  }`}
+                                  title={isDefault ? "Sucursal por defecto" : canSetDefault ? "Clic para establecer como sucursal por defecto" : ""}
+                                  onClick={!isDefault && canSetDefault ? (e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    setDefaultBranchMutation.mutate({ userId: gUser.id, branchClientId: ba.clientId });
+                                  } : undefined}
+                                >
+                                  {isDefault && <span className="mr-0.5">⭐</span>}
+                                  <GitBranch className="h-2.5 w-2.5 mr-0.5" />
+                                  {ba.branchLabel || ba.branchName || 'Matriz'}
+                                </Badge>
+                              );
+                            })
                           ) : gUser.branchLabel ? (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
                               <GitBranch className="h-2.5 w-2.5 mr-0.5" />
