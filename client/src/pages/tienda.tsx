@@ -139,6 +139,7 @@ interface StoreFormatVariant {
   format: string;
   groupName: string | null;
   price: number | null;
+  originalPrice?: number | null; // Price before branch discount
   offerPrice?: number | null; // Promotional/offer price
   stock: number;
   minUnit: number;
@@ -171,6 +172,7 @@ interface StoreGenericProduct {
 interface StoreCatalogResponse {
   catalog: StoreGenericProduct[];
   totalProducts: number;
+  branchDiscountPercent?: number;
 }
 
 
@@ -1089,6 +1091,9 @@ export default function TiendaPage() {
     return catalog;
   }, [groupedDataWithOffers, selectedTag]);
 
+  // Branch discount percentage from API (used to show original prices in UI)
+  const branchDiscountPct = groupedDataWithOffers?.branchDiscountPercent || 0;
+
   // Fetch admin-defined active tags
   const { data: adminTags = [] } = useQuery<{ name: string; color: string }[]>({
     queryKey: ['/api/store/tags'],
@@ -1182,7 +1187,9 @@ export default function TiendaPage() {
           selectedColor: variant.color,
           unit: variant.format,
           unitPrice: effectivePrice,
-          originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+          originalPrice: variant.originalPrice && variant.originalPrice > effectivePrice
+            ? variant.originalPrice
+            : (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
           quantity: validatedQuantity,
           minQuantity: validation.minQuantity,
           quantityStep: validation.stepQuantity,
@@ -1240,7 +1247,9 @@ export default function TiendaPage() {
         selectedColor: variant.color,
         unit: variant.format,
         unitPrice: effectivePrice,
-        originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+        originalPrice: variant.originalPrice && variant.originalPrice > effectivePrice
+          ? variant.originalPrice
+          : (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
         quantity: validatedQuantity,
         minQuantity: validation.minQuantity,
         quantityStep: validation.stepQuantity,
@@ -2305,6 +2314,14 @@ export default function TiendaPage() {
                                         <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.price)}</span>
                                         <span className="text-sm font-black text-rose-600 block">{formatPrice(activeFormatData.offerPrice)}</span>
                                       </>
+                                    ) : activeFormatData.originalPrice && activeFormatData.originalPrice > activeFormatData.price ? (
+                                      <>
+                                        <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 py-0 mb-1">
+                                          -{branchDiscountPct}% DCTO
+                                        </Badge>
+                                        <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.originalPrice)}</span>
+                                        <span className="text-sm font-black text-emerald-600 block">{formatPrice(activeFormatData.price)}</span>
+                                      </>
                                     ) : (
                                       <span className="text-sm font-black text-[#FF6E23] block">{formatPrice(activeFormatData.price)}</span>
                                     )}
@@ -2346,6 +2363,13 @@ export default function TiendaPage() {
                                                 <span className="line-through text-gray-300">{formatPrice(variant.price)}</span>
                                                 {' '}
                                                 <span className="text-rose-600 font-bold">{formatPrice(variant.offerPrice)}</span>
+                                              </>
+                                            ) : variant.originalPrice && variant.originalPrice > (variant.price || 0) ? (
+                                              <>
+                                                <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mr-1">-{branchDiscountPct}%</Badge>
+                                                <span className="line-through text-gray-300">{formatPrice(variant.originalPrice)}</span>
+                                                {' '}
+                                                <span className="text-emerald-600 font-bold">{formatPrice(variant.price)}</span>
                                               </>
                                             ) : (
                                               variant.price ? formatPrice(variant.price) : 'Consultar'
@@ -2512,7 +2536,7 @@ export default function TiendaPage() {
                     <div className="flex-1 space-y-4">
                       {/* Price */}
                       {gv.price && gv.price > 0 && (
-                        <div className={`bg-gradient-to-r ${gv.offerPrice && gv.offerPrice > 0 ? 'from-rose-500/5 to-orange-50 border-rose-200/30' : 'from-[#FF6E23]/5 to-orange-50 border-[#FF6E23]/10'} rounded-xl p-5 border`}>
+                        <div className={`bg-gradient-to-r ${gv.offerPrice && gv.offerPrice > 0 ? 'from-rose-500/5 to-orange-50 border-rose-200/30' : gv.originalPrice && gv.originalPrice > gv.price ? 'from-emerald-500/5 to-emerald-50 border-emerald-200/30' : 'from-[#FF6E23]/5 to-orange-50 border-[#FF6E23]/10'} rounded-xl p-5 border`}>
                           {gv.offerPrice && gv.offerPrice > 0 ? (
                             <>
                               <div className="flex items-center gap-2 mb-1">
@@ -2526,6 +2550,20 @@ export default function TiendaPage() {
                                 <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
                               </div>
                               <div className="text-sm text-gray-400 line-through mt-0.5">{formatPrice(gv.price)}</div>
+                            </>
+                          ) : gv.originalPrice && gv.originalPrice > gv.price ? (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio con descuento</span>
+                                <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
+                                  -{branchDiscountPct}% DCTO
+                                </Badge>
+                              </div>
+                              <div className="text-3xl font-black text-emerald-600 mt-1">
+                                {formatPrice(gv.price)}
+                                <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
+                              </div>
+                              <div className="text-sm text-gray-400 line-through mt-0.5">{formatPrice(gv.originalPrice)}</div>
                             </>
                           ) : (
                             <>

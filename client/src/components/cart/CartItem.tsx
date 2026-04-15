@@ -120,7 +120,16 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
 
         {/* Price and Controls */}
         <div className="flex flex-col items-end gap-2">
-          {item.discountAmount && item.discountAmount > 0 ? (
+          {item.originalPrice && item.originalPrice > item.unitPrice ? (
+            <div className="text-right">
+              <span className="text-[10px] text-gray-400 line-through block">
+                {formatPrice(item.originalPrice * item.quantity)}
+              </span>
+              <span className="text-sm font-semibold text-emerald-600" data-testid={`text-cart-item-subtotal-${item.productId}`}>
+                {formatPrice(item.subtotal)}
+              </span>
+            </div>
+          ) : item.discountAmount && item.discountAmount > 0 ? (
             <div className="text-right">
               <span className="text-xs text-gray-400 line-through block">
                 {formatPrice(item.subtotal)}
@@ -232,7 +241,12 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
                 {/* Unit Price */}
                 <div>
                   <span className="text-sm text-gray-500">Precio unitario:</span>
-                  {item.discountAmount && item.discountAmount > 0 ? (
+                  {item.originalPrice && item.originalPrice > item.unitPrice ? (
+                    <>
+                      <p className="text-sm text-gray-400 line-through">{formatPrice(item.originalPrice)}</p>
+                      <p className="font-semibold text-emerald-600">{formatPrice(item.unitPrice)}</p>
+                    </>
+                  ) : item.discountAmount && item.discountAmount > 0 ? (
                     <>
                       <p className="text-sm text-gray-400 line-through">{formatPrice(item.unitPrice)}</p>
                       <p className="font-semibold text-emerald-600">{formatPrice(item.unitPriceAfterDiscount || item.unitPrice)}</p>

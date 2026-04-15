@@ -14305,12 +14305,13 @@ export function registerRoutes(app: Express): Server {
             if (discountPct > 0 && discountPct <= 100) {
               branchDiscountApplied = discountPct;
               const factor = 1 - discountPct / 100;
-              // Deep copy to avoid polluting shared cache
+              // Deep copy to avoid polluting shared cache — preserve originalPrice for frontend display
               cleanCatalog = cleanCatalog.map((product: any) => {
                 const newColors: Record<string, any[]> = {};
                 for (const [color, variants] of Object.entries(product.colors)) {
                   newColors[color] = (variants as any[]).map((v: any) => ({
                     ...v,
+                    originalPrice: v.price, // Preserve original price before discount
                     price: v.price != null ? Math.max(0, Math.round(v.price * factor)) : v.price,
                     offerPrice: v.offerPrice != null && v.offerPrice > 0
                       ? Math.max(0, Math.round(v.offerPrice * factor))
@@ -14333,7 +14334,7 @@ export function registerRoutes(app: Express): Server {
       } else {
         res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
       }
-      res.json({ catalog: cleanCatalog, totalProducts: fullCatalog.totalProducts });
+      res.json({ catalog: cleanCatalog, totalProducts: fullCatalog.totalProducts, branchDiscountPercent: branchDiscountApplied || undefined });
     } catch (error) {
       console.error('Error fetching store grouped products:', error);
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
