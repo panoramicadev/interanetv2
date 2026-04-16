@@ -7292,3 +7292,70 @@ export const insertCrmAyudaMemoriaSchema = createInsertSchema(crmAyudaMemoria, {
 });
 
 export type InsertCrmAyudaMemoriaInput = z.infer<typeof insertCrmAyudaMemoriaSchema>;
+
+// ════════════════════════════════════════════════════════════
+// B2C PUBLIC QUOTATION REQUESTS
+// ════════════════════════════════════════════════════════════
+
+export interface QuoteRequestItem {
+  sku: string;
+  productName: string;
+  color?: string;
+  format?: string;
+  quantity: number;
+  imageUrl?: string;
+}
+
+export const quoteRequests = pgTable("quote_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Visitor contact info
+  visitorName: varchar("visitor_name").notNull(),
+  visitorEmail: varchar("visitor_email").notNull(),
+  visitorPhone: varchar("visitor_phone"),
+  visitorCompany: varchar("visitor_company"),
+  visitorCity: varchar("visitor_city"),
+  visitorRut: varchar("visitor_rut"),
+  message: text("message"),
+  // Requested products (JSON array — no prices)
+  items: jsonb("items").notNull().$type<QuoteRequestItem[]>(),
+  itemCount: integer("item_count").notNull().default(0),
+  // Internal management
+  status: varchar("status").notNull().default("pending"), // pending, contacted, quoted, closed
+  assignedToUserId: integer("assigned_to_user_id"),
+  internalNotes: text("internal_notes"),
+  // Tracking
+  source: varchar("source").default("b2c_cotizador"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
+  visitorName: z.string().min(1, "Nombre es requerido"),
+  visitorEmail: z.string().email("Email inválido"),
+  visitorPhone: z.string().optional().nullable(),
+  visitorCompany: z.string().optional().nullable(),
+  visitorCity: z.string().optional().nullable(),
+  visitorRut: z.string().optional().nullable(),
+  message: z.string().optional().nullable(),
+  items: z.array(z.object({
+    sku: z.string(),
+    productName: z.string(),
+    color: z.string().optional(),
+    format: z.string().optional(),
+    quantity: z.number().positive(),
+    imageUrl: z.string().optional(),
+  })).min(1, "Debe incluir al menos un producto"),
+}).omit({
+  id: true,
+  itemCount: true,
+  status: true,
+  assignedToUserId: true,
+  internalNotes: true,
+  source: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type QuoteRequest = typeof quoteRequests.$inferSelect;
+export type InsertQuoteRequest = typeof quoteRequests.$inferInsert;
+export type InsertQuoteRequestInput = z.infer<typeof insertQuoteRequestSchema>;

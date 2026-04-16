@@ -1,0 +1,392 @@
+/**
+ * CotizacionesB2C — Admin panel for managing B2C quote requests
+ * Shows all quotation requests submitted from the public /cotizador
+ */
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface QuoteRequestItem {
+  sku: string;
+  productName: string;
+  color?: string;
+  format?: string;
+  quantity: number;
+  imageUrl?: string;
+}
+
+interface QuoteRequest {
+  id: string;
+  visitorName: string;
+  visitorEmail: string;
+  visitorPhone?: string;
+  visitorCompany?: string;
+  visitorCity?: string;
+  visitorRut?: string;
+  message?: string;
+  items: QuoteRequestItem[];
+  itemCount: number;
+  status: string;
+  source: string;
+  internalNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  pending: { label: 'Pendiente', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
+  contacted: { label: 'Contactado', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: Phone },
+  quoted: { label: 'Cotizado', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle },
+  closed: { label: 'Cerrado', color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200', icon: CheckCircle },
+};
+
+export default function CotizacionesB2CPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['/api/b2c/quote-requests'],
+    queryFn: async () => {
+      const res = await fetch('/api/b2c/quote-requests', { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al cargar solicitudes');
+      return res.json();
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, internalNotes }: { id: string; status: string; internalNotes?: string }) => {
+      const res = await fetch(`/api/b2c/quote-requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status, internalNotes }),
+      });
+      if (!res.ok) throw new Error('Error al actualizar');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
+      toast({ title: 'Estado actualizado', description: 'La solicitud ha sido actualizada correctamente.' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'No se pudo actualizar la solicitud.', variant: 'destructive' });
+    },
+  });
+
+  const requests: QuoteRequest[] = data?.requests || [];
+
+  // Filter
+  const filtered = requests.filter(r => {
+    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        r.visitorName.toLowerCase().includes(term) ||
+        r.visitorEmail.toLowerCase().includes(term) ||
+        (r.visitorCompany || '').toLowerCase().includes(term) ||
+        (r.visitorCity || '').toLowerCase().includes(term)
+      );
+    }
+    return true;
+  });
+
+  // Stats
+  const stats = {
+    total: requests.length,
+    pending: requests.filter(r => r.status === 'pending').length,
+    contacted: requests.filter(r => r.status === 'contacted').length,
+    quoted: requests.filter(r => r.status === 'quoted').length,
+  };
+
+  const formatDate = (d: string) => {
+    return new Date(d).toLocaleDateString('es-CL', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-[#FF6E23]" />
+            Solicitudes de Cotización B2C
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Solicitudes recibidas desde el cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Actualizar
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Total', value: stats.total, color: 'text-gray-700', bg: 'bg-white' },
+          { label: 'Pendientes', value: stats.pending, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Contactados', value: stats.contacted, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Cotizados', value: stats.quoted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 p-4`}>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{s.label}</p>
+            <p className={`text-2xl font-black mt-1 ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Buscar por nombre, email, empresa..."
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6E23]/20 focus:border-[#FF6E23]/40"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400" />
+          {['all', 'pending', 'contacted', 'quoted', 'closed'].map(status => (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                filterStatus === status
+                  ? 'bg-[#FF6E23] text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {status === 'all' ? 'Todos' : STATUS_CONFIG[status]?.label || status}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-3 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <FileText className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+          <h3 className="font-semibold text-gray-600">Sin solicitudes</h3>
+          <p className="text-sm text-gray-400 mt-1">No hay solicitudes de cotización {filterStatus !== 'all' && `con estado "${STATUS_CONFIG[filterStatus]?.label}"`}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(request => {
+            const isExpanded = expandedId === request.id;
+            const statusCfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
+            const StatusIcon = statusCfg.icon;
+
+            return (
+              <div
+                key={request.id}
+                className={`bg-white rounded-xl border overflow-hidden transition-all ${
+                  isExpanded ? 'border-[#FF6E23]/30 shadow-lg' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {/* Row */}
+                <div
+                  className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                >
+                  {/* Status */}
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold ${statusCfg.bg} ${statusCfg.color}`}>
+                    <StatusIcon className="w-3.5 h-3.5" />
+                    {statusCfg.label}
+                  </div>
+
+                  {/* Name + email */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-800 text-sm truncate">{request.visitorName}</span>
+                      {request.visitorCompany && (
+                        <span className="text-xs text-gray-400 hidden sm:inline">· {request.visitorCompany}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">{request.visitorEmail}</p>
+                  </div>
+
+                  {/* Items count */}
+                  <div className="flex items-center gap-1 text-xs font-semibold text-gray-500 hidden sm:flex">
+                    <Package className="w-3.5 h-3.5" />
+                    {request.itemCount} producto{request.itemCount !== 1 ? 's' : ''}
+                  </div>
+
+                  {/* Date */}
+                  <span className="text-xs text-gray-400 hidden md:block whitespace-nowrap">
+                    {formatDate(request.createdAt)}
+                  </span>
+
+                  {/* Expand */}
+                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </div>
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 bg-gray-50/30">
+                    <div className="p-5 grid md:grid-cols-2 gap-6">
+                      {/* Left: Contact info */}
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Datos de Contacto</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-start gap-2">
+                            <User className="w-4 h-4 text-gray-400 mt-0.5" />
+                            <div>
+                              <p className="text-[10px] text-gray-400 uppercase">Nombre</p>
+                              <p className="text-sm font-semibold text-gray-800">{request.visitorName}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Mail className="w-4 h-4 text-gray-400 mt-0.5" />
+                            <div>
+                              <p className="text-[10px] text-gray-400 uppercase">Email</p>
+                              <a href={`mailto:${request.visitorEmail}`} className="text-sm font-semibold text-blue-600 hover:underline">{request.visitorEmail}</a>
+                            </div>
+                          </div>
+                          {request.visitorPhone && (
+                            <div className="flex items-start gap-2">
+                              <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[10px] text-gray-400 uppercase">Teléfono</p>
+                                <a href={`tel:${request.visitorPhone}`} className="text-sm font-semibold text-gray-800">{request.visitorPhone}</a>
+                              </div>
+                            </div>
+                          )}
+                          {request.visitorCompany && (
+                            <div className="flex items-start gap-2">
+                              <Building className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[10px] text-gray-400 uppercase">Empresa</p>
+                                <p className="text-sm font-semibold text-gray-800">{request.visitorCompany}</p>
+                              </div>
+                            </div>
+                          )}
+                          {request.visitorCity && (
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[10px] text-gray-400 uppercase">Ciudad</p>
+                                <p className="text-sm font-semibold text-gray-800">{request.visitorCity}</p>
+                              </div>
+                            </div>
+                          )}
+                          {request.visitorRut && (
+                            <div className="flex items-start gap-2">
+                              <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[10px] text-gray-400 uppercase">RUT</p>
+                                <p className="text-sm font-semibold text-gray-800">{request.visitorRut}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {request.message && (
+                          <div className="mt-3">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                              <p className="text-[10px] text-gray-400 uppercase font-bold">Mensaje</p>
+                            </div>
+                            <p className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-100 italic">
+                              "{request.message}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Status change */}
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <p className="text-[10px] text-gray-400 uppercase font-bold mb-2">Cambiar Estado</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {['pending', 'contacted', 'quoted', 'closed'].map(status => {
+                              const cfg = STATUS_CONFIG[status];
+                              const isCurrent = request.status === status;
+                              return (
+                                <button
+                                  key={status}
+                                  disabled={isCurrent}
+                                  onClick={() => updateStatusMutation.mutate({ id: request.id, status })}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    isCurrent
+                                      ? `${cfg.bg} ${cfg.color} cursor-default`
+                                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {cfg.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Products */}
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+                          Productos Solicitados ({request.itemCount})
+                        </h4>
+                        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                          {(request.items || []).map((item: QuoteRequestItem, idx: number) => (
+                            <div key={idx} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-gray-100">
+                              <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                                {item.imageUrl ? (
+                                  <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain p-1" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Package className="w-5 h-5 text-gray-200" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-800 uppercase truncate">{item.productName}</p>
+                                <p className="text-[10px] text-gray-400">
+                                  {item.color && item.color !== 'Sin Color' ? `${item.color} · ` : ''}{item.format}
+                                  <span className="ml-1.5 text-gray-300">SKU: {item.sku}</span>
+                                </p>
+                              </div>
+                              <span className="text-sm font-black text-[#FF6E23] flex-shrink-0">
+                                x{item.quantity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">
+                        <Calendar className="w-3 h-3 inline mr-1" />
+                        Recibida: {formatDate(request.createdAt)}
+                        {request.updatedAt !== request.createdAt && (
+                          <> · Actualizada: {formatDate(request.updatedAt)}</>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-gray-300">ID: {request.id}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

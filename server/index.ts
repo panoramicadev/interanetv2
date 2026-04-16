@@ -35,6 +35,10 @@ app.use((req, res, next) => {
 (async () => {
   const server = registerRoutes(app);
 
+  // Register B2C public quotation routes (isolated from B2B)
+  const { registerB2CRoutes } = await import('./routes-b2c');
+  registerB2CRoutes(app);
+
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

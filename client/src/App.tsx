@@ -23,6 +23,7 @@ import Login from "@/pages/login";
 import Shop from "@/pages/shop";
 import Tienda from "@/pages/tienda";
 import CatalogoPublico from "@/pages/catalogo-publico";
+import Cotizador from "@/pages/cotizador";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
@@ -97,6 +98,7 @@ import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
+import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -115,6 +117,9 @@ function Router() {
 
   return (
     <Switch>
+      {/* B2C Cotizador público — sin auth, sin precios */}
+      <Route path="/cotizador">{() => <Cotizador />}</Route>
+
       {/* Tienda pública accesible para todos */}
       <Route path="/tienda">{() => <Tienda />}</Route>
       <Route path="/shop">{() => <Shop />}</Route>
@@ -200,6 +205,7 @@ function Router() {
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
             <Route path="/ecommerce-usuarios" component={EcommerceUsuarios} />
+            <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={Clients} />

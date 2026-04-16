@@ -68,6 +68,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
+          href: "/cotizaciones-b2c",
+          label: "Solicitudes Cotización",
+          icon: FileText,
+        },
+        {
           href: "/ecommerce-usuarios",
           label: "Clientes",
           icon: Users,
@@ -385,6 +390,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
+        },
+        {
+          href: "/cotizaciones-b2c",
+          label: "Solicitudes Cotización",
+          icon: FileText,
         },
         {
           href: "/ecommerce-usuarios",
