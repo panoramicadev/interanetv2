@@ -228,6 +228,7 @@ function CotizadorContent() {
                 key={product.genericName}
                 product={product}
                 onViewDetail={setDetailProduct}
+                onOpenQuotePanel={() => setQuotePanelOpen(true)}
               />
             ))}
           </div>
@@ -280,6 +281,7 @@ function CotizadorContent() {
         product={detailProduct}
         open={!!detailProduct}
         onClose={() => setDetailProduct(null)}
+        onOpenQuotePanel={() => setQuotePanelOpen(true)}
       />
     </div>
   );
