@@ -1,4 +1,4 @@
-import { createContext, useReducer, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useReducer, useEffect, ReactNode, useCallback, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   CartItem, 
@@ -493,18 +493,21 @@ export const getInitialCartState = (): CartState => ({
  * Each user gets their own cart so switching accounts doesn't leak items.
  */
 const CART_STORAGE_KEY_PREFIX = 'panoramica_cart_state';
+const BRANCH_STORAGE_KEY = 'cart_selected_branch_id';
+export const BRANCH_CHANGED_EVENT = 'panoramica:branch-changed';
 
-const getCartStorageKey = (userId?: number | string | null): string => {
-  if (!userId) return `${CART_STORAGE_KEY_PREFIX}_anonymous`;
-  return `${CART_STORAGE_KEY_PREFIX}_${userId}`;
+const getCartStorageKey = (userId?: number | string | null, branchId?: string | null): string => {
+  const userPart = userId ? String(userId) : 'anonymous';
+  const branchPart = branchId ? `_b${branchId}` : '';
+  return `${CART_STORAGE_KEY_PREFIX}_${userPart}${branchPart}`;
 };
 
 /**
  * Load cart from localStorage with version migration support
  */
-const loadCartFromStorage = (userId?: number | string | null): CartState => {
+const loadCartFromStorage = (userId?: number | string | null, branchId?: string | null): CartState => {
   try {
-    const key = getCartStorageKey(userId);
+    const key = getCartStorageKey(userId, branchId);
     const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -522,19 +525,19 @@ const loadCartFromStorage = (userId?: number | string | null): CartState => {
   } catch (error) {
     console.warn('Error loading cart from localStorage:', error);
     // Clear corrupted data
-    const key = getCartStorageKey(userId);
+    const key = getCartStorageKey(userId, branchId);
     localStorage.removeItem(key);
   }
-  
+
   return getInitialCartState();
 };
 
 /**
  * Save cart to localStorage
  */
-const saveCartToStorage = (cartState: CartState, userId?: number | string | null): void => {
+const saveCartToStorage = (cartState: CartState, userId?: number | string | null, branchId?: string | null): void => {
   try {
-    const key = getCartStorageKey(userId);
+    const key = getCartStorageKey(userId, branchId);
     localStorage.setItem(key, JSON.stringify(cartState));
   } catch (error) {
     console.warn('Error saving cart to localStorage:', error);
@@ -575,50 +578,81 @@ interface CartProviderProps {
 
 export function CartProvider({ children }: CartProviderProps) {
   const { user } = useAuth();
+  const [branchId, setBranchId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(BRANCH_STORAGE_KEY);
+  });
   const userIdRef = useRef<number | string | null | undefined>(user?.id);
+  const branchIdRef = useRef<string | null>(branchId);
 
   const [state, dispatch] = useReducer(cartReducer, getInitialCartState(), () => {
-    // Load from localStorage on initialization using current user
-    return loadCartFromStorage(user?.id);
+    // Load from localStorage on initialization using current user + branch
+    return loadCartFromStorage(user?.id, branchId);
   });
-  
+
+  // Listen for branch changes from the store page (dispatched via CustomEvent)
+  useEffect(() => {
+    const handleBranchChange = (e: Event) => {
+      const detail = (e as CustomEvent<string | null>).detail;
+      const next = detail ?? localStorage.getItem(BRANCH_STORAGE_KEY);
+      setBranchId(next || null);
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === BRANCH_STORAGE_KEY) {
+        setBranchId(e.newValue);
+      }
+    };
+    window.addEventListener(BRANCH_CHANGED_EVENT, handleBranchChange);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(BRANCH_CHANGED_EVENT, handleBranchChange);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
   // One-time migration: move old un-scoped cart to user-scoped key
   useEffect(() => {
     if (!user?.id) return;
     const oldKey = 'panoramica_cart_state';
     const oldData = localStorage.getItem(oldKey);
     if (oldData) {
-      const newKey = getCartStorageKey(user.id);
+      const newKey = getCartStorageKey(user.id, branchIdRef.current);
       // Only migrate if user doesn't already have a scoped cart
       if (!localStorage.getItem(newKey)) {
         localStorage.setItem(newKey, oldData);
       }
       localStorage.removeItem(oldKey);
       // Reload cart with migrated data
-      const userCart = loadCartFromStorage(user.id);
+      const userCart = loadCartFromStorage(user.id, branchIdRef.current);
       dispatch({ type: 'LOAD_CART', payload: userCart });
     }
   }, []); // Run once on mount
 
-  // When the authenticated user changes, load that user's cart
+  // When the authenticated user or selected branch changes, load the matching cart
   useEffect(() => {
     const prevUserId = userIdRef.current;
+    const prevBranchId = branchIdRef.current;
     const currentUserId = user?.id ?? null;
+    const currentBranchId = branchId ?? null;
 
-    if (prevUserId !== currentUserId) {
+    if (prevUserId !== currentUserId || prevBranchId !== currentBranchId) {
+      const userChanged = prevUserId !== currentUserId;
       userIdRef.current = currentUserId;
-      const userCart = loadCartFromStorage(currentUserId);
+      branchIdRef.current = currentBranchId;
+      const userCart = loadCartFromStorage(currentUserId, currentBranchId);
       dispatch({ type: 'LOAD_CART', payload: userCart });
-      // Clear delivery preferences on user switch
-      localStorage.removeItem('cart_delivery_method');
-      localStorage.removeItem('cart_selected_warehouse');
+      if (userChanged) {
+        // Clear delivery preferences on user switch
+        localStorage.removeItem('cart_delivery_method');
+        localStorage.removeItem('cart_selected_warehouse');
+      }
     }
-  }, [user?.id]);
+  }, [user?.id, branchId]);
 
-  // Save to localStorage whenever state changes (scoped to current user)
+  // Save to localStorage whenever state changes (scoped to current user + branch)
   useEffect(() => {
-    saveCartToStorage(state, user?.id);
-  }, [state, user?.id]);
+    saveCartToStorage(state, user?.id, branchId);
+  }, [state, user?.id, branchId]);
   
   // Action functions
   const addItem = (item: Omit<CartItem, 'id' | 'subtotal' | 'addedAt' | 'updatedAt'>) => {

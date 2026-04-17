@@ -757,9 +757,13 @@ export default function TiendaPage() {
   }, [defaultBranchId]);
 
   // Persist selected branch so the cart page can default the shipping address to it
+  // Also notify CartContext so it can swap to that branch's cart
   useEffect(() => {
     if (selectedBranchId) {
       localStorage.setItem('cart_selected_branch_id', selectedBranchId);
+      window.dispatchEvent(
+        new CustomEvent('panoramica:branch-changed', { detail: selectedBranchId })
+      );
     }
   }, [selectedBranchId]);
 
