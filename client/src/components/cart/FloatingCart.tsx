@@ -76,13 +76,33 @@ function ModernCartItem({ item }: { item: any }) {
         
         {/* Price row */}
         <div className="flex items-center justify-between mt-1.5">
-          <div>
-            <span className="text-sm font-bold text-gray-900">
-              {formatPrice(item.subtotal)}
-            </span>
-            {item.originalPrice && item.originalPrice > item.unitPrice && (
-              <span className="text-[10px] text-gray-400 line-through ml-1.5">
-                {formatPrice(item.originalPrice * item.quantity)}
+          <div className="flex flex-col">
+            {item.originalPrice && item.originalPrice > item.unitPrice ? (
+              <>
+                {item.isOffer ? (
+                  <span className="inline-flex items-center self-start bg-rose-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase mb-0.5">
+                    Oferta
+                  </span>
+                ) : item.convenioPct ? (
+                  <span
+                    className="inline-flex items-center self-start bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase mb-0.5"
+                    title={`Descuento convenio ${item.convenioPct}% sobre lista asignada`}
+                  >
+                    Convenio -{item.convenioPct}%
+                  </span>
+                ) : null}
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`text-sm font-bold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {formatPrice(item.subtotal)}
+                  </span>
+                  <span className="text-[10px] text-gray-400 line-through">
+                    {formatPrice(item.originalPrice * item.quantity)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <span className="text-sm font-bold text-gray-900">
+                {formatPrice(item.subtotal)}
               </span>
             )}
           </div>
