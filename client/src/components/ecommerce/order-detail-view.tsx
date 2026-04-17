@@ -7,7 +7,7 @@ import {
   Phone, Mail, ArrowLeft, User, MapPin,
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
   Pencil, Archive, Trash2, FileImage, Landmark,
-  Upload, Download, X, Loader2
+  Upload, Download, X, Loader2, RefreshCw, Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,7 +130,6 @@ interface OrderDetailViewProps {
 }
 
 export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote, isClientView = false }: OrderDetailViewProps) {
-  const items = getOrderItems(order);
   const statusKey = order.status?.toLowerCase() || 'pending';
   const status = statusConfig[statusKey] || statusConfig.pending;
   const StatusIcon = status.icon;
@@ -142,10 +141,97 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [isDeletingInvoice, setIsDeletingInvoice] = useState<number | null>(null);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
+
+  // Price editing state
+  const [isEditingPrices, setIsEditingPrices] = useState(false);
+  const [editedItems, setEditedItems] = useState<OrderItem[]>([]);
+  const [isSavingPrices, setIsSavingPrices] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  const items = isEditingPrices ? editedItems : getOrderItems(currentOrder);
   const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
-  const subtotal = parseFloat(order.subtotal || '0') || items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0);
-  const tax = parseFloat(order.tax || '0') || Math.round(subtotal * 0.19);
-  const total = parseFloat(order.total || '0') || Math.round(subtotal * 1.19); // Fallback to computed total
+
+  const liveSubtotal = isEditingPrices
+    ? editedItems.reduce((sum, i) => sum + Math.round((Number(i.unitPrice) || 0) * (Number(i.quantity) || 0)), 0)
+    : null;
+  const liveTax = liveSubtotal !== null ? Math.round(liveSubtotal * 0.19) : null;
+  const liveTotal = liveSubtotal !== null && liveTax !== null ? liveSubtotal + liveTax : null;
+
+  const subtotal = liveSubtotal ?? (parseFloat(currentOrder.subtotal || '0') || items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0));
+  const tax = liveTax ?? (parseFloat(currentOrder.tax || '0') || Math.round(subtotal * 0.19));
+  const total = liveTotal ?? (parseFloat(currentOrder.total || '0') || Math.round(subtotal * 1.19));
+
+  const startEditPrices = () => {
+    const cloned = getOrderItems(currentOrder).map(it => ({ ...it, unitPrice: Number(it.unitPrice ?? it.price ?? 0) }));
+    setEditedItems(cloned);
+    setIsEditingPrices(true);
+  };
+
+  const cancelEditPrices = () => {
+    setIsEditingPrices(false);
+    setEditedItems([]);
+  };
+
+  const updateEditedItemPrice = (index: number, value: string) => {
+    const num = Math.max(0, Number(value.replace(/[^\d]/g, '')) || 0);
+    setEditedItems(prev => prev.map((it, i) => i === index ? { ...it, unitPrice: num } : it));
+  };
+
+  const saveEditedPrices = async () => {
+    setIsSavingPrices(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/items`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ items: editedItems }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al guardar');
+      }
+      const updated = await res.json();
+      setCurrentOrder(updated);
+      setIsEditingPrices(false);
+      setEditedItems([]);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
+      toast({ title: 'Precios actualizados' });
+    } catch (err: any) {
+      toast({ title: 'Error al guardar precios', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSavingPrices(false);
+    }
+  };
+
+  const recalculateFromClientList = async () => {
+    setIsRecalculating(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/recalculate-prices`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al recalcular');
+      }
+      const data = await res.json();
+      setCurrentOrder(data.order);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
+      const warn = Array.isArray(data.warnings) && data.warnings.length
+        ? ` (${data.warnings.length} SKU sin precio en la lista)`
+        : '';
+      toast({
+        title: 'Precios recalculados',
+        description: `Lista aplicada: ${data.priceListUsed}${data.branchDiscountPct ? ` (descuento sucursal ${data.branchDiscountPct}%)` : ''}${warn}`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Error al recalcular', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
 
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -184,7 +270,28 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={startEditPrices}
+                  className="cursor-pointer"
+                  disabled={isEditingPrices}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Editar precios
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={recalculateFromClientList}
+                  className="cursor-pointer"
+                  disabled={isRecalculating || isEditingPrices}
+                >
+                  {isRecalculating ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Recalcular con lista cliente
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {statusKey === 'pending' && (
                   <DropdownMenuItem
                     onClick={async () => {
@@ -393,22 +500,56 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
         <div className="lg:col-span-2 space-y-6">
           {/* Products Card */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-[#FF6E23]" />
                 <h3 className="font-bold text-gray-900">Productos</h3>
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
                   {items.length}
                 </span>
+                {isEditingPrices && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                    Editando precios
+                  </span>
+                )}
               </div>
-              <span className={`text-xs font-bold ${status.color}`}>
-                {status.label}
-              </span>
+              {isEditingPrices ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelEditPrices}
+                    disabled={isSavingPrices}
+                    className="rounded-xl"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={saveEditedPrices}
+                    disabled={isSavingPrices}
+                    className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                  >
+                    {isSavingPrices ? (
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-1.5" />
+                    )}
+                    Guardar
+                  </Button>
+                </div>
+              ) : (
+                <span className={`text-xs font-bold ${status.color}`}>
+                  {status.label}
+                </span>
+              )}
             </div>
             <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
               {items.map((item, index) => {
-                const itemPrice = item.unitPrice || item.price || 0;
-                const itemTotal = item.subtotal || item.totalPrice || itemPrice * item.quantity;
+                const itemPrice = Number(item.unitPrice ?? item.price ?? 0);
+                const itemTotal = isEditingPrices
+                  ? Math.round(itemPrice * (Number(item.quantity) || 0))
+                  : (item.subtotal ?? item.totalPrice ?? itemPrice * item.quantity);
                 return (
                   <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
                     {/* Product Image */}
@@ -436,9 +577,26 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {formatPrice(itemPrice)} × {item.quantity} unidades
-                      </div>
+                      {isEditingPrices ? (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-500">Precio unit.:</span>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={itemPrice.toLocaleString('es-CL')}
+                              onChange={(e) => updateEditedItemPrice(index, e.target.value)}
+                              className="h-8 w-32 pl-5 text-sm"
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400">× {item.quantity}</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {formatPrice(itemPrice)} × {item.quantity} unidades
+                        </div>
+                      )}
                     </div>
                     {/* Price */}
                     <div className="text-left sm:text-right flex-shrink-0 mt-2 sm:mt-0">

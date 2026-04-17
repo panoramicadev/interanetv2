@@ -2670,10 +2670,14 @@ export interface CartItem {
   unit: string; // Base unit from ud02pr (GL, BD4, 1/4, etc.)
 
   // Pricing and quantity
-  unitPrice: number; // Price per unit in CLP (offer price if applicable)
-  originalPrice?: number; // Original price before offer (for showing tachado/strikethrough)
+  unitPrice: number; // Price per unit in CLP (effective price: offer or list-with-convenio)
+  originalPrice?: number; // Original list price before offer/convenio (for strikethrough display)
   quantity: number; // Selected quantity (must follow validation rules)
   subtotal: number; // unitPrice * quantity (calculated)
+
+  // Price-source metadata (for UI differentiation between offer vs convenio discount)
+  isOffer?: boolean;      // True if unitPrice comes from a promotional offer (no convenio applied)
+  convenioPct?: number;   // If >0, unitPrice has a branch "convenio" discount of this % applied
 
   // Coupon discount distribution (populated when cart-level coupons are applied)
   discountAmount?: number;           // Total discount amount distributed to this item
@@ -2797,6 +2801,8 @@ export const cartItemSchema = z.object({
   originalPrice: z.number().min(0).optional(),
   quantity: z.number().int().min(1),
   subtotal: z.number().min(0),
+  isOffer: z.boolean().optional(),
+  convenioPct: z.number().min(0).max(100).optional(),
   discountAmount: z.number().min(0).optional(),
   unitPriceAfterDiscount: z.number().min(0).optional(),
   subtotalAfterDiscount: z.number().min(0).optional(),

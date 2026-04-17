@@ -126,10 +126,17 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
         <div className="flex flex-col items-end gap-2">
           {item.originalPrice && item.originalPrice > item.unitPrice ? (
             <div className="text-right">
+              {item.isOffer ? (
+                <Badge className="bg-rose-500 text-white text-[8px] px-1 py-0 mb-0.5">OFERTA</Badge>
+              ) : item.convenioPct ? (
+                <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mb-0.5" title={`Descuento convenio ${item.convenioPct}%`}>
+                  CONVENIO -{item.convenioPct}%
+                </Badge>
+              ) : null}
               <span className="text-[10px] text-gray-400 line-through block">
                 {formatPrice(item.originalPrice * item.quantity)}
               </span>
-              <span className="text-sm font-semibold text-emerald-600" data-testid={`text-cart-item-subtotal-${item.productId}`}>
+              <span className={`text-sm font-semibold block ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-cart-item-subtotal-${item.productId}`}>
                 {formatPrice(item.subtotal)}
               </span>
             </div>
@@ -251,7 +258,16 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
                   {item.originalPrice && item.originalPrice > item.unitPrice ? (
                     <>
                       <p className="text-sm text-gray-400 line-through">{formatPrice(item.originalPrice)}</p>
-                      <p className="font-semibold text-emerald-600">{formatPrice(item.unitPrice)}</p>
+                      <p className={`font-semibold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`}>{formatPrice(item.unitPrice)}</p>
+                      {item.isOffer ? (
+                        <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-1">
+                          🔥 Precio oferta
+                        </div>
+                      ) : item.convenioPct ? (
+                        <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-1" title="Descuento por convenio aplicado sobre la lista asignada">
+                          🤝 Convenio -{item.convenioPct}%
+                        </div>
+                      ) : null}
                     </>
                   ) : item.discountAmount && item.discountAmount > 0 ? (
                     <>

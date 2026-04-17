@@ -6818,6 +6818,109 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== eCommerce Orders API Routes =====================
 
+  // Resolve authoritative prices for order items based on customer's assigned price list (lcen).
+  // Overwrites frontend-supplied unitPrice to prevent price-list mismatches.
+  // Items without a resolvable SKU keep their original unitPrice and are flagged.
+  async function resolveItemsPricing(items: any[], client: any | null) {
+    const priceListCode = (client?.lcen && typeof client.lcen === 'string' && client.lcen.trim()) ? client.lcen.trim().toUpperCase() : 'LP01';
+    const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
+    const useCustomList = priceListCode !== 'LP01';
+
+    const skus = Array.from(new Set(
+      items
+        .map((it: any) => (it.sku || it.productCode || '').toString().trim().toUpperCase())
+        .filter(Boolean)
+    ));
+
+    // Maps keyed by uppercased SKU
+    const listPriceMap = new Map<string, number>();
+    const offerPriceMap = new Map<string, number>();
+    if (skus.length > 0) {
+      const skuList = sql.join(skus.map(s => sql`${s}`), sql`, `);
+      const result: any = useCustomList
+        ? await db.execute(sql`
+            SELECT UPPER(pl.codigo) AS codigo,
+                   COALESCE(cpli.precio, pl.lista) AS precio,
+                   COALESCE(offers.precio, pl.offer_price) AS offer_price
+            FROM price_list pl
+            LEFT JOIN custom_price_list_items cpli
+              ON UPPER(cpli.codigo) = UPPER(pl.codigo)
+             AND cpli.list_code = ${priceListCode}
+            LEFT JOIN price_list_offers offers
+              ON UPPER(offers.codigo) = UPPER(pl.codigo)
+            WHERE UPPER(pl.codigo) IN (${skuList})
+          `)
+        : await db.execute(sql`
+            SELECT UPPER(pl.codigo) AS codigo,
+                   pl.lista AS precio,
+                   COALESCE(offers.precio, pl.offer_price) AS offer_price
+            FROM price_list pl
+            LEFT JOIN price_list_offers offers
+              ON UPPER(offers.codigo) = UPPER(pl.codigo)
+            WHERE UPPER(pl.codigo) IN (${skuList})
+          `);
+      const rows = Array.isArray(result) ? result : (result.rows || []);
+      for (const row of rows as any[]) {
+        if (!row.codigo) continue;
+        if (row.precio != null) listPriceMap.set(row.codigo, parseFloat(row.precio));
+        if (row.offer_price != null && parseFloat(row.offer_price) > 0) {
+          offerPriceMap.set(row.codigo, parseFloat(row.offer_price));
+        }
+      }
+    }
+
+    const warnings: string[] = [];
+    const discountFactor = branchDiscountPct > 0 && branchDiscountPct <= 100 ? 1 - branchDiscountPct / 100 : 1;
+
+    const resolvedItems = items.map((it: any) => {
+      const sku = (it.sku || it.productCode || '').toString().trim().toUpperCase();
+      const listPrice = sku ? listPriceMap.get(sku) : undefined;
+      const offerPrice = sku ? offerPriceMap.get(sku) : undefined;
+
+      if (listPrice == null && offerPrice == null) {
+        warnings.push(`SKU no encontrado en lista ${priceListCode}: ${sku || it.productName || '(sin SKU)'}`);
+        const fallback = Number(it.unitPrice ?? it.price ?? 0) || 0;
+        const qty = Number(it.quantity) || 0;
+        return {
+          ...it,
+          unitPrice: fallback,
+          totalPrice: Math.round(fallback * qty),
+          priceSource: 'fallback',
+          isOffer: false,
+        };
+      }
+
+      // If the SKU is on offer, use offer price as-is — do NOT apply convenio/branch discount.
+      // Otherwise use list price with branch discount applied.
+      const usingOffer = offerPrice != null;
+      const unitPrice = usingOffer
+        ? Math.max(0, Math.round(offerPrice!))
+        : Math.max(0, Math.round((listPrice ?? 0) * discountFactor));
+      const qty = Number(it.quantity) || 0;
+      const totalPrice = Math.round(unitPrice * qty);
+
+      return {
+        ...it,
+        unitPrice,
+        totalPrice,
+        discountAmount: 0,
+        unitPriceAfterDiscount: unitPrice,
+        totalPriceAfterDiscount: totalPrice,
+        priceSource: usingOffer ? 'offer' : priceListCode,
+        isOffer: usingOffer,
+        ...(usingOffer
+          ? {}
+          : (branchDiscountPct > 0 ? { convenioPct: branchDiscountPct, originalUnitPrice: Math.round(listPrice ?? 0) } : {})),
+      };
+    });
+
+    const subtotal = resolvedItems.reduce((s: number, it: any) => s + (Number(it.totalPrice) || 0), 0);
+    const tax = Math.round(subtotal * 0.19);
+    const total = subtotal + tax;
+
+    return { items: resolvedItems, subtotal, tax, total, priceListUsed: priceListCode, branchDiscountPct, warnings };
+  }
+
   // Create order from client (authenticated clients only)
   app.post('/api/ecommerce/orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
     // Validate user is authenticated
@@ -6869,7 +6972,7 @@ export function registerRoutes(app: Express): Server {
       const orderData = validationResult.data;
       const clientId = req.user.id;
 
-      // Get client details to find assigned salesperson (non-blocking)
+      // Get client details to find assigned salesperson and price list (non-blocking)
       let client: any = null;
       try {
         client = await storage.getClientByUserId(clientId);
@@ -6877,14 +6980,22 @@ export function registerRoutes(app: Express): Server {
         console.warn('Warning: Could not fetch client details, proceeding without:', clientErr);
       }
 
+      // Authoritative server-side price resolution based on customer's assigned lcen price list.
+      // Overrides frontend-supplied unitPrice to eliminate price-list mismatches.
+      const resolved = await resolveItemsPricing(orderData.items, client);
+      if (resolved.warnings.length) {
+        console.warn(`[orders/client] Price resolution warnings for user ${clientId}:`, resolved.warnings);
+      }
+      console.log(`[orders/client] Applied price list ${resolved.priceListUsed}${resolved.branchDiscountPct ? ` + ${resolved.branchDiscountPct}% branch discount` : ''} for user ${clientId}`);
+
       // Prepare order data with client and salesperson info
       const isCreditMethod = orderData.paymentMethod === 'credit';
-      
+
       const orderToCreate: any = {
-        items: orderData.items,
-        subtotal: String(orderData.subtotal),
-        tax: String(orderData.tax),
-        total: String(orderData.total),
+        items: resolved.items,
+        subtotal: String(resolved.subtotal),
+        tax: String(resolved.tax),
+        total: String(resolved.total),
         clientId,
         clientName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : (req.user.email || 'Cliente'),
         clientEmail: req.user.email,
@@ -6946,11 +7057,11 @@ export function registerRoutes(app: Express): Server {
           if (clientRecordMatch && clientRecordMatch.crlt) {
             const limit = parseFloat(clientRecordMatch.crlt) || 0;
             const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
-            const orderTotal = parseFloat(orderData.total as string || '0') || 0;
-            
+            const orderTotal = resolved.total;
+
             const newUsed = used + orderTotal;
             const newAvailable = Math.max(0, limit - newUsed);
-            
+
             await db.update(clients).set({
               crsd: newUsed.toString(),
               cren: newAvailable.toString()
@@ -6969,7 +7080,7 @@ export function registerRoutes(app: Express): Server {
             userId: notificationUserId,
             type: 'ecommerce_order',
             title: 'Nuevo pedido de cliente',
-            message: `${orderToCreate.clientName} ha realizado un pedido por $${Number(orderData.total).toFixed(0)}`,
+            message: `${orderToCreate.clientName} ha realizado un pedido por $${resolved.total.toFixed(0)}`,
             relatedOrderId: order.id,
             read: false
           });
@@ -7199,6 +7310,131 @@ export function registerRoutes(app: Express): Server {
     }
 
     res.json(updated);
+  }));
+
+  // Manually edit order item prices (admin/supervisor/salesperson only).
+  // Accepts a full replacement items array; recomputes totals; marks order as modified.
+  app.patch('/api/ecommerce/orders/:id/items', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const itemsSchema = z.object({
+      items: z.array(z.object({
+        productId: z.string().optional().nullable(),
+        productName: z.string(),
+        productCode: z.string().optional().nullable(),
+        sku: z.string().optional().nullable(),
+        quantity: z.number().nonnegative(),
+        unitPrice: z.number().nonnegative(),
+        imageUrl: z.string().optional().nullable(),
+        selectedColor: z.string().optional().nullable(),
+        selectedPackaging: z.string().optional().nullable(),
+      }).passthrough()),
+    });
+
+    const parsed = itemsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Error de validación', errors: parsed.error.errors });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const [existing] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+    if (!existing) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    const normalizedItems = parsed.data.items.map((it: any) => {
+      const unitPrice = Math.round(Number(it.unitPrice) || 0);
+      const qty = Number(it.quantity) || 0;
+      const totalPrice = Math.round(unitPrice * qty);
+      return {
+        ...it,
+        unitPrice,
+        totalPrice,
+        discountAmount: 0,
+        unitPriceAfterDiscount: unitPrice,
+        totalPriceAfterDiscount: totalPrice,
+        priceSource: 'manual',
+      };
+    });
+
+    const subtotal = normalizedItems.reduce((s, it) => s + (Number(it.totalPrice) || 0), 0);
+    const tax = Math.round(subtotal * 0.19);
+    const total = subtotal + tax;
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        items: normalizedItems,
+        subtotal: String(subtotal),
+        tax: String(tax),
+        total: String(total),
+        status: 'modified',
+        modifiedAt: new Date(),
+        modifiedById: user.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    res.json(updated);
+  }));
+
+  // Recalculate order item prices from the customer's currently assigned price list (admin/supervisor/salesperson).
+  // Looks up the client's lcen + branch discount and overwrites unitPrice for each item.
+  app.post('/api/ecommerce/orders/:id/recalculate-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const [existing] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+    if (!existing) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    let client: any = null;
+    try {
+      client = existing.clientId ? await storage.getClientByUserId(existing.clientId) : null;
+    } catch (e) {
+      console.warn('[recalculate-prices] could not fetch client:', e);
+    }
+    if (!client) {
+      return res.status(400).json({ message: 'No se pudo resolver el cliente asociado al pedido para obtener su lista de precios.' });
+    }
+
+    const existingItems = Array.isArray(existing.items)
+      ? existing.items as any[]
+      : (typeof existing.items === 'string' ? JSON.parse(existing.items) : []);
+
+    const resolved = await resolveItemsPricing(existingItems, client);
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        items: resolved.items,
+        subtotal: String(resolved.subtotal),
+        tax: String(resolved.tax),
+        total: String(resolved.total),
+        status: 'modified',
+        modifiedAt: new Date(),
+        modifiedById: user.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    res.json({
+      order: updated,
+      priceListUsed: resolved.priceListUsed,
+      branchDiscountPct: resolved.branchDiscountPct,
+      warnings: resolved.warnings,
+    });
   }));
 
   // Update order receipt
@@ -14355,22 +14591,22 @@ export function registerRoutes(app: Express): Server {
             if (discountPct > 0 && discountPct <= 100) {
               branchDiscountApplied = discountPct;
               const factor = 1 - discountPct / 100;
-              // Deep copy to avoid polluting shared cache — preserve originalPrice for frontend display
+              // Branch (convenio) discount applies only to LIST price, never to offer prices.
+              // Offers already carry their own promotional discount — stacking them would
+              // double-discount the customer. Deep-copy to avoid polluting shared cache.
               cleanCatalog = cleanCatalog.map((product: any) => {
                 const newColors: Record<string, any[]> = {};
                 for (const [color, variants] of Object.entries(product.colors)) {
                   newColors[color] = (variants as any[]).map((v: any) => ({
                     ...v,
-                    originalPrice: v.price, // Preserve original price before discount
+                    originalPrice: v.price,
                     price: v.price != null ? Math.max(0, Math.round(v.price * factor)) : v.price,
-                    offerPrice: v.offerPrice != null && v.offerPrice > 0
-                      ? Math.max(0, Math.round(v.offerPrice * factor))
-                      : v.offerPrice,
+                    offerPrice: v.offerPrice,
                   }));
                 }
                 return { ...product, colors: newColors };
               });
-              console.log(`[STORE] Applied branch discount ${discountPct}% for client user ${req.user.id}${branchId ? ` (branch: ${branchId})` : ''}`);
+              console.log(`[STORE] Applied convenio discount ${discountPct}% to list prices (offers untouched) for client user ${req.user.id}${branchId ? ` (branch: ${branchId})` : ''}`);
             }
           }
         } catch (discountError) {

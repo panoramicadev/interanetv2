@@ -348,8 +348,26 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                     {formatPrice(item.unitPriceAfterDiscount || item.unitPrice)}
                   </div>
                   <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
-                    🏷️ {discountPercent > 0 ? `Descuento aplicado (-${discountPercent}%)` : 'Descuento aplicado'}
+                    🏷️ {discountPercent > 0 ? `Cupón aplicado (-${discountPercent}%)` : 'Cupón aplicado'}
                   </div>
+                </>
+              ) : item.originalPrice && item.originalPrice > item.unitPrice ? (
+                <>
+                  <div className="text-sm text-gray-400 line-through" data-testid={`text-unit-price-original-${item.productId}`}>
+                    {formatPrice(item.originalPrice)}
+                  </div>
+                  <div className={`text-xl font-bold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-unit-price-${item.productId}`}>
+                    {formatPrice(item.unitPrice)}
+                  </div>
+                  {item.isOffer ? (
+                    <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
+                      🔥 Precio oferta
+                    </div>
+                  ) : item.convenioPct ? (
+                    <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md" title="Descuento por convenio aplicado sobre la lista asignada">
+                      🤝 Convenio -{item.convenioPct}%
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="text-xl font-bold text-gray-900 dark:text-white" data-testid={`text-unit-price-${item.productId}`}>
@@ -440,6 +458,18 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                     </div>
                     <div className="text-xs text-emerald-600 font-medium">
                       -{formatPrice(item.discountAmount)} dcto. {discountPercent > 0 && `(-${discountPercent}%)`}
+                    </div>
+                  </>
+                ) : item.originalPrice && item.originalPrice > item.unitPrice ? (
+                  <>
+                    <div className="text-sm text-gray-400 line-through">
+                      {formatPrice(item.originalPrice * item.quantity)}
+                    </div>
+                    <div className={`text-2xl font-bold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-subtotal-${item.productId}`}>
+                      {formatPrice(item.subtotal)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatPrice(item.unitPrice)} × {item.quantity}
                     </div>
                   </>
                 ) : (

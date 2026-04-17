@@ -443,6 +443,17 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
   // Calculate neto (subtotal without any discounts or taxes)
   const neto = state.subtotal;
+
+  // Aggregate branch (convenio) discount info from cart items.
+  // Convenio discount is already applied to each item's unitPrice; we derive the
+  // savings-vs-original purely for display in the billing breakdown.
+  const convenioItems = state.items.filter(i => i.convenioPct && i.convenioPct > 0 && i.originalPrice && i.originalPrice > i.unitPrice);
+  const convenioPct = convenioItems[0]?.convenioPct || 0;
+  const convenioSavings = convenioItems.reduce(
+    (sum, i) => sum + Math.round(((i.originalPrice || i.unitPrice) - i.unitPrice) * i.quantity),
+    0
+  );
+  const hasOfferItems = state.items.some(i => i.isOffer);
   
   // Calculate shipping cost and breakdown based on item units
   let shippingCost = 0;
@@ -552,6 +563,21 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
               {formatPrice(neto)}
             </span>
           </div>
+
+          {/* Convenio (branch) discount — informational, already baked into neto */}
+          {convenioPct > 0 && convenioSavings > 0 && (
+            <div className="flex justify-between items-start gap-2 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1.5">
+              <div className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+                <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
+                  CONVENIO -{convenioPct}%
+                </Badge>
+                <span>Descuento ya aplicado{hasOfferItems ? ' (no se aplica sobre ofertas)' : ''}</span>
+              </div>
+              <span className="font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap" data-testid="text-billing-convenio">
+                -{formatPrice(convenioSavings)}
+              </span>
+            </div>
+          )}
 
           {/* Applied Coupons */}
           {state.appliedCoupons.length > 0 && (

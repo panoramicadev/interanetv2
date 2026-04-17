@@ -275,11 +275,12 @@ interface SkuQuickOrderModalProps {
   offersMap: Map<string, number>;
   isClient: boolean;
   selectedBranchId: string | null;
+  branchDiscountPct: number;
   addItem: (item: any) => void;
   setShowFloatingCart: (show: boolean) => void;
 }
 
-function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, selectedBranchId, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
+function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, selectedBranchId, branchDiscountPct, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [skuSearch, setSkuSearch] = useState('');
@@ -375,6 +376,7 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
     const validation = validateCartQuantity(qty, variant.format);
     const validatedQuantity = validation.validQuantity;
 
+    const isOfferItem = !!(variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice);
     try {
       addItem({
         productId: variant.sku,
@@ -384,7 +386,11 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
         selectedColor: variant.color,
         unit: variant.format,
         unitPrice: effectivePrice,
-        originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+        originalPrice: isOfferItem
+          ? basePrice
+          : (variant.originalPrice && variant.originalPrice > effectivePrice ? variant.originalPrice : undefined),
+        isOffer: isOfferItem,
+        convenioPct: !isOfferItem && branchDiscountPct > 0 ? branchDiscountPct : undefined,
         quantity: validatedQuantity,
         minQuantity: validation.minQuantity,
         quantityStep: validation.stepQuantity,
@@ -905,6 +911,8 @@ export default function TiendaPage() {
         productSlug: product.slug,
         unit,
         unitPrice,
+        isOffer: false,
+        convenioPct: branchDiscountPct > 0 ? branchDiscountPct : undefined,
         quantity: validatedQuantity, // Use validated quantity
         imageUrl: getProductImageUrl(product),
         category: getProductCategory(product),
@@ -1182,6 +1190,7 @@ export default function TiendaPage() {
       const validation = validateCartQuantity(qty, variant.format);
       const validatedQuantity = validation.validQuantity;
 
+      const isOfferItem = !!(variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice);
       try {
         addItem({
           productId: variant.sku,
@@ -1191,9 +1200,11 @@ export default function TiendaPage() {
           selectedColor: variant.color,
           unit: variant.format,
           unitPrice: effectivePrice,
-          originalPrice: variant.originalPrice && variant.originalPrice > effectivePrice
-            ? variant.originalPrice
-            : (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+          originalPrice: isOfferItem
+            ? basePrice
+            : (variant.originalPrice && variant.originalPrice > effectivePrice ? variant.originalPrice : undefined),
+          isOffer: isOfferItem,
+          convenioPct: !isOfferItem && branchDiscountPct > 0 ? branchDiscountPct : undefined,
           quantity: validatedQuantity,
           minQuantity: validation.minQuantity,
           quantityStep: validation.stepQuantity,
@@ -1242,6 +1253,7 @@ export default function TiendaPage() {
       setQuantities(prev => ({ ...prev, [variant.sku]: validatedQuantity }));
     }
 
+    const isOfferItem = !!(variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice);
     try {
       addItem({
         productId: variant.sku,
@@ -1251,9 +1263,11 @@ export default function TiendaPage() {
         selectedColor: variant.color,
         unit: variant.format,
         unitPrice: effectivePrice,
-        originalPrice: variant.originalPrice && variant.originalPrice > effectivePrice
-          ? variant.originalPrice
-          : (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
+        originalPrice: isOfferItem
+          ? basePrice
+          : (variant.originalPrice && variant.originalPrice > effectivePrice ? variant.originalPrice : undefined),
+        isOffer: isOfferItem,
+        convenioPct: !isOfferItem && branchDiscountPct > 0 ? branchDiscountPct : undefined,
         quantity: validatedQuantity,
         minQuantity: validation.minQuantity,
         quantityStep: validation.stepQuantity,
@@ -2315,8 +2329,8 @@ export default function TiendaPage() {
                                       </>
                                     ) : activeFormatData.originalPrice && activeFormatData.originalPrice > activeFormatData.price ? (
                                       <>
-                                        <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 py-0 mb-1">
-                                          -{branchDiscountPct}% DCTO
+                                        <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 py-0 mb-1" title={`Descuento convenio ${branchDiscountPct}%`}>
+                                          CONVENIO -{branchDiscountPct}%
                                         </Badge>
                                         <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.originalPrice)}</span>
                                         <span className="text-sm font-black text-emerald-600 block">{formatPrice(activeFormatData.price)}</span>
@@ -2366,7 +2380,7 @@ export default function TiendaPage() {
                                               </>
                                             ) : variant.originalPrice && variant.originalPrice > (variant.price || 0) ? (
                                               <>
-                                                <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mr-1">-{branchDiscountPct}%</Badge>
+                                                <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mr-1" title={`Descuento convenio ${branchDiscountPct}%`}>CONVENIO -{branchDiscountPct}%</Badge>
                                                 <span className="line-through text-gray-300">{formatPrice(variant.originalPrice)}</span>
                                                 {' '}
                                                 <span className="text-emerald-600 font-bold">{formatPrice(variant.price)}</span>
@@ -2569,9 +2583,9 @@ export default function TiendaPage() {
                           ) : gv.originalPrice && gv.originalPrice > gv.price ? (
                             <>
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio con descuento</span>
-                                <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
-                                  -{branchDiscountPct}% DCTO
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio con convenio</span>
+                                <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0" title="Descuento por convenio aplicado a la lista asignada">
+                                  CONVENIO -{branchDiscountPct}%
                                 </Badge>
                               </div>
                               <div className="text-3xl font-black text-emerald-600 mt-1">
@@ -2984,6 +2998,7 @@ export default function TiendaPage() {
         offersMap={offersMap}
         isClient={isClient}
         selectedBranchId={selectedBranchId}
+        branchDiscountPct={branchDiscountPct}
         addItem={addItem}
         setShowFloatingCart={setShowFloatingCart}
       />
