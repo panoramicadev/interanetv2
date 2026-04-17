@@ -28680,9 +28680,28 @@ Instrucciones extra:
       }
     }
 
+    // Detect clients with "problema" entries in bitácora
+    const problemaSet = new Set<string>();
+    if (clientIds.length > 0) {
+      const linkedIds = results.filter(r => r.clienteId).map(r => r.clienteId!);
+      const idsToCheck = Array.from(new Set([...clientIds, ...linkedIds]));
+      if (idsToCheck.length > 0) {
+        const problemaRows = await db
+          .selectDistinct({ documentoId: pedidoBitacora.documentoId })
+          .from(pedidoBitacora)
+          .where(and(
+            eq(pedidoBitacora.documentoTipo, 'cliente'),
+            eq(pedidoBitacora.tipo, 'problema'),
+            inArray(pedidoBitacora.documentoId, idsToCheck)
+          ));
+        for (const row of problemaRows) problemaSet.add(row.documentoId);
+      }
+    }
+
     const enriched = results.map(r => ({
       ...r,
       ultimoHito: hitosMap[r.id] || null,
+      hasProblema: problemaSet.has(r.id) || (!!r.clienteId && problemaSet.has(r.clienteId)),
     }));
 
     // Compute real last order dates from salesTransactions for linked clients

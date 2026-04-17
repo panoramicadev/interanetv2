@@ -386,8 +386,20 @@ export default function SeguimientoClientes() {
                           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                             {initials}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-xs text-foreground truncate">{client.nombre}</p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1">
+                              <p className="font-semibold text-xs text-foreground truncate">{client.nombre}</p>
+                              {client.hasProblema && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" data-testid={`icon-problema-${client.id}`} />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Tiene un problema registrado en la bitácora
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
                             {client.empresa && client.empresa !== client.nombre && (
                               <p className="text-[10px] text-muted-foreground truncate">{client.empresa}</p>
                             )}
