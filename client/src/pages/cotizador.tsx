@@ -72,9 +72,16 @@ function CotizadorContent() {
 
       {/* ═══ HERO — Premium wholesale CTA ═══ */}
       <section className="relative overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]" />
-        <div className="absolute inset-0 opacity-20" style={{
+        {/* Background image — painted building / construction */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1503594384566-461fe158e797?auto=format&fit=crop&w=2000&q=70')`,
+          }}
+        />
+        {/* Dark gradient overlay for readability */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e]/95 via-[#16213e]/90 to-[#0f3460]/92" />
+        <div className="absolute inset-0 opacity-30" style={{
           backgroundImage: `radial-gradient(circle at 25% 50%, rgba(255,110,35,0.3) 0%, transparent 50%),
                            radial-gradient(circle at 75% 50%, rgba(255,110,35,0.15) 0%, transparent 50%)`
         }} />

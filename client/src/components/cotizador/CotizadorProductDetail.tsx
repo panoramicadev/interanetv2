@@ -35,9 +35,6 @@ interface Props {
 export default function CotizadorProductDetail({ product, open, onClose, onOpenQuotePanel }: Props) {
   const { addItem, isItemInQuote } = useQuote();
 
-  // Format/color selection
-  const colorKeys = product ? Object.keys(product.colors).sort((a, b) => product.colors[b].length - product.colors[a].length) : [];
-
   const formatsMap = new Map<string, Variant[]>();
   if (product) {
     Object.values(product.colors).flat().forEach(v => {
@@ -49,9 +46,7 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
 
   const [activeFormat, setActiveFormat] = useState(formatsList[0] || '');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [showSelector, setShowSelector] = useState(false);
 
-  // Reset when product changes
   if (product && formatsList.length > 0 && !formatsMap.has(activeFormat)) {
     setActiveFormat(formatsList[0]);
   }
@@ -108,27 +103,26 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
 
       {/* Modal — full screen on mobile, centered on desktop */}
       <div
-        className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-4xl sm:w-full sm:max-h-[90vh] bg-white sm:rounded-2xl shadow-2xl overflow-y-auto flex flex-col animate-in fade-in sm:zoom-in-95 duration-200"
+        className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-5xl sm:w-full sm:max-h-[92vh] bg-white sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:flex-row animate-in fade-in sm:zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
       >
         {/* Close */}
-        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm">
+        <button onClick={onClose} className="absolute top-3 right-3 z-20 p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white shadow-md">
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        {/* ═══ TOP: Image + Info ═══ */}
-        <div className="grid sm:grid-cols-2 gap-0">
-          {/* Image */}
-          <div className="bg-gradient-to-br from-gray-50 to-white p-6 sm:p-8 flex items-center justify-center min-h-[250px] sm:min-h-[350px]">
-            {product.imageUrl ? (
-              <img src={product.imageUrl} alt={product.genericName} className="max-w-full max-h-[300px] object-contain drop-shadow-lg" />
-            ) : (
-              <Package className="w-24 h-24 text-gray-200" />
-            )}
-          </div>
+        {/* ═══ LEFT: Image ═══ */}
+        <div className="w-full sm:w-[42%] bg-gradient-to-br from-gray-50 to-white p-6 sm:p-8 flex items-center justify-center min-h-[260px] sm:min-h-[520px] flex-shrink-0">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.genericName} className="max-w-full max-h-[420px] object-contain drop-shadow-xl" />
+          ) : (
+            <Package className="w-24 h-24 text-gray-200" />
+          )}
+        </div>
 
-          {/* Info */}
-          <div className="p-5 sm:p-6 space-y-3 sm:space-y-4">
+        {/* ═══ RIGHT: Info + Selector (all visible, scrollable) ═══ */}
+        <div className="flex-1 flex flex-col overflow-hidden sm:border-l sm:border-gray-100 min-h-0">
+          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 space-y-4">
             {product.groupName && (
               <div className="flex items-center gap-1 text-xs text-gray-400">
                 <span>Catálogo</span>
@@ -137,7 +131,7 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
               </div>
             )}
 
-            <h2 className="text-lg sm:text-xl font-black text-gray-900 uppercase tracking-wide leading-tight">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 uppercase tracking-wide leading-tight pr-10">
               {product.genericName}
             </h2>
 
@@ -169,54 +163,36 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
               </div>
             )}
 
-            {/* Info badges */}
-            <div className="flex items-center gap-2 pt-1">
-              <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-1 rounded-lg border border-orange-100/50">
-                <Palette className="w-3 h-3" /> {colorKeys.length} Color{colorKeys.length !== 1 ? 'es' : ''}
-              </span>
-              <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-500 text-[10px] font-bold px-2 py-1 rounded-lg border border-gray-200/60">
-                <Box className="w-3 h-3" /> {formatsList.length} Formato{formatsList.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* CTA — big "Agregar a cotización" */}
-            <button
-              onClick={() => setShowSelector(true)}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white font-bold rounded-xl hover:from-[#E55E13] hover:to-[#D54E03] active:scale-[0.98] transition-all shadow-md text-sm mt-2"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Seleccionar Formato y Color
-            </button>
-          </div>
-        </div>
-
-        {/* ═══ BOTTOM: Selector (slides open when "Agregar" is clicked) ═══ */}
-        {showSelector && (
-          <div className="border-t border-gray-100 bg-gray-50/50">
-            {/* Formats */}
-            <div className="px-5 py-3 border-b border-gray-100">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">① Formato</p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {formatsList.map(format => (
-                  <button
-                    key={format}
-                    onClick={() => setActiveFormat(format)}
-                    className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border min-w-[90px] text-center ${
-                      format === activeFormat
-                        ? 'bg-[#FF6E23] border-[#FF6E23] text-white shadow-md'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {format}
-                  </button>
-                ))}
+            {/* Format selector — always visible */}
+            {formatsList.length > 0 && (
+              <div className="pt-2 border-t border-gray-100">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Box className="w-3 h-3" /> Formato
+                </h4>
+                <div className="flex gap-2 flex-wrap">
+                  {formatsList.map(format => (
+                    <button
+                      key={format}
+                      onClick={() => setActiveFormat(format)}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${
+                        format === activeFormat
+                          ? 'bg-[#FF6E23] border-[#FF6E23] text-white shadow-md'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {format}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Colors */}
-            <div className="px-5 py-3">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">② Color y cantidad</p>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {/* Colors + quantity — always visible */}
+            <div>
+              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <Palette className="w-3 h-3" /> {variantsForFormat.length > 1 ? 'Color y cantidad' : 'Cantidad'}
+              </h4>
+              <div className="space-y-2">
                 {variantsForFormat.map(variant => {
                   const qty = quantities[variant.sku] || 0;
                   const alreadyIn = isItemInQuote(variant.sku, variant.color, variant.format);
@@ -287,21 +263,24 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
                 })}
               </div>
             </div>
-
-            {/* Add all */}
-            {hasItemsToAdd && (
-              <div className="px-5 py-3 border-t border-gray-100">
-                <button
-                  onClick={handleAddAllAndOpen}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white font-bold rounded-xl active:scale-[0.98] transition-all shadow-lg text-sm"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Agregar a mi cotización
-                </button>
-              </div>
-            )}
           </div>
-        )}
+
+          {/* Sticky action footer */}
+          <div className="px-5 py-3 sm:px-6 sm:py-4 border-t border-gray-100 bg-white flex-shrink-0">
+            <button
+              onClick={handleAddAllAndOpen}
+              disabled={!hasItemsToAdd}
+              className={`w-full flex items-center justify-center gap-2 py-3.5 font-bold rounded-xl transition-all text-sm ${
+                hasItemsToAdd
+                  ? 'bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white active:scale-[0.98] shadow-lg hover:from-[#E55E13] hover:to-[#D54E03]'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {hasItemsToAdd ? 'Agregar a mi cotización' : 'Selecciona una cantidad'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
