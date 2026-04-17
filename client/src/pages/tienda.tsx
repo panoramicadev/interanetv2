@@ -745,14 +745,23 @@ export default function TiendaPage() {
 
   const availableBranches = branchesData?.branches || [];
   const defaultBranchId = branchesData?.currentBranchId || null;
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() => {
+    return localStorage.getItem('cart_selected_branch_id');
+  });
 
-  // Set default branch on first load
+  // Set default branch on first load if none was persisted
   useEffect(() => {
     if (defaultBranchId && !selectedBranchId) {
       setSelectedBranchId(defaultBranchId);
     }
   }, [defaultBranchId]);
+
+  // Persist selected branch so the cart page can default the shipping address to it
+  useEffect(() => {
+    if (selectedBranchId) {
+      localStorage.setItem('cart_selected_branch_id', selectedBranchId);
+    }
+  }, [selectedBranchId]);
 
   const activeBranch = availableBranches.find(b => b.id === selectedBranchId) || null;
   const clientPriceList = activeBranch?.priceList || clientData?.lcen || null;

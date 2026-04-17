@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -146,11 +146,11 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   });
 
   // Fetch user branches for branch-specific delivery addresses
-  const { data: branchesData } = useQuery<{ branches: Array<{ id: string; name: string; branchLabel: string | null; address: string | null; isRoot: boolean }> }>({
+  const { data: branchesData } = useQuery<{ branches: Array<{ id: string; name: string; branchLabel: string | null; address: string | null; isRoot: boolean }>; currentBranchId?: string | null }>({
     queryKey: ['/api/store/my-branches'],
     queryFn: async () => {
       const res = await fetch('/api/store/my-branches', { credentials: 'include' });
-      if (!res.ok) return { branches: [] };
+      if (!res.ok) return { branches: [], currentBranchId: null };
       return res.json();
     },
     enabled: !!user?.id && user?.role === 'client',
@@ -193,6 +193,37 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       setSelectedAddressOption("custom");
     }
   }, [availableAddresses.length, selectedAddressOption, clientData]);
+
+  // Default the shipping address to the branch selected when building the cart
+  // (persisted from the tienda page). Only runs once both branches and client data
+  // have loaded, so we can resolve whether the branch has a distinct address.
+  const didInitBranchAddressRef = useRef(false);
+  useEffect(() => {
+    if (didInitBranchAddressRef.current) return;
+    if (clientData === undefined || !branchesData) return;
+
+    didInitBranchAddressRef.current = true;
+
+    // Prefer the explicitly-persisted branch (from the tienda page).
+    // Fall back to the client's current branch from the API so existing carts
+    // built before this feature shipped still pick up the right branch address
+    // without having to rebuild the cart.
+    const branchId =
+      localStorage.getItem('cart_selected_branch_id') ||
+      branchesData.currentBranchId ||
+      null;
+    if (!branchId) return;
+
+    const branch = branchesData.branches.find(b => b.id === branchId);
+    if (!branch?.address) return;
+
+    const branchAddr = sanitizeAddress(branch.address);
+    const mainAddr = clientData?.dien ? sanitizeAddress(clientData.dien) : '';
+
+    if (branchAddr && branchAddr !== mainAddr) {
+      setSelectedAddressOption(`branch-${branchId}`);
+    }
+  }, [branchesData, clientData]);
 
   // Auto-select the client's assigned pickup warehouse
   useEffect(() => {
