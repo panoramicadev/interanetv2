@@ -121,7 +121,7 @@ interface QuoteContextType {
   getItemQuantity: (sku: string, color?: string, format?: string) => number;
 }
 
-const QuoteContext = createContext<QuoteContextType | undefined>(undefined);
+export const QuoteContext = createContext<QuoteContextType | undefined>(undefined);
 
 // ── Provider ──
 

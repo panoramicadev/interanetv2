@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QuoteProvider } from '@/contexts/QuoteContext';
 import CotizadorHeader from '@/components/cotizador/CotizadorHeader';
-import CotizadorProductCard from '@/components/cotizador/CotizadorProductCard';
+import ProductCardExpandable from '@/components/shared/ProductCardExpandable';
 import CotizadorProductDetail from '@/components/cotizador/CotizadorProductDetail';
 import CotizadorQuotePanel from '@/components/cotizador/CotizadorQuotePanel';
 import CotizadorContactForm from '@/components/cotizador/CotizadorContactForm';
@@ -89,15 +89,15 @@ function CotizadorContent() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF6E23]/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#FF6E23]/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
 
-        <div className="relative max-w-7xl mx-auto px-4 py-12 md:py-16 lg:py-20">
+        <div className="relative max-w-7xl mx-auto px-4 py-6 md:py-16 lg:py-20">
           <div className="max-w-3xl">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FF6E23]/20 border border-[#FF6E23]/30 mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FF6E23]/20 border border-[#FF6E23]/30 mb-3 md:mb-6">
               <Star className="w-3.5 h-3.5 text-[#FF6E23]" />
-              <span className="text-xs font-semibold text-[#FF6E23] uppercase tracking-wider">Cotización Mayorista</span>
+              <span className="text-[10px] md:text-xs font-semibold text-[#FF6E23] uppercase tracking-wider">Cotización Mayorista</span>
             </div>
 
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight mb-4">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight mb-2 md:mb-4">
               SOLICITA TU{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6E23] to-[#FFB347]">
                 COTIZACIÓN MAYORISTA
@@ -105,20 +105,20 @@ function CotizadorContent() {
               EN MINUTOS
             </h1>
 
-            <p className="text-base md:text-lg text-gray-300 leading-relaxed mb-8 max-w-2xl">
+            <p className="text-sm md:text-lg text-gray-300 leading-relaxed mb-4 md:mb-8 max-w-2xl">
               Explora nuestro catálogo completo de productos, selecciona las cantidades que necesitas y recibe una cotización personalizada directamente en tu correo.
             </p>
 
             {/* Feature pills */}
-            <div className="flex flex-wrap gap-3 mb-8">
+            <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-8">
               {[
                 { icon: ShieldCheck, text: 'Sin registro necesario' },
                 { icon: Truck, text: 'Despacho a todo Chile' },
                 { icon: Clock, text: 'Respuesta en 24hrs' },
               ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
-                  <Icon className="w-4 h-4 text-[#FF6E23]" />
-                  <span className="text-sm font-medium text-white">{text}</span>
+                <div key={text} className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
+                  <Icon className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#FF6E23]" />
+                  <span className="text-xs md:text-sm font-medium text-white">{text}</span>
                 </div>
               ))}
             </div>
@@ -128,7 +128,7 @@ function CotizadorContent() {
               onClick={() => {
                 document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="group inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white font-bold rounded-xl hover:from-[#E55E13] hover:to-[#D54E03] transition-all shadow-lg shadow-orange-500/30 active:scale-[0.98]"
+              className="group inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white text-sm md:text-base font-bold rounded-xl hover:from-[#E55E13] hover:to-[#D54E03] transition-all shadow-lg shadow-orange-500/30 active:scale-[0.98]"
             >
               Explorar Catálogo
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -229,10 +229,11 @@ function CotizadorContent() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             {products.map((product: any) => (
-              <CotizadorProductCard
+              <ProductCardExpandable
                 key={product.genericName}
+                mode="cotizador"
                 product={product}
                 onViewDetail={setDetailProduct}
                 onOpenQuotePanel={() => setQuotePanelOpen(true)}

@@ -57,6 +57,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
+import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
 import { getFormatQuantityRules } from "@shared/format-utils";
 import {
   DropdownMenu,
@@ -2102,418 +2103,62 @@ export default function TiendaPage() {
 
               return (
                 <Fragment key={product.genericName}>
-                <div
-                  className={`rounded-2xl overflow-hidden transition-all duration-300 flex flex-col ${
-                    isExpanded
-                      ? 'border border-[#FF6E23]/30 shadow-xl shadow-orange-100/40 bg-white lg:col-span-2 ring-1 ring-[#FF6E23]/10'
-                      : 'border border-gray-200/80 bg-white hover:border-gray-300/80 hover:shadow-lg hover:shadow-gray-100/60'
-                  }`}
-                >
-                  {/* Product Card (collapsed) */}
-                  <div
-                    className={`cursor-pointer transition-all duration-200 ${
-                      isExpanded ? 'bg-gradient-to-r from-orange-50/80 to-amber-50/60' : 'hover:bg-gray-50/40'
-                    }`}
-                    onClick={() => toggleProduct(product.genericName)}
-                  >
-                    {!isExpanded ? (
-                      <div className="flex">
-                        {/* Product Image */}
-                        <div className="w-28 sm:w-40 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white relative group p-2 sm:p-3">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.genericName}
-                              loading="lazy"
-                              decoding="async"
-                              className="w-full h-full object-contain aspect-square transition-transform duration-300 group-hover:scale-105 rounded-xl"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center aspect-square">
-                              <ImageIcon className="w-10 h-10 text-gray-200" />
-                            </div>
-                          )}
-                          {/* Tags overlay */}
-                          {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).length > 0 && (
-                            <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex flex-col gap-1.5">
-                              {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).slice(0, 2).map(tag => {
-                                const tagDef = adminTags.find((at: any) => at.name === tag);
-                                const TAG_BG: Record<string, string> = {
-                                  green: 'bg-emerald-500/90', blue: 'bg-blue-500/90', amber: 'bg-amber-500/90',
-                                  red: 'bg-rose-500/90', purple: 'bg-violet-500/90', pink: 'bg-pink-500/90',
-                                  cyan: 'bg-cyan-500/90', orange: 'bg-orange-500/90', indigo: 'bg-indigo-500/90', teal: 'bg-teal-500/90',
-                                };
-                                const bgClass = TAG_BG[tagDef?.color || 'gray'] || 'bg-gray-600/90';
-                                return (
-                                  <span key={tag} className={`text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${bgClass} text-white`}>
-                                    {tag}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        {/* Product Info */}
-                        <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
-                          <div>
-                            <h3 className="text-[13px] sm:text-sm font-bold uppercase leading-tight text-gray-900 line-clamp-2 tracking-tight">
-                              {product.genericName}
-                            </h3>
-                            {product.breveResena && (
-                              <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2 leading-relaxed italic">{product.breveResena}</p>
-                            )}
-                            {/* Available formats */}
-                            {(() => {
-                              const allFormats = new Set<string>();
-                              Object.values(product.colors).flat().forEach(v => {
-                                if (v.format) allFormats.add(v.format);
-                              });
-                              const formats = Array.from(allFormats);
-                              if (formats.length === 0) return null;
-                              return (
-                                <div className="flex flex-wrap gap-1.5 mt-2.5">
-                                  {formats.map(fmt => (
-                                    <span
-                                      key={fmt}
-                                      className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 border border-slate-200/60 shadow-sm"
-                                    >
-                                      <Box className="w-2.5 h-2.5 text-slate-400" />
-                                      {fmt}
-                                    </span>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-2.5">
-                            <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm border border-orange-100/50">
-                              <Palette className="w-3 h-3" /> {colorKeys.length} <span className="font-semibold">Color{colorKeys.length !== 1 ? 'es' : ''}</span>
-                            </span>
-                            <span className="flex-1" />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openInfoModal(product.genericName); }}
-                              className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-[#FF6E23] bg-gray-50 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition-all"
-                            >
-                              <Info className="w-3 h-3" /> Detalles
-                            </button>
-                            <ChevronRight className="h-4 w-4 text-gray-300" />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Expanded Header — compact horizontal bar */
-                      <div className="px-4 py-3 flex items-center gap-3">
-                        <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
-                          {product.genericName}
-                        </h3>
-                        {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).length > 0 && (
-                          <div className="flex items-center gap-1">
-                            {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).slice(0, 2).map(tag => {
-                              const tagDef = adminTags.find((at: any) => at.name === tag);
-                              const TAG_BG: Record<string, string> = {
-                                green: 'bg-emerald-500', blue: 'bg-blue-500', amber: 'bg-amber-500',
-                                red: 'bg-rose-500', purple: 'bg-violet-500', pink: 'bg-pink-500',
-                                cyan: 'bg-cyan-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500', teal: 'bg-teal-500',
-                              };
-                              const bgClass = TAG_BG[tagDef?.color || 'gray'] || 'bg-gray-500';
-                              return (
-                                <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${bgClass} text-white`}>
-                                  {tag}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm border border-orange-100/50">
-                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length} Color{colorKeys.length !== 1 ? 'es' : ''}
-                          </span>
-                        </div>
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors flex-shrink-0">
-                          <X className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Expanded Content — Slide-down with image left, options right */}
-                  <div
-                    className="overflow-hidden transition-all duration-300 ease-in-out"
-                    style={{
-                      maxHeight: isExpanded ? '600px' : '0px',
-                      opacity: isExpanded ? 1 : 0,
-                    }}
-                  >
-                    {(() => {
-                      // Dynamically group variants by Format
-                      const formatsMap = new Map<string, StoreFormatVariant[]>();
-                      Object.values(product.colors).flat().forEach(v => {
-                        if (!formatsMap.has(v.format)) formatsMap.set(v.format, []);
-                        formatsMap.get(v.format)!.push(v);
+                <ProductCardExpandable
+                  mode="store"
+                  product={product}
+                  adminTags={adminTags}
+                  branchDiscountPct={branchDiscountPct}
+                  onAddToCart={(variants, qtyMap) => {
+                    const variantsToAdd = (variants as StoreFormatVariant[]).filter(v => (qtyMap[v.sku] || 0) > 0);
+                    if (variantsToAdd.length === 0) {
+                      toast({
+                        title: "Seleccione cantidad",
+                        description: "Debe ingresar una cantidad mayor a 0 para al menos un color",
+                        variant: "destructive"
                       });
-                      const formatsList = Array.from(formatsMap.keys());
-                      
-                      const selectedFormatKey = `selected-${product.genericName}`;
-                      const activeFormat = expandedFormats.has(selectedFormatKey)
-                         ? Array.from(expandedFormats).find(k => k.startsWith(`${product.genericName}-`))?.replace(`${product.genericName}-`, '') || formatsList[0]
-                         : formatsList[0];
-                      const variantsForFormat = formatsMap.get(activeFormat) || [];
-                      
-                      // Prefer a variant with offerPrice to represent the format, so the OFERTA badge shows
-                      const activeFormatData = variantsForFormat.find(v => v.offerPrice && v.offerPrice > 0) || variantsForFormat[0];
-                      const formatImg = product.imageUrl;
-                      
-                      // Calculate Total for the active format (use offerPrice when available)
-                      const formatTotal = variantsForFormat.reduce((acc, v) => {
-                        const q = quantities[v.sku] || 0;
-                        const ep = (v.offerPrice && v.offerPrice > 0) ? v.offerPrice : (v.price || 0);
-                        return acc + (ep * q);
-                      }, 0);
-                      
-                      // Calculate overarching global total for the entire grouped product
-                      const allProductVariants = Object.values(product.colors).flat();
-                      const globalProductTotal = allProductVariants.reduce((acc, v) => {
-                        const q = quantities[v.sku] || 0;
-                        const ep = (v.offerPrice && v.offerPrice > 0) ? v.offerPrice : (v.price || 0);
-                        return acc + (ep * q);
-                      }, 0);
-                      const globalProductItemCount = allProductVariants.reduce((acc, v) => {
-                        const q = quantities[v.sku] || 0;
-                        return acc + q;
-                      }, 0);
-
-                      return (
-                        <div className="border-t border-[#FF6E23]/10 flex flex-col pt-3 bg-gradient-to-br from-gray-50/50 to-white">
-                          
-                          {/* Top: Format Selector Tabs */}
-                          <div className="px-5 mb-4">
-                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2 block">Selecciona el Formato</span>
-                            <div className="flex overflow-x-auto gap-2 pb-2 custom-scrollbar snap-x">
-                              {formatsList.map(format => {
-                                const isActive = format === activeFormat;
-                                return (
-                                  <button
-                                    key={format}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleFormat(product.genericName, format);
-                                    }}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex-shrink-0 snap-start ${
-                                      isActive
-                                        ? 'bg-orange-50/80 border-[#FF6E23] text-[#FF6E23] shadow-sm'
-                                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    {format}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          
-                          {/* Main Content Area */}
-                          <div className="flex flex-col md:flex-row gap-5 px-5 pb-5">
-                            
-                            {/* Left: Format Generic Details */}
-                            <div className="hidden md:flex w-44 flex-shrink-0 flex-col items-center">
-                              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100 p-4 mb-3">
-                                {formatImg ? (
-                                  <img src={formatImg} alt={product.genericName} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <ImageIcon className="w-10 h-10 text-gray-200" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="text-center w-full">
-                                <span className="text-xs font-bold text-gray-800 line-clamp-2">{activeFormat}</span>
-                                {activeFormatData?.price && activeFormatData.price > 0 && (
-                                  <div className="mt-1">
-                                    {activeFormatData.offerPrice && activeFormatData.offerPrice > 0 ? (
-                                      <>
-                                        <Badge className="bg-rose-500 text-white text-[9px] px-1.5 py-0 mb-1">
-                                          OFERTA
-                                        </Badge>
-                                        <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.price)}</span>
-                                        <span className="text-sm font-black text-rose-600 block">{formatPrice(activeFormatData.offerPrice)}</span>
-                                      </>
-                                    ) : activeFormatData.originalPrice && activeFormatData.originalPrice > activeFormatData.price ? (
-                                      <>
-                                        <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 py-0 mb-1" title={`Descuento convenio ${branchDiscountPct}%`}>
-                                          CONVENIO -{branchDiscountPct}%
-                                        </Badge>
-                                        <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.originalPrice)}</span>
-                                        <span className="text-sm font-black text-emerald-600 block">{formatPrice(activeFormatData.price)}</span>
-                                      </>
-                                    ) : (
-                                      <span className="text-sm font-black text-[#FF6E23] block">{formatPrice(activeFormatData.price)}</span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Right: Colors List Grid */}
-                            <div className="flex-1 min-w-0">
-                               <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-                                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Colores Disponibles · {variantsForFormat.length}</span>
-                                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest hidden sm:block">Cantidades</span>
-                               </div>
-                               
-                               <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                 {variantsForFormat.map(variant => {
-                                  const variantQty = quantities[variant.sku] || 0;
-                                  const colorImg = variant.imageUrl;
-                                  
-                                  return (
-                                    <div key={variant.sku} className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition-all ${variantQty > 0 ? 'bg-orange-50/30 border-[#FF6E23]/30' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
-                                      
-                                      {/* Color Info */}
-                                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 shadow-inner flex-shrink-0 overflow-hidden relative">
-                                          {colorImg ? (
-                                             <img src={colorImg} alt={variant.color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                          ) : (
-                                             <div className="w-full h-full bg-gray-200" />
-                                          )}
-                                        </div>
-                                        <div className="min-w-0">
-                                          <div className="text-xs font-bold text-gray-800 truncate">{variant.color}</div>
-                                          {/* Mobile: full offer display */}
-                                          <div className="text-[10px] text-gray-400 mt-0.5 md:hidden">
-                                            {variant.offerPrice && variant.offerPrice > 0 ? (
-                                              <>
-                                                <Badge className="bg-rose-500 text-white text-[8px] px-1 py-0 mr-1">OFERTA</Badge>
-                                                <span className="line-through text-gray-300">{formatPrice(variant.price)}</span>
-                                                {' '}
-                                                <span className="text-rose-600 font-bold">{formatPrice(variant.offerPrice)}</span>
-                                              </>
-                                            ) : variant.originalPrice && variant.originalPrice > (variant.price || 0) ? (
-                                              <>
-                                                <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mr-1" title={`Descuento convenio ${branchDiscountPct}%`}>CONVENIO -{branchDiscountPct}%</Badge>
-                                                <span className="line-through text-gray-300">{formatPrice(variant.originalPrice)}</span>
-                                                {' '}
-                                                <span className="text-emerald-600 font-bold">{formatPrice(variant.price)}</span>
-                                              </>
-                                            ) : (
-                                              variant.price ? formatPrice(variant.price) : 'Consultar'
-                                            )}
-                                          </div>
-                                          {/* Desktop: show offer price inline */}
-                                          {variant.offerPrice && variant.offerPrice > 0 ? (
-                                            <div className="hidden md:flex items-center gap-1.5 mt-0.5">
-                                              <span className="text-[10px] line-through text-gray-300">{formatPrice(variant.price)}</span>
-                                              <span className="text-xs font-bold text-rose-600">{formatPrice(variant.offerPrice)}</span>
-                                            </div>
-                                          ) : variant.originalPrice && variant.originalPrice > (variant.price || 0) ? (
-                                            <div className="hidden md:flex items-center gap-1.5 mt-0.5">
-                                              <span className="text-[10px] line-through text-gray-300">{formatPrice(variant.originalPrice)}</span>
-                                              <span className="text-xs font-bold text-emerald-600">{formatPrice(variant.price)}</span>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Quantity Controls */}
-                                      <div className="flex items-center gap-3 flex-shrink-0">
-                                        {/* Subtotal preview if > 0 — use offer price when available */}
-                                        {variantQty > 0 && variant.price && (() => {
-                                          const effectiveUnitPrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : variant.price;
-                                          return (
-                                            <div className={`hidden sm:block text-xs font-bold ${variant.offerPrice && variant.offerPrice > 0 ? 'text-rose-600' : 'text-[#FF6E23]'}`}>
-                                              {formatPrice(effectiveUnitPrice * variantQty)}
-                                            </div>
-                                          );
-                                        })()}
-                                        
-                                        <div className="inline-flex items-center rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm h-9">
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, variantQty - (variant.stepSize || 1)) })); }}
-                                            className="w-10 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
-                                            disabled={variantQty === 0}
-                                          >
-                                            <Minus className="w-3.5 h-3.5" />
-                                          </button>
-                                          
-                                          <input
-                                            type="number"
-                                            value={variantQty || ''}
-                                            placeholder="0"
-                                            onChange={e => { 
-                                              e.stopPropagation(); 
-                                              const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                              if (!isNaN(val)) {
-                                                setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, val) })); 
-                                              }
-                                            }}
-                                            onClick={e => e.stopPropagation()}
-                                            className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                            min="0"
-                                            step={variant.stepSize || 1}
-                                          />
-                                          
-                                          <button
-                                            onClick={(e) => { 
-                                              e.stopPropagation(); 
-                                              // Jump from 0 directly to minUnit on first click
-                                              const nextQty = variantQty === 0 ? (variant.minUnit || 1) : variantQty + (variant.stepSize || 1);
-                                              setQuantities(prev => ({ ...prev, [variant.sku]: nextQty })); 
-                                            }}
-                                            className="w-10 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
-                                          >
-                                            <Plus className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                 })}
-                               </div>
-                               
-                            </div>
-                          </div>
-                          
-                          {/* Bottom Action Bar */}
-                          <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0 z-10 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-semibold text-gray-400 uppercase">
-                                {globalProductItemCount > 0 ? `Subtotal Seleccionado (${globalProductItemCount} unid.)` : 'Subtotal Formato'}
-                              </span>
-                              <span className="text-lg font-black text-gray-900">{formatPrice(globalProductTotal > 0 ? globalProductTotal : formatTotal)}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="h-11 px-4 rounded-xl border-2 border-[#FF6E23] text-[#FF6E23] hover:bg-[#FF6E23]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setGroupedDetailProduct({ product, variant: activeFormatData || variantsForFormat[0] });
-                                  setShowGroupedDetailDialog(true);
-                                }}
-                              >
-                                <Info className="h-4 w-4" />
-                                <span className="hidden sm:inline">Ver Detalles</span>
-                              </button>
-                              
-                              <button
-                                className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
-                                onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(allProductVariants, product.genericName); }}
-                                disabled={globalProductTotal === 0}
-                              >
-                                <ShoppingCart className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
-                                <span className="hidden sm:inline">Añadir al Carrito</span>
-                                <span className="sm:hidden">Añadir</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
+                      return;
+                    }
+                    let addedCount = 0;
+                    variantsToAdd.forEach(variant => {
+                      const qty = qtyMap[variant.sku] || 0;
+                      const basePrice = variant.price || 0;
+                      const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
+                      if (effectivePrice === 0) return;
+                      const validation = validateCartQuantity(qty, variant.format);
+                      const validatedQuantity = validation.validQuantity;
+                      const isOfferItem = !!(variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice);
+                      try {
+                        addItem({
+                          productId: variant.sku,
+                          productCode: variant.sku,
+                          productName: product.genericName,
+                          selectedPackaging: variant.format,
+                          selectedColor: variant.color,
+                          unit: variant.format,
+                          unitPrice: effectivePrice,
+                          originalPrice: isOfferItem
+                            ? basePrice
+                            : (variant.originalPrice && variant.originalPrice > effectivePrice ? variant.originalPrice : undefined),
+                          isOffer: isOfferItem,
+                          convenioPct: !isOfferItem && branchDiscountPct > 0 ? branchDiscountPct : undefined,
+                          quantity: validatedQuantity,
+                          minQuantity: validation.minQuantity,
+                          quantityStep: validation.stepQuantity,
+                          imageUrl: variant.imageUrl || undefined,
+                        });
+                        addedCount += validatedQuantity;
+                      } catch (err) {
+                        console.error("Error adding to cart", err);
+                      }
+                    });
+                    if (addedCount > 0) setShowFloatingCart(true);
+                  }}
+                  onOpenInfoModal={openInfoModal}
+                  onOpenDetail={(p, v) => {
+                    setGroupedDetailProduct({ product: p as StoreGenericProduct, variant: v as StoreFormatVariant });
+                    setShowGroupedDetailDialog(true);
+                  }}
+                />
                 
                 {/* Ad Banner injected between products */}
                 {bannerToShow && (isDesktopAdSlot || isMobileAdSlot) && (
