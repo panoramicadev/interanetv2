@@ -7310,6 +7310,13 @@ export interface QuoteRequestItem {
   format?: string;
   quantity: number;
   imageUrl?: string;
+  itemType?: 'standard' | 'custom_color';
+  customColorCode?: string;
+  customColorBrand?: string;
+  customColorHex?: string;
+  customColorNotes?: string;
+  unitPrice?: number;
+  lineTotal?: number;
 }
 
 export const quoteRequests = pgTable("quote_requests", {
@@ -7322,13 +7329,21 @@ export const quoteRequests = pgTable("quote_requests", {
   visitorCity: varchar("visitor_city"),
   visitorRut: varchar("visitor_rut"),
   message: text("message"),
-  // Requested products (JSON array — no prices)
+  // Requested products (JSON array — prices optional, filled when quoted)
   items: jsonb("items").notNull().$type<QuoteRequestItem[]>(),
   itemCount: integer("item_count").notNull().default(0),
   // Internal management
   status: varchar("status").notNull().default("pending"), // pending, contacted, quoted, closed
   assignedToUserId: integer("assigned_to_user_id"),
   internalNotes: text("internal_notes"),
+  // Pricing (filled when quote is assigned prices)
+  quoteNumber: varchar("quote_number"),
+  subtotal: numeric("subtotal", { precision: 15, scale: 2 }),
+  taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }),
+  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }),
+  pricedAt: timestamp("priced_at"),
+  pricedByUserId: integer("priced_by_user_id"),
+  validUntilDate: timestamp("valid_until_date"),
   // Tracking
   source: varchar("source").default("b2c_cotizador"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -7350,6 +7365,13 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
     format: z.string().optional(),
     quantity: z.number().positive(),
     imageUrl: z.string().optional(),
+    itemType: z.enum(['standard', 'custom_color']).optional(),
+    customColorCode: z.string().optional(),
+    customColorBrand: z.string().optional(),
+    customColorHex: z.string().optional(),
+    customColorNotes: z.string().optional(),
+    unitPrice: z.number().optional(),
+    lineTotal: z.number().optional(),
   })).min(1, "Debe incluir al menos un producto"),
 }).omit({
   id: true,
@@ -7358,6 +7380,13 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
   assignedToUserId: true,
   internalNotes: true,
   source: true,
+  quoteNumber: true,
+  subtotal: true,
+  taxAmount: true,
+  totalAmount: true,
+  pricedAt: true,
+  pricedByUserId: true,
+  validUntilDate: true,
   createdAt: true,
   updatedAt: true,
 });

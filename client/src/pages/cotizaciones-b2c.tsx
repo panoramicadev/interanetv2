@@ -5,8 +5,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw } from 'lucide-react';
+import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw, DollarSign, Palette, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import QuoteRequestPricingModal from '@/components/b2c-admin/QuoteRequestPricingModal';
 
 interface QuoteRequestItem {
   sku: string;
@@ -15,6 +16,13 @@ interface QuoteRequestItem {
   format?: string;
   quantity: number;
   imageUrl?: string;
+  itemType?: 'standard' | 'custom_color';
+  customColorCode?: string;
+  customColorBrand?: string;
+  customColorHex?: string;
+  customColorNotes?: string;
+  unitPrice?: number;
+  lineTotal?: number;
 }
 
 interface QuoteRequest {
@@ -31,9 +39,20 @@ interface QuoteRequest {
   status: string;
   source: string;
   internalNotes?: string;
+  quoteNumber?: string;
+  subtotal?: string | number;
+  taxAmount?: string | number;
+  totalAmount?: string | number;
+  pricedAt?: string;
+  validUntilDate?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+const fmtCLP = (n: number | string | undefined): string => {
+  const num = typeof n === 'string' ? parseFloat(n) : (n || 0);
+  return `$${Math.round(num || 0).toLocaleString('es-CL').replace(/,/g, '.')}`;
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   pending: { label: 'Pendiente', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
@@ -48,6 +67,7 @@ export default function CotizacionesB2CPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [pricingRequest, setPricingRequest] = useState<QuoteRequest | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['/api/b2c/quote-requests'],
@@ -338,33 +358,126 @@ export default function CotizacionesB2CPage() {
 
                       {/* Right: Products */}
                       <div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                          Productos Solicitados ({request.itemCount})
-                        </h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                            Productos Solicitados ({request.itemCount})
+                          </h4>
+                          {request.quoteNumber && (
+                            <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                              {request.quoteNumber}
+                            </span>
+                          )}
+                        </div>
                         <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                          {(request.items || []).map((item: QuoteRequestItem, idx: number) => (
-                            <div key={idx} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-gray-100">
-                              <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                                {item.imageUrl ? (
-                                  <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain p-1" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
+                          {(request.items || []).map((item: QuoteRequestItem, idx: number) => {
+                            const isCustom = item.itemType === 'custom_color';
+                            return (
+                              <div
+                                key={idx}
+                                className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                                  isCustom
+                                    ? 'bg-gradient-to-r from-fuchsia-50/60 to-pink-50/60 border-fuchsia-200'
+                                    : 'bg-white border-gray-100'
+                                }`}
+                              >
+                                <div
+                                  className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                  style={
+                                    isCustom && item.customColorHex
+                                      ? { background: item.customColorHex }
+                                      : undefined
+                                  }
+                                >
+                                  {!isCustom && item.imageUrl ? (
+                                    <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain p-1" />
+                                  ) : !isCustom ? (
                                     <Package className="w-5 h-5 text-gray-200" />
+                                  ) : (
+                                    <Palette className="w-5 h-5 text-white drop-shadow" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-bold text-gray-800 uppercase truncate">{item.productName}</p>
+                                    {isCustom && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white shrink-0">
+                                        <Palette className="w-2.5 h-2.5" /> CUSTOM
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                  <p className="text-[10px] text-gray-400">
+                                    {item.color && item.color !== 'Sin Color' ? `${item.color} · ` : ''}{item.format}
+                                    <span className="ml-1.5 text-gray-300">SKU: {item.sku}</span>
+                                  </p>
+                                  {isCustom && (
+                                    <p className="text-[10px] text-fuchsia-700 font-semibold mt-0.5">
+                                      {item.customColorBrand}: {item.customColorCode}
+                                      {item.customColorHex && ` · ${item.customColorHex.toUpperCase()}`}
+                                    </p>
+                                  )}
+                                  {typeof item.unitPrice === 'number' && item.unitPrice > 0 && (
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                      <span className="font-semibold">{fmtCLP(item.unitPrice)}</span>
+                                      {' × '}
+                                      {item.quantity}
+                                      {' = '}
+                                      <span className="font-bold text-[#FF6E23]">{fmtCLP(item.lineTotal || item.unitPrice * item.quantity)}</span>
+                                    </p>
+                                  )}
+                                </div>
+                                <span className="text-sm font-black text-[#FF6E23] flex-shrink-0">
+                                  x{item.quantity}
+                                </span>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-800 uppercase truncate">{item.productName}</p>
-                                <p className="text-[10px] text-gray-400">
-                                  {item.color && item.color !== 'Sin Color' ? `${item.color} · ` : ''}{item.format}
-                                  <span className="ml-1.5 text-gray-300">SKU: {item.sku}</span>
-                                </p>
-                              </div>
-                              <span className="text-sm font-black text-[#FF6E23] flex-shrink-0">
-                                x{item.quantity}
-                              </span>
+                            );
+                          })}
+                        </div>
+
+                        {/* Totals (if priced) */}
+                        {request.totalAmount && parseFloat(String(request.totalAmount)) > 0 && (
+                          <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                            <div className="flex justify-between text-xs text-slate-600">
+                              <span>Subtotal</span>
+                              <span className="font-semibold">{fmtCLP(request.subtotal)}</span>
                             </div>
-                          ))}
+                            <div className="flex justify-between text-xs text-slate-600">
+                              <span>IVA 19%</span>
+                              <span className="font-semibold">{fmtCLP(request.taxAmount)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm font-black pt-1 border-t border-slate-200">
+                              <span className="text-slate-800">Total</span>
+                              <span className="text-[#FF6E23]">{fmtCLP(request.totalAmount)}</span>
+                            </div>
+                            {request.validUntilDate && (
+                              <p className="text-[10px] text-slate-400 pt-1">
+                                Válida hasta: {formatDate(request.validUntilDate)}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Actions: pricing + PDF */}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setPricingRequest(request)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white hover:from-[#E55E13] hover:to-[#D54E03] shadow-sm shadow-orange-500/20 transition-all"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            {request.totalAmount && parseFloat(String(request.totalAmount)) > 0
+                              ? 'Editar precios'
+                              : 'Asignar precios'}
+                          </button>
+                          {request.totalAmount && parseFloat(String(request.totalAmount)) > 0 && (
+                            <a
+                              href={`/api/b2c/quote-requests/${request.id}/pdf`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              Ver / imprimir PDF
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -387,6 +500,20 @@ export default function CotizacionesB2CPage() {
           })}
         </div>
       )}
+
+      {/* Pricing modal */}
+      <QuoteRequestPricingModal
+        open={!!pricingRequest}
+        request={pricingRequest as any}
+        onClose={() => setPricingRequest(null)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
+          toast({
+            title: 'Cotización guardada',
+            description: 'Los precios fueron asignados correctamente.',
+          });
+        }}
+      />
     </div>
   );
 }

@@ -118,6 +118,7 @@ function Router() {
   return (
     <Switch>
       {/* B2C Cotizador público — sin auth, sin precios */}
+      <Route path="/catalogo">{() => <Cotizador />}</Route>
       <Route path="/cotizador">{() => <Cotizador />}</Route>
 
       {/* Tienda pública accesible para todos */}

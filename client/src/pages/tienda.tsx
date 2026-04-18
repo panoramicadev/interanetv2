@@ -58,6 +58,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
 import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
+import CustomColorButton from "@/components/shared/CustomColorButton";
 import { getFormatQuantityRules } from "@shared/format-utils";
 import {
   DropdownMenu,
@@ -1751,6 +1752,9 @@ export default function TiendaPage() {
               )}
 
 
+
+              {/* Custom color request */}
+              <CustomColorButton variant="compact" />
 
               {/* Cart */}
               <CartToggle onClick={() => setShowFloatingCart(true)} />

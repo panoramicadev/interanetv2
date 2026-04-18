@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, FileText, Phone, Mail, Menu, X } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
+import CustomColorButton from '@/components/shared/CustomColorButton';
 
 interface CotizadorHeaderProps {
   searchTerm: string;
@@ -42,7 +43,7 @@ export default function CotizadorHeader({ searchTerm, onSearchChange, onOpenQuot
       <div className="max-w-7xl mx-auto px-4 py-2 md:py-3">
         <div className="flex items-center gap-2 md:gap-4">
           {/* Logo — same as tienda */}
-          <a href="/cotizador" className="flex items-center cursor-pointer flex-shrink-0 group">
+          <a href="/catalogo" className="flex items-center cursor-pointer flex-shrink-0 group">
             <img
               src={config?.logoUrl || "/panoramica-logo.png"}
               alt={config?.siteName || "Panorámica"}
@@ -63,6 +64,9 @@ export default function CotizadorHeader({ searchTerm, onSearchChange, onOpenQuot
               />
             </div>
           </div>
+
+          {/* Custom color request */}
+          <CustomColorButton variant="compact" />
 
           {/* Quote button */}
           <button
