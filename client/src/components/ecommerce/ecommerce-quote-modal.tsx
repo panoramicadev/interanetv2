@@ -57,12 +57,12 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
         clientPhone: formData.clientPhone,
         clientAddress: formData.clientAddress,
         notes: formData.notes,
-        validUntil: formData.validUntil,
+        validUntil: formData.validUntil ? new Date(formData.validUntil).toISOString() : null,
         paymentCondition: formData.paymentCondition,
         subtotal: subtotal.toString(),
-        tax: tax.toString(),
+        taxAmount: tax.toString(),
         total: total.toString(),
-        status: "draft",
+        status: "draft" as const,
         createdBy: user?.id,
       };
 
@@ -71,28 +71,24 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
         data: quotePayload,
       });
 
-      if (!resQuote.ok) throw new Error("No se pudo crear la cotización");
       const savedQuote = await resQuote.json();
 
       // Format Items for syncing
       const syncItems = items.map(item => ({
         quoteId: savedQuote.id,
-        productId: null,
+        type: "standard" as const,
         productName: item.productName,
         productCode: item.productCode || item.sku || "",
-        unitPrice: (item.unitPrice || item.price || 0).toString(),
-        quantity: item.quantity,
-        totalPrice: ((item.subtotal || (item.unitPrice || item.price || 0) * item.quantity)).toString(),
         productUnit: "UN",
+        unitPrice: (item.unitPrice || item.price || 0).toString(),
+        quantity: item.quantity.toString(),
       }));
 
       // Sync items
-      const resSync = await apiRequest(`/api/quotes/${savedQuote.id}/items/sync`, {
+      await apiRequest(`/api/quotes/${savedQuote.id}/items/sync`, {
         method: 'PUT',
         data: { quoteData: quotePayload, items: syncItems }
       });
-
-      if (!resSync.ok) throw new Error("No se pudieron enlazar los productos");
 
       // Generate PDF
       const blob = await pdf(<QuotePDFDocument quote={savedQuote} items={syncItems} />).toBlob();

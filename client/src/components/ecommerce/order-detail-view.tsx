@@ -25,6 +25,9 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { EcommerceQuoteModal } from "./ecommerce-quote-modal";
+import { apiRequest } from "@/lib/queryClient";
+import { QuotePDFDocument } from "@/pages/tomador-pedidos";
+import { pdf } from "@react-pdf/renderer";
 
 // Export the types so order lists can use them
 export interface OrderItem {
@@ -140,6 +143,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState<number | null>(null);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
 
   // Price editing state
@@ -230,6 +234,54 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       toast({ title: 'Error al recalcular', description: err.message, variant: 'destructive' });
     } finally {
       setIsRecalculating(false);
+    }
+  };
+
+  // One-click quote generation: server resolves the main-branch client by RUT,
+  // creates the quote + items, and we download the PDF here.
+  const handleAutoGenerateQuote = async () => {
+    if (isGeneratingQuote) return;
+    setIsGeneratingQuote(true);
+    try {
+      const res = await apiRequest(`/api/ecommerce/orders/${currentOrder.id}/generate-quote`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      const { quote, items, matchedClient } = data;
+
+      // Download PDF
+      const blob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Cotizacion_${quote.quoteNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const branchInfo = matchedClient
+        ? (matchedClient.isParent
+            ? `Casa Matriz: ${matchedClient.nokoen}`
+            : `${matchedClient.nokoen}${matchedClient.branchLabel ? ` — ${matchedClient.branchLabel}` : ''}`)
+        : 'cliente del pedido';
+      toast({
+        title: 'Cotización generada',
+        description: `${quote.quoteNumber} · ${branchInfo}`,
+      });
+
+      // Reflect quoteId in the local view
+      setCurrentOrder(prev => ({ ...prev, quoteId: quote.id }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
+    } catch (err: any) {
+      toast({
+        title: 'Error al generar cotización',
+        description: err.message || 'Ocurrió un error inesperado',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingQuote(false);
     }
   };
 
@@ -430,6 +482,14 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() => setShowQuoteModal(true)}
+                  className="cursor-pointer"
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Generar cotización (editar datos)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
                   className="cursor-pointer text-red-600 focus:text-red-600"
                 >
@@ -438,9 +498,21 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-sm" onClick={() => setShowQuoteModal(true)}>
-              <FileText className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Generar Cotización</span>
+            <Button
+              size="sm"
+              className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-sm"
+              onClick={handleAutoGenerateQuote}
+              disabled={isGeneratingQuote}
+              data-testid="button-generate-quote-auto"
+            >
+              {isGeneratingQuote ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4 mr-2" />
+              )}
+              <span className="hidden sm:inline">
+                {isGeneratingQuote ? 'Generando...' : 'Generar Cotización'}
+              </span>
             </Button>
           </div>
         )}

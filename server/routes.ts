@@ -7437,6 +7437,144 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // Auto-generate quote from ecommerce order, linked to the main branch (sucursal principal)
+  // matched by the ordering user's RUT. Returns the created quote + items for PDF generation.
+  app.post('/api/ecommerce/orders/:id/generate-quote', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado para generar cotizaciones' });
+    }
+
+    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+    if (!order) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    // Resolve the main-branch client record: use the ordering user's RUT and prefer the
+    // parent (parentClientId IS NULL = casa matriz/sucursal principal). Fallback to any match.
+    let mainBranchClient: any = null;
+    let resolvedRut: string | null = null;
+    try {
+      const { clients } = await import('../shared/schema');
+
+      // 1) Try to get RUT directly from salespeopleUsers.clientRut
+      const [userRecord] = await db.select().from(salespeopleUsers)
+        .where(eq(salespeopleUsers.id, order.clientId))
+        .limit(1);
+
+      if (userRecord?.clientRut) {
+        resolvedRut = userRecord.clientRut;
+        const matches = await storage.getClientsByRut(userRecord.clientRut);
+        // getClientsByRut orders by parentClientId NULLS FIRST, so prefer parent.
+        mainBranchClient = matches.find((c: any) => !c.parentClientId) || matches[0] || null;
+      }
+
+      // 2) If no RUT on user, fall back to resolving any client for that user, then
+      //    walk up the parentClientId chain to the casa matriz, and use its RUT to
+      //    re-query for all sibling branches (and pick the parent).
+      if (!mainBranchClient) {
+        const anyClient = await storage.getClientByUserId(order.clientId);
+        if (anyClient) {
+          let current: any = anyClient;
+          for (let i = 0; i < 5 && current?.parentClientId; i++) {
+            const [parent] = await db.select().from(clients)
+              .where(eq(clients.id, current.parentClientId))
+              .limit(1);
+            if (!parent) break;
+            current = parent;
+          }
+          mainBranchClient = current;
+          resolvedRut = resolvedRut || current?.rten || null;
+
+          // If we now have a RUT but multiple records exist, re-resolve to guarantee parent preference
+          if (resolvedRut) {
+            const matches = await storage.getClientsByRut(resolvedRut);
+            mainBranchClient = matches.find((c: any) => !c.parentClientId) || mainBranchClient;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[generate-quote] client lookup failed:', e);
+    }
+
+    // Normalize items and compute totals
+    const orderItems: any[] = Array.isArray(order.items)
+      ? (order.items as any[])
+      : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
+
+    const subtotal = orderItems.reduce((s: number, i: any) => {
+      const lineTotal = Number(i.subtotal ?? i.totalPrice ?? ((Number(i.unitPrice || i.price || 0)) * Number(i.quantity || 0)));
+      return s + (isFinite(lineTotal) ? lineTotal : 0);
+    }, 0);
+    const tax = Math.round(subtotal * 0.19);
+    const total = subtotal + tax;
+
+    // Build quote payload — prefer main-branch client data when available
+    const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const quotePayload: any = {
+      clientName: mainBranchClient?.nokoen || order.clientName,
+      clientId: mainBranchClient?.id || null,
+      clientRut: mainBranchClient?.rten || resolvedRut || '',
+      clientEmail: mainBranchClient?.email || order.clientEmail || '',
+      clientPhone: mainBranchClient?.foen || order.clientPhone || '',
+      clientAddress: mainBranchClient?.dien || order.shippingAddress || '',
+      createdBy: user.id,
+      status: 'draft',
+      validUntil,
+      subtotal: subtotal.toString(),
+      taxAmount: tax.toString(),
+      total: total.toString(),
+      paymentCondition: order.paymentCondition || mainBranchClient?.cpen || 'transferencia',
+      notes: order.notes
+        ? `[Pedido eCommerce #${order.id}] ${order.notes}`
+        : `[Pedido eCommerce #${order.id}]`,
+    };
+
+    const quote = await storage.createQuote(quotePayload);
+
+    // Create items
+    const createdItems: any[] = [];
+    for (const item of orderItems) {
+      const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+      const quantity = Number(item.quantity ?? 0);
+      if (!item.productName || quantity <= 0) continue;
+      const created = await storage.createQuoteItem({
+        quoteId: quote.id,
+        type: 'standard',
+        productName: item.productName,
+        productCode: item.productCode || item.sku || '',
+        productUnit: 'UN',
+        unitPrice: unitPrice.toString(),
+        quantity: quantity.toString(),
+      } as any);
+      createdItems.push(created);
+    }
+
+    // Link quote to order so the UI can reflect "ya cotizado"
+    try {
+      await db.update(ecommerceOrders)
+        .set({ quoteId: quote.id, updatedAt: new Date() })
+        .where(eq(ecommerceOrders.id, id));
+    } catch (e) {
+      console.warn('[generate-quote] failed to link quoteId on order:', e);
+    }
+
+    res.json({
+      quote,
+      items: createdItems,
+      matchedClient: mainBranchClient ? {
+        id: mainBranchClient.id,
+        koen: mainBranchClient.koen,
+        nokoen: mainBranchClient.nokoen,
+        rten: mainBranchClient.rten,
+        branchLabel: mainBranchClient.branchLabel,
+        isParent: !mainBranchClient.parentClientId,
+      } : null,
+    });
+  }));
+
   // Update order receipt
   app.patch('/api/ecommerce/orders/:id/receipt', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
