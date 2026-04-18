@@ -69,7 +69,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/cotizaciones-b2c",
-          label: "Solicitudes Cotización",
+          label: "Cotizaciones",
           icon: FileText,
         },
         {
@@ -393,7 +393,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/cotizaciones-b2c",
-          label: "Solicitudes Cotización",
+          label: "Cotizaciones",
           icon: FileText,
         },
         {
