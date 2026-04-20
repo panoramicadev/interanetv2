@@ -7500,14 +7500,91 @@ export function registerRoutes(app: Express): Server {
     }
 
     // Normalize items and compute totals
-    const orderItems: any[] = Array.isArray(order.items)
+    const rawOrderItems: any[] = Array.isArray(order.items)
       ? (order.items as any[])
       : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
 
-    const subtotal = orderItems.reduce((s: number, i: any) => {
+    // Split product lines from legacy "Flete / Despacho a Domicilio" (FLETE-001) lines.
+    // Old orders stored one single flete line; we rebuild per-unit despacho lines from
+    // the product items' packaging using current shipping-rates config, so downstream
+    // views (tomador/tienda) split Subtotal Productos / Subtotal Flete correctly.
+    const productOrderItems = rawOrderItems.filter((i: any) => {
+      const pid = String(i.productId || '').toUpperCase();
+      const sku = String(i.sku || i.productCode || '').toUpperCase();
+      const name = String(i.productName || '');
+      return pid !== 'FLETE-001' && sku !== 'FLETE-001' && !/^Flete\s*\//i.test(name);
+    });
+
+    // Load shipping rates + discount config
+    let shippingRates: Record<string, number> = {};
+    let shippingSkus: Record<string, string> = {};
+    let shippingDiscountPercent = 0;
+    try {
+      const { sql } = await import('drizzle-orm');
+      const ratesRes: any = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_shipping_rates'`);
+      const ratesRow = ratesRes.rows?.[0]?.value || {};
+      for (const [k, v] of Object.entries(ratesRow)) {
+        if (typeof v === 'object' && v !== null) {
+          shippingRates[k] = Number((v as any).price) || 0;
+          shippingSkus[k] = String((v as any).sku || '');
+        } else {
+          shippingRates[k] = Number(v) || 0;
+        }
+      }
+      const { storeConfig: storeConfigTable } = await import('../shared/schema');
+      const [cfg] = await db.select().from(storeConfigTable).limit(1);
+      shippingDiscountPercent = Number((cfg as any)?.checkoutSettings?.shippingDiscountPercentage) || 0;
+    } catch (e) {
+      console.warn('[generate-quote] failed to load shipping config:', e);
+    }
+
+    const { getShippingKey } = await import('../shared/format-utils.js');
+    const SHIPPING_LABELS: Record<string, string> = {
+      '1_4_galon': 'Despacho 1/4 Galón',
+      'galon': 'Despacho Galón',
+      'bd_4gl': 'Despacho Balde 4GL',
+      'bd_5gl': 'Despacho Balde 5GL',
+    };
+
+    const shippingFactor = Math.max(0, 1 - shippingDiscountPercent / 100);
+    const discountSuffix = shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : '';
+
+    // Aggregate qty per shipping rate key from product lines.
+    const shippingAgg = new Map<string, { qty: number; unit: string }>();
+    for (const item of productOrderItems) {
+      const unit = item.selectedPackaging || item.productUnit || item.unit || '';
+      if (!unit) continue;
+      const key = getShippingKey(unit);
+      if (!key || !shippingRates[key]) continue;
+      const qty = Number(item.quantity || 0);
+      if (qty <= 0) continue;
+      const existing = shippingAgg.get(key);
+      if (existing) existing.qty += qty;
+      else shippingAgg.set(key, { qty, unit });
+    }
+
+    const shippingLines: Array<{ productName: string; productCode: string; productUnit: string; unitPrice: number; quantity: number }> = [];
+    shippingAgg.forEach((b, key) => {
+      const unitPrice = Math.round(shippingRates[key] * shippingFactor);
+      if (unitPrice <= 0 || b.qty <= 0) return;
+      const sku = shippingSkus[key] || key.toUpperCase();
+      const label = `${SHIPPING_LABELS[key] || `Despacho ${b.unit || key}`}${discountSuffix}`;
+      shippingLines.push({
+        productName: label,
+        productCode: sku,
+        productUnit: 'UN',
+        unitPrice,
+        quantity: b.qty,
+      });
+    });
+
+    // Compute totals from rebuilt lines (products with their own prices + new despacho lines).
+    const productsSubtotal = productOrderItems.reduce((s: number, i: any) => {
       const lineTotal = Number(i.subtotal ?? i.totalPrice ?? ((Number(i.unitPrice || i.price || 0)) * Number(i.quantity || 0)));
       return s + (isFinite(lineTotal) ? lineTotal : 0);
     }, 0);
+    const shippingSubtotal = shippingLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+    const subtotal = productsSubtotal + shippingSubtotal;
     const tax = Math.round(subtotal * 0.19);
     const total = subtotal + tax;
 
@@ -7534,20 +7611,34 @@ export function registerRoutes(app: Express): Server {
 
     const quote = await storage.createQuote(quotePayload);
 
-    // Create items
+    // Create items — products first (with real packaging as productUnit), then
+    // per-unit despacho lines derived from shipping-rates config.
     const createdItems: any[] = [];
-    for (const item of orderItems) {
+    for (const item of productOrderItems) {
       const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
       const quantity = Number(item.quantity ?? 0);
       if (!item.productName || quantity <= 0) continue;
+      const productUnit = String(item.selectedPackaging || item.productUnit || item.unit || 'UN');
       const created = await storage.createQuoteItem({
         quoteId: quote.id,
         type: 'standard',
         productName: item.productName,
         productCode: item.productCode || item.sku || '',
-        productUnit: 'UN',
+        productUnit,
         unitPrice: unitPrice.toString(),
         quantity: quantity.toString(),
+      } as any);
+      createdItems.push(created);
+    }
+    for (const line of shippingLines) {
+      const created = await storage.createQuoteItem({
+        quoteId: quote.id,
+        type: 'standard',
+        productName: line.productName,
+        productCode: line.productCode,
+        productUnit: line.productUnit,
+        unitPrice: line.unitPrice.toString(),
+        quantity: line.quantity.toString(),
       } as any);
       createdItems.push(created);
     }
