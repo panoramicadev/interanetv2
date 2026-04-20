@@ -285,7 +285,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[70] grid place-items-center p-2 sm:p-4 overflow-y-auto overscroll-contain"
+          className="fixed inset-0 z-[70] overflow-y-auto overscroll-contain"
           onClick={onClose}
         >
           {/* Blur backdrop */}
@@ -304,13 +304,14 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
             transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
           />
 
+          <div className="relative min-h-full flex items-center justify-center p-2 sm:p-4 pointer-events-none">
           <motion.div
             key="modal"
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col my-auto"
+            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col pointer-events-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -373,7 +374,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <AnimatePresence mode="wait">
                 {step === 'intro' && (
                   <motion.div
@@ -1023,6 +1024,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
               </div>
             )}
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
