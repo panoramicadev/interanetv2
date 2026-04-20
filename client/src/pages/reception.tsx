@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown, Copy, Check } from "lucide-react";
+import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown, Copy, Check, ShoppingCart, PackageSearch } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -201,6 +202,25 @@ export default function Reception() {
     queryKey: ["/api/quotes"],
     enabled: !!user && user.role === 'reception',
   });
+
+  // Panorámica Market: pedidos por ingresar (pending)
+  const { data: pendingOrdersData } = useQuery<{ count: number }>({
+    queryKey: ["/api/ecommerce/orders/pending-count"],
+    enabled: !!user && user.role === 'reception',
+    refetchInterval: 60000,
+  });
+
+  // Panorámica Market: cotizaciones B2C
+  const { data: b2cQuotesData } = useQuery<{ requests: Array<{ status: string }> }>({
+    queryKey: ["/api/b2c/quote-requests"],
+    enabled: !!user && user.role === 'reception',
+    refetchInterval: 60000,
+  });
+
+  const pendingOrdersCount = pendingOrdersData?.count ?? 0;
+  const pendingB2cQuotesCount = (b2cQuotesData?.requests ?? []).filter(
+    (r) => r.status === 'pending' || r.status === 'contacted'
+  ).length;
 
   // Fetch selected quote details
   const { data: selectedQuote, isLoading: isLoadingQuoteDetails } = useQuery<QuoteWithItems>({
@@ -606,7 +626,7 @@ export default function Reception() {
         </div>
 
         {/* Stats Card */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Presupuestos</CardTitle>
@@ -629,19 +649,31 @@ export default function Reception() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Filtro Activo</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  Recepción
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <Link href="/ecommerce-pedidos">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pedidos por ingresar</CardTitle>
+                <PackageSearch className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">{pendingOrdersCount}</div>
+                <p className="text-xs text-muted-foreground mt-1">Panorámica Market</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/cotizaciones-b2c">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cotizaciones</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{pendingB2cQuotesCount}</div>
+                <p className="text-xs text-muted-foreground mt-1">Panorámica Market</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Filters */}
