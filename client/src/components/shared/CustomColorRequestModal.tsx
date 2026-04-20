@@ -312,7 +312,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl sm:max-h-[94vh] overflow-hidden flex flex-col"
+            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[94vh] overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

@@ -9,6 +9,71 @@ import { eq, desc, sql } from 'drizzle-orm';
 
 const TAX_RATE = 0.19;
 
+let quoteRequestsTableChecked = false;
+
+/**
+ * Self-healing: ensure the quote_requests table + expected columns exist.
+ * Runs once per process on the first insert, or after an insert fails with
+ * "undefined_table" / "undefined_column" from Postgres.
+ */
+async function ensureQuoteRequestsTable() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS quote_requests (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        visitor_name VARCHAR NOT NULL,
+        visitor_email VARCHAR NOT NULL,
+        visitor_phone VARCHAR,
+        visitor_company VARCHAR,
+        visitor_city VARCHAR,
+        visitor_rut VARCHAR,
+        message TEXT,
+        items JSONB NOT NULL,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR NOT NULL DEFAULT 'pending',
+        assigned_to_user_id INTEGER,
+        internal_notes TEXT,
+        quote_number VARCHAR,
+        subtotal NUMERIC(15, 2),
+        tax_amount NUMERIC(15, 2),
+        total_amount NUMERIC(15, 2),
+        priced_at TIMESTAMP,
+        priced_by_user_id INTEGER,
+        valid_until_date TIMESTAMP,
+        source VARCHAR DEFAULT 'b2c_cotizador',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    const cols: Array<[string, string]> = [
+      ['visitor_phone', 'VARCHAR'],
+      ['visitor_company', 'VARCHAR'],
+      ['visitor_city', 'VARCHAR'],
+      ['visitor_rut', 'VARCHAR'],
+      ['message', 'TEXT'],
+      ['assigned_to_user_id', 'INTEGER'],
+      ['internal_notes', 'TEXT'],
+      ['quote_number', 'VARCHAR'],
+      ['subtotal', 'NUMERIC(15, 2)'],
+      ['tax_amount', 'NUMERIC(15, 2)'],
+      ['total_amount', 'NUMERIC(15, 2)'],
+      ['priced_at', 'TIMESTAMP'],
+      ['priced_by_user_id', 'INTEGER'],
+      ['valid_until_date', 'TIMESTAMP'],
+    ];
+    for (const [name, type] of cols) {
+      await db.execute(
+        sql.raw(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS ${name} ${type}`)
+      );
+    }
+
+    quoteRequestsTableChecked = true;
+  } catch (err: any) {
+    console.error('[QuoteRequests] ensureQuoteRequestsTable failed:', err?.message || err);
+  }
+}
+
 export interface PricingItemInput {
   sku: string;
   color?: string;
@@ -20,7 +85,11 @@ export interface PricingItemInput {
  * Create a new quote request from a public visitor
  */
 export async function createQuoteRequest(data: InsertQuoteRequestInput) {
-  const [request] = await db.insert(quoteRequests).values({
+  if (!quoteRequestsTableChecked) {
+    await ensureQuoteRequestsTable();
+  }
+
+  const values = {
     visitorName: data.visitorName,
     visitorEmail: data.visitorEmail,
     visitorPhone: data.visitorPhone || null,
@@ -32,7 +101,23 @@ export async function createQuoteRequest(data: InsertQuoteRequestInput) {
     itemCount: data.items.length,
     status: 'pending',
     source: 'b2c_cotizador',
-  }).returning();
+  };
+
+  let request;
+  try {
+    [request] = await db.insert(quoteRequests).values(values).returning();
+  } catch (err: any) {
+    const code = err?.code;
+    // 42P01 = undefined_table, 42703 = undefined_column
+    if (code === '42P01' || code === '42703') {
+      console.warn(`[QuoteRequests] Schema mismatch (${code}), self-healing and retrying…`);
+      quoteRequestsTableChecked = false;
+      await ensureQuoteRequestsTable();
+      [request] = await db.insert(quoteRequests).values(values).returning();
+    } else {
+      throw err;
+    }
+  }
 
   console.log(`[B2C] New quote request from ${data.visitorName} (${data.visitorEmail}) — ${data.items.length} products`);
   return request;
