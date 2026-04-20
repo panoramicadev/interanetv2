@@ -17,7 +17,7 @@ import {
 import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
 import { db } from './db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { requireAuth, requireAdminOrSupervisor } from './auth';
 
 export function registerB2CRoutes(app: Express) {
@@ -244,6 +244,122 @@ export function registerB2CRoutes(app: Express) {
     } catch (error) {
       console.error('[B2C] Error rendering quote PDF:', error);
       res.status(500).send('Error al generar el PDF');
+    }
+  });
+
+  // ═══════════════════════════════════════════════
+  // ADMIN: Price lists for quote pricing modal
+  // ═══════════════════════════════════════════════
+
+  /**
+   * GET /api/b2c/admin/price-lists — List all available price lists
+   * Returns: [{ code, name, type: 'base' | 'custom' | 'offer' }, ...]
+   */
+  app.get('/api/b2c/admin/price-lists', requireAuth, requireAdminOrSupervisor, async (_req: any, res: any) => {
+    try {
+      const lists: Array<{ code: string; name: string; type: 'base' | 'custom' | 'offer' }> = [
+        { code: 'LP01', name: 'Lista base (LP01)', type: 'base' },
+        { code: 'OFERTA', name: 'Oferta', type: 'offer' },
+      ];
+
+      try {
+        const result: any = await db.execute(sql`
+          SELECT code, name, active
+          FROM custom_price_lists
+          WHERE code <> 'LP01'
+          ORDER BY code
+        `);
+        const rows = (result as any).rows || result || [];
+        for (const row of rows as any[]) {
+          if (!row?.code) continue;
+          if (row.active === false) continue;
+          lists.push({
+            code: row.code,
+            name: row.name ? `${row.name} (${row.code})` : row.code,
+            type: 'custom',
+          });
+        }
+      } catch (err) {
+        // Table may not exist yet — return base + offer only
+        console.warn('[B2C] custom_price_lists not available, skipping custom lists');
+      }
+
+      res.json({ lists });
+    } catch (error) {
+      console.error('[B2C] Error fetching price lists:', error);
+      res.status(500).json({ message: 'Error al obtener listas de precios' });
+    }
+  });
+
+  /**
+   * POST /api/b2c/admin/resolve-prices — Resolve unit prices for SKUs against a price list
+   * Body: { listCode: string, skus: string[] }
+   * Returns: { prices: Record<UPPER_SKU, number>, missing: string[] }
+   */
+  app.post('/api/b2c/admin/resolve-prices', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+    try {
+      const { listCode, skus } = req.body || {};
+      if (!listCode || typeof listCode !== 'string') {
+        return res.status(400).json({ message: 'listCode requerido' });
+      }
+      if (!Array.isArray(skus) || skus.length === 0) {
+        return res.json({ prices: {}, missing: [] });
+      }
+
+      const upperSkus = Array.from(
+        new Set(
+          skus
+            .map((s: any) => (s || '').toString().trim().toUpperCase())
+            .filter(Boolean)
+        )
+      );
+      if (upperSkus.length === 0) {
+        return res.json({ prices: {}, missing: [] });
+      }
+
+      const code = listCode.trim().toUpperCase();
+      const skuList = sql.join(upperSkus.map(s => sql`${s}`), sql`, `);
+      const prices: Record<string, number> = {};
+
+      let result: any;
+      if (code === 'OFERTA') {
+        result = await db.execute(sql`
+          SELECT UPPER(pl.codigo) AS codigo,
+                 COALESCE(offers.precio, pl.offer_price) AS precio
+          FROM price_list pl
+          LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo)
+          WHERE UPPER(pl.codigo) IN (${skuList})
+        `);
+      } else if (code === 'LP01' || code === '') {
+        result = await db.execute(sql`
+          SELECT UPPER(pl.codigo) AS codigo, pl.lista AS precio
+          FROM price_list pl
+          WHERE UPPER(pl.codigo) IN (${skuList})
+        `);
+      } else {
+        result = await db.execute(sql`
+          SELECT UPPER(pl.codigo) AS codigo,
+                 COALESCE(cpli.precio, pl.lista) AS precio
+          FROM price_list pl
+          LEFT JOIN custom_price_list_items cpli
+            ON UPPER(cpli.codigo) = UPPER(pl.codigo)
+           AND cpli.list_code = ${code}
+          WHERE UPPER(pl.codigo) IN (${skuList})
+        `);
+      }
+
+      const rows = (result as any).rows || result || [];
+      for (const row of rows as any[]) {
+        if (!row?.codigo) continue;
+        const p = row.precio != null ? parseFloat(row.precio) : NaN;
+        if (!isNaN(p) && p > 0) prices[row.codigo] = Math.round(p);
+      }
+
+      const missing = upperSkus.filter(s => !(s in prices));
+      res.json({ prices, missing, listCode: code });
+    } catch (error) {
+      console.error('[B2C] Error resolving prices:', error);
+      res.status(500).json({ message: 'Error al resolver precios' });
     }
   });
 

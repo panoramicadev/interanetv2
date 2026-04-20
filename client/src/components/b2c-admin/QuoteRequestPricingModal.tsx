@@ -15,6 +15,8 @@ import {
   Palette,
   DollarSign,
   AlertCircle,
+  Tag,
+  RefreshCw,
 } from 'lucide-react';
 
 interface QuoteRequestItem {
@@ -59,12 +61,44 @@ const TAX_RATE = 0.19;
 const fmtCLP = (n: number): string =>
   `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
 
+interface PriceListOption {
+  code: string;
+  name: string;
+  type: 'base' | 'custom' | 'offer';
+}
+
 export default function QuoteRequestPricingModal({ open, request, onClose, onSuccess }: Props) {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [validDays, setValidDays] = useState(7);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [priceLists, setPriceLists] = useState<PriceListOption[]>([]);
+  const [selectedList, setSelectedList] = useState<string>('LP01');
+  const [applyingList, setApplyingList] = useState(false);
+  const [listMessage, setListMessage] = useState<string | null>(null);
+
+  // Load available price lists once the modal opens
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/b2c/admin/price-lists', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data?.lists)) {
+          setPriceLists(data.lists);
+        }
+      } catch {
+        /* silent — fall back to manual pricing */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Initialize from request
   useEffect(() => {
@@ -76,8 +110,80 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
     });
     setPrices(initial);
     setNotes(request.internalNotes || '');
+    setSelectedList('LP01');
+    setListMessage(null);
     setError(null);
   }, [request]);
+
+  // Auto-apply prices for the selected list to any item without a custom-color / manual price
+  const applyPriceList = async (listCode: string, opts: { overwrite?: boolean } = {}) => {
+    if (!request) return;
+    const items = request.items || [];
+    const skus = Array.from(
+      new Set(
+        items
+          .filter(it => it.itemType !== 'custom_color' && it.sku)
+          .map(it => it.sku.toUpperCase())
+      )
+    );
+    if (skus.length === 0) {
+      setListMessage(null);
+      return;
+    }
+
+    setApplyingList(true);
+    setListMessage(null);
+    try {
+      const res = await fetch('/api/b2c/admin/resolve-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ listCode, skus }),
+      });
+      if (!res.ok) throw new Error('No se pudieron obtener precios');
+      const data = await res.json();
+      const resolved: Record<string, number> = data?.prices || {};
+
+      setPrices(prev => {
+        const next = { ...prev };
+        items.forEach((it, idx) => {
+          if (it.itemType === 'custom_color') return;
+          const sku = (it.sku || '').toUpperCase();
+          const p = resolved[sku];
+          if (typeof p === 'number' && p > 0) {
+            const key = `${idx}`;
+            if (opts.overwrite || !prev[key] || prev[key] === '0') {
+              next[key] = String(p);
+            }
+          }
+        });
+        return next;
+      });
+
+      const filled = skus.filter(s => resolved[s] != null).length;
+      const missing = Array.isArray(data?.missing) ? data.missing.length : skus.length - filled;
+      setListMessage(
+        missing > 0
+          ? `${filled} de ${skus.length} precios aplicados. ${missing} SKU sin precio en esta lista.`
+          : `${filled} precios aplicados desde la lista.`
+      );
+    } catch (err: any) {
+      setListMessage(err?.message || 'Error al aplicar lista de precios');
+    } finally {
+      setApplyingList(false);
+    }
+  };
+
+  // Auto-apply default list once items + lists are loaded (only if nothing is pre-filled)
+  useEffect(() => {
+    if (!open || !request || priceLists.length === 0) return;
+    const hasPrefilled = (request.items || []).some(
+      it => typeof it.unitPrice === 'number' && it.unitPrice > 0
+    );
+    if (hasPrefilled) return;
+    applyPriceList('LP01', { overwrite: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, request?.id, priceLists.length]);
 
   const totals = useMemo(() => {
     if (!request) return { subtotal: 0, tax: 0, total: 0 };
@@ -189,6 +295,53 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
+              {/* Price list selector */}
+              {priceLists.length > 0 && (
+                <div className="mb-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 sm:p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Tag className="w-4 h-4 text-[#FF6E23]" />
+                    <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      Lista de precios
+                    </h3>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <select
+                      value={selectedList}
+                      onChange={e => setSelectedList(e.target.value)}
+                      disabled={applyingList}
+                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 disabled:opacity-50"
+                    >
+                      {priceLists.map(l => (
+                        <option key={l.code} value={l.code}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => applyPriceList(selectedList, { overwrite: true })}
+                      disabled={applyingList}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {applyingList ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Aplicar
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Por defecto se cargan los precios de la <strong>lista base (LP01)</strong>. Puedes seleccionar otra lista y pulsar "Aplicar" para sobrescribir. Los colores personalizados siempre se ingresan manualmente.
+                  </p>
+                  {listMessage && (
+                    <div className="mt-2 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1.5">
+                      {listMessage}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Items table */}
               <div className="mb-5">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
