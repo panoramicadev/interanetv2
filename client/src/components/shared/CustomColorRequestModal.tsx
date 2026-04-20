@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -276,7 +277,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
   const stepIndex = ['intro', 'product', 'color', 'contact'].indexOf(step);
   const totalSteps = 4;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -1027,6 +1028,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
