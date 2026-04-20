@@ -7443,7 +7443,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado para generar cotizaciones' });
     }
 
