@@ -285,21 +285,21 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4"
+          className="fixed inset-0 z-[70] grid place-items-center p-2 sm:p-4 overflow-y-auto overscroll-contain"
           onClick={onClose}
         >
           {/* Blur backdrop */}
-          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" />
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md pointer-events-none" />
 
           {/* Animated color orbs */}
           <motion.div
-            className="pointer-events-none absolute top-10 left-10 w-72 h-72 rounded-full blur-3xl opacity-40"
+            className="pointer-events-none fixed top-10 left-10 w-72 h-72 rounded-full blur-3xl opacity-40"
             style={{ background: colorHex }}
             animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.5, 0.35] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
           />
           <motion.div
-            className="pointer-events-none absolute bottom-10 right-10 w-80 h-80 rounded-full blur-3xl opacity-30 bg-[#FF6E23]"
+            className="pointer-events-none fixed bottom-10 right-10 w-80 h-80 rounded-full blur-3xl opacity-30 bg-[#FF6E23]"
             animate={{ scale: [1.1, 1, 1.1], opacity: [0.25, 0.45, 0.25] }}
             transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
           />
@@ -310,7 +310,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[94vh] overflow-hidden flex flex-col"
+            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col my-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
