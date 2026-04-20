@@ -99,9 +99,22 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
   // Normalize: support both old { key: number } and new { key: { price, sku } } formats
   const shippingRates: Record<string, number> = {};
+  const shippingSkus: Record<string, string> = {};
   for (const [key, val] of Object.entries(rawShippingRates)) {
-    shippingRates[key] = typeof val === 'object' && val !== null ? (val.price || 0) : (Number(val) || 0);
+    if (typeof val === 'object' && val !== null) {
+      shippingRates[key] = (val as any).price || 0;
+      shippingSkus[key] = (val as any).sku || '';
+    } else {
+      shippingRates[key] = Number(val) || 0;
+    }
   }
+
+  const SHIPPING_LABELS: Record<string, string> = {
+    '1_4_galon': 'Despacho 1/4 Galón',
+    'galon': 'Despacho Galón',
+    'bd_4gl': 'Despacho Balde 4GL',
+    'bd_5gl': 'Despacho Balde 5GL',
+  };
 
   // Fetch free shipping threshold
   const { data: freeShippingData } = useQuery<{ threshold: number }>({
@@ -399,20 +412,32 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       }));
 
       // AÑADIR FLETE COMO PUNTO DE FACTURACIÓN
+      // One despacho line per unit key (Galón, 1/4 Galón, Balde, …) so
+      // downstream views can split "Subtotal Productos" vs "Subtotal Flete"
+      // and the SKU (ZZFLETE001, etc.) matches the store config.
       if (deliveryMethod === 'despacho' && shippingCost > 0) {
-        mappedItems.push({
-          productId: "FLETE-001",
-          productName: "Flete / Despacho a Domicilio",
-          sku: "FLETE-001",
-          quantity: 1,
-          unitPrice: shippingCost,
-          totalPrice: shippingCost,
-          discountAmount: 0,
-          unitPriceAfterDiscount: shippingCost,
-          totalPriceAfterDiscount: shippingCost,
-          imageUrl: null,
-          selectedColor: null,
-          selectedPackaging: null,
+        const shippingFactor = Math.max(0, 1 - shippingDiscountPercent / 100);
+        const discountSuffix = shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : '';
+        shippingBreakdownMap.forEach((b, rateKey) => {
+          const unitPrice = Math.round(b.cost * shippingFactor);
+          if (unitPrice <= 0 || b.qty <= 0) return;
+          const sku = shippingSkus[rateKey] || rateKey.toUpperCase();
+          const label = `${SHIPPING_LABELS[rateKey] || `Despacho ${b.unit || rateKey}`}${discountSuffix}`;
+          const lineTotal = unitPrice * b.qty;
+          mappedItems.push({
+            productId: sku,
+            productName: label,
+            sku,
+            quantity: b.qty,
+            unitPrice,
+            totalPrice: lineTotal,
+            discountAmount: 0,
+            unitPriceAfterDiscount: unitPrice,
+            totalPriceAfterDiscount: lineTotal,
+            imageUrl: null,
+            selectedColor: null,
+            selectedPackaging: null,
+          });
         });
       }
 
