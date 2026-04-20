@@ -69,6 +69,13 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
     }
   }
 
+  // Same shippingDiscountPercentage source as BillingSummary (cart).
+  const { data: storeConfig } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+  });
+  const shippingDiscountPercent = Number(storeConfig?.checkoutSettings?.shippingDiscountPercentage) || 0;
+  const shippingFactor = Math.max(0, 1 - shippingDiscountPercent / 100);
+
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -89,12 +96,15 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
           if (!key || !shippingRates[key]) return null;
           const qty = Number(item.quantity) || 0;
           if (qty <= 0) return null;
+          const baseUnitPrice = shippingRates[key];
+          const unitPrice = Math.round(baseUnitPrice * shippingFactor);
+          const discountSuffix = shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : '';
           return {
             key,
             sku: shippingSkus[key] || key,
-            label: `${SHIPPING_LABELS[key] || `Despacho ${key}`} - ${item.productName}`,
+            label: `${SHIPPING_LABELS[key] || `Despacho ${key}`} - ${item.productName}${discountSuffix}`,
             qty,
-            unitPrice: shippingRates[key],
+            unitPrice,
           };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
