@@ -701,6 +701,49 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   ],
 
+  reception: [
+    {
+      href: "/",
+      label: "Recepción",
+      icon: ClipboardCheck,
+      separator: true,
+    },
+    {
+      href: "/ecommerce",
+      label: "Panorámica Market",
+      icon: ShoppingCart,
+      isPremium: true,
+      children: [
+        {
+          href: "/ecommerce-pedidos",
+          label: "Pedidos",
+          icon: PackageSearch,
+        },
+        {
+          href: "/cotizaciones-b2c",
+          label: "Cotizaciones",
+          icon: FileText,
+        },
+        {
+          href: "/ecommerce-usuarios",
+          label: "Clientes",
+          icon: Users,
+        },
+        {
+          href: "/ecommerce",
+          label: "Configuración",
+          icon: ShoppingCart,
+        },
+      ],
+      separator: true,
+    },
+    {
+      href: "/facturas",
+      label: "Finanzas",
+      icon: Receipt,
+    },
+  ],
+
   tecnico_obra: [
     {
       href: "/visitas-tecnicas",

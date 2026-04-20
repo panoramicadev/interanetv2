@@ -53,6 +53,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       supervisor: "Supervisor",
       salesperson: "Vendedor",
       client: "Cliente",
+      reception: "Recepción",
     };
     return map[role || ""] || "Usuario";
   };
@@ -63,6 +64,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       supervisor: "bg-emerald-500",
       salesperson: "bg-violet-500",
       client: "bg-amber-500",
+      reception: "bg-cyan-500",
     };
     return map[role || ""] || "bg-slate-500";
   };

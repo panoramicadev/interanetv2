@@ -17,7 +17,7 @@ export default function FacturasMainPage() {
   const [activeTab, setActiveTab] = useState("lista-precios");
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client")) {
+  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client" && user.role !== "reception")) {
     setLocation("/dashboard");
     return null;
   }
