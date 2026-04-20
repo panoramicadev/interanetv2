@@ -285,7 +285,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4"
+          className="fixed inset-0 z-[70] overflow-y-auto overscroll-contain"
           onClick={onClose}
         >
           {/* Blur backdrop */}
@@ -304,14 +304,15 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
             transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
           />
 
-          {/* Modal body */}
+          {/* Modal body — wrapper centers on tall viewports, scrolls outer on short ones */}
+          <div className="relative min-h-full flex items-center justify-center p-2 sm:p-4">
           <motion.div
             key="modal"
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[94vh] overflow-hidden flex flex-col"
+            className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl sm:max-h-[94vh] overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -1024,6 +1025,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
               </div>
             )}
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

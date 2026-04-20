@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Send, CheckCircle, Loader2, User, Mail, Phone, Building, MapPin, FileText, MessageSquare } from 'lucide-react';
+import { X, Send, CheckCircle, Loader2, User, Mail, Phone, Building, MapPin, FileText, MessageSquare, Plus, Minus, Trash2 } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function CotizadorContactForm({ open, onClose }: Props) {
-  const { state, clearQuote } = useQuote();
+  const { state, clearQuote, updateQuantity, removeItem } = useQuote();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -118,15 +118,59 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
             {/* Summary */}
             <div className="px-6 py-3 bg-orange-50/50 border-b border-orange-100">
               <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Resumen de productos</p>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {state.items.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span className="text-slate-600 truncate pr-2">
-                      {item.productName} {item.color && item.color !== 'Sin Color' ? `- ${item.color}` : ''} ({item.format})
-                    </span>
-                    <span className="text-slate-800 font-medium whitespace-nowrap">x{item.quantity}</span>
-                  </div>
-                ))}
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {state.items.map(item => {
+                  const step = item.stepSize || 1;
+                  const minUnit = item.minUnit || step;
+                  const dec = () => {
+                    const next = item.quantity - step;
+                    if (next < minUnit) {
+                      removeItem(item.id);
+                    } else {
+                      updateQuantity(item.id, next);
+                    }
+                  };
+                  const inc = () => updateQuantity(item.id, item.quantity + step);
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-600 truncate pr-2 flex-1 min-w-0">
+                        {item.productName} {item.color && item.color !== 'Sin Color' ? `- ${item.color}` : ''} ({item.format})
+                      </span>
+                      <div className="flex items-center gap-1 bg-white border border-orange-200 rounded-lg px-1 py-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={dec}
+                          className="p-1 rounded-md text-orange-600 hover:bg-orange-50 active:scale-95 transition"
+                          aria-label="Disminuir cantidad"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-slate-800 font-semibold text-sm min-w-[1.75rem] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={inc}
+                          className="p-1 rounded-md text-orange-600 hover:bg-orange-50 active:scale-95 transition"
+                          aria-label="Aumentar cantidad"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition shrink-0"
+                        aria-label="Eliminar producto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+                {state.items.length === 0 && (
+                  <p className="text-sm text-slate-400 italic">No hay productos en la cotización</p>
+                )}
               </div>
             </div>
 
@@ -245,8 +289,8 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
               {/* Submit */}
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-60"
+                disabled={isSubmitting || state.items.length === 0}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</>

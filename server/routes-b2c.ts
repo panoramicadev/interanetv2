@@ -131,8 +131,8 @@ export function registerB2CRoutes(app: Express) {
         message: 'Solicitud de cotización recibida. Nos pondremos en contacto pronto.',
         requestId: request.id,
       });
-    } catch (error) {
-      console.error('[B2C] Error creating quote request:', error);
+    } catch (error: any) {
+      console.error('[B2C] Error creating quote request:', error?.message || error, error?.stack);
       res.status(500).json({ message: 'Error al enviar solicitud de cotización' });
     }
   });
