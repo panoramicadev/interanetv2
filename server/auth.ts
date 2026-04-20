@@ -419,7 +419,8 @@ export const requireCommercialAccess = requireRoles([
   'salesperson',
   'tecnico_obra',
   'jefe_planta',
-  'logistica_bodega'
+  'logistica_bodega',
+  'reception'
 ]);
 
 // Plant Operations Access Control

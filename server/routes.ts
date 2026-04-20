@@ -7177,7 +7177,7 @@ export function registerRoutes(app: Express): Server {
         const order = result[0];
         if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
         // Allow owner or admin/supervisor
-        if (order.clientId !== user.id && !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+        if (order.clientId !== user.id && !['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
           return res.status(403).json({ message: 'No autorizado' });
         }
         return res.json(order);
@@ -7188,7 +7188,7 @@ export function registerRoutes(app: Express): Server {
       if (user.role === 'salesperson') {
         // Salesperson sees only their assigned orders
         filters.salespersonId = user.id;
-      } else if (user.role === 'admin' || user.role === 'supervisor') {
+      } else if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception') {
         // Admin/supervisor see all orders
         // Optionally filter by status if provided
         if (req.query.status && req.query.status !== 'all') {
@@ -7215,8 +7215,8 @@ export function registerRoutes(app: Express): Server {
 
       if (user.role === 'salesperson') {
         filters.salespersonId = user.id;
-      } else if (user.role === 'admin' || user.role === 'supervisor') {
-        // Admin/supervisor see all pending orders
+      } else if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception') {
+        // Admin/supervisor/reception see all pending orders
       } else {
         return res.json({ count: 0 }); // Other roles don't see this badge
       }

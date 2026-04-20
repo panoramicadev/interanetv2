@@ -18,7 +18,9 @@ import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
 import { db } from './db';
 import { eq, sql } from 'drizzle-orm';
-import { requireAuth, requireAdminOrSupervisor } from './auth';
+import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
+
+const requireAdminSupervisorOrReception = requireRoles(['admin', 'supervisor', 'reception']);
 
 export function registerB2CRoutes(app: Express) {
   // ═══════════════════════════════════════════════
@@ -140,7 +142,7 @@ export function registerB2CRoutes(app: Express) {
   /**
    * GET /api/b2c/quote-requests — List all quote requests (admin only)
    */
-  app.get('/api/b2c/quote-requests', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+  app.get('/api/b2c/quote-requests', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { status, limit } = req.query;
       const requests = await getQuoteRequests({
@@ -157,7 +159,7 @@ export function registerB2CRoutes(app: Express) {
   /**
    * PATCH /api/b2c/quote-requests/:id — Update quote request status (admin only)
    */
-  app.patch('/api/b2c/quote-requests/:id', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+  app.patch('/api/b2c/quote-requests/:id', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       const { status, internalNotes } = req.body;
@@ -181,7 +183,7 @@ export function registerB2CRoutes(app: Express) {
   /**
    * PATCH /api/b2c/quote-requests/:id/pricing — Assign prices + generate quote
    */
-  app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+  app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       const { items, internalNotes, validDays } = req.body;
@@ -217,7 +219,7 @@ export function registerB2CRoutes(app: Express) {
   /**
    * GET /api/b2c/quote-requests/:id/pdf — Printable HTML (browser → PDF)
    */
-  app.get('/api/b2c/quote-requests/:id/pdf', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+  app.get('/api/b2c/quote-requests/:id/pdf', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       const request = await getQuoteRequestById(id);
@@ -255,7 +257,7 @@ export function registerB2CRoutes(app: Express) {
    * GET /api/b2c/admin/price-lists — List all available price lists
    * Returns: [{ code, name, type: 'base' | 'custom' | 'offer' }, ...]
    */
-  app.get('/api/b2c/admin/price-lists', requireAuth, requireAdminOrSupervisor, async (_req: any, res: any) => {
+  app.get('/api/b2c/admin/price-lists', requireAuth, requireAdminSupervisorOrReception, async (_req: any, res: any) => {
     try {
       const lists: Array<{ code: string; name: string; type: 'base' | 'custom' | 'offer' }> = [
         { code: 'LP01', name: 'Lista base (LP01)', type: 'base' },
@@ -296,7 +298,7 @@ export function registerB2CRoutes(app: Express) {
    * Body: { listCode: string, skus: string[] }
    * Returns: { prices: Record<UPPER_SKU, number>, missing: string[] }
    */
-  app.post('/api/b2c/admin/resolve-prices', requireAuth, requireAdminOrSupervisor, async (req: any, res: any) => {
+  app.post('/api/b2c/admin/resolve-prices', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { listCode, skus } = req.body || {};
       if (!listCode || typeof listCode !== 'string') {
