@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { EcommerceOrder, getOrderItems, formatPrice } from "./order-detail-view";
+import { EcommerceOrder, getOrderItems } from "./order-detail-view";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { QuotePDFDocument } from "@/pages/tomador-pedidos";
-import { pdf } from "@react-pdf/renderer";
+import { generatePDFFromQuote } from "@/lib/quote-pdf-html";
+import { getShippingKey } from "@shared/format-utils";
 import { FileText, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +21,13 @@ interface EcommerceQuoteModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
+
+const SHIPPING_LABELS: Record<string, string> = {
+  '1_4_galon': 'Despacho 1/4 Galón',
+  'galon': 'Despacho Galón',
+  'bd_4gl': 'Despacho Balde 4GL',
+  'bd_5gl': 'Despacho Balde 5GL',
+};
 
 export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: EcommerceQuoteModalProps) {
   const { toast } = useToast();
@@ -32,10 +40,34 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
     clientEmail: order.clientEmail || "",
     clientPhone: order.clientPhone || "",
     clientAddress: order.shippingAddress || "",
-    validUntil: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"), // +7 days
+    validUntil: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
     paymentCondition: order.paymentCondition || "transferencia",
     notes: order.notes ? `[Pedido eCommerce] ${order.notes}` : "[Pedido eCommerce]",
   });
+
+  // Same shipping-rates source and normalization logic as tomador-pedidos
+  const { data: rawShippingRates = {} } = useQuery<Record<string, any>>({
+    queryKey: ['/api/ecommerce/shipping-rates'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
+        if (!res.ok) return {};
+        return res.json();
+      } catch { return {}; }
+    },
+    staleTime: 60000,
+  });
+
+  const shippingRates: Record<string, number> = {};
+  const shippingSkus: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawShippingRates)) {
+    if (typeof val === 'object' && val !== null) {
+      shippingRates[key] = (val as any).price || 0;
+      shippingSkus[key] = (val as any).sku || '';
+    } else {
+      shippingRates[key] = Number(val) || 0;
+    }
+  }
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -45,11 +77,37 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
     setIsGenerating(true);
     try {
       const items = getOrderItems(order);
-      const subtotal = items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0);
+
+      // One flete line per order item so each product's despacho is distinguishable.
+      // Order items use `selectedPackaging` (or `productUnit`) to carry the unit
+      // (e.g. "Galon", "Balde 4 Galones"); we resolve it to a shipping-rate key.
+      const shippingLineItems = items
+        .map(item => {
+          const unit = (item as any).selectedPackaging || (item as any).productUnit;
+          if (!unit) return null;
+          const key = getShippingKey(unit);
+          if (!key || !shippingRates[key]) return null;
+          const qty = Number(item.quantity) || 0;
+          if (qty <= 0) return null;
+          return {
+            key,
+            sku: shippingSkus[key] || key,
+            label: `${SHIPPING_LABELS[key] || `Despacho ${key}`} - ${item.productName}`,
+            qty,
+            unitPrice: shippingRates[key],
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      const productsSubtotal = items.reduce(
+        (sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity),
+        0,
+      );
+      const shippingSubtotal = shippingLineItems.reduce((sum, s) => sum + s.unitPrice * s.qty, 0);
+      const subtotal = productsSubtotal + shippingSubtotal;
       const tax = Math.round(subtotal * 0.19);
       const total = subtotal + tax;
 
-      // Create Quote
       const quotePayload = {
         clientName: formData.clientName,
         clientRut: formData.clientRut,
@@ -70,45 +128,53 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
         method: 'POST',
         data: quotePayload,
       });
-
       const savedQuote = await resQuote.json();
 
-      // Format Items for syncing
-      const syncItems = items.map(item => ({
-        quoteId: savedQuote.id,
-        type: "standard" as const,
-        productName: item.productName,
-        productCode: item.productCode || item.sku || "",
-        productUnit: "UN",
-        unitPrice: (item.unitPrice || item.price || 0).toString(),
-        quantity: item.quantity.toString(),
-      }));
-
-      // Sync items
-      await apiRequest(`/api/quotes/${savedQuote.id}/items/sync`, {
-        method: 'PUT',
-        data: { quoteData: quotePayload, items: syncItems }
+      const productSyncItems = items.map(item => {
+        const unit = (item as any).selectedPackaging || (item as any).productUnit || "UN";
+        const unitPrice = item.unitPrice || item.price || 0;
+        const quantity = Number(item.quantity) || 0;
+        return {
+          quoteId: savedQuote.id,
+          type: "standard" as const,
+          productName: item.productName,
+          productCode: item.productCode || item.sku || "",
+          productUnit: unit,
+          unitPrice: unitPrice.toString(),
+          quantity: quantity.toString(),
+          totalPrice: (unitPrice * quantity).toString(),
+          pricingMode: 'direct',
+        };
       });
 
-      // Generate PDF
-      const blob = await pdf(<QuotePDFDocument quote={savedQuote} items={syncItems} />).toBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Cotizacion_${savedQuote.quoteNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const shippingSyncItems = shippingLineItems.map(shipItem => ({
+        quoteId: savedQuote.id,
+        type: "standard" as const,
+        productName: shipItem.label,
+        productCode: shipItem.sku,
+        productUnit: 'UN',
+        quantity: shipItem.qty.toString(),
+        unitPrice: shipItem.unitPrice.toString(),
+        totalPrice: (shipItem.qty * shipItem.unitPrice).toString(),
+        pricingMode: 'direct',
+      }));
+
+      const syncItems = [...productSyncItems, ...shippingSyncItems];
+
+      await apiRequest(`/api/quotes/${savedQuote.id}/items/sync`, {
+        method: 'PUT',
+        data: { quoteData: quotePayload, items: syncItems },
+      });
+
+      generatePDFFromQuote(savedQuote, syncItems);
 
       toast({
         title: "Cotización Generada",
-        description: `Se descargó el PDF de la cotización ${savedQuote.quoteNumber}.`,
+        description: `Se generó el PDF de la cotización ${savedQuote.quoteNumber}.`,
       });
 
-      // Update Queries
       queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
-      
+
       if (onSuccess) onSuccess();
       onOpenChange(false);
     } catch (error: any) {
