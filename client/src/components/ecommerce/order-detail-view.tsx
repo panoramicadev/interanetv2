@@ -7,7 +7,7 @@ import {
   Phone, Mail, ArrowLeft, User, MapPin,
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
   Pencil, Archive, Trash2, FileImage, Landmark,
-  Upload, Download, X, Loader2, RefreshCw, Save
+  Upload, Download, X, Loader2, RefreshCw, Save, Inbox
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { EcommerceQuoteModal } from "./ecommerce-quote-modal";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { Textarea } from "@/components/ui/textarea";
 import { QuotePDFDocument } from "@/pages/tomador-pedidos";
 import { pdf } from "@react-pdf/renderer";
 
@@ -145,6 +147,11 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
+  const [showIngresarDialog, setShowIngresarDialog] = useState(false);
+  const [isIngresando, setIsIngresando] = useState(false);
+  const [ingresadoNotes, setIngresadoNotes] = useState('');
+  const { user } = useAuth();
+  const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
 
   // Price editing state
   const [isEditingPrices, setIsEditingPrices] = useState(false);
@@ -234,6 +241,34 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       toast({ title: 'Error al recalcular', description: err.message, variant: 'destructive' });
     } finally {
       setIsRecalculating(false);
+    }
+  };
+
+  const handleMarkIngresado = async () => {
+    if (isIngresando) return;
+    setIsIngresando(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'ingresado', ingresadoNotes: ingresadoNotes || undefined }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Error' }));
+        throw new Error(err.message || 'Error al marcar como ingresado');
+      }
+      const updated = await res.json();
+      setCurrentOrder(prev => ({ ...prev, ...updated }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders/pending-count'] });
+      toast({ title: 'Pedido marcado como ingresado', description: `#${getNumericOrderId(currentOrder.id)} ingresado al ERP` });
+      setShowIngresarDialog(false);
+      setIngresadoNotes('');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'No se pudo marcar como ingresado', variant: 'destructive' });
+    } finally {
+      setIsIngresando(false);
     }
   };
 
@@ -498,6 +533,23 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {canIngresar && statusKey !== 'ingresado' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 shadow-sm"
+                onClick={() => setShowIngresarDialog(true)}
+                disabled={isIngresando}
+                data-testid="button-mark-ingresado"
+              >
+                {isIngresando ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Inbox className="w-4 h-4 mr-2" />
+                )}
+                <span className="hidden sm:inline">Marcar como ingresado</span>
+              </Button>
+            )}
             <Button
               size="sm"
               className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-sm"
@@ -515,6 +567,40 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
               </span>
             </Button>
           </div>
+        )}
+
+        {/* Ingresar confirmation dialog (recepción) */}
+        {canIngresar && (
+          <AlertDialog open={showIngresarDialog} onOpenChange={setShowIngresarDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Marcar pedido como ingresado</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Confirmás que el pedido #{getNumericOrderId(order.id)} fue ingresado al ERP. Quedará registrado con tu usuario y la fecha actual.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="ingresado-notes" className="text-sm">Notas (opcional)</Label>
+                <Textarea
+                  id="ingresado-notes"
+                  placeholder="Ej: N° de documento en ERP, observaciones..."
+                  value={ingresadoNotes}
+                  onChange={(e) => setIngresadoNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isIngresando}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleMarkIngresado(); }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isIngresando}
+                >
+                  {isIngresando ? 'Marcando...' : 'Marcar como ingresado'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
 
         {/* Delete Confirmation Dialog */}

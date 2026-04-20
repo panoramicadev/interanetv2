@@ -7235,11 +7235,16 @@ export function registerRoutes(app: Express): Server {
     const { status } = req.body;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived'];
+    const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived', 'ingresado'];
+
+    // Reception solo puede marcar como ingresado (y solo sobre pedidos aprobados)
+    if (user.role === 'reception' && status !== 'ingresado') {
+      return res.status(403).json({ message: 'Recepción solo puede marcar pedidos como ingresados' });
+    }
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Estado inválido' });
     }
@@ -7253,6 +7258,11 @@ export function registerRoutes(app: Express): Server {
         status,
         ...(status === 'approved' ? { approvedAt: new Date(), approvedById: user.id } : {}),
         ...(status === 'modified' ? { modifiedAt: new Date(), modifiedById: user.id } : {}),
+        ...(status === 'ingresado' ? {
+          ingresadoAt: new Date(),
+          ingresadoById: user.id,
+          ...(req.body?.ingresadoNotes ? { ingresadoNotes: String(req.body.ingresadoNotes).slice(0, 2000) } : {}),
+        } : {}),
         updatedAt: new Date(),
       })
       .where(eq(ecommerceOrders.id, id))

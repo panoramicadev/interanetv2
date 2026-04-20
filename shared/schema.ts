@@ -3668,6 +3668,11 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   modifiedAt: timestamp("modified_at"),
   modifiedById: varchar("modified_by_id"), // FK to users.id (who modified)
 
+  // Ingreso (recepción marca el pedido como ingresado al ERP)
+  ingresadoAt: timestamp("ingresado_at"),
+  ingresadoById: varchar("ingresado_by_id"),
+  ingresadoNotes: text("ingresado_notes"),
+
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
 
