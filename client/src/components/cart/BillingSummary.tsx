@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2 } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import {
@@ -64,6 +64,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showNoOCDialog, setShowNoOCDialog] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'transfer' | 'credit'>('transfer');
   const [paymentMethodTouched, setPaymentMethodTouched] = useState(false);
   const [purchaseOrderPdfUrl, setPurchaseOrderPdfUrl] = useState<string | null>(null);
@@ -384,8 +385,46 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     setShowConfirmDialog(true);
   };
 
+  const uploadPurchaseOrderFile = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: 'Archivo muy grande', description: 'El PDF no puede superar 10 MB.', variant: 'destructive' });
+      return false;
+    }
+    setIsUploadingOC(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Error al subir archivo');
+      const data = await res.json();
+      setPurchaseOrderPdfUrl(data.url);
+      setPurchaseOrderFileName(file.name);
+      toast({ title: '✓ OC adjuntada', description: `"${file.name}" será incluida en tu pedido.` });
+      return true;
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'No se pudo subir el archivo', variant: 'destructive' });
+      return false;
+    } finally {
+      setIsUploadingOC(false);
+    }
+  };
+
+  const handleConfirmDialogAction = () => {
+    if (isCredit && selectedPaymentMethod === 'credit' && !purchaseOrderPdfUrl) {
+      setShowConfirmDialog(false);
+      setShowNoOCDialog(true);
+      return;
+    }
+    processOrder();
+  };
+
   const processOrder = async () => {
     setShowConfirmDialog(false);
+    setShowNoOCDialog(false);
     setIsSubmitting(true);
     try {
       // Build the delivery info
@@ -1131,31 +1170,8 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 10 * 1024 * 1024) {
-                    toast({ title: 'Archivo muy grande', description: 'El PDF no puede superar 10 MB.', variant: 'destructive' });
-                    e.target.value = '';
-                    return;
-                  }
-                  setIsUploadingOC(true);
-                  try {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const res = await fetch('/api/upload', {
-                      method: 'POST',
-                      credentials: 'include',
-                      body: formData,
-                    });
-                    if (!res.ok) throw new Error('Error al subir archivo');
-                    const data = await res.json();
-                    setPurchaseOrderPdfUrl(data.url);
-                    setPurchaseOrderFileName(file.name);
-                    toast({ title: '✓ OC adjuntada', description: `"${file.name}" será incluida en tu pedido.` });
-                  } catch (err: any) {
-                    toast({ title: 'Error', description: err.message || 'No se pudo subir el archivo', variant: 'destructive' });
-                  } finally {
-                    setIsUploadingOC(false);
-                    e.target.value = '';
-                  }
+                  await uploadPurchaseOrderFile(file);
+                  e.target.value = '';
                 }}
               />
             </>
@@ -1353,11 +1369,114 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         <AlertDialogFooter className="flex gap-3 pt-2">
           <AlertDialogCancel className="flex-1">Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            onClick={processOrder}
+            onClick={handleConfirmDialogAction}
             className="flex-1 bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold"
           >
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Confirmar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* No-OC Warning Dialog (credit clients without purchase order attached) */}
+    <AlertDialog open={showNoOCDialog} onOpenChange={setShowNoOCDialog}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <div className="flex justify-center mb-3">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+          </div>
+          <AlertDialogTitle className="text-center text-xl">
+            ¿Enviar sin Orden de Compra?
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-center text-gray-600">
+                Estás por enviar un pedido a <strong>crédito</strong> sin adjuntar una OC.
+                Te recomendamos adjuntarla ahora para agilizar el despacho.
+              </p>
+
+              {purchaseOrderPdfUrl ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-emerald-800 truncate">
+                      {purchaseOrderFileName || 'Orden de Compra.pdf'}
+                    </p>
+                    <p className="text-[10px] text-emerald-600">✓ Adjunto al pedido</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPurchaseOrderPdfUrl(null);
+                      setPurchaseOrderFileName(null);
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Eliminar archivo"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Label
+                    htmlFor="purchase-order-upload-modal"
+                    className={`relative flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                      isUploadingOC
+                        ? 'border-blue-300 bg-blue-50/50'
+                        : 'border-blue-400 bg-blue-50 hover:bg-blue-100'
+                    }`}
+                  >
+                    {isUploadingOC ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        <span className="text-sm text-blue-600 font-medium">Subiendo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm text-blue-700 font-medium">
+                          Adjuntar PDF de Orden de Compra
+                        </span>
+                      </>
+                    )}
+                  </Label>
+                  <Input
+                    id="purchase-order-upload-modal"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    disabled={isUploadingOC}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      await uploadPurchaseOrderFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex gap-3 pt-2 sm:flex-row flex-col">
+          <AlertDialogCancel className="flex-1" disabled={isUploadingOC}>
+            Cancelar
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={processOrder}
+            disabled={isUploadingOC}
+            className={`flex-1 font-semibold text-white ${
+              purchaseOrderPdfUrl
+                ? 'bg-[#FF6E23] hover:bg-[#FF6E23]/90'
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            {purchaseOrderPdfUrl ? 'Confirmar pedido' : 'Enviar sin OC'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
