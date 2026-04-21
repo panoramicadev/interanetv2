@@ -13,6 +13,7 @@ import {
   updateQuoteRequestStatus,
   updateQuoteRequestPricing,
   getQuoteRequestById,
+  deleteQuoteRequest,
 } from './services/quote-request.service';
 import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
@@ -164,8 +165,11 @@ export function registerB2CRoutes(app: Express) {
       const { id } = req.params;
       const { status, internalNotes } = req.body;
 
-      if (!status || !['pending', 'contacted', 'quoted', 'closed'].includes(status)) {
+      if (status !== undefined && !['pending', 'contacted', 'quoted', 'closed'].includes(status)) {
         return res.status(400).json({ message: 'Estado inválido' });
+      }
+      if (status === undefined && internalNotes === undefined) {
+        return res.status(400).json({ message: 'Nada que actualizar' });
       }
 
       const updated = await updateQuoteRequestStatus(id, status, internalNotes);
@@ -177,6 +181,23 @@ export function registerB2CRoutes(app: Express) {
     } catch (error) {
       console.error('[B2C] Error updating quote request:', error);
       res.status(500).json({ message: 'Error al actualizar solicitud' });
+    }
+  });
+
+  /**
+   * DELETE /api/b2c/quote-requests/:id — Delete a quote request (admin only)
+   */
+  app.delete('/api/b2c/quote-requests/:id', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const deleted = await deleteQuoteRequest(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      res.json({ success: true, id: deleted.id });
+    } catch (error: any) {
+      console.error('[B2C] Error deleting quote request:', error);
+      res.status(500).json({ message: `Error al eliminar solicitud: ${error?.message || error}` });
     }
   });
 
@@ -223,9 +244,10 @@ export function registerB2CRoutes(app: Express) {
       }
 
       res.json(updated);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[B2C] Error assigning pricing:', error);
-      res.status(500).json({ message: 'Error al asignar precios' });
+      const detail = error?.message || String(error);
+      res.status(500).json({ message: `Error al asignar precios: ${detail}` });
     }
   });
 
@@ -256,9 +278,10 @@ export function registerB2CRoutes(app: Express) {
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[B2C] Error rendering quote PDF:', error);
-      res.status(500).send('Error al generar el PDF');
+      const detail = error?.message || String(error);
+      res.status(500).send(`Error al generar el PDF: ${detail}`);
     }
   });
 

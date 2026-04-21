@@ -540,7 +540,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                               >
                                 {priceLists.map(l => (
                                   <option key={l.code} value={l.code}>
-                                    {l.code}
+                                    {l.name}
                                   </option>
                                 ))}
                               </select>

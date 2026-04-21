@@ -165,19 +165,34 @@ export async function getQuoteRequests(options?: { status?: string; limit?: numb
 }
 
 /**
- * Update quote request status
+ * Update quote request status and/or internal notes.
+ * Either `status` or `internalNotes` (or both) can be provided.
  */
-export async function updateQuoteRequestStatus(id: string, status: string, internalNotes?: string) {
+export async function updateQuoteRequestStatus(
+  id: string,
+  status?: string,
+  internalNotes?: string,
+) {
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (status !== undefined) patch.status = status;
+  if (internalNotes !== undefined) patch.internalNotes = internalNotes;
+
   const [updated] = await db.update(quoteRequests)
-    .set({
-      status,
-      ...(internalNotes !== undefined ? { internalNotes } : {}),
-      updatedAt: new Date(),
-    })
+    .set(patch)
     .where(eq(quoteRequests.id, id))
     .returning();
 
   return updated;
+}
+
+/**
+ * Delete a quote request permanently.
+ */
+export async function deleteQuoteRequest(id: string) {
+  const [deleted] = await db.delete(quoteRequests)
+    .where(eq(quoteRequests.id, id))
+    .returning({ id: quoteRequests.id });
+  return deleted || null;
 }
 
 /**
@@ -267,22 +282,43 @@ export async function updateQuoteRequestPricing(
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + validDays);
 
-  const [updated] = await db.update(quoteRequests)
-    .set({
-      items: mergedItems,
-      quoteNumber,
-      subtotal: String(subtotal),
-      taxAmount: String(taxAmount),
-      totalAmount: String(total),
-      pricedAt: new Date(),
-      pricedByUserId: options.userId ?? null,
-      validUntilDate: validUntil,
-      status: 'quoted',
-      ...(options.internalNotes !== undefined ? { internalNotes: options.internalNotes } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(quoteRequests.id, id))
-    .returning();
+  if (!quoteRequestsTableChecked) {
+    await ensureQuoteRequestsTable();
+  }
+
+  const updateValues = {
+    items: mergedItems,
+    quoteNumber,
+    subtotal: String(subtotal),
+    taxAmount: String(taxAmount),
+    totalAmount: String(total),
+    pricedAt: new Date(),
+    pricedByUserId: options.userId ?? null,
+    validUntilDate: validUntil,
+    status: 'quoted' as const,
+    ...(options.internalNotes !== undefined ? { internalNotes: options.internalNotes } : {}),
+    updatedAt: new Date(),
+  };
+
+  const runUpdate = () =>
+    db.update(quoteRequests).set(updateValues).where(eq(quoteRequests.id, id)).returning();
+
+  let updated;
+  try {
+    [updated] = await runUpdate();
+  } catch (err: any) {
+    const code = err?.code;
+    // 42P01 undefined_table, 42703 undefined_column, 22P02 invalid_text_representation
+    // (UUID → INTEGER cast fails when legacy priced_by_user_id column still has INTEGER type)
+    if (code === '42P01' || code === '42703' || code === '22P02') {
+      console.warn(`[QuoteRequests] Schema/type mismatch on pricing update (${code}), self-healing and retrying…`);
+      quoteRequestsTableChecked = false;
+      await ensureQuoteRequestsTable();
+      [updated] = await runUpdate();
+    } else {
+      throw err;
+    }
+  }
 
   return updated;
 }
