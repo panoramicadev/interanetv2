@@ -596,8 +596,13 @@ export async function bootstrapDatabase(): Promise<void> {
       ON CONFLICT (user_id, client_id) DO NOTHING
     `);
 
+    // Asegurar columnas de ingreso en ecommerce_orders (recepción)
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_by_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_notes TEXT`);
+
     console.log('✅ Bootstrap de base de datos completado');
-    
+
   } catch (error: any) {
     console.error('❌ Error en bootstrap de base de datos:', error.message);
     throw error;
