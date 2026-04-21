@@ -5,6 +5,15 @@
  */
 
 import type { QuoteRequest, QuoteRequestItem } from '@shared/schema';
+import { normalizeFormat, PRODUCT_FORMATS } from '@shared/format-utils';
+
+const getItemSortOrder = (item: QuoteRequestItem): number => {
+  const canonical = normalizeFormat((item as any).format || '');
+  if (canonical && PRODUCT_FORMATS[canonical]) return PRODUCT_FORMATS[canonical].sortOrder;
+  const fromName = normalizeFormat(item.productName || '');
+  if (fromName && PRODUCT_FORMATS[fromName]) return PRODUCT_FORMATS[fromName].sortOrder;
+  return 50;
+};
 
 const escHtml = (s: unknown): string => {
   if (s === null || s === undefined) return '';
@@ -32,9 +41,10 @@ export function renderQuoteRequestPdfHtml(
   request: QuoteRequest,
   options: { logoUrl?: string } = {}
 ): string {
-  const items = ((request.items as QuoteRequestItem[]) || []).filter(
-    i => typeof i.unitPrice === 'number'
-  );
+  const items = ((request.items as QuoteRequestItem[]) || [])
+    .filter(i => typeof i.unitPrice === 'number')
+    .slice()
+    .sort((a, b) => getItemSortOrder(a) - getItemSortOrder(b));
 
   const subtotal = parseFloat(String(request.subtotal || '0')) || 0;
   const tax = parseFloat(String(request.taxAmount || '0')) || 0;
@@ -45,7 +55,7 @@ export function renderQuoteRequestPdfHtml(
   const logoUrl = options.logoUrl || '/panoramica-logo.png';
 
   const productRows = items
-    .map(item => {
+    .map((item, idx) => {
       const unitPrice = Number(item.unitPrice || 0);
       const lineTotal =
         Number(item.lineTotal ?? unitPrice * (item.quantity || 0));
@@ -65,6 +75,7 @@ export function renderQuoteRequestPdfHtml(
           : '';
 
       return `<tr>
+        <td style="text-align:center">${idx + 1}</td>
         <td>
           <div style="font-weight:600">${escHtml(item.productName)}</div>
           ${item.sku ? `<div style="color:#6b7280;font-size:11px">SKU: ${escHtml(item.sku)}</div>` : ''}
@@ -148,7 +159,7 @@ export function renderQuoteRequestPdfHtml(
   <div class="section">
     <h3>Detalle de Productos</h3>
     <table><thead><tr>
-      <th>Producto</th><th style="text-align:center">Formato</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
+      <th style="text-align:center;width:5%">#</th><th>Producto</th><th style="text-align:center">Formato</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
     </tr></thead><tbody>${productRows}</tbody></table>
   </div>
   <div class="section">

@@ -2,6 +2,18 @@
 // Keeps a single source of truth used by tomador-pedidos and the ecommerce
 // "Generar Cotización" modal, so both flows produce identical documents.
 
+import { normalizeFormat, PRODUCT_FORMATS } from '@shared/format-utils';
+
+const getFormatSortOrder = (item: any): number => {
+  const name = item.productName?.toString() || '';
+  if (name.startsWith('Despacho') || /flete/i.test(name)) return 100;
+  const canonical = normalizeFormat(item.productUnit || item.unidad || '');
+  if (canonical && PRODUCT_FORMATS[canonical]) return PRODUCT_FORMATS[canonical].sortOrder;
+  const fromName = normalizeFormat(name);
+  if (fromName && PRODUCT_FORMATS[fromName]) return PRODUCT_FORMATS[fromName].sortOrder;
+  return 50;
+};
+
 const escapeHtml = (text: string | number | null | undefined): string => {
   if (text === null || text === undefined || text === '') return '';
   const div = document.createElement('div');
@@ -31,13 +43,16 @@ export const generatePDFFromQuote = (quote: any, items: any[]) => {
 
     const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
 
-    const productRows = items.map(item => {
+    const sortedItems = [...items].sort((a, b) => getFormatSortOrder(a) - getFormatSortOrder(b));
+
+    const productRows = sortedItems.map((item, idx) => {
       const unitPrice = parseFloat(item.unitPrice);
       const lineTotal = parseFloat(item.totalPrice);
       const productUnit = escapeHtml(item.productUnit) || "UN";
 
       return `
           <tr>
+            <td class="text-center">${idx + 1}</td>
             <td>
               <div class="product-name">${escapeHtml(item.productName)}</div>
               ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
@@ -72,16 +87,18 @@ export const generatePDFFromQuote = (quote: any, items: any[]) => {
     .client-observations { grid-column: 1 / -1; margin-top: 8px; padding-top: 8px; border-top: 1px solid #fdba74; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; table-layout: fixed; }
     th { background: linear-gradient(to right, #fd6301, #e55100); color: white; padding: 8px; text-align: left; font-weight: bold; font-size: 12px; }
-    th:nth-child(1) { width: 45%; }
-    th:nth-child(2) { width: 12%; text-align: center; }
-    th:nth-child(3) { width: 10%; text-align: center; }
-    th:nth-child(4) { width: 16%; text-align: right; }
-    th:nth-child(5) { width: 17%; text-align: right; }
+    th:nth-child(1) { width: 5%; text-align: center; }
+    th:nth-child(2) { width: 42%; }
+    th:nth-child(3) { width: 12%; text-align: center; }
+    th:nth-child(4) { width: 9%; text-align: center; }
+    th:nth-child(5) { width: 15%; text-align: right; }
+    th:nth-child(6) { width: 17%; text-align: right; }
     td { padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
-    td:nth-child(2) { text-align: center; }
+    td:nth-child(1) { text-align: center; }
     td:nth-child(3) { text-align: center; }
-    td:nth-child(4) { text-align: right; }
+    td:nth-child(4) { text-align: center; }
     td:nth-child(5) { text-align: right; }
+    td:nth-child(6) { text-align: right; }
     tr:hover { background-color: #fff7ed; }
     .text-right { text-align: right; }
     .text-center { text-align: center; }
@@ -148,6 +165,7 @@ export const generatePDFFromQuote = (quote: any, items: any[]) => {
       <table>
         <thead>
           <tr>
+            <th class="text-center">#</th>
             <th>Producto</th>
             <th class="text-center">Unidad</th>
             <th class="text-center">Cant.</th>

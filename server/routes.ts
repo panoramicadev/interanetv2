@@ -395,6 +395,7 @@ import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
+import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import crypto from "crypto";
 
 interface TokenPayload {
@@ -12309,7 +12310,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Access denied to this quote" });
       }
 
-      const items = (quote as any).items || [];
+      const rawItems = (quote as any).items || [];
+      const getSortOrder = (it: any): number => {
+        const name = it.productName?.toString() || '';
+        if (name.startsWith('Despacho') || /flete/i.test(name)) return 100;
+        const canonical = normalizeFormat(it.productUnit || '');
+        if (canonical && PRODUCT_FORMATS[canonical]) return PRODUCT_FORMATS[canonical].sortOrder;
+        const fromName = normalizeFormat(name);
+        if (fromName && PRODUCT_FORMATS[fromName]) return PRODUCT_FORMATS[fromName].sortOrder;
+        return 50;
+      };
+      const items = [...rawItems].sort((a: any, b: any) => getSortOrder(a) - getSortOrder(b));
 
       // Format helpers
       const escHtml = (s: string | null | undefined) => {
@@ -12323,10 +12334,11 @@ export function registerRoutes(app: Express): Server {
       const tax = parseFloat(quote.taxAmount || "0");
       const total = parseFloat(quote.total || "0");
 
-      const productRows = items.map((item: any) => {
+      const productRows = items.map((item: any, idx: number) => {
         const unitPrice = parseFloat(item.unitPrice || "0");
         const lineTotal = parseFloat(item.totalPrice || String(unitPrice * parseFloat(item.quantity || "1")));
         return `<tr>
+          <td style="text-align:center">${idx + 1}</td>
           <td><div style="font-weight:600">${escHtml(item.productName)}</div>
           ${item.productCode ? `<div style="color:#6b7280;font-size:11px">SKU: ${escHtml(item.productCode)}</div>` : ''}</td>
           <td style="text-align:center">${escHtml(item.productUnit) || 'UN'}</td>
@@ -12395,7 +12407,7 @@ export function registerRoutes(app: Express): Server {
   <div class="section">
     <h3>Detalle de Productos</h3>
     <table><thead><tr>
-      <th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
+      <th style="text-align:center;width:5%">#</th><th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
     </tr></thead><tbody>${productRows}</tbody></table>
   </div>
   <div class="section">
