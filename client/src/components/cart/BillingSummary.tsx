@@ -65,6 +65,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'transfer' | 'credit'>('transfer');
+  const [paymentMethodTouched, setPaymentMethodTouched] = useState(false);
   const [purchaseOrderPdfUrl, setPurchaseOrderPdfUrl] = useState<string | null>(null);
   const [purchaseOrderFileName, setPurchaseOrderFileName] = useState<string | null>(null);
   const [isUploadingOC, setIsUploadingOC] = useState(false);
@@ -566,6 +567,16 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const isCredit = clientData?.cpen?.toUpperCase().includes('CREDITO') || clientData?.cpen?.toUpperCase().includes('CRÉDITO') || (Number(clientData?.crlt) > 0);
   const requiresReceipt = !isCredit; // Default to expecting receipt if not credit
 
+  // Default to Crédito for clients with credit available (until user manually changes)
+  useEffect(() => {
+    if (isCredit && !paymentMethodTouched) {
+      setSelectedPaymentMethod('credit');
+    }
+  }, [isCredit, paymentMethodTouched]);
+
+  // Highlight OC upload for credit clients who haven't attached one yet
+  const shouldHighlightOCUpload = isCredit && selectedPaymentMethod === 'credit' && !purchaseOrderPdfUrl && !isUploadingOC;
+
   return (
     <>
     <Card className="bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
@@ -816,7 +827,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
             
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => setSelectedPaymentMethod('transfer')}
+                onClick={() => { setPaymentMethodTouched(true); setSelectedPaymentMethod('transfer'); }}
                 className={`flex items-center justify-start gap-2 px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
                   selectedPaymentMethod === 'transfer'
                     ? 'border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm'
@@ -830,7 +841,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
               </button>
 
               <button
-                onClick={() => isCredit && setSelectedPaymentMethod('credit')}
+                onClick={() => { if (isCredit) { setPaymentMethodTouched(true); setSelectedPaymentMethod('credit'); } }}
                 disabled={!isCredit}
                 className={`flex items-center justify-start gap-2 px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
                   !isCredit
@@ -1050,13 +1061,15 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         </div>
 
         {/* Purchase Order PDF Upload (optional) */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-            <FileUp className="h-4 w-4" />
-            Orden de Compra (opcional)
+        <div className={`space-y-2 rounded-xl transition-all ${shouldHighlightOCUpload ? 'p-3 -mx-1 bg-gradient-to-br from-blue-50/60 to-transparent dark:from-blue-950/30 ring-1 ring-blue-200/60 dark:ring-blue-800/60' : ''}`}>
+          <Label className={`text-sm font-medium flex items-center gap-2 ${shouldHighlightOCUpload ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+            <FileUp className={`h-4 w-4 ${shouldHighlightOCUpload ? 'text-blue-500 animate-bounce-slow' : ''}`} />
+            Orden de Compra {shouldHighlightOCUpload ? <span className="text-[10px] font-semibold bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">Recomendado</span> : <span className="text-xs font-normal text-gray-400">(opcional)</span>}
           </Label>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 -mt-1">
-            Puedes adjuntar tu OC en formato PDF para que acompañe el pedido.
+          <p className={`text-[11px] -mt-1 ${shouldHighlightOCUpload ? 'text-blue-600/80 dark:text-blue-400/80' : 'text-gray-400 dark:text-gray-500'}`}>
+            {shouldHighlightOCUpload
+              ? 'Al pagar a crédito te recomendamos adjuntar tu OC en PDF para agilizar el despacho.'
+              : 'Puedes adjuntar tu OC en formato PDF para que acompañe el pedido.'}
           </p>
           
           {purchaseOrderPdfUrl ? (
@@ -1086,9 +1099,11 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
             <>
               <Label
                 htmlFor="purchase-order-upload"
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                className={`relative flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
                   isUploadingOC
                     ? 'border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/30'
+                    : shouldHighlightOCUpload
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40 animate-glow-ring hover:bg-blue-100 dark:hover:bg-blue-900/50'
                     : 'border-gray-200 dark:border-gray-700 hover:border-[#FF6E23]/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20'
                 }`}
               >
@@ -1099,8 +1114,10 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                   </>
                 ) : (
                   <>
-                    <FileUp className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Adjuntar PDF de Orden de Compra</span>
+                    <FileUp className={`w-4 h-4 ${shouldHighlightOCUpload ? 'text-blue-500 animate-bounce-slow' : 'text-gray-400'}`} />
+                    <span className={`text-sm font-medium ${shouldHighlightOCUpload ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      Adjuntar PDF de Orden de Compra
+                    </span>
                   </>
                 )}
               </Label>

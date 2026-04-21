@@ -108,12 +108,30 @@ export default {
             backgroundPosition: "-200% 0",
           },
         },
+        "glow-ring": {
+          "0%, 100%": {
+            boxShadow: "0 0 0 0 rgba(59, 130, 246, 0.5)",
+          },
+          "50%": {
+            boxShadow: "0 0 0 8px rgba(59, 130, 246, 0)",
+          },
+        },
+        "bounce-slow": {
+          "0%, 100%": {
+            transform: "translateY(0)",
+          },
+          "50%": {
+            transform: "translateY(-3px)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-slow": "pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "shimmer": "shimmer 3s ease-in-out infinite",
+        "glow-ring": "glow-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "bounce-slow": "bounce-slow 2s ease-in-out infinite",
       },
     },
   },
