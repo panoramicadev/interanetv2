@@ -7322,6 +7322,95 @@ export function registerRoutes(app: Express): Server {
     res.json(updated);
   }));
 
+  // Update order payment condition (admin/supervisor/reception).
+  // If order is pending:
+  //   - "Transferencia": auto-approve, NO consume credit
+  //   - "Crédito": auto-approve AND consume client credit (same side-effect as status=approved)
+  app.patch('/api/ecommerce/orders/:id/payment-condition', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor', 'reception'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const raw = typeof req.body?.paymentCondition === 'string' ? req.body.paymentCondition.trim() : '';
+    if (!raw) {
+      return res.status(400).json({ message: 'Condición de pago requerida' });
+    }
+    const paymentCondition = raw.slice(0, 120);
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [existing] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+    if (!existing) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    const isTransferencia = /transferencia/i.test(paymentCondition);
+    const isCredito = /cr[eé]dito/i.test(paymentCondition);
+    const shouldAutoApprove = (isTransferencia || isCredito) && existing.status === 'pending';
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        paymentCondition,
+        ...(shouldAutoApprove ? { status: 'approved', approvedAt: new Date(), approvedById: user.id } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    // Consume client credit if approved via "Crédito" (mirrors /status approval logic)
+    if (shouldAutoApprove && isCredito) {
+      try {
+        const { salespeopleUsers, users, clients } = await import('@shared/schema');
+        const { or, desc } = await import('drizzle-orm');
+
+        let clientRecordMatch = null;
+        if (updated.clientId) {
+          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientId)).limit(1);
+          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientId)).limit(1) : null;
+
+          const userName = sUser[0]?.salespersonName || legacyUser?.[0]?.firstName || null;
+
+          if (userName) {
+            const possibleClients = await db.select().from(clients)
+              .where(or(
+                eq(clients.userId, updated.clientId),
+                eq(clients.nokoen, userName.toUpperCase())
+              ))
+              .orderBy(desc(clients.updatedAt))
+              .limit(1);
+
+            if (possibleClients.length > 0) {
+              clientRecordMatch = possibleClients[0];
+            }
+          }
+        }
+
+        if (clientRecordMatch && clientRecordMatch.crlt) {
+          const limit = parseFloat(clientRecordMatch.crlt) || 0;
+          const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
+          const orderTotal = parseFloat(updated.total as string || '0') || 0;
+
+          const newUsed = used + orderTotal;
+          const newAvailable = Math.max(0, limit - newUsed);
+
+          await db.update(clients).set({
+            crsd: newUsed.toString(),
+            cren: newAvailable.toString()
+          }).where(eq(clients.id, clientRecordMatch.id));
+        }
+      } catch (e) {
+        console.error('Error updating client credit on payment-condition credit approval:', e);
+      }
+    }
+
+    res.json(updated);
+  }));
+
   // Manually edit order item prices (admin/supervisor/salesperson only).
   // Accepts a full replacement items array; recomputes totals; marks order as modified.
   app.patch('/api/ecommerce/orders/:id/items', requireAuth, asyncHandler(async (req: any, res: any) => {

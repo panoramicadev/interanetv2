@@ -150,8 +150,12 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showIngresarDialog, setShowIngresarDialog] = useState(false);
   const [isIngresando, setIsIngresando] = useState(false);
   const [ingresadoNotes, setIngresadoNotes] = useState('');
+  const [showPaymentConditionDialog, setShowPaymentConditionDialog] = useState(false);
+  const [paymentConditionValue, setPaymentConditionValue] = useState('');
+  const [isSavingPaymentCondition, setIsSavingPaymentCondition] = useState(false);
   const { user } = useAuth();
   const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
+  const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
 
   // Price editing state
   const [isEditingPrices, setIsEditingPrices] = useState(false);
@@ -269,6 +273,53 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       toast({ title: 'Error', description: err.message || 'No se pudo marcar como ingresado', variant: 'destructive' });
     } finally {
       setIsIngresando(false);
+    }
+  };
+
+  const openPaymentConditionDialog = () => {
+    setPaymentConditionValue(currentOrder.paymentCondition || 'Transferencia');
+    setShowPaymentConditionDialog(true);
+  };
+
+  const handleSavePaymentCondition = async () => {
+    if (isSavingPaymentCondition) return;
+    const value = paymentConditionValue.trim();
+    if (!value) {
+      toast({ title: 'Condición requerida', variant: 'destructive' });
+      return;
+    }
+    setIsSavingPaymentCondition(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/payment-condition`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ paymentCondition: value }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al actualizar');
+      }
+      const updated = await res.json();
+      setCurrentOrder(prev => ({ ...prev, ...updated }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders/pending-count'] });
+      const wasPending = currentOrder.status === 'pending';
+      const autoApproved = wasPending && updated.status === 'approved';
+      const isCreditoNew = /cr[eé]dito/i.test(value);
+      toast({
+        title: 'Condición de pago actualizada',
+        description: autoApproved
+          ? (isCreditoNew
+              ? 'Pedido aprobado automáticamente — cupo de crédito consumido'
+              : 'Pedido aprobado automáticamente por transferencia')
+          : undefined,
+      });
+      setShowPaymentConditionDialog(false);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSavingPaymentCondition(false);
     }
   };
 
@@ -597,6 +648,53 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   disabled={isIngresando}
                 >
                   {isIngresando ? 'Marcando...' : 'Marcar como ingresado'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Payment condition edit dialog */}
+        {canEditPaymentCondition && (
+          <AlertDialog open={showPaymentConditionDialog} onOpenChange={setShowPaymentConditionDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Editar condición de pago</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Si seleccionás "Transferencia" y el pedido está pendiente, será aprobado automáticamente sin consumir cupo de crédito.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {['Transferencia', 'Crédito', 'Contado', 'Cheque'].map(opt => (
+                    <Button
+                      key={opt}
+                      type="button"
+                      variant={paymentConditionValue === opt ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setPaymentConditionValue(opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="payment-condition-input" className="text-xs">O ingresá una condición personalizada</Label>
+                  <Input
+                    id="payment-condition-input"
+                    value={paymentConditionValue}
+                    onChange={(e) => setPaymentConditionValue(e.target.value)}
+                    placeholder="Ej: Transferencia, Crédito 30 días..."
+                  />
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isSavingPaymentCondition}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleSavePaymentCondition(); }}
+                  disabled={isSavingPaymentCondition}
+                >
+                  {isSavingPaymentCondition ? 'Guardando...' : 'Guardar'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1049,12 +1147,25 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
               )}
 
               {/* Payment Condition & Receipt */}
-              {order.paymentCondition && (
+              {(currentOrder.paymentCondition || canEditPaymentCondition) && (
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-                  <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Condición de pago</h5>
+                  <div className="flex items-center justify-between gap-2">
+                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Condición de pago</h5>
+                    {canEditPaymentCondition && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={openPaymentConditionDialog}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Editar
+                      </Button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <Landmark className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <span className="font-medium truncate">{order.paymentCondition}</span>
+                    <span className="font-medium truncate">{currentOrder.paymentCondition || '—'}</span>
                   </div>
                 </div>
               )}
