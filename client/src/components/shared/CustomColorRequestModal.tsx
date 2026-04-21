@@ -51,6 +51,17 @@ interface CatalogProduct {
 }
 
 const MIN_TINETAS = 5;
+const MIN_GALONES = 20;
+
+// Sólo se cotiza color personalizado en Galón o Tineta (balde). Excluye 1/4 galón, litros, etc.
+const isEligibleFormat = (f: string) => {
+  const u = f.toLowerCase();
+  if (u.includes('1/4') || u.includes('1/8') || u.includes('1/2')) return false;
+  return u.includes('galon') || u.includes('galón') || u.includes('balde') || u.includes('tineta');
+};
+const isTineta = (f: string) => /balde|tineta/i.test(f);
+const minQtyFor = (f: string) => (isTineta(f) ? MIN_TINETAS : MIN_GALONES);
+const unitLabelFor = (f: string) => (isTineta(f) ? 'tinetas' : 'galones');
 
 const COLOR_BRANDS = [
   { id: 'panoramica', label: 'Panorámica', hint: 'Código interno Panorámica' },
@@ -164,7 +175,9 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
     if (!selectedProduct) return [];
     const formats = new Set<string>();
     Object.values(selectedProduct.colors).forEach(variants => {
-      variants.forEach(v => formats.add(v.format));
+      variants.forEach(v => {
+        if (isEligibleFormat(v.format)) formats.add(v.format);
+      });
     });
     return Array.from(formats);
   }, [selectedProduct]);
@@ -175,6 +188,17 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
       setSelectedFormat(availableFormats[0]);
     }
   }, [selectedProduct, selectedFormat, availableFormats]);
+
+  // Ajusta la cantidad mínima automáticamente según el formato elegido
+  useEffect(() => {
+    if (!selectedFormat) return;
+    const min = minQtyFor(selectedFormat);
+    setForm(p => {
+      const current = Number(p.quantity);
+      if (!current || current < min) return { ...p, quantity: String(min) };
+      return p;
+    });
+  }, [selectedFormat]);
 
   const goNext = () => {
     const order: Step[] = ['intro', 'product', 'color', 'contact'];
@@ -202,8 +226,9 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.visitorEmail))
       e.visitorEmail = 'Email inválido';
     const qty = Number(form.quantity);
-    if (!qty || qty < MIN_TINETAS)
-      e.quantity = `Mínimo ${MIN_TINETAS} tinetas`;
+    const min = minQtyFor(selectedFormat);
+    const unit = unitLabelFor(selectedFormat);
+    if (!qty || qty < min) e.quantity = `Mínimo ${min} ${unit}`;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -416,11 +441,13 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-amber-900 mb-0.5">
-                            Pedido mínimo: {MIN_TINETAS} tinetas
+                            Sólo en Galón o Tineta (balde)
                           </p>
                           <p className="text-xs text-amber-800/80">
-                            Todas las cotizaciones de colores personalizados requieren un mínimo de{' '}
-                            <strong>{MIN_TINETAS} tinetas</strong> del producto seleccionado.
+                            Los colores personalizados se fabrican únicamente en formato{' '}
+                            <strong>Galón</strong> o <strong>Tineta</strong>, con un pedido mínimo
+                            de <strong>{MIN_TINETAS} tinetas</strong> o{' '}
+                            <strong>{MIN_GALONES} galones</strong> del producto seleccionado.
                           </p>
                         </div>
                       </div>
@@ -888,11 +915,11 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                       {/* Quantity */}
                       <div>
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <Package className="w-3 h-3" /> Cantidad tinetas *
+                          <Package className="w-3 h-3" /> Cantidad {unitLabelFor(selectedFormat)} *
                         </label>
                         <input
                           type="number"
-                          min={MIN_TINETAS}
+                          min={minQtyFor(selectedFormat)}
                           step={1}
                           value={form.quantity}
                           onChange={e => {
@@ -912,8 +939,8 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                           </p>
                         ) : (
                           <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                            <Info className="w-3 h-3" /> Mínimo {MIN_TINETAS}{' '}
-                            tinetas
+                            <Info className="w-3 h-3" /> Mínimo{' '}
+                            {minQtyFor(selectedFormat)} {unitLabelFor(selectedFormat)}
                           </p>
                         )}
                       </div>
