@@ -31,14 +31,14 @@ async function ensureQuoteRequestsTable() {
         items JSONB NOT NULL,
         item_count INTEGER NOT NULL DEFAULT 0,
         status VARCHAR NOT NULL DEFAULT 'pending',
-        assigned_to_user_id INTEGER,
+        assigned_to_user_id VARCHAR,
         internal_notes TEXT,
         quote_number VARCHAR,
         subtotal NUMERIC(15, 2),
         tax_amount NUMERIC(15, 2),
         total_amount NUMERIC(15, 2),
         priced_at TIMESTAMP,
-        priced_by_user_id INTEGER,
+        priced_by_user_id VARCHAR,
         valid_until_date TIMESTAMP,
         source VARCHAR DEFAULT 'b2c_cotizador',
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -52,20 +52,33 @@ async function ensureQuoteRequestsTable() {
       ['visitor_city', 'VARCHAR'],
       ['visitor_rut', 'VARCHAR'],
       ['message', 'TEXT'],
-      ['assigned_to_user_id', 'INTEGER'],
+      ['assigned_to_user_id', 'VARCHAR'],
       ['internal_notes', 'TEXT'],
       ['quote_number', 'VARCHAR'],
       ['subtotal', 'NUMERIC(15, 2)'],
       ['tax_amount', 'NUMERIC(15, 2)'],
       ['total_amount', 'NUMERIC(15, 2)'],
       ['priced_at', 'TIMESTAMP'],
-      ['priced_by_user_id', 'INTEGER'],
+      ['priced_by_user_id', 'VARCHAR'],
       ['valid_until_date', 'TIMESTAMP'],
     ];
     for (const [name, type] of cols) {
       await db.execute(
         sql.raw(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS ${name} ${type}`)
       );
+    }
+
+    // Migrate legacy INTEGER user-id columns to VARCHAR so UUID user ids fit.
+    for (const col of ['priced_by_user_id', 'assigned_to_user_id']) {
+      try {
+        await db.execute(
+          sql.raw(
+            `ALTER TABLE quote_requests ALTER COLUMN ${col} TYPE VARCHAR USING ${col}::varchar`
+          )
+        );
+      } catch {
+        /* already varchar or no rows to cast — ignore */
+      }
     }
 
     quoteRequestsTableChecked = true;
@@ -79,6 +92,15 @@ export interface PricingItemInput {
   color?: string;
   format?: string;
   unitPrice: number;
+  priceListCode?: string;
+}
+
+export interface ShippingItemInput {
+  sku?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  format?: string;
 }
 
 /**
@@ -174,9 +196,10 @@ export async function updateQuoteRequestPricing(
   id: string,
   pricingItems: PricingItemInput[],
   options: {
-    userId?: number | null;
+    userId?: string | null;
     internalNotes?: string;
     validDays?: number;
+    shippingItems?: ShippingItemInput[];
   } = {}
 ) {
   const current = await getQuoteRequestById(id);
@@ -188,21 +211,50 @@ export async function updateQuoteRequestPricing(
     `${sku}__${color || ''}__${format || ''}`.toUpperCase();
 
   const priceMap = new Map<string, number>();
+  const listMap = new Map<string, string | undefined>();
   for (const p of pricingItems) {
-    priceMap.set(keyOf(p.sku, p.color, p.format), Number(p.unitPrice) || 0);
+    const k = keyOf(p.sku, p.color, p.format);
+    priceMap.set(k, Number(p.unitPrice) || 0);
+    listMap.set(k, p.priceListCode);
   }
 
   let subtotal = 0;
   const pricedItems: QuoteRequestItem[] = currentItems.map(item => {
+    const k = keyOf(item.sku, item.color, item.format);
     const unitPrice =
-      priceMap.get(keyOf(item.sku, item.color, item.format)) ??
+      priceMap.get(k) ??
       priceMap.get(keyOf(item.sku)) ??
       item.unitPrice ??
       0;
     const lineTotal = Math.round(unitPrice * (item.quantity || 0));
     subtotal += lineTotal;
-    return { ...item, unitPrice, lineTotal };
+    return {
+      ...item,
+      unitPrice,
+      lineTotal,
+      priceListCode: listMap.get(k) ?? listMap.get(keyOf(item.sku)) ?? item.priceListCode,
+    };
   });
+
+  const shippingLines: QuoteRequestItem[] = (options.shippingItems || [])
+    .filter(s => s && s.productName && Number(s.quantity) > 0 && Number(s.unitPrice) >= 0)
+    .map(s => {
+      const qty = Number(s.quantity) || 0;
+      const unit = Number(s.unitPrice) || 0;
+      const line = Math.round(qty * unit);
+      subtotal += line;
+      return {
+        sku: (s.sku || 'DESPACHO').toString(),
+        productName: s.productName,
+        quantity: qty,
+        format: s.format || 'UN',
+        itemType: 'shipping' as const,
+        unitPrice: unit,
+        lineTotal: line,
+      };
+    });
+
+  const mergedItems = [...pricedItems, ...shippingLines];
 
   const taxAmount = Math.round(subtotal * TAX_RATE);
   const total = subtotal + taxAmount;
@@ -217,7 +269,7 @@ export async function updateQuoteRequestPricing(
 
   const [updated] = await db.update(quoteRequests)
     .set({
-      items: pricedItems,
+      items: mergedItems,
       quoteNumber,
       subtotal: String(subtotal),
       taxAmount: String(taxAmount),

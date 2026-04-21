@@ -17,6 +17,9 @@ import {
   AlertCircle,
   Tag,
   RefreshCw,
+  Truck,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface QuoteRequestItem {
@@ -67,8 +70,18 @@ interface PriceListOption {
   type: 'base' | 'custom' | 'offer';
 }
 
+interface ShippingLine {
+  id: string;
+  productName: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 export default function QuoteRequestPricingModal({ open, request, onClose, onSuccess }: Props) {
   const [prices, setPrices] = useState<Record<string, string>>({});
+  const [itemLists, setItemLists] = useState<Record<string, string>>({});
+  const [rowApplying, setRowApplying] = useState<Record<string, boolean>>({});
+  const [shippingLines, setShippingLines] = useState<ShippingLine[]>([]);
   const [notes, setNotes] = useState('');
   const [validDays, setValidDays] = useState(7);
   const [submitting, setSubmitting] = useState(false);
@@ -104,11 +117,16 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
   useEffect(() => {
     if (!request) return;
     const initial: Record<string, string> = {};
+    const initialLists: Record<string, string> = {};
     (request.items || []).forEach((it, idx) => {
       const key = `${idx}`;
       initial[key] = it.unitPrice ? String(it.unitPrice) : '';
+      initialLists[key] = 'LP01';
     });
     setPrices(initial);
+    setItemLists(initialLists);
+    setShippingLines([]);
+    setRowApplying({});
     setNotes(request.internalNotes || '');
     setSelectedList('LP01');
     setListMessage(null);
@@ -160,6 +178,19 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
         return next;
       });
 
+      setItemLists(prev => {
+        const next = { ...prev };
+        items.forEach((it, idx) => {
+          if (it.itemType === 'custom_color') return;
+          const sku = (it.sku || '').toUpperCase();
+          if (resolved[sku] != null) {
+            const key = `${idx}`;
+            if (opts.overwrite || !prev[key]) next[key] = listCode;
+          }
+        });
+        return next;
+      });
+
       const filled = skus.filter(s => resolved[s] != null).length;
       const missing = Array.isArray(data?.missing) ? data.missing.length : skus.length - filled;
       setListMessage(
@@ -174,6 +205,58 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
     }
   };
 
+  // Apply a single item's price from a selected list (per-row selector)
+  const applyListForItem = async (idx: number, listCode: string) => {
+    if (!request) return;
+    const item = request.items?.[idx];
+    if (!item || item.itemType === 'custom_color') return;
+    const sku = (item.sku || '').toUpperCase();
+    if (!sku) return;
+    const key = `${idx}`;
+    setRowApplying(p => ({ ...p, [key]: true }));
+    try {
+      const res = await fetch('/api/b2c/admin/resolve-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ listCode, skus: [sku] }),
+      });
+      if (!res.ok) throw new Error('No se pudo obtener el precio');
+      const data = await res.json();
+      const p = data?.prices?.[sku];
+      if (typeof p === 'number' && p > 0) {
+        setPrices(prev => ({ ...prev, [key]: String(p) }));
+        setItemLists(prev => ({ ...prev, [key]: listCode }));
+      } else {
+        setError(`SKU ${sku} sin precio en ${listCode}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Error al obtener precio');
+    } finally {
+      setRowApplying(p => ({ ...p, [key]: false }));
+    }
+  };
+
+  const addShippingLine = () => {
+    setShippingLines(prev => [
+      ...prev,
+      {
+        id: `ship-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        productName: 'Despacho',
+        quantity: '1',
+        unitPrice: '',
+      },
+    ]);
+  };
+
+  const updateShippingLine = (id: string, field: keyof ShippingLine, value: string) => {
+    setShippingLines(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
+  };
+
+  const removeShippingLine = (id: string) => {
+    setShippingLines(prev => prev.filter(s => s.id !== id));
+  };
+
   // Auto-apply default list once items + lists are loaded (only if nothing is pre-filled)
   useEffect(() => {
     if (!open || !request || priceLists.length === 0) return;
@@ -186,23 +269,36 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
   }, [open, request?.id, priceLists.length]);
 
   const totals = useMemo(() => {
-    if (!request) return { subtotal: 0, tax: 0, total: 0 };
-    let subtotal = 0;
+    if (!request) return { productsSubtotal: 0, subtotal: 0, tax: 0, total: 0, shippingSubtotal: 0 };
+    let productsSubtotal = 0;
     (request.items || []).forEach((it, idx) => {
       const price = parseFloat(prices[`${idx}`] || '0') || 0;
-      subtotal += Math.round(price * (it.quantity || 0));
+      productsSubtotal += Math.round(price * (it.quantity || 0));
     });
+    let shippingSubtotal = 0;
+    shippingLines.forEach(s => {
+      const q = parseFloat(s.quantity) || 0;
+      const p = parseFloat(s.unitPrice) || 0;
+      shippingSubtotal += Math.round(q * p);
+    });
+    const subtotal = productsSubtotal + shippingSubtotal;
     const tax = Math.round(subtotal * TAX_RATE);
-    return { subtotal, tax, total: subtotal + tax };
-  }, [prices, request]);
+    return { productsSubtotal, subtotal, tax, total: subtotal + tax, shippingSubtotal };
+  }, [prices, request, shippingLines]);
 
   const allPriced = useMemo(() => {
     if (!request) return false;
-    return (request.items || []).every((_, idx) => {
+    const itemsOk = (request.items || []).every((_, idx) => {
       const p = parseFloat(prices[`${idx}`] || '0');
       return !isNaN(p) && p > 0;
     });
-  }, [prices, request]);
+    const shippingOk = shippingLines.every(s => {
+      const q = parseFloat(s.quantity) || 0;
+      const p = parseFloat(s.unitPrice) || 0;
+      return s.productName.trim().length > 0 && q > 0 && p >= 0;
+    });
+    return itemsOk && shippingOk;
+  }, [prices, request, shippingLines]);
 
   if (!open || !request) return null;
 
@@ -220,6 +316,13 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
           color: it.color,
           format: it.format,
           unitPrice: parseFloat(prices[`${idx}`] || '0') || 0,
+          priceListCode: itemLists[`${idx}`] || undefined,
+        })),
+        shippingItems: shippingLines.map(s => ({
+          sku: 'DESPACHO',
+          productName: s.productName.trim(),
+          quantity: parseFloat(s.quantity) || 0,
+          unitPrice: parseFloat(s.unitPrice) || 0,
         })),
         internalNotes: notes,
         validDays,
@@ -422,6 +525,32 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                           </p>
                         </div>
 
+                        {/* Per-row price list selector */}
+                        {!isCustom && priceLists.length > 0 && (
+                          <div className="shrink-0 w-36">
+                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">
+                              Lista
+                            </p>
+                            <div className="relative">
+                              <select
+                                value={itemLists[`${idx}`] || 'LP01'}
+                                disabled={!!rowApplying[`${idx}`]}
+                                onChange={e => applyListForItem(idx, e.target.value)}
+                                className="w-full pl-2 pr-6 py-1.5 border border-slate-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 disabled:opacity-60"
+                              >
+                                {priceLists.map(l => (
+                                  <option key={l.code} value={l.code}>
+                                    {l.code}
+                                  </option>
+                                ))}
+                              </select>
+                              {rowApplying[`${idx}`] && (
+                                <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-slate-400" />
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Unit price input */}
                         <div className="shrink-0 w-32">
                           <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">
@@ -461,6 +590,102 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Despacho / shipping lines */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-[#FF6E23]" />
+                    Despacho
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addShippingLine}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-[#FF6E23] hover:bg-orange-50 border border-orange-200"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Agregar línea
+                  </button>
+                </div>
+                {shippingLines.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">
+                    Sin línea de despacho. Pulsa "Agregar línea" para cobrar flete manualmente.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {shippingLines.map(line => {
+                      const q = parseFloat(line.quantity) || 0;
+                      const p = parseFloat(line.unitPrice) || 0;
+                      const total = Math.round(q * p);
+                      return (
+                        <div
+                          key={line.id}
+                          className="flex items-center gap-3 p-3 rounded-xl border bg-orange-50/40 border-orange-200"
+                        >
+                          <div className="w-12 h-12 rounded-lg bg-white border border-orange-200 flex items-center justify-center shrink-0">
+                            <Truck className="w-5 h-5 text-[#FF6E23]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <input
+                              value={line.productName}
+                              onChange={e => updateShippingLine(line.id, 'productName', e.target.value)}
+                              placeholder="Despacho"
+                              className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                            />
+                          </div>
+                          <div className="shrink-0 w-20">
+                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">
+                              Cant.
+                            </p>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={line.quantity}
+                              onChange={e => updateShippingLine(line.id, 'quantity', e.target.value)}
+                              className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                            />
+                          </div>
+                          <div className="shrink-0 w-32">
+                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">
+                              Precio unit. *
+                            </p>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={line.unitPrice}
+                                onChange={e => updateShippingLine(line.id, 'unitPrice', e.target.value)}
+                                placeholder="0"
+                                className="w-full pl-6 pr-2 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                              />
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 w-28">
+                            <p className="text-[10px] text-slate-400 uppercase font-bold">
+                              Total
+                            </p>
+                            <p className="text-sm font-black text-[#FF6E23]">
+                              {total > 0 ? fmtCLP(total) : '—'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeShippingLine(line.id)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Eliminar línea"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Totals + options */}
@@ -504,11 +729,21 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                 {/* Totals */}
                 <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4">
                   <div className="flex justify-between text-sm text-slate-600 mb-1.5">
-                    <span>Subtotal</span>
+                    <span>Subtotal productos</span>
                     <span className="font-semibold text-slate-800">
-                      {fmtCLP(totals.subtotal)}
+                      {fmtCLP(totals.productsSubtotal)}
                     </span>
                   </div>
+                  {totals.shippingSubtotal > 0 && (
+                    <div className="flex justify-between text-sm text-slate-600 mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5 text-[#FF6E23]" /> Despacho
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {fmtCLP(totals.shippingSubtotal)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm text-slate-600 mb-1.5">
                     <span>IVA (19%)</span>
                     <span className="font-semibold text-slate-800">

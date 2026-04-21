@@ -186,7 +186,7 @@ export function registerB2CRoutes(app: Express) {
   app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { items, internalNotes, validDays } = req.body;
+      const { items, internalNotes, validDays, shippingItems } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: 'Debe incluir al menos un item con precio' });
@@ -199,10 +199,23 @@ export function registerB2CRoutes(app: Express) {
         return res.status(400).json({ message: 'Items inválidos: sku y unitPrice son requeridos' });
       }
 
+      const cleanShipping = Array.isArray(shippingItems)
+        ? shippingItems
+            .map((s: any) => ({
+              sku: s?.sku ? String(s.sku) : undefined,
+              productName: String(s?.productName || '').trim(),
+              quantity: Number(s?.quantity) || 0,
+              unitPrice: Number(s?.unitPrice) || 0,
+              format: s?.format ? String(s.format) : undefined,
+            }))
+            .filter(s => s.productName && s.quantity > 0)
+        : [];
+
       const updated = await updateQuoteRequestPricing(id, items, {
-        userId: req.user?.id ?? null,
+        userId: req.user?.id ? String(req.user.id) : null,
         internalNotes,
         validDays: typeof validDays === 'number' ? validDays : undefined,
+        shippingItems: cleanShipping,
       });
 
       if (!updated) {

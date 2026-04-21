@@ -7315,13 +7315,14 @@ export interface QuoteRequestItem {
   format?: string;
   quantity: number;
   imageUrl?: string;
-  itemType?: 'standard' | 'custom_color';
+  itemType?: 'standard' | 'custom_color' | 'shipping';
   customColorCode?: string;
   customColorBrand?: string;
   customColorHex?: string;
   customColorNotes?: string;
   unitPrice?: number;
   lineTotal?: number;
+  priceListCode?: string;
 }
 
 export const quoteRequests = pgTable("quote_requests", {
@@ -7339,7 +7340,7 @@ export const quoteRequests = pgTable("quote_requests", {
   itemCount: integer("item_count").notNull().default(0),
   // Internal management
   status: varchar("status").notNull().default("pending"), // pending, contacted, quoted, closed
-  assignedToUserId: integer("assigned_to_user_id"),
+  assignedToUserId: varchar("assigned_to_user_id"),
   internalNotes: text("internal_notes"),
   // Pricing (filled when quote is assigned prices)
   quoteNumber: varchar("quote_number"),
@@ -7347,7 +7348,7 @@ export const quoteRequests = pgTable("quote_requests", {
   taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }),
   totalAmount: numeric("total_amount", { precision: 15, scale: 2 }),
   pricedAt: timestamp("priced_at"),
-  pricedByUserId: integer("priced_by_user_id"),
+  pricedByUserId: varchar("priced_by_user_id"),
   validUntilDate: timestamp("valid_until_date"),
   // Tracking
   source: varchar("source").default("b2c_cotizador"),
