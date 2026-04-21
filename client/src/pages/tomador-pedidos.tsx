@@ -33,7 +33,17 @@ import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
-import { getShippingKey as getShippingKeyFn, getFormatOptions } from '@shared/format-utils';
+import { getShippingKey as getShippingKeyFn, getFormatOptions, normalizeFormat, PRODUCT_FORMATS } from '@shared/format-utils';
+
+const getQuoteItemSortOrder = (item: any): number => {
+  const name = item?.productName?.toString() || '';
+  if (name.startsWith('Despacho') || /flete/i.test(name)) return 100;
+  const canonical = normalizeFormat(item?.productUnit || item?.unit || '');
+  if (canonical && PRODUCT_FORMATS[canonical]) return PRODUCT_FORMATS[canonical].sortOrder;
+  const fromName = normalizeFormat(name);
+  if (fromName && PRODUCT_FORMATS[fromName]) return PRODUCT_FORMATS[fromName].sortOrder;
+  return 50;
+};
 import { generatePDFFromQuote } from '@/lib/quote-pdf-html';
 import { motion, AnimatePresence } from "framer-motion";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
@@ -2490,13 +2500,15 @@ export default function TomadorPedidos() {
       return div.innerHTML;
     };
 
-    const productRows = items.map(item => {
+    const sortedItems = [...items].sort((a, b) => getQuoteItemSortOrder(a) - getQuoteItemSortOrder(b));
+    const productRows = sortedItems.map((item, idx) => {
       const unitPrice = parseFloat(item.unitPrice);
       const lineTotal = parseFloat(item.totalPrice);
       const productUnit = escapeHtml(item.productUnit) || "UN";
 
       return `
         <tr>
+          <td class="text-center">${idx + 1}</td>
           <td>
             <div class="product-name">${escapeHtml(item.productName)}</div>
             ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
@@ -2610,6 +2622,7 @@ export default function TomadorPedidos() {
       <table>
         <thead>
           <tr>
+            <th class="text-center" style="width:5%">#</th>
             <th>Producto</th>
             <th class="text-center">Unidad</th>
             <th class="text-center">Cantidad</th>
@@ -2683,13 +2696,15 @@ export default function TomadorPedidos() {
       };
 
       // Build products table rows HTML with XSS protection
-      const productRows = items.map(item => {
+      const sortedItems = [...items].sort((a, b) => getQuoteItemSortOrder(a) - getQuoteItemSortOrder(b));
+      const productRows = sortedItems.map((item, idx) => {
         const unitPrice = parseFloat(item.unitPrice);
         const lineTotal = parseFloat(item.totalPrice);
         const productUnit = escapeHtml(item.productUnit) || "UN";
 
         return `
           <tr>
+            <td class="text-center">${idx + 1}</td>
             <td>
               <div class="product-name">${escapeHtml(item.productName)}</div>
               ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
@@ -2914,6 +2929,7 @@ export default function TomadorPedidos() {
       <table>
         <thead>
           <tr>
+            <th class="text-center" style="width:5%">#</th>
             <th>Producto</th>
             <th class="text-center">Unidad</th>
             <th class="text-center">Cant.</th>
