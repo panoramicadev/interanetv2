@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 const app = express();
@@ -162,6 +162,16 @@ async function initializeBackgroundServices() {
     }
   } catch (error: any) {
     console.error('⚠️ Error al clasificar productos:', error.message);
+  }
+
+  // Generar slugs de productos para URLs públicas
+  try {
+    const slugResult = await populateProductSlugs();
+    if (slugResult.updated > 0) {
+      log(`🔗 Slugs generados: ${slugResult.updated} productos`);
+    }
+  } catch (error: any) {
+    console.error('⚠️ Error al generar slugs:', error.message);
   }
 
   // Sincronizar movimientos de fondos faltantes

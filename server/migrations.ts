@@ -605,6 +605,13 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS destacado BOOLEAN DEFAULT FALSE NOT NULL`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_crm_seg_destacado" ON crm_seguimiento_clientes (destacado) WHERE destacado = TRUE`);
 
+    // tracking_settings en store_config (Google Ads / Meta Pixel para catálogo)
+    await db.execute(sql`ALTER TABLE store_config ADD COLUMN IF NOT EXISTS tracking_settings JSONB DEFAULT '{}'::jsonb`);
+
+    // slug en ecommerce_products (URL única por producto)
+    await db.execute(sql`ALTER TABLE ecommerce_products ADD COLUMN IF NOT EXISTS slug VARCHAR`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ecommerce_products_slug" ON ecommerce_products(slug) WHERE slug IS NOT NULL`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
@@ -725,6 +732,86 @@ export async function populateProductFamilyAndColor(): Promise<{ updated: number
     return { updated, errors };
   } catch (error: any) {
     console.error('❌ Error poblando familias de productos:', error.message);
+    return { updated, errors };
+  }
+}
+
+/**
+ * Convierte un string en slug kebab-case sin acentos ni caracteres especiales
+ */
+function toSlug(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+/**
+ * Genera slugs para productos de ecommerce que aún no los tienen.
+ * Usa descripcion → productFamily → priceList.producto como fuente, y añade
+ * un sufijo de 4 chars del id para garantizar unicidad.
+ */
+export async function populateProductSlugs(): Promise<{ updated: number; errors: number }> {
+  console.log('🔗 Verificando slugs de productos...');
+
+  let updated = 0;
+  let errors = 0;
+
+  try {
+    const products = await db.execute(sql`
+      SELECT
+        ep.id,
+        ep.descripcion,
+        ep.product_family,
+        ep.color,
+        ep.variant_generic_display_name,
+        pl.producto as pl_producto
+      FROM ecommerce_products ep
+      LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+      WHERE ep.slug IS NULL OR ep.slug = ''
+    `);
+
+    if (products.rows.length === 0) {
+      console.log('✅ Todos los productos tienen slug asignado');
+      return { updated: 0, errors: 0 };
+    }
+
+    console.log(`📦 Generando slugs para ${products.rows.length} productos...`);
+
+    for (const product of products.rows as any[]) {
+      try {
+        const base =
+          (product.descripcion as string) ||
+          (product.variant_generic_display_name as string) ||
+          [product.product_family, product.color].filter(Boolean).join(' ') ||
+          (product.pl_producto as string) ||
+          'producto';
+        const suffix = String(product.id).replace(/-/g, '').slice(-4).toLowerCase();
+        const slugBase = toSlug(base);
+        const slug = slugBase ? `${slugBase}-${suffix}` : `producto-${suffix}`;
+
+        await db.execute(sql`
+          UPDATE ecommerce_products
+          SET slug = ${slug}
+          WHERE id = ${product.id}
+            AND (slug IS NULL OR slug = '')
+            AND NOT EXISTS (SELECT 1 FROM ecommerce_products WHERE slug = ${slug})
+        `);
+
+        updated++;
+      } catch (error: any) {
+        console.warn(`⚠️ Error generando slug para producto ${product.id}: ${error.message}`);
+        errors++;
+      }
+    }
+
+    console.log(`✅ Slugs generados: ${updated} productos, ${errors} errores`);
+    return { updated, errors };
+  } catch (error: any) {
+    console.error('❌ Error poblando slugs:', error.message);
     return { updated, errors };
   }
 }

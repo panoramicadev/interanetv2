@@ -460,6 +460,125 @@ export function registerRoutes(app: Express): Server {
   // Register log routes (admin only)
   registerLogRoutes(app, requireRoles);
 
+  // ---------------------------------------------------------------
+  // Public product by slug — returns minimal product payload for /p/:slug page
+  // ---------------------------------------------------------------
+  app.get('/api/public/products/by-slug/:slug', asyncHandler(async (req: any, res: any) => {
+    try {
+      const { slug } = req.params;
+      if (!slug) return res.status(400).json({ message: 'slug requerido' });
+
+      const rows = await db.execute(sql`
+        SELECT
+          ep.id,
+          ep.slug,
+          ep.descripcion,
+          ep.imagen_url AS "imagenUrl",
+          ep.precio_ecommerce AS "precioEcommerce",
+          ep.product_family AS "productFamily",
+          ep.color,
+          ep.variant_generic_display_name AS "variantGenericDisplayName",
+          ep.categoria,
+          ep.format_unit AS "formatUnit",
+          ep.tags,
+          ep.min_unit AS "minUnit",
+          ep.step_size AS "stepSize",
+          ep.activo,
+          pl.codigo AS "sku",
+          pl.producto AS "plProducto"
+        FROM ecommerce_products ep
+        LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+        WHERE ep.slug = ${slug}
+        LIMIT 1
+      `);
+      const product = (rows.rows && rows.rows[0]) || null;
+      if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
+      res.json(product);
+    } catch (error: any) {
+      console.error('Error fetching product by slug:', error);
+      res.status(500).json({ message: 'Error obteniendo producto' });
+    }
+  }));
+
+  // ---------------------------------------------------------------
+  // SSR-light para /p/:slug — inyecta OG tags en el HTML para previews
+  // de WhatsApp, Meta, Google, Twitter, etc. Pasa a Vite/SPA si no se puede.
+  // ---------------------------------------------------------------
+  app.get('/p/:slug', asyncHandler(async (req: any, res: any, next: any) => {
+    try {
+      const { slug } = req.params;
+      if (!slug) return next();
+
+      // Ubicar template HTML (prod = dist/public/index.html, dev = client/index.html)
+      const prodTemplate = path.resolve(process.cwd(), 'dist', 'public', 'index.html');
+      const devTemplate = path.resolve(process.cwd(), 'client', 'index.html');
+      const templatePath = fs.existsSync(prodTemplate) ? prodTemplate : (fs.existsSync(devTemplate) ? devTemplate : null);
+
+      // En dev sin build estático, dejamos que Vite maneje la request
+      // (el bot no verá OG tags pero el usuario sí tendrá el SPA funcional)
+      if (!templatePath || templatePath === devTemplate) return next();
+
+      const rows = await db.execute(sql`
+        SELECT
+          ep.descripcion,
+          ep.imagen_url AS imagen_url,
+          ep.precio_ecommerce AS precio,
+          ep.product_family AS familia,
+          ep.color,
+          pl.codigo AS sku,
+          pl.producto AS pl_producto,
+          (SELECT site_name FROM store_config LIMIT 1) AS site_name
+        FROM ecommerce_products ep
+        LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+        WHERE ep.slug = ${slug}
+        LIMIT 1
+      `);
+      const product: any = rows.rows && rows.rows[0];
+      if (!product) return next(); // SPA renderiza la 404
+
+      const escape = (s: any) => String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const siteName = product.site_name || 'Pinturas Panorámica';
+      const title = `${product.descripcion || product.pl_producto || 'Producto'} · ${siteName}`;
+      const baseDescription = [product.familia, product.color].filter(Boolean).join(' — ');
+      const description = baseDescription || `Comprá ${product.pl_producto || 'productos'} en ${siteName}. Despacho a todo Chile.`;
+      const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+      let image = product.imagen_url || '';
+      if (image && image.startsWith('/')) image = `${req.protocol}://${req.get('host')}${image}`;
+
+      const ogBlock = `
+    <title>${escape(title)}</title>
+    <meta name="description" content="${escape(description)}" />
+    <link rel="canonical" href="${escape(fullUrl)}" />
+    <meta property="og:type" content="product" />
+    <meta property="og:site_name" content="${escape(siteName)}" />
+    <meta property="og:title" content="${escape(title)}" />
+    <meta property="og:description" content="${escape(description)}" />
+    <meta property="og:url" content="${escape(fullUrl)}" />
+    ${image ? `<meta property="og:image" content="${escape(image)}" />` : ''}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escape(title)}" />
+    <meta name="twitter:description" content="${escape(description)}" />
+    ${image ? `<meta name="twitter:image" content="${escape(image)}" />` : ''}
+    ${product.precio ? `<meta property="product:price:amount" content="${escape(product.precio)}" /><meta property="product:price:currency" content="CLP" />` : ''}
+      `;
+
+      let html = await fs.promises.readFile(templatePath, 'utf-8');
+      // Reemplazar el <title> existente e inyectar OG tags justo antes de </head>
+      html = html.replace(/<title>[^<]*<\/title>/i, '');
+      html = html.replace(/<\/head>/i, `${ogBlock}\n  </head>`);
+      res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(html);
+    } catch (error: any) {
+      console.error('Error rendering /p/:slug OG:', error.message);
+      return next();
+    }
+  }));
+
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
 
   // Mount external API routes (with API key auth)
@@ -14609,6 +14728,7 @@ export function registerRoutes(app: Express): Server {
         ep.price_list_id,
         ep.tags,
         ep.imagen_url,
+        ep.slug,
         ${useCustomList 
           ? sql`COALESCE(cpli.precio, pl.lista, ep.precio_ecommerce) as precio`
           : sql`COALESCE(ep.precio_ecommerce, pl.lista) as precio`},
@@ -14722,6 +14842,7 @@ export function registerRoutes(app: Express): Server {
       product.colors.get(color)!.push({
         ecomId: row.ecom_id,
         sku,
+        slug: row.slug || null,
         name: row.product_name || genericName,
         color,
         format: formatUnit,

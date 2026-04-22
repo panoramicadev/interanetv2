@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/contexts/CartContext";
 import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
+import { TrackingScripts } from "@/components/tracking-scripts";
 import {
   canViewCMMS,
   canViewCMMSDashboard,
@@ -23,6 +24,7 @@ import Login from "@/pages/login";
 import Shop from "@/pages/shop";
 import Tienda from "@/pages/tienda";
 import CatalogoPublico from "@/pages/catalogo-publico";
+import ProductoPublic from "@/pages/producto-public";
 import Cotizador from "@/pages/cotizador";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
@@ -129,6 +131,9 @@ function Router() {
 
       {/* Catálogo público de vendedores */}
       <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>
+
+      {/* Página pública de producto (deep-link para Google Ads / Meta / WhatsApp) */}
+      <Route path="/p/:slug">{() => <ProductoPublic />}</Route>
 
       {!user ? (
         <>
@@ -390,6 +395,7 @@ function App() {
             <Toaster />
             <Router />
             <UpdateNotification />
+            <TrackingScripts />
           </TooltipProvider>
         </CartProvider>
       </FilterProvider>

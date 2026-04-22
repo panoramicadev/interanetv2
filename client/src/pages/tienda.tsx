@@ -49,6 +49,7 @@ import {
   Sparkles,
   PieChart,
   Rocket,
+  Share2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -1311,6 +1312,50 @@ export default function TiendaPage() {
     setShowProductDialog(true);
   };
 
+  // Deep-link: /tienda?openProduct=slug → abrir modal del producto automáticamente
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const slugParam = url.searchParams.get("openProduct");
+    if (!slugParam || showProductDialog) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/public/products/by-slug/${encodeURIComponent(slugParam)}`);
+        if (!res.ok) return;
+        const p = await res.json();
+        if (cancelled) return;
+        // Construir un StoreProduct mínimo a partir de la respuesta
+        const storeProduct: StoreProduct = {
+          id: p.id,
+          kopr: p.sku || "",
+          name: p.descripcion || p.plProducto || "",
+          category: p.categoria || undefined,
+          ud02pr: p.formatUnit || undefined,
+          precio: p.precioEcommerce ? Number(p.precioEcommerce) : undefined,
+          primaryImageUrl: p.imagenUrl || undefined,
+          description: p.descripcion || undefined,
+          active: p.activo !== false,
+          slug: p.slug || undefined,
+          codigo: p.sku || undefined,
+          producto: p.descripcion || p.plProducto || undefined,
+          unidad: p.formatUnit || undefined,
+          imagenUrl: p.imagenUrl || undefined,
+          descripcion: p.descripcion || undefined,
+          activo: p.activo !== false,
+        };
+        openProductDetail(storeProduct);
+        // Limpiar el param sin recargar
+        url.searchParams.delete("openProduct");
+        window.history.replaceState({}, "", url.toString());
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const navigationItems = [
     { name: "Contacto", href: "#contacto" },
   ];
@@ -2381,9 +2426,39 @@ export default function TiendaPage() {
           {selectedProduct && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-2xl mb-4">
-                  {getProductName(selectedProduct)}
-                </DialogTitle>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <DialogTitle className="text-2xl">
+                    {getProductName(selectedProduct)}
+                  </DialogTitle>
+                  {selectedProduct.slug && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={async () => {
+                        const url = `${window.location.origin}/p/${selectedProduct.slug}`;
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({ title: getProductName(selectedProduct), url });
+                          } else {
+                            await navigator.clipboard.writeText(url);
+                            toast({ title: "Link copiado", description: url });
+                          }
+                        } catch {
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            toast({ title: "Link copiado", description: url });
+                          } catch {
+                            toast({ title: "Link", description: url });
+                          }
+                        }
+                      }}
+                    >
+                      <Share2 className="w-4 h-4 mr-1" />
+                      Compartir
+                    </Button>
+                  )}
+                </div>
               </DialogHeader>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

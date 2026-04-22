@@ -2225,6 +2225,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   packagingPalletName: varchar("packaging_pallet_name"),
   packagingPalletUnit: varchar("packaging_pallet_unit"),
   packagingAmountPerPallet: integer("packaging_amount_per_pallet"),
+  slug: varchar("slug"), // Slug único legible para URL pública /p/:slug (ej: "esmalte-copper-blanco-a3f2")
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -2493,6 +2494,18 @@ export const storeConfig = pgTable("store_config", {
     desktopHeight?: number;
     mobileHeight?: number;
   }>(), // Configuración de frecuencia y altura de banners publicitarios
+  trackingSettings: jsonb("tracking_settings").$type<{
+    enabled?: boolean;
+    googleTagId?: string; // G-XXXXXXXX (GA4)
+    googleAdsId?: string; // AW-XXXXXXXX
+    googleAdsConversions?: {
+      viewItem?: string; // label para view_item
+      addToCart?: string;
+      beginCheckout?: string;
+      purchase?: string;
+    };
+    metaPixelId?: string; // Facebook / Meta Pixel ID
+  }>(), // Códigos de tracking para catálogo público (solo admin)
   checkoutSettings: jsonb("checkout_settings").$type<{
     shippingDiscountPercentage?: number;
   }>(), // Configuraciones del checkout y envíos
