@@ -601,6 +601,10 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_by_id VARCHAR`);
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_notes TEXT`);
 
+    // Asegurar columna destacado en crm_seguimiento_clientes (migración 044 — idempotente)
+    await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS destacado BOOLEAN DEFAULT FALSE NOT NULL`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_crm_seg_destacado" ON crm_seguimiento_clientes (destacado) WHERE destacado = TRUE`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
