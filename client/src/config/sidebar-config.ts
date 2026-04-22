@@ -78,6 +78,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Users,
         },
         {
+          href: "/seguimiento-clientes",
+          label: "Seguimiento",
+          icon: UserCheck,
+        },
+        {
           href: "/ecommerce",
           label: "Configuración",
           icon: ShoppingCart,
@@ -121,11 +126,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/clientes",
           label: "Listado Clientes",
           icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento CRM",
-          icon: UserCheck,
         },
         {
           href: "/ayuda-memoria",
@@ -402,6 +402,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Users,
         },
         {
+          href: "/seguimiento-clientes",
+          label: "Seguimiento",
+          icon: UserCheck,
+        },
+        {
           href: "/ecommerce",
           label: "Configuración",
           icon: ShoppingCart,
@@ -423,11 +428,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/clientes",
           label: "Listado Clientes",
           icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento CRM",
-          icon: UserCheck,
         },
         {
           href: "/ayuda-memoria",
@@ -581,7 +581,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/seguimiento-clientes",
-          label: "Seguimiento CRM",
+          label: "Seguimiento",
           icon: UserCheck,
         },
         {
