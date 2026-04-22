@@ -7143,6 +7143,7 @@ export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
   proximoContacto: timestamp("proximo_contacto"), // Fecha programada del próximo contacto
   montoEstimado: numeric("monto_estimado", { precision: 15, scale: 2 }), // Monto estimado de la oportunidad
   origen: varchar("origen").default("manual"), // manual, referido, web, llamada
+  destacado: boolean("destacado").default(false).notNull(), // Cliente destacado/importante
   active: boolean("active").default(true).notNull(),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),

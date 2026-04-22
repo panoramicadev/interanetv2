@@ -6,7 +6,8 @@ import {
   Phone, Mail, Building2, User, Plus, Search, X,
   Clock, CalendarDays, MessageSquare, PhoneCall, FileText,
   MapPin, AlertTriangle, CheckCircle2, Truck, ShoppingCart,
-  UserCheck, Send, Link2, Sparkles, MoreVertical, Trash2, Edit3, RefreshCw, ChevronDown, Tags
+  UserCheck, Send, Link2, Sparkles, MoreVertical, Trash2, Edit3, RefreshCw, ChevronDown, Tags,
+  Star, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,6 +136,9 @@ export default function SeguimientoClientes() {
   const [filtroRegion, setFiltroRegion] = useState<string>("todos");
   const [filtroSegmento, setFiltroSegmento] = useState<string>("todos");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">("desc");
+  const [pinProblemas, setPinProblemas] = useState<boolean>(true);
+  const [soloDestacados, setSoloDestacados] = useState<boolean>(false);
 
   const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
 
@@ -255,8 +259,48 @@ export default function SeguimientoClientes() {
       const seg = (c.segmento || c.linkedSegmento || "").trim();
       if (seg !== filtroSegmento) return false;
     }
+    // Solo destacados
+    if (soloDestacados && !c.destacado) return false;
     return true;
   });
+
+  // Sort: destacados first, optionally problemas first, then by último contacto
+  const sortedClientes = [...filteredClientes].sort((a: any, b: any) => {
+    // Destacados siempre primero
+    const aDest = a.destacado ? 1 : 0;
+    const bDest = b.destacado ? 1 : 0;
+    if (aDest !== bDest) return bDest - aDest;
+    // Problemas primero (opcional)
+    if (pinProblemas) {
+      const aProb = a.hasProblema ? 1 : 0;
+      const bProb = b.hasProblema ? 1 : 0;
+      if (aProb !== bProb) return bProb - aProb;
+    }
+    // Sort por último contacto
+    if (sortContacto !== "none") {
+      const aT = a.ultimoContacto ? new Date(a.ultimoContacto).getTime() : 0;
+      const bT = b.ultimoContacto ? new Date(b.ultimoContacto).getTime() : 0;
+      if (aT !== bT) return sortContacto === "asc" ? aT - bT : bT - aT;
+    }
+    return 0;
+  });
+
+  const toggleDestacado = (client: any) => {
+    updateMutation.mutate(
+      { id: client.id, data: { destacado: !client.destacado } },
+      {
+        onSuccess: () => {
+          toast({
+            title: client.destacado ? "Cliente quitado de destacados" : "Cliente destacado",
+          });
+        },
+      }
+    );
+  };
+
+  const toggleSortContacto = () => {
+    setSortContacto((prev) => (prev === "desc" ? "asc" : prev === "asc" ? "none" : "desc"));
+  };
 
   // ─── Render ──────────────────────────────────────────────────────
   return (
@@ -339,6 +383,28 @@ export default function SeguimientoClientes() {
               </SelectContent>
             </Select>
 
+            <Button
+              variant={soloDestacados ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSoloDestacados((v) => !v)}
+              className={soloDestacados ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+              data-testid="btn-filtro-destacados"
+            >
+              <Star className={`w-3.5 h-3.5 mr-1.5 ${soloDestacados ? "fill-current" : ""}`} />
+              Destacados
+            </Button>
+
+            <Button
+              variant={pinProblemas ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPinProblemas((v) => !v)}
+              className={pinProblemas ? "bg-red-500 hover:bg-red-600 text-white" : ""}
+              data-testid="btn-pin-problemas"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+              Problemas primero
+            </Button>
+
             <div className="ml-auto"></div>
           </div>
         </div>
@@ -350,15 +416,25 @@ export default function SeguimientoClientes() {
           {/* Table header summary */}
           <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
             <p className="text-xs font-medium text-muted-foreground">
-              {filteredClientes.length} {filteredClientes.length === 1 ? 'cliente' : 'clientes'} en seguimiento
+              {sortedClientes.length} {sortedClientes.length === 1 ? 'cliente' : 'clientes'} en seguimiento
             </p>
           </div>
           <div className="overflow-x-auto">
-            <Table className="w-full min-w-[1050px] table-fixed">
+            <Table className="w-full min-w-[1090px] table-fixed">
               <TableHeader>
                 <TableRow className="bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-50/80">
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pl-4 w-[180px]">Cliente</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[75px]">Contacto</TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pl-4 w-[32px]"></TableHead>
+                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[180px]">Cliente</TableHead>
+                  <TableHead
+                    className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[85px] cursor-pointer select-none hover:text-foreground"
+                    onClick={toggleSortContacto}
+                    data-testid="th-contacto-sort"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      Contacto
+                      {sortContacto === "asc" ? <ArrowUp className="w-3 h-3" /> : sortContacto === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUpDown className="w-3 h-3 opacity-50" />}
+                    </span>
+                  </TableHead>
                   <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[75px]">Región</TableHead>
                   <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[72px]">Segmento</TableHead>
                   <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[90px]">Teléfono</TableHead>
@@ -370,18 +446,35 @@ export default function SeguimientoClientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClientes.map((client: any) => {
+                {sortedClientes.map((client: any) => {
                   const isStale = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
                   const initials = (client.nombre || '?').split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase();
-                  
+
                   return (
-                    <TableRow 
-                      key={client.id} 
-                      className="group cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors border-b border-muted/50 last:border-0"
+                    <TableRow
+                      key={client.id}
+                      className={`group cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors border-b border-muted/50 last:border-0 ${client.destacado ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}`}
                       onClick={() => handleViewClient(client)}
                     >
+                      {/* Destacado */}
+                      <TableCell className="py-2.5 pl-4" onClick={e => e.stopPropagation()}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => toggleDestacado(client)}
+                              className="p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                              data-testid={`btn-destacar-${client.id}`}
+                            >
+                              <Star className={`w-4 h-4 transition-colors ${client.destacado ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/40 hover:text-amber-500'}`} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="text-xs">
+                            {client.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TableCell>
                       {/* Cliente */}
-                      <TableCell className="py-2.5 pl-4">
+                      <TableCell className="py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                             {initials}
@@ -486,9 +579,9 @@ export default function SeguimientoClientes() {
                     </TableRow>
                   );
                 })}
-                {filteredClientes.length === 0 && (
+                {sortedClientes.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                       <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
                       <p className="text-sm font-medium">No se encontraron clientes</p>
                       <p className="text-xs mt-1">Intenta ajustar los filtros o crear un nuevo cliente</p>
