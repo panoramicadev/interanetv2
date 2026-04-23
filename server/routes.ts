@@ -6125,6 +6125,19 @@ export function registerRoutes(app: Express): Server {
       // Create quote request
       const quote = await storage.createPublicQuoteRequest(salesperson.id, validation.data);
 
+      // Notify salesperson + Ventas (in-app + email if configured)
+      try {
+        await NotifyHelper.notifySolicitudCatalogo(
+          validation.data.visitorName,
+          validation.data.visitorEmail,
+          validation.data.visitorCompany,
+          salesperson.salespersonName,
+          validation.data.items.length
+        );
+      } catch (notifErr) {
+        console.warn('Warning: notifySolicitudCatalogo failed:', notifErr);
+      }
+
       res.status(201).json({
         message: 'Solicitud de cotización enviada exitosamente',
         quoteId: quote.id
@@ -7244,6 +7257,17 @@ export function registerRoutes(app: Express): Server {
         }
       } catch (notifErr) {
         console.warn('Warning: Notification creation failed, order was still created:', notifErr);
+      }
+
+      // Email notification for new store order (pedido_nuevo)
+      try {
+        await NotifyHelper.notifyNuevaOrden(
+          order.id,
+          orderToCreate.clientName || 'Cliente',
+          Number(resolved.total) || 0
+        );
+      } catch (notifErr) {
+        console.warn('Warning: notifyNuevaOrden failed:', notifErr);
       }
 
       res.status(201).json(order);
@@ -17315,7 +17339,8 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/admin/email-notification-settings/initialize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const defaultSettings = [
-        { notificationType: 'pedido_nuevo', displayName: 'Pedido Nuevo', description: 'Notificar cuando se crea un nuevo pedido de cliente', enabled: false },
+        { notificationType: 'pedido_nuevo', displayName: 'Pedido Nuevo (Tienda)', description: 'Notificar cuando se crea un nuevo pedido en Panorámica Market', enabled: false },
+        { notificationType: 'solicitud_catalogo', displayName: 'Solicitud de Catálogo', description: 'Notificar cuando se recibe una solicitud de cotización desde el catálogo público', enabled: false },
         { notificationType: 'reclamo_nuevo', displayName: 'Reclamo Nuevo', description: 'Notificar cuando se registra un nuevo reclamo', enabled: false },
         { notificationType: 'cotizacion_convertida', displayName: 'Cotización Convertida', description: 'Notificar cuando una cotización se convierte en pedido', enabled: false },
         { notificationType: 'stock_bajo', displayName: 'Stock Bajo', description: 'Alertar cuando el inventario está bajo el mínimo', enabled: false },

@@ -221,6 +221,27 @@ export async function notifyNuevaOrden(orderNumber: string, clientName: string, 
   });
 }
 
+// Notificaciones para Solicitudes de Catálogo Público
+export async function notifySolicitudCatalogo(
+  visitorName: string,
+  visitorEmail: string,
+  visitorCompany: string | undefined,
+  salespersonName: string,
+  itemCount: number
+) {
+  const companyPart = visitorCompany ? ` (${visitorCompany})` : '';
+  await createAutoNotification({
+    targetType: 'departamento',
+    title: '📋 Nueva Solicitud de Catálogo',
+    message: `${visitorName}${companyPart} solicitó cotización de ${itemCount} producto(s) al catálogo de ${salespersonName}. Contacto: ${visitorEmail}`,
+    priority: 'alta',
+    targetDepartment: 'Ventas',
+    actionUrl: `/ecommerce-pedidos`,
+    createdByName: 'Sistema - Catálogo Público',
+    emailNotificationType: 'solicitud_catalogo',
+  });
+}
+
 // Notificaciones para Gastos Empresariales
 export async function notifyGastoCreado(categoria: string, monto: number, createdBy: string) {
   await createAutoNotification({
