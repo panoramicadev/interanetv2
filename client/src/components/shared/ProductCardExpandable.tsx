@@ -41,18 +41,24 @@ export const isTempRebrandedName = (name: string) =>
   !!TEMP_PRODUCT_NAME_OVERRIDES[name?.toUpperCase?.()];
 export const NuevoBadgeTemp = ({ className = '' }: { className?: string }) => (
   <span
-    className={`nuevo-badge-temp inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm ${className}`}
+    className={`nuevo-badge-temp relative z-10 inline-flex items-center gap-0.5 text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.08em] px-1.5 py-[1px] rounded-[4px] ${className}`}
     title="Producto renovado"
   >
-    ★ Nuevo
+    <span className="relative z-10">Nuevo</span>
   </span>
 );
 export const EcoBadgeTemp = ({ className = '' }: { className?: string }) => (
   <span
-    className={`eco-badge-temp inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm ${className}`}
-    title="Formulación ecológica"
+    className={`eco-badge-temp relative z-10 inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-medium normal-case tracking-normal px-1.5 py-[1px] rounded-[4px] ${className}`}
+    title="Formulación con resina reciclada"
   >
-    ♻ A base de resina reciclada
+    <span className="relative z-10">♻ Resina reciclada</span>
+  </span>
+);
+export const TempBadges = ({ className = '' }: { className?: string }) => (
+  <span className={`inline-flex items-center gap-1 align-middle ${className}`}>
+    <NuevoBadgeTemp />
+    <EcoBadgeTemp />
   </span>
 );
 
@@ -365,15 +371,14 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             {/* Product Info */}
             <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
               <div>
+                {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
+                {isTempRebrandedName(product.genericName) && (
+                  <div className="mb-1">
+                    <TempBadges />
+                  </div>
+                )}
                 <h3 className="text-[13px] sm:text-sm font-bold uppercase leading-tight text-gray-900 line-clamp-2 tracking-tight">
-                  {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
                   {displayProductName(product.genericName)}
-                  {isTempRebrandedName(product.genericName) && (
-                    <>
-                      <NuevoBadgeTemp className="ml-1.5 align-middle" />
-                      <EcoBadgeTemp className="ml-1 align-middle" />
-                    </>
-                  )}
                 </h3>
                 {product.breveResena && (
                   <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2 leading-relaxed italic">
@@ -425,13 +430,13 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
         ) : (
           /* Expanded header — compact horizontal bar */
           <div className="px-4 py-3 flex items-center gap-3">
-            <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
-              {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
-              {displayProductName(product.genericName)}
-              {isTempRebrandedName(product.genericName) && (
-                <NuevoBadgeTemp className="ml-1.5 align-middle" />
-              )}
-            </h3>
+            {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {isTempRebrandedName(product.genericName) && <TempBadges />}
+              <h3 className="text-sm font-bold uppercase text-[#FF6E23] min-w-0 truncate">
+                {displayProductName(product.genericName)}
+              </h3>
+            </div>
             {displayedTags.length > 0 && (
               <div className="flex items-center gap-1">
                 {displayedTags.slice(0, 2).map(tag => {
