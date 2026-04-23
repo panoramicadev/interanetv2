@@ -5906,6 +5906,25 @@ export function registerRoutes(app: Express): Server {
         colors: Object.fromEntries(p.colors),
       }));
 
+      // Apply manual image overrides set from the admin's "Imagen Destacada" dialog
+      // (same source as /api/store/products/grouped — keep both in sync).
+      try {
+        const imgResult = await db.execute(sql`
+          SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+        `);
+        const imgRow = (imgResult as any).rows?.[0];
+        const manualImages: Record<string, string> = imgRow?.value || {};
+        if (Object.keys(manualImages).length > 0) {
+          catalog.forEach(p => {
+            if (manualImages[p.genericName]) {
+              p.imageUrl = manualImages[p.genericName];
+            }
+          });
+        }
+      } catch (imgError) {
+        console.log('[public/products/grouped] manual images lookup skipped:', imgError);
+      }
+
       res.json({ catalog, totalProducts: (rows as any[]).length });
     } catch (error) {
       console.error('Error fetching grouped products:', error);

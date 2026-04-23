@@ -352,6 +352,7 @@ export default function GroupedCatalog() {
             if (!res.ok) throw new Error('Error');
             queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/product-group-images'] });
             queryClient.invalidateQueries({ queryKey: ['/api/store/products/grouped'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/public/products/grouped'] });
             toast({ title: imageUrl ? 'Imagen actualizada' : 'Imagen restablecida', description: genericName });
             setImagePickerOpen(false);
         } catch {

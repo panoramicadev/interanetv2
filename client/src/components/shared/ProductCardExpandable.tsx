@@ -29,6 +29,33 @@ import {
 } from 'lucide-react';
 import { QuoteContext } from '@/contexts/QuoteContext';
 
+// TEMPORAL — rebranding de "STAIN" a "Nuevo Eco Stain" sólo en la UI.
+// Quitar estas 2 constantes y los usos de <NuevoBadgeTemp /> / displayProductName()
+// cuando se normalice el nombre en la base de datos.
+export const TEMP_PRODUCT_NAME_OVERRIDES: Record<string, string> = {
+  STAIN: 'Nuevo Eco Stain',
+};
+export const displayProductName = (name: string) =>
+  TEMP_PRODUCT_NAME_OVERRIDES[name?.toUpperCase?.()] ?? name;
+export const isTempRebrandedName = (name: string) =>
+  !!TEMP_PRODUCT_NAME_OVERRIDES[name?.toUpperCase?.()];
+export const NuevoBadgeTemp = ({ className = '' }: { className?: string }) => (
+  <span
+    className={`nuevo-badge-temp inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm ${className}`}
+    title="Producto renovado"
+  >
+    ★ Nuevo
+  </span>
+);
+export const EcoBadgeTemp = ({ className = '' }: { className?: string }) => (
+  <span
+    className={`eco-badge-temp inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm ${className}`}
+    title="Formulación ecológica"
+  >
+    ♻ A base de resina reciclada
+  </span>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,7 +366,14 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
               <div>
                 <h3 className="text-[13px] sm:text-sm font-bold uppercase leading-tight text-gray-900 line-clamp-2 tracking-tight">
-                  {product.genericName}
+                  {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
+                  {displayProductName(product.genericName)}
+                  {isTempRebrandedName(product.genericName) && (
+                    <>
+                      <NuevoBadgeTemp className="ml-1.5 align-middle" />
+                      <EcoBadgeTemp className="ml-1 align-middle" />
+                    </>
+                  )}
                 </h3>
                 {product.breveResena && (
                   <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2 leading-relaxed italic">
@@ -392,7 +426,11 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
           /* Expanded header — compact horizontal bar */
           <div className="px-4 py-3 flex items-center gap-3">
             <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
-              {product.genericName}
+              {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
+              {displayProductName(product.genericName)}
+              {isTempRebrandedName(product.genericName) && (
+                <NuevoBadgeTemp className="ml-1.5 align-middle" />
+              )}
             </h3>
             {displayedTags.length > 0 && (
               <div className="flex items-center gap-1">

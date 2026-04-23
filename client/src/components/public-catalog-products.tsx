@@ -9,6 +9,7 @@ import {
     ShoppingCart, Plus, Minus, Loader2, Box, Info, X, HelpCircle,
     Play, FileText, Ruler, ImageIcon
 } from "lucide-react";
+import { displayProductName, isTempRebrandedName, NuevoBadgeTemp, EcoBadgeTemp } from "@/components/shared/ProductCardExpandable";
 
 interface FormatVariant {
     ecomId: string;
@@ -290,7 +291,14 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                                 <h3 className={`text-base font-bold uppercase leading-tight ${
                                                     isExpanded ? 'text-orange-800' : 'text-slate-800'
                                                 }`}>
-                                                    {product.genericName}
+                                                    {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
+                                                    {displayProductName(product.genericName)}
+                                                    {isTempRebrandedName(product.genericName) && (
+                                                        <>
+                                                            <NuevoBadgeTemp className="ml-2 align-middle" />
+                                                            <EcoBadgeTemp className="ml-1 align-middle" />
+                                                        </>
+                                                    )}
                                                 </h3>
                                                 {/* Tags */}
                                                 {(product.tags || []).length > 0 && (
