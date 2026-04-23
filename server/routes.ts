@@ -7655,9 +7655,24 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
+    // branchId opcional: si el admin/recepcionista sabe qué sucursal se usó en ese pedido,
+    // lo pasa y recalculamos con SU lcen + branchDiscountPercent. Sin branchId caemos al
+    // registro-cliente por defecto (comportamiento previo).
+    const branchIdParam: string | null = (req.body?.branchId || req.query?.branchId || null) as any;
     let client: any = null;
     try {
-      client = existing.clientId ? await storage.getClientByUserId(existing.clientId) : null;
+      if (branchIdParam) {
+        const { clients: clientsTbl } = await import('@shared/schema');
+        const [branchRecord] = await db
+          .select()
+          .from(clientsTbl)
+          .where(eq(clientsTbl.id, branchIdParam))
+          .limit(1);
+        if (branchRecord) client = branchRecord;
+      }
+      if (!client) {
+        client = existing.clientId ? await storage.getClientByUserId(existing.clientId) : null;
+      }
     } catch (e) {
       console.warn('[recalculate-prices] could not fetch client:', e);
     }
