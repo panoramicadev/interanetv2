@@ -7098,6 +7098,7 @@ export function registerRoutes(app: Express): Server {
         paymentCondition: z.string().optional().nullable(),
         paymentMethod: z.string().optional(),
         purchaseOrderPdfUrl: z.string().optional().nullable(),
+        branchId: z.string().optional().nullable(),
       });
 
       const validationResult = clientOrderSchema.safeParse(req.body);
@@ -7111,10 +7112,27 @@ export function registerRoutes(app: Express): Server {
       const orderData = validationResult.data;
       const clientId = req.user.id;
 
-      // Get client details to find assigned salesperson and price list (non-blocking)
+      // Get client details to find assigned salesperson and price list (non-blocking).
+      // If the cart carried a specific branchId (sucursal seleccionada en la tienda),
+      // preferimos ESE registro: suele tener su propio lcen / branchDiscountPercent
+      // y es el que el cliente vio al comprar. Sin branchId caemos al cliente por
+      // defecto del usuario (comportamiento previo).
       let client: any = null;
       try {
-        client = await storage.getClientByUserId(clientId);
+        if (orderData.branchId) {
+          const { clients: clientsTbl } = await import('@shared/schema');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const { db: dbLookup } = await import('./db');
+          const [branchRecord] = await dbLookup
+            .select()
+            .from(clientsTbl)
+            .where(eqOp(clientsTbl.id, orderData.branchId))
+            .limit(1);
+          if (branchRecord) client = branchRecord;
+        }
+        if (!client) {
+          client = await storage.getClientByUserId(clientId);
+        }
       } catch (clientErr) {
         console.warn('Warning: Could not fetch client details, proceeding without:', clientErr);
       }

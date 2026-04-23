@@ -442,6 +442,11 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         });
       }
 
+      // Branch actually used to shop (convenio/precio) — persistida por tienda.tsx.
+      // Se envía al backend para que resuelva precios con la sucursal correcta
+      // (lcen + branchDiscountPercent) y no con el registro-cliente por defecto.
+      const checkoutBranchId = (typeof window !== 'undefined' ? localStorage.getItem('cart_selected_branch_id') : null) || null;
+
       const orderData = {
         items: mappedItems,
         subtotal: state.subtotal - state.discountAmount,
@@ -462,6 +467,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         paymentCondition: clientData?.cpen || null,
         paymentMethod: selectedPaymentMethod,
         purchaseOrderPdfUrl: purchaseOrderPdfUrl || null,
+        branchId: checkoutBranchId,
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {
