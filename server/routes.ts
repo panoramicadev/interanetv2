@@ -73,6 +73,9 @@ import {
   ecommerceCoupons,
   insertEcommerceCouponSchema,
   updateEcommerceCouponSchema,
+  // Retail locations (Dónde Comprar)
+  retailLocations,
+  insertRetailLocationSchema,
 } from "../shared/schema";
 import { eq, and, isNotNull, isNull, ne, sql, desc, asc, or, sum, count, countDistinct, inArray, ilike, gte, lte, getTableColumns } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -5764,6 +5767,56 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to fetch products" });
     }
   });
+
+  // ==================================================================================
+  // RETAIL LOCATIONS - Dónde Comprar (público + admin)
+  // ==================================================================================
+
+  // Public: listado de ubicaciones activas para el mapa
+  app.get('/api/public/retail-locations', async (_req, res) => {
+    try {
+      const rows = await db.select().from(retailLocations).where(eq(retailLocations.active, true));
+      res.json(rows);
+    } catch (error: any) {
+      console.error('Error fetching public retail locations:', error);
+      res.status(500).json({ message: 'Error al obtener ubicaciones' });
+    }
+  });
+
+  // Admin: CRUD
+  app.get('/api/admin/retail-locations', requireAdminOrSupervisor, asyncHandler(async (_req: any, res: any) => {
+    const rows = await db.select().from(retailLocations).orderBy(desc(retailLocations.createdAt));
+    res.json(rows);
+  }));
+
+  app.post('/api/admin/retail-locations', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const validation = insertRetailLocationSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
+    }
+    const [created] = await db.insert(retailLocations).values(validation.data).returning();
+    res.status(201).json(created);
+  }));
+
+  app.patch('/api/admin/retail-locations/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const validation = insertRetailLocationSchema.partial().safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
+    }
+    const [updated] = await db.update(retailLocations)
+      .set({ ...validation.data, updatedAt: new Date() })
+      .where(eq(retailLocations.id, id))
+      .returning();
+    if (!updated) return res.status(404).json({ message: 'No encontrado' });
+    res.json(updated);
+  }));
+
+  app.delete('/api/admin/retail-locations/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    await db.delete(retailLocations).where(eq(retailLocations.id, id));
+    res.json({ success: true });
+  }));
 
   // ==================================================================================
   // PUBLIC CATALOG ROUTES (for salesperson public catalogs)

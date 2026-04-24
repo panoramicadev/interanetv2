@@ -7414,3 +7414,37 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
 export type QuoteRequest = typeof quoteRequests.$inferSelect;
 export type InsertQuoteRequest = typeof quoteRequests.$inferInsert;
 export type InsertQuoteRequestInput = z.infer<typeof insertQuoteRequestSchema>;
+
+// ==================================================
+// Retail Locations - "Dónde Comprar" público
+// Sucursales propias + distribuidores/ferreterías
+// ==================================================
+export const retailLocations = pgTable("retail_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 200 }).notNull(),
+  type: varchar("type", { length: 30 }).notNull().default("ferreteria"), // 'sucursal_propia' | 'distribuidor' | 'ferreteria'
+  address: text("address").notNull(),
+  comuna: varchar("comuna", { length: 100 }),
+  region: varchar("region", { length: 100 }),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 150 }),
+  website: varchar("website", { length: 255 }),
+  schedule: text("schedule"),
+  notes: text("notes"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  activeIdx: index("IDX_retail_locations_active").on(table.active),
+  typeIdx: index("IDX_retail_locations_type").on(table.type),
+}));
+
+export const insertRetailLocationSchema = createInsertSchema(retailLocations, {
+  latitude: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? v : v.toString()),
+  longitude: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? v : v.toString()),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type RetailLocation = typeof retailLocations.$inferSelect;
+export type InsertRetailLocation = z.infer<typeof insertRetailLocationSchema>;

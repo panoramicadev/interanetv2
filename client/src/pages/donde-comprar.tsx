@@ -1,0 +1,301 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { MapPin, Search, X, Phone, Globe, Navigation, Store, Factory, Wrench } from "lucide-react";
+import { Link } from "wouter";
+
+type RetailLocation = {
+  id: string;
+  name: string;
+  type: "sucursal_propia" | "distribuidor" | "ferreteria";
+  address: string;
+  comuna?: string | null;
+  region?: string | null;
+  latitude: string;
+  longitude: string;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  schedule?: string | null;
+  notes?: string | null;
+};
+
+const TYPE_META: Record<RetailLocation["type"], { label: string; color: string; icon: typeof Store }> = {
+  sucursal_propia: { label: "Sucursal Panorámica", color: "#ff7f33", icon: Factory },
+  distribuidor: { label: "Distribuidor", color: "#2563eb", icon: Store },
+  ferreteria: { label: "Ferretería", color: "#ec4899", icon: Wrench },
+};
+
+function makeIcon(color: string) {
+  return L.divIcon({
+    className: "custom-pin",
+    html: `
+      <div style="position:relative;width:38px;height:48px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.25));">
+        <svg viewBox="0 0 38 48" xmlns="http://www.w3.org/2000/svg" width="38" height="48">
+          <path d="M19 0C8.5 0 0 8.4 0 18.8 0 32.5 19 48 19 48s19-15.5 19-29.2C38 8.4 29.5 0 19 0z" fill="${color}"/>
+          <circle cx="19" cy="18.5" r="7" fill="white"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [38, 48],
+    iconAnchor: [19, 48],
+    popupAnchor: [0, -42],
+  });
+}
+
+function FlyTo({ center }: { center: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.flyTo(center, 15, { duration: 0.8 });
+  }, [center, map]);
+  return null;
+}
+
+export default function DondeComprar() {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"todo" | RetailLocation["type"]>("todo");
+  const [focus, setFocus] = useState<[number, number] | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const { data: locations = [], isLoading } = useQuery<RetailLocation[]>({
+    queryKey: ["/api/public/retail-locations"],
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return locations.filter((l) => {
+      if (filter !== "todo" && l.type !== filter) return false;
+      if (!q) return true;
+      return (
+        l.name.toLowerCase().includes(q) ||
+        l.address.toLowerCase().includes(q) ||
+        (l.comuna || "").toLowerCase().includes(q) ||
+        (l.region || "").toLowerCase().includes(q)
+      );
+    });
+  }, [locations, search, filter]);
+
+  const center: [number, number] = filtered.length
+    ? [Number(filtered[0].latitude), Number(filtered[0].longitude)]
+    : [-33.4489, -70.6693]; // Santiago
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Top nav */}
+      <header className="border-b border-gray-100 bg-white sticky top-0 z-[1000]">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+          <Link href="/tienda" className="flex items-center gap-3">
+            <img src="/panoramica-logo.png" alt="Panorámica" className="h-8 w-auto" />
+            <span className="sr-only">Panorámica</span>
+          </Link>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
+            <Link href="/tienda" className="hover:text-[#ff7f33]">Productos</Link>
+            <Link href="/donde-comprar" className="text-[#ff7f33] border-b-2 border-[#ff7f33] pb-1">Dónde Comprar</Link>
+            <Link href="/catalogo" className="hover:text-[#ff7f33]">Cotizador</Link>
+          </nav>
+          <Link href="/tienda" className="bg-[#ff7f33] text-white rounded-full px-5 py-2 text-sm font-semibold hover:bg-[#e66a1f] transition">
+            Tienda Online
+          </Link>
+        </div>
+      </header>
+
+      {/* Split layout */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Sidebar */}
+        <aside className="lg:w-[420px] xl:w-[480px] lg:border-r border-gray-100 bg-white flex flex-col lg:h-[calc(100vh-64px)]">
+          <div className="p-6 md:p-8 pb-4 border-b border-gray-100">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 mb-2">
+              Dónde comprar
+            </h1>
+            <p className="text-gray-500 text-sm mb-6">
+              Encuentra tu sucursal Panorámica, distribuidor o ferretería más cercana.
+            </p>
+
+            {/* Search */}
+            <div className="relative mb-4">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por comuna, nombre, dirección..."
+                className="w-full h-12 pl-11 pr-11 rounded-full border border-gray-200 focus:border-[#ff7f33] focus:ring-2 focus:ring-[#ff7f33]/20 outline-none text-sm transition"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "todo" as const, label: "Todo" },
+                { value: "sucursal_propia" as const, label: "Sucursales" },
+                { value: "distribuidor" as const, label: "Distribuidores" },
+                { value: "ferreteria" as const, label: "Ferreterías" },
+              ].map((chip) => (
+                <button
+                  key={chip.value}
+                  onClick={() => setFilter(chip.value)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
+                    filter === chip.value
+                      ? "bg-[#ff7f33] text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Results list */}
+          <div ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+            {isLoading && (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            )}
+            {!isLoading && filtered.length === 0 && (
+              <div className="text-center py-12 text-gray-400 text-sm">
+                <MapPin className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                No se encontraron ubicaciones
+              </div>
+            )}
+            {filtered.map((loc) => {
+              const meta = TYPE_META[loc.type];
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => setFocus([Number(loc.latitude), Number(loc.longitude)])}
+                  className="w-full text-left bg-white border border-gray-100 rounded-2xl p-4 hover:border-[#ff7f33] hover:shadow-md transition group"
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${meta.color}15`, color: meta.color }}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h3 className="font-bold text-gray-900 truncate group-hover:text-[#ff7f33]">
+                          {loc.name}
+                        </h3>
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wide flex-shrink-0"
+                          style={{ color: meta.color }}
+                        >
+                          {meta.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {loc.address}
+                        {loc.comuna ? `, ${loc.comuna}` : ""}
+                      </p>
+                      <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
+                        {loc.phone && (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="w-3 h-3" /> {loc.phone}
+                          </span>
+                        )}
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[#ff7f33] font-semibold hover:underline"
+                        >
+                          <Navigation className="w-3 h-3" /> Cómo llegar
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Map */}
+        <div className="flex-1 h-[55vh] lg:h-[calc(100vh-64px)] relative">
+          <MapContainer
+            center={center}
+            zoom={11}
+            scrollWheelZoom
+            style={{ height: "100%", width: "100%" }}
+            className="z-0"
+          >
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            />
+            <FlyTo center={focus} />
+            {filtered.map((loc) => {
+              const meta = TYPE_META[loc.type];
+              return (
+                <Marker
+                  key={loc.id}
+                  position={[Number(loc.latitude), Number(loc.longitude)]}
+                  icon={makeIcon(meta.color)}
+                >
+                  <Popup>
+                    <div className="min-w-[220px]">
+                      <div
+                        className="text-[10px] font-bold uppercase tracking-wide mb-1"
+                        style={{ color: meta.color }}
+                      >
+                        {meta.label}
+                      </div>
+                      <div className="font-bold text-gray-900 text-base mb-1">{loc.name}</div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        {loc.address}
+                        {loc.comuna ? `, ${loc.comuna}` : ""}
+                      </div>
+                      {loc.phone && (
+                        <div className="text-xs text-gray-600 flex items-center gap-1 mb-1">
+                          <Phone className="w-3 h-3" /> {loc.phone}
+                        </div>
+                      )}
+                      {loc.website && (
+                        <a
+                          href={loc.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#ff7f33] flex items-center gap-1 hover:underline"
+                        >
+                          <Globe className="w-3 h-3" /> Sitio web
+                        </a>
+                      )}
+                      {loc.schedule && (
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t">{loc.schedule}</div>
+                      )}
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex items-center gap-1 bg-[#ff7f33] text-white text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-[#e66a1f]"
+                      >
+                        <Navigation className="w-3 h-3" /> Cómo llegar
+                      </a>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </div>
+      </div>
+    </div>
+  );
+}

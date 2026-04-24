@@ -33,7 +33,8 @@ import {
   Gift,
   PackageSearch,
   UserCheck,
-  BookOpen
+  BookOpen,
+  MapPin
 } from "lucide-react";
 
 interface SidebarItem {
@@ -81,6 +82,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/seguimiento-clientes",
           label: "Seguimiento",
           icon: UserCheck,
+        },
+        {
+          href: "/donde-comprar-admin",
+          label: "Dónde Comprar",
+          icon: MapPin,
         },
         {
           href: "/ecommerce",
@@ -407,6 +413,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: UserCheck,
         },
         {
+          href: "/donde-comprar-admin",
+          label: "Dónde Comprar",
+          icon: MapPin,
+        },
+        {
           href: "/ecommerce",
           label: "Configuración",
           icon: ShoppingCart,
@@ -728,6 +739,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-usuarios",
           label: "Clientes",
           icon: Users,
+        },
+        {
+          href: "/donde-comprar-admin",
+          label: "Dónde Comprar",
+          icon: MapPin,
         },
         {
           href: "/ecommerce",

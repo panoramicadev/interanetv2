@@ -101,6 +101,8 @@ import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
+import DondeComprar from "@/pages/donde-comprar";
+import RetailLocationsAdmin from "@/pages/retail-locations-admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -128,6 +130,9 @@ function Router() {
       <Route path="/shop">{() => <Shop />}</Route>
       <Route path="/carrito">{() => <Carrito />}</Route>
       <Route path="/pedido-confirmado">{() => <PedidoConfirmado />}</Route>
+
+      {/* Dónde comprar — mapa público con sucursales y ferreterías */}
+      <Route path="/donde-comprar">{() => <DondeComprar />}</Route>
 
       {/* Catálogo público de vendedores */}
       <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>
@@ -205,6 +210,7 @@ function Router() {
             <Route path="/tareas" component={TareasPage} />
             <Route path="/usuarios" component={Users} />
             <Route path="/admin-catalogos" component={AdminCatalogos} />
+            <Route path="/donde-comprar-admin" component={RetailLocationsAdmin} />
             <Route path="/productos" component={Products} />
             <Route path="/productos/:codigo" component={ProductCatalogDetail} />
             <Route path="/lista-precios" component={ListaPrecios} />
