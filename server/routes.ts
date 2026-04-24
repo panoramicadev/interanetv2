@@ -5853,16 +5853,17 @@ export function registerRoutes(app: Express): Server {
     res.json(enriched);
   }));
 
-  // Importar candidatos seleccionados — geocodifica c/u con Nominatim y los inserta
+  // Importar candidatos seleccionados — opcionalmente geocodifica con Nominatim, sino inserta sin coords
   app.post('/api/admin/retail-locations/import-candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const schema = z.object({
       clientIds: z.array(z.string()).min(1),
+      geocode: z.boolean().optional().default(false),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
     }
-    const { clientIds } = parsed.data;
+    const { clientIds, geocode } = parsed.data;
 
     const candidatesRes = await db.execute(sql`
       SELECT c.id, c.nokoen AS name, c.dien AS address, c.comuna, c.provincia AS region,
@@ -5872,16 +5873,27 @@ export function registerRoutes(app: Express): Server {
     `);
     const candidates = (candidatesRes as any).rows || candidatesRes;
 
-    const result: { inserted: number; skipped: number; failed: number; details: any[] } = {
-      inserted: 0, skipped: 0, failed: 0, details: [],
+    const result: { inserted: number; skipped: number; withCoords: number; failed: number; details: any[] } = {
+      inserted: 0, skipped: 0, withCoords: 0, failed: 0, details: [],
     };
 
-    // Nominatim rate limit: 1 req/s. Esperamos 1100ms entre llamadas.
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    async function tryGeocode(queries: string[]) {
+      for (const q of queries) {
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`;
+          const r = await fetch(url, { headers: { 'User-Agent': 'Panoramica-Intranet/1.0' } });
+          const data = await r.json() as any[];
+          await sleep(1100);
+          if (Array.isArray(data) && data[0]) return { lat: data[0].lat, lon: data[0].lon };
+        } catch { /* try next */ }
+      }
+      return null;
+    }
 
     for (const c of candidates as any[]) {
       try {
-        // Check duplicate
         const dup = await db.select({ id: retailLocations.id })
           .from(retailLocations)
           .where(and(
@@ -5895,19 +5907,16 @@ export function registerRoutes(app: Express): Server {
           continue;
         }
 
-        const q = encodeURIComponent(
-          `${c.address}${c.comuna ? ', ' + c.comuna : ''}${c.region ? ', ' + c.region : ''}, Chile`
-        );
-        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
-          headers: { 'User-Agent': 'Panoramica-Intranet/1.0' },
-        });
-        const geo = await geoRes.json() as any[];
-        await sleep(1100);
-
-        if (!Array.isArray(geo) || geo.length === 0) {
-          result.failed++;
-          result.details.push({ id: c.id, name: c.name, status: 'failed', reason: 'no geocode' });
-          continue;
+        let lat: string | null = null;
+        let lon: string | null = null;
+        if (geocode) {
+          const queries = [
+            `${c.address}${c.comuna ? ', ' + c.comuna : ''}${c.region ? ', ' + c.region : ''}, Chile`,
+            `${c.address}, Chile`,
+            `${c.comuna || ''}, ${c.region || ''}, Chile`,
+          ].filter(q => q.trim() !== ', , Chile' && q.trim() !== ', Chile');
+          const geo = await tryGeocode(queries);
+          if (geo) { lat = geo.lat; lon = geo.lon; result.withCoords++; }
         }
 
         await db.insert(retailLocations).values({
@@ -5916,14 +5925,14 @@ export function registerRoutes(app: Express): Server {
           address: c.address,
           comuna: c.comuna || null,
           region: c.region || null,
-          latitude: geo[0].lat,
-          longitude: geo[0].lon,
+          latitude: lat,
+          longitude: lon,
           phone: c.phone || null,
           email: c.email || null,
           active: true,
         });
         result.inserted++;
-        result.details.push({ id: c.id, name: c.name, status: 'inserted' });
+        result.details.push({ id: c.id, name: c.name, status: 'inserted', geocoded: !!lat });
       } catch (err: any) {
         result.failed++;
         result.details.push({ id: c.id, name: c.name, status: 'failed', reason: err.message });
@@ -5931,6 +5940,35 @@ export function registerRoutes(app: Express): Server {
     }
 
     res.json(result);
+  }));
+
+  // Geocodificar una ubicación existente (para las importadas sin coords)
+  app.post('/api/admin/retail-locations/:id/geocode', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const [loc] = await db.select().from(retailLocations).where(eq(retailLocations.id, id)).limit(1);
+    if (!loc) return res.status(404).json({ message: 'No encontrada' });
+
+    const queries = [
+      `${loc.address}${loc.comuna ? ', ' + loc.comuna : ''}${loc.region ? ', ' + loc.region : ''}, Chile`,
+      `${loc.address}, Chile`,
+      `${loc.comuna || ''}, ${loc.region || ''}, Chile`,
+    ].filter(q => q.trim() !== ', , Chile' && q.trim() !== ', Chile');
+
+    for (const q of queries) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`;
+        const r = await fetch(url, { headers: { 'User-Agent': 'Panoramica-Intranet/1.0' } });
+        const data = await r.json() as any[];
+        if (Array.isArray(data) && data[0]) {
+          const [updated] = await db.update(retailLocations)
+            .set({ latitude: data[0].lat, longitude: data[0].lon, updatedAt: new Date() })
+            .where(eq(retailLocations.id, id))
+            .returning();
+          return res.json({ success: true, location: updated });
+        }
+      } catch { /* try next */ }
+    }
+    res.status(404).json({ success: false, message: 'No se pudo geocodificar' });
   }));
 
   // ==================================================================================

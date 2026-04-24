@@ -20,8 +20,8 @@ type RetailLocation = {
   address: string;
   comuna?: string | null;
   region?: string | null;
-  latitude: string;
-  longitude: string;
+  latitude: string | null;
+  longitude: string | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;
@@ -73,6 +73,8 @@ export default function RetailLocationsAdmin() {
   const [months, setMonths] = useState(2);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [geocodeOnImport, setGeocodeOnImport] = useState(false);
+  const [geocodingRowId, setGeocodingRowId] = useState<string | null>(null);
 
   const { data: locations = [], isLoading } = useQuery<RetailLocation[]>({
     queryKey: ["/api/admin/retail-locations"],
@@ -106,8 +108,8 @@ export default function RetailLocationsAdmin() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (clientIds: string[]) => {
-      const res = await apiRequest("/api/admin/retail-locations/import-candidates", { method: "POST", data: { clientIds } });
+    mutationFn: async (payload: { clientIds: string[]; geocode: boolean }) => {
+      const res = await apiRequest("/api/admin/retail-locations/import-candidates", { method: "POST", data: payload });
       return res.json() as Promise<ImportResult>;
     },
     onSuccess: (result) => {
@@ -180,8 +182,8 @@ export default function RetailLocationsAdmin() {
 
   const handleSave = () => {
     if (!editing) return;
-    if (!editing.name || !editing.address || !editing.latitude || !editing.longitude) {
-      toast({ title: "Faltan campos", description: "Nombre, dirección y coordenadas son obligatorios", variant: "destructive" });
+    if (!editing.name || !editing.address) {
+      toast({ title: "Faltan campos", description: "Nombre y dirección son obligatorios", variant: "destructive" });
       return;
     }
     saveMutation.mutate(editing);
@@ -247,7 +249,14 @@ export default function RetailLocationsAdmin() {
             <tbody>
               {filtered.map((loc) => (
                 <tr key={loc.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{loc.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{loc.name}</span>
+                      {(!loc.latitude || !loc.longitude) && (
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px]">sin coords</Badge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <Badge variant="outline">{TYPE_LABELS[loc.type]}</Badge>
                   </td>
@@ -260,7 +269,36 @@ export default function RetailLocationsAdmin() {
                       <Badge variant="secondary">Inactiva</Badge>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {(!loc.latitude || !loc.longitude) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Geocodificar"
+                        disabled={geocodingRowId === loc.id}
+                        onClick={async () => {
+                          setGeocodingRowId(loc.id);
+                          try {
+                            const res = await apiRequest(`/api/admin/retail-locations/${loc.id}/geocode`, { method: "POST" });
+                            const json = await res.json();
+                            if (json.success) {
+                              queryClient.invalidateQueries({ queryKey: ["/api/admin/retail-locations"] });
+                              toast({ title: "Geocodificada", description: `${json.latitude}, ${json.longitude}` });
+                            } else {
+                              toast({ title: "No se encontró", description: json.message || "Sin resultados", variant: "destructive" });
+                            }
+                          } catch (err: any) {
+                            toast({ title: "Error", description: err.message, variant: "destructive" });
+                          } finally {
+                            setGeocodingRowId(null);
+                          }
+                        }}
+                      >
+                        {geocodingRowId === loc.id
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <MapPin className="w-4 h-4 text-amber-600" />}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => openEdit(loc)}>
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -604,8 +642,16 @@ export default function RetailLocationsAdmin() {
                     ))}
                   </div>
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                    ⏱️ La geocodificación tarda ~1 segundo por dirección (Nominatim limita 1 req/s). Para 50 puntos son ~1 minuto.
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <Switch checked={geocodeOnImport} onCheckedChange={setGeocodeOnImport} />
+                    <div className="text-xs text-amber-800 flex-1">
+                      <div className="font-semibold">Geocodificar al importar</div>
+                      <div>
+                        {geocodeOnImport
+                          ? "⏱️ Tarda ~1 segundo por dirección. Para 50 puntos son ~1 minuto."
+                          : "🚀 Importación rápida. Las ferreterías se crean sin coordenadas y podés geocodificar después una por una desde la lista."}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -621,7 +667,7 @@ export default function RetailLocationsAdmin() {
               <>
                 <Button variant="outline" onClick={() => setImportOpen(false)}>Cancelar</Button>
                 <Button
-                  onClick={() => importMutation.mutate(Array.from(selectedIds))}
+                  onClick={() => importMutation.mutate({ clientIds: Array.from(selectedIds), geocode: geocodeOnImport })}
                   disabled={selectedIds.size === 0 || importMutation.isPending}
                   className="bg-[#ff7f33] hover:bg-[#e66a1f]"
                 >

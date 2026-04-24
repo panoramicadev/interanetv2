@@ -7426,8 +7426,8 @@ export const retailLocations = pgTable("retail_locations", {
   address: text("address").notNull(),
   comuna: varchar("comuna", { length: 100 }),
   region: varchar("region", { length: 100 }),
-  latitude: numeric("latitude", { precision: 10, scale: 7 }).notNull(),
-  longitude: numeric("longitude", { precision: 10, scale: 7 }).notNull(),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
   phone: varchar("phone", { length: 50 }),
   email: varchar("email", { length: 150 }),
   website: varchar("website", { length: 255 }),
@@ -7443,8 +7443,8 @@ export const retailLocations = pgTable("retail_locations", {
 }));
 
 export const insertRetailLocationSchema = createInsertSchema(retailLocations, {
-  latitude: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? v : v.toString()),
-  longitude: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? v : v.toString()),
+  latitude: z.union([z.string(), z.number()]).nullable().optional().transform(v => v == null ? null : (typeof v === 'string' ? v : v.toString())),
+  longitude: z.union([z.string(), z.number()]).nullable().optional().transform(v => v == null ? null : (typeof v === 'string' ? v : v.toString())),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type RetailLocation = typeof retailLocations.$inferSelect;

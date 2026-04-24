@@ -13,8 +13,8 @@ type RetailLocation = {
   address: string;
   comuna?: string | null;
   region?: string | null;
-  latitude: string;
-  longitude: string;
+  latitude: string | null;
+  longitude: string | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;
@@ -99,8 +99,9 @@ export default function DondeComprar() {
     });
   }, [locations, search, filter]);
 
-  const center: [number, number] = filtered.length
-    ? [Number(filtered[0].latitude), Number(filtered[0].longitude)]
+  const firstWithCoords = filtered.find((l) => l.latitude && l.longitude);
+  const center: [number, number] = firstWithCoords
+    ? [Number(firstWithCoords.latitude), Number(firstWithCoords.longitude)]
     : [-33.4489, -70.6693]; // Santiago
 
   return (
@@ -199,7 +200,11 @@ export default function DondeComprar() {
               return (
                 <button
                   key={loc.id}
-                  onClick={() => setFocus([Number(loc.latitude), Number(loc.longitude)])}
+                  onClick={() => {
+                    if (loc.latitude && loc.longitude) {
+                      setFocus([Number(loc.latitude), Number(loc.longitude)]);
+                    }
+                  }}
                   className="w-full text-left bg-white border border-gray-100 rounded-2xl p-4 hover:border-[#ff7f33] hover:shadow-md transition group"
                 >
                   <div className="flex gap-3">
@@ -231,15 +236,27 @@ export default function DondeComprar() {
                             <Phone className="w-3 h-3" /> {loc.phone}
                           </span>
                         )}
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-[#ff7f33] font-semibold hover:underline"
-                        >
-                          <Navigation className="w-3 h-3" /> Cómo llegar
-                        </a>
+                        {loc.latitude && loc.longitude ? (
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-[#ff7f33] font-semibold hover:underline"
+                          >
+                            <Navigation className="w-3 h-3" /> Cómo llegar
+                          </a>
+                        ) : (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${loc.address}${loc.comuna ? ", " + loc.comuna : ""}, Chile`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-[#ff7f33] font-semibold hover:underline"
+                          >
+                            <Navigation className="w-3 h-3" /> Ver en Maps
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -263,7 +280,7 @@ export default function DondeComprar() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
             />
             <FlyTo center={focus} />
-            {filtered.map((loc) => {
+            {filtered.filter((l) => l.latitude && l.longitude).map((loc) => {
               const meta = TYPE_META[loc.type];
               return (
                 <Marker
