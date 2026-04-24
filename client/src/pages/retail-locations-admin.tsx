@@ -590,6 +590,13 @@ export default function RetailLocationsAdmin() {
                 </div>
               )}
 
+              {candidatesQuery.isError && (
+                <div className="py-6 px-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  <div className="font-semibold mb-1">Error al consultar candidatos</div>
+                  <div className="text-xs break-all">{(candidatesQuery.error as any)?.message || 'Error desconocido'}</div>
+                </div>
+              )}
+
               {candidatesQuery.data && (
                 <>
                   <div className="flex items-center justify-between text-sm text-gray-600">

@@ -5845,6 +5845,7 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/admin/retail-locations/candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const months = Math.max(1, Math.min(24, parseInt(req.query.months, 10) || 2));
+    try {
     // Filtra por el segmento "ferretería" en fact_ventas.noruen (misma fuente que usa el dashboard).
     const rows = await db.execute(sql`
       WITH ferret_sales AS (
@@ -5881,6 +5882,10 @@ export function registerRoutes(app: Express): Server {
     }));
 
     res.json(enriched);
+    } catch (err: any) {
+      console.error('[retail-locations/candidates] error:', err);
+      res.status(500).json({ message: err?.message || 'Error al consultar candidatos', detail: String(err?.code || err?.name || '') });
+    }
   }));
 
   // Importar candidatos seleccionados — opcionalmente geocodifica con Nominatim, sino inserta sin coords
