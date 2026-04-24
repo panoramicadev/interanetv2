@@ -5845,17 +5845,14 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/admin/retail-locations/candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const months = Math.max(1, Math.min(24, parseInt(req.query.months, 10) || 2));
-    // Buscamos en fact_ventas (fuente canónica) + sales_transactions (legacy) para cubrir ambos períodos de datos.
-    // Filtro más amplio: ferretería / retail / construcción / hogar / minorista (canales típicos donde vive el público objetivo).
+    // Filtra por el segmento "ferretería" en fact_ventas.noruen (misma fuente que usa el dashboard).
     const rows = await db.execute(sql`
-      WITH recent_sales AS (
-        SELECT DISTINCT nokoen FROM ventas.fact_ventas
-          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
-            AND nokoen IS NOT NULL
-        UNION
-        SELECT DISTINCT nokoen FROM sales_transactions
-          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
-            AND nokoen IS NOT NULL
+      WITH ferret_sales AS (
+        SELECT DISTINCT nokoen
+        FROM ventas.fact_ventas
+        WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+          AND nokoen IS NOT NULL
+          AND noruen ILIKE '%ferret%'
       )
       SELECT DISTINCT ON (c.id)
         c.id,
@@ -5868,16 +5865,8 @@ export function registerRoutes(app: Express): Server {
         c.email,
         c.gien AS business_type
       FROM clients c
-      INNER JOIN recent_sales rs ON rs.nokoen = c.nokoen
-      WHERE (
-          c.gien ILIKE '%ferret%'
-          OR c.gien ILIKE '%retail%'
-          OR c.gien ILIKE '%construc%'
-          OR c.gien ILIKE '%hogar%'
-          OR c.gien ILIKE '%minorista%'
-          OR c.sien ILIKE '%ferret%'
-        )
-        AND c.dien IS NOT NULL
+      INNER JOIN ferret_sales fs ON fs.nokoen = c.nokoen
+      WHERE c.dien IS NOT NULL
         AND TRIM(c.dien) <> ''
       ORDER BY c.id, c.nokoen
     `);
