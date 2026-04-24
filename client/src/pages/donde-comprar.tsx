@@ -19,6 +19,7 @@ type RetailLocation = {
   email?: string | null;
   website?: string | null;
   schedule?: string | null;
+  logoUrl?: string | null;
   notes?: string | null;
 };
 
@@ -28,7 +29,28 @@ const TYPE_META: Record<RetailLocation["type"], { label: string; color: string; 
   ferreteria: { label: "Ferretería", color: "#ec4899", icon: Wrench },
 };
 
-function makeIcon(color: string) {
+function makeIcon(color: string, logoUrl?: string | null, isFerreteria = false) {
+  // Default logo para ferreterías si no tienen uno propio
+  const effectiveLogo = logoUrl || (isFerreteria ? "/panoramica-icon.png" : null);
+
+  if (effectiveLogo) {
+    return L.divIcon({
+      className: "custom-pin-logo",
+      html: `
+        <div style="position:relative;width:54px;height:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,0.3));">
+          <svg viewBox="0 0 54 64" xmlns="http://www.w3.org/2000/svg" width="54" height="64" style="position:absolute;inset:0;">
+            <path d="M27 0C12 0 0 12 0 27c0 18 27 37 27 37s27-19 27-37C54 12 42 0 27 0z" fill="white" stroke="${color}" stroke-width="3"/>
+          </svg>
+          <div style="position:absolute;top:6px;left:6px;width:42px;height:42px;border-radius:50%;overflow:hidden;background:white;display:flex;align-items:center;justify-content:center;">
+            <img src="${effectiveLogo}" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'"/>
+          </div>
+        </div>
+      `,
+      iconSize: [54, 64],
+      iconAnchor: [27, 64],
+      popupAnchor: [0, -58],
+    });
+  }
   return L.divIcon({
     className: "custom-pin",
     html: `
@@ -247,32 +269,52 @@ export default function DondeComprar() {
                 <Marker
                   key={loc.id}
                   position={[Number(loc.latitude), Number(loc.longitude)]}
-                  icon={makeIcon(meta.color)}
+                  icon={makeIcon(meta.color, loc.logoUrl, loc.type === "ferreteria")}
                 >
-                  <Popup>
-                    <div className="min-w-[220px]">
-                      <div
-                        className="text-[10px] font-bold uppercase tracking-wide mb-1"
-                        style={{ color: meta.color }}
-                      >
-                        {meta.label}
-                      </div>
-                      <div className="font-bold text-gray-900 text-base mb-1">{loc.name}</div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        {loc.address}
-                        {loc.comuna ? `, ${loc.comuna}` : ""}
-                      </div>
-                      {loc.phone && (
-                        <div className="text-xs text-gray-600 flex items-center gap-1 mb-1">
-                          <Phone className="w-3 h-3" /> {loc.phone}
+                  <Popup minWidth={260} maxWidth={280}>
+                    <div className="min-w-[240px]">
+                      <div className="flex items-start gap-3 mb-3">
+                        {loc.logoUrl && (
+                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border flex items-center justify-center flex-shrink-0">
+                            <img src={loc.logoUrl} alt={loc.name} className="w-full h-full object-contain" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className="text-[10px] font-bold uppercase tracking-wide"
+                            style={{ color: meta.color }}
+                          >
+                            {meta.label}
+                          </div>
+                          <div className="font-bold text-gray-900 text-base leading-tight">{loc.name}</div>
                         </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 mb-2">
+                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-gray-700 leading-snug">
+                          {loc.address}
+                          {loc.comuna ? `, ${loc.comuna}` : ""}
+                          {loc.region ? `, ${loc.region}` : ""}
+                        </div>
+                      </div>
+
+                      {loc.phone && (
+                        <a
+                          href={`tel:${loc.phone.replace(/\s/g, "")}`}
+                          className="flex items-center gap-2 mb-2 py-1.5 px-2 -mx-2 rounded-lg hover:bg-gray-50 no-underline"
+                        >
+                          <Phone className="w-4 h-4 text-[#ff7f33] flex-shrink-0" />
+                          <span className="text-sm font-semibold text-gray-900">{loc.phone}</span>
+                        </a>
                       )}
+
                       {loc.website && (
                         <a
                           href={loc.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-[#ff7f33] flex items-center gap-1 hover:underline"
+                          className="text-xs text-[#ff7f33] flex items-center gap-1 hover:underline mb-1"
                         >
                           <Globe className="w-3 h-3" /> Sitio web
                         </a>
@@ -284,7 +326,7 @@ export default function DondeComprar() {
                         href={`https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-3 inline-flex items-center gap-1 bg-[#ff7f33] text-white text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-[#e66a1f]"
+                        className="mt-3 inline-flex items-center gap-1 bg-[#ff7f33] text-white text-xs font-semibold px-3 py-2 rounded-full hover:bg-[#e66a1f] w-full justify-center"
                       >
                         <Navigation className="w-3 h-3" /> Cómo llegar
                       </a>

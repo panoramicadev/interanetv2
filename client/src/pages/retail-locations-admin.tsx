@@ -26,6 +26,7 @@ type RetailLocation = {
   email?: string | null;
   website?: string | null;
   schedule?: string | null;
+  logoUrl?: string | null;
   notes?: string | null;
   active: boolean;
 };
@@ -411,6 +412,54 @@ export default function RetailLocationsAdmin() {
                   onChange={(e) => setEditing({ ...editing, schedule: e.target.value })}
                   placeholder="Lun-Vie 9:00-19:00, Sáb 10:00-14:00"
                 />
+              </div>
+
+              <div>
+                <Label>Logo (opcional)</Label>
+                <div className="flex items-center gap-3">
+                  {editing.logoUrl && (
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border flex items-center justify-center flex-shrink-0">
+                      <img src={editing.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        try {
+                          const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+                          const json = await res.json();
+                          if (json.url) {
+                            setEditing({ ...editing, logoUrl: json.url });
+                            toast({ title: "Logo subido" });
+                          } else {
+                            throw new Error(json.message || "error");
+                          }
+                        } catch (err: any) {
+                          toast({ title: "Error al subir", description: err.message, variant: "destructive" });
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Si no subís logo, se usa el ícono Panorámica por defecto.
+                    </p>
+                  </div>
+                  {editing.logoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditing({ ...editing, logoUrl: null })}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div>

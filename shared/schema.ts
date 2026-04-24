@@ -7432,6 +7432,7 @@ export const retailLocations = pgTable("retail_locations", {
   email: varchar("email", { length: 150 }),
   website: varchar("website", { length: 255 }),
   schedule: text("schedule"),
+  logoUrl: text("logo_url"),
   notes: text("notes"),
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
