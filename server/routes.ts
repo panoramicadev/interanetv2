@@ -5818,6 +5818,121 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true });
   }));
 
+  // Candidatos: ferreterías (clients con gien ILIKE '%ferret%') que tienen ventas en los últimos N meses
+  app.get('/api/admin/retail-locations/candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const months = Math.max(1, Math.min(24, parseInt(req.query.months, 10) || 2));
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (c.id)
+        c.id,
+        c.nokoen AS name,
+        c.dien AS address,
+        c.comuna,
+        c.provincia AS region,
+        c.cmen AS city,
+        c.foen AS phone,
+        c.email,
+        c.gien AS business_type
+      FROM clients c
+      INNER JOIN sales_transactions s ON s.nokoen = c.nokoen
+      WHERE c.gien ILIKE '%ferret%'
+        AND s.feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+        AND c.dien IS NOT NULL
+        AND TRIM(c.dien) <> ''
+      ORDER BY c.id, c.nokoen
+    `);
+    const list = (rows as any).rows || rows;
+
+    // Marcar cuáles ya existen en retail_locations (match por nombre + dirección)
+    const existing = await db.select({ name: retailLocations.name, address: retailLocations.address }).from(retailLocations);
+    const existingSet = new Set(existing.map(e => `${(e.name || '').toLowerCase().trim()}|${(e.address || '').toLowerCase().trim()}`));
+    const enriched = list.map((r: any) => ({
+      ...r,
+      alreadyImported: existingSet.has(`${(r.name || '').toLowerCase().trim()}|${(r.address || '').toLowerCase().trim()}`),
+    }));
+
+    res.json(enriched);
+  }));
+
+  // Importar candidatos seleccionados — geocodifica c/u con Nominatim y los inserta
+  app.post('/api/admin/retail-locations/import-candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const schema = z.object({
+      clientIds: z.array(z.string()).min(1),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const { clientIds } = parsed.data;
+
+    const candidatesRes = await db.execute(sql`
+      SELECT c.id, c.nokoen AS name, c.dien AS address, c.comuna, c.provincia AS region,
+             c.foen AS phone, c.email
+      FROM clients c
+      WHERE c.id = ANY(${clientIds}::text[])
+    `);
+    const candidates = (candidatesRes as any).rows || candidatesRes;
+
+    const result: { inserted: number; skipped: number; failed: number; details: any[] } = {
+      inserted: 0, skipped: 0, failed: 0, details: [],
+    };
+
+    // Nominatim rate limit: 1 req/s. Esperamos 1100ms entre llamadas.
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    for (const c of candidates as any[]) {
+      try {
+        // Check duplicate
+        const dup = await db.select({ id: retailLocations.id })
+          .from(retailLocations)
+          .where(and(
+            eq(retailLocations.name, c.name),
+            eq(retailLocations.address, c.address)
+          ))
+          .limit(1);
+        if (dup.length > 0) {
+          result.skipped++;
+          result.details.push({ id: c.id, name: c.name, status: 'skipped', reason: 'ya existe' });
+          continue;
+        }
+
+        const q = encodeURIComponent(
+          `${c.address}${c.comuna ? ', ' + c.comuna : ''}${c.region ? ', ' + c.region : ''}, Chile`
+        );
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+          headers: { 'User-Agent': 'Panoramica-Intranet/1.0' },
+        });
+        const geo = await geoRes.json() as any[];
+        await sleep(1100);
+
+        if (!Array.isArray(geo) || geo.length === 0) {
+          result.failed++;
+          result.details.push({ id: c.id, name: c.name, status: 'failed', reason: 'no geocode' });
+          continue;
+        }
+
+        await db.insert(retailLocations).values({
+          name: c.name,
+          type: 'ferreteria',
+          address: c.address,
+          comuna: c.comuna || null,
+          region: c.region || null,
+          latitude: geo[0].lat,
+          longitude: geo[0].lon,
+          phone: c.phone || null,
+          email: c.email || null,
+          active: true,
+        });
+        result.inserted++;
+        result.details.push({ id: c.id, name: c.name, status: 'inserted' });
+      } catch (err: any) {
+        result.failed++;
+        result.details.push({ id: c.id, name: c.name, status: 'failed', reason: err.message });
+      }
+    }
+
+    res.json(result);
+  }));
+
   // ==================================================================================
   // PUBLIC CATALOG ROUTES (for salesperson public catalogs)
   // ==================================================================================
