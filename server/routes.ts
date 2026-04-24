@@ -5819,9 +5819,44 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Candidatos: ferreterías (clients con gien ILIKE '%ferret%') que tienen ventas en los últimos N meses
-  app.get('/api/admin/retail-locations/candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  // Debug: ver qué canales (gien) tienen compras recientes
+  app.get('/api/admin/retail-locations/channels-debug', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const months = Math.max(1, Math.min(24, parseInt(req.query.months, 10) || 2));
     const rows = await db.execute(sql`
+      WITH recent_sales AS (
+        SELECT DISTINCT nokoen FROM ventas.fact_ventas
+          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+            AND nokoen IS NOT NULL
+        UNION
+        SELECT DISTINCT nokoen FROM sales_transactions
+          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+            AND nokoen IS NOT NULL
+      )
+      SELECT c.gien AS business_type, COUNT(DISTINCT c.id) AS client_count
+      FROM clients c
+      INNER JOIN recent_sales rs ON rs.nokoen = c.nokoen
+      WHERE c.dien IS NOT NULL AND TRIM(c.dien) <> ''
+      GROUP BY c.gien
+      ORDER BY client_count DESC
+      LIMIT 100
+    `);
+    res.json((rows as any).rows || rows);
+  }));
+
+  app.get('/api/admin/retail-locations/candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const months = Math.max(1, Math.min(24, parseInt(req.query.months, 10) || 2));
+    // Buscamos en fact_ventas (fuente canónica) + sales_transactions (legacy) para cubrir ambos períodos de datos.
+    // Filtro más amplio: ferretería / retail / construcción / hogar / minorista (canales típicos donde vive el público objetivo).
+    const rows = await db.execute(sql`
+      WITH recent_sales AS (
+        SELECT DISTINCT nokoen FROM ventas.fact_ventas
+          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+            AND nokoen IS NOT NULL
+        UNION
+        SELECT DISTINCT nokoen FROM sales_transactions
+          WHERE feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+            AND nokoen IS NOT NULL
+      )
       SELECT DISTINCT ON (c.id)
         c.id,
         c.nokoen AS name,
@@ -5833,9 +5868,15 @@ export function registerRoutes(app: Express): Server {
         c.email,
         c.gien AS business_type
       FROM clients c
-      INNER JOIN sales_transactions s ON s.nokoen = c.nokoen
-      WHERE c.gien ILIKE '%ferret%'
-        AND s.feemdo >= (CURRENT_DATE - (${months}::int || ' months')::interval)
+      INNER JOIN recent_sales rs ON rs.nokoen = c.nokoen
+      WHERE (
+          c.gien ILIKE '%ferret%'
+          OR c.gien ILIKE '%retail%'
+          OR c.gien ILIKE '%construc%'
+          OR c.gien ILIKE '%hogar%'
+          OR c.gien ILIKE '%minorista%'
+          OR c.sien ILIKE '%ferret%'
+        )
         AND c.dien IS NOT NULL
         AND TRIM(c.dien) <> ''
       ORDER BY c.id, c.nokoen
