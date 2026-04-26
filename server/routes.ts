@@ -5890,6 +5890,7 @@ export function registerRoutes(app: Express): Server {
 
   // Importar candidatos seleccionados — opcionalmente geocodifica con Nominatim, sino inserta sin coords
   app.post('/api/admin/retail-locations/import-candidates', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
     const schema = z.object({
       clientIds: z.array(z.string()).min(1),
       geocode: z.boolean().optional().default(false),
@@ -5899,6 +5900,7 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
     }
     const { clientIds, geocode } = parsed.data;
+    console.log('[import-candidates] clientIds:', clientIds.length, 'geocode:', geocode);
 
     const candidatesRes = await db.execute(sql`
       SELECT c.id, c.nokoen AS name, c.dien AS address, c.comuna, c.provincia AS region,
@@ -5907,6 +5909,7 @@ export function registerRoutes(app: Express): Server {
       WHERE c.id = ANY(${clientIds}::text[])
     `);
     const candidates = (candidatesRes as any).rows || candidatesRes;
+    console.log('[import-candidates] candidates fetched:', candidates.length);
 
     const result: { inserted: number; skipped: number; withCoords: number; failed: number; details: any[] } = {
       inserted: 0, skipped: 0, withCoords: 0, failed: 0, details: [],
@@ -5969,12 +5972,17 @@ export function registerRoutes(app: Express): Server {
         result.inserted++;
         result.details.push({ id: c.id, name: c.name, status: 'inserted', geocoded: !!lat });
       } catch (err: any) {
+        console.error('[import-candidates] insert error for', c.name, ':', err.message, err.code, err.detail);
         result.failed++;
         result.details.push({ id: c.id, name: c.name, status: 'failed', reason: err.message });
       }
     }
 
     res.json(result);
+    } catch (err: any) {
+      console.error('[import-candidates] top-level error:', err);
+      res.status(500).json({ message: err?.message || 'Error al importar', code: err?.code, detail: err?.detail });
+    }
   }));
 
   // Geocodificar una ubicación existente (para las importadas sin coords)
