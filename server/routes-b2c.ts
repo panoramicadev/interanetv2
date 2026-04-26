@@ -206,7 +206,7 @@ export function registerB2CRoutes(app: Express) {
       const { id } = req.params;
       const { status, internalNotes } = req.body;
 
-      if (status !== undefined && !['pending', 'contacted', 'quoted', 'closed'].includes(status)) {
+      if (status !== undefined && !['pending', 'contacted', 'quoted', 'sale', 'closed'].includes(status)) {
         return res.status(400).json({ message: 'Estado inválido' });
       }
       if (status === undefined && internalNotes === undefined) {

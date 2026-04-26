@@ -58,6 +58,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   pending: { label: 'Pendiente', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
   contacted: { label: 'Contactado', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: Phone },
   quoted: { label: 'Cotizado', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle },
+  sale: { label: 'Venta', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: DollarSign },
   closed: { label: 'Cerrado', color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200', icon: CheckCircle },
 };
 
@@ -150,6 +151,7 @@ export default function CotizacionesB2CPage() {
     pending: requests.filter(r => r.status === 'pending').length,
     contacted: requests.filter(r => r.status === 'contacted').length,
     quoted: requests.filter(r => r.status === 'quoted').length,
+    sale: requests.filter(r => r.status === 'sale').length,
   };
 
   const formatDate = (d: string) => {
@@ -187,6 +189,7 @@ export default function CotizacionesB2CPage() {
           { label: 'Pendientes', value: stats.pending, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Contactados', value: stats.contacted, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Cotizados', value: stats.quoted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Ventas', value: stats.sale, color: 'text-orange-600', bg: 'bg-orange-50' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 p-4`}>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{s.label}</p>
@@ -209,7 +212,7 @@ export default function CotizacionesB2CPage() {
         </div>
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-400" />
-          {['all', 'pending', 'contacted', 'quoted', 'closed'].map(status => (
+          {['all', 'pending', 'contacted', 'quoted', 'sale', 'closed'].map(status => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
@@ -363,7 +366,7 @@ export default function CotizacionesB2CPage() {
                         <div className="mt-4 pt-3 border-t border-gray-200">
                           <p className="text-[10px] text-gray-400 uppercase font-bold mb-2">Cambiar Estado</p>
                           <div className="flex gap-2 flex-wrap">
-                            {['pending', 'contacted', 'quoted', 'closed'].map(status => {
+                            {['pending', 'contacted', 'quoted', 'sale', 'closed'].map(status => {
                               const cfg = STATUS_CONFIG[status];
                               const isCurrent = request.status === status;
                               return (
