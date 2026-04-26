@@ -42,11 +42,12 @@ interface CatalogResponse {
     totalProducts: number;
 }
 
-function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
+function QuantitySelector({ value, onChange, min = 1, step = 1, onTypingAttempt }: {
     value: number;
     onChange: (v: number) => void;
     min?: number;
     step?: number;
+    onTypingAttempt?: () => void;
 }) {
     return (
         <div className="inline-flex items-center border-2 border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -54,23 +55,74 @@ function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
                 onClick={() => onChange(Math.max(min, value - step))}
                 className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors active:bg-slate-200"
                 disabled={value <= min}
+                aria-label="Disminuir"
             >
                 <Minus className="w-4 h-4" />
             </button>
-            <input
-                type="number"
-                value={value}
-                onChange={e => onChange(Math.max(min, parseInt(e.target.value) || min))}
-                className="w-14 h-10 text-center text-base font-bold border-x-2 border-slate-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                min={min}
-                step={step}
-            />
+            {/* Display-only: el usuario no puede tipear cantidades — debe usar +/- (múltiplos del formato) */}
+            <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onTypingAttempt?.()}
+                onKeyDown={(e) => {
+                    if (e.key !== 'Tab') { e.preventDefault(); onTypingAttempt?.(); }
+                }}
+                className="w-14 h-10 flex items-center justify-center text-base font-bold border-x-2 border-slate-200 select-none cursor-help"
+                title="Las pinturas se venden por bulto. Usá los botones + / − para ajustar."
+            >
+                {value}
+            </div>
             <button
                 onClick={() => onChange(value + step)}
                 className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors active:bg-slate-200"
+                aria-label="Aumentar"
             >
                 <Plus className="w-4 h-4" />
             </button>
+        </div>
+    );
+}
+
+// Modal informativo de reglas de packaging (se muestra una vez por sesión cuando el usuario intenta tipear).
+function PackagingRulesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+    if (!open) return null;
+    return (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500">
+                    <X className="w-4 h-4" />
+                </button>
+                <div className="flex items-start gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+                        <Info className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-900 text-lg">Cantidades por bulto</h3>
+                        <p className="text-sm text-gray-500 mt-1">No es posible seleccionar cantidades libres.</p>
+                    </div>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed mb-4">
+                    Las pinturas se entregan en su formato original de venta. Por eso las cantidades se ajustan en bloques:
+                </p>
+                <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                        <span className="font-bold text-orange-600 w-20">Galón</span>
+                        <span className="text-gray-700">se vende de a <strong>4 unidades</strong></span>
+                    </li>
+                    <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                        <span className="font-bold text-orange-600 w-20">¼ Galón</span>
+                        <span className="text-gray-700">se vende de a <strong>6 unidades</strong></span>
+                    </li>
+                    <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                        <span className="font-bold text-orange-600 w-20">Balde</span>
+                        <span className="text-gray-700">se vende por <strong>unidad</strong></span>
+                    </li>
+                </ul>
+                <p className="text-xs text-gray-500 mt-4">Usá los botones <strong>+</strong> y <strong>−</strong> para ajustar.</p>
+                <button onClick={onClose} className="mt-5 w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl transition">
+                    Entendido
+                </button>
+            </div>
         </div>
     );
 }
@@ -87,6 +139,9 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
     const [infoModal, setInfoModal] = useState<{ open: boolean; productName: string; loading: boolean; data: any | null }>({
         open: false, productName: '', loading: false, data: null
     });
+
+    // Packaging rules modal — se abre cuando el usuario intenta tipear en el campo cantidad
+    const [packagingRulesOpen, setPackagingRulesOpen] = useState(false);
 
     const openInfoModal = useCallback(async (productName: string) => {
         setInfoModal({ open: true, productName, loading: true, data: null });
@@ -442,6 +497,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                                                                     onChange={val => setQuantity(variant.sku, val)}
                                                                                     min={variant.minUnit || 1}
                                                                                     step={variant.stepSize || 1}
+                                                                                    onTypingAttempt={() => setPackagingRulesOpen(true)}
                                                                                 />
                                                                                 <button
                                                                                     className="inline-flex items-center gap-2 px-5 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white transition-all shadow-md shadow-orange-200 hover:shadow-lg hover:shadow-orange-300 font-bold text-sm"
@@ -646,6 +702,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                     </div>
                 </div>
             )}
+            <PackagingRulesModal open={packagingRulesOpen} onClose={() => setPackagingRulesOpen(false)} />
         </>
     );
 }

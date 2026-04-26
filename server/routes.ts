@@ -6363,6 +6363,50 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
+      // ▼ Validar que cada cantidad respete min_unit y step_size del producto.
+      // Las pinturas se venden por bulto (galón = 4, 1/4 galón = 6, etc.) y no se aceptan cantidades libres.
+      const productIds = validation.data.items.map((it) => it.productId).filter(Boolean);
+      if (productIds.length > 0) {
+        const skuRows = await db.execute(sql`
+          SELECT pl.codigo AS sku, ep.min_unit, ep.step_size, ep.format_unit, ep.color, pl.producto AS product_name
+          FROM ecommerce_products ep
+          INNER JOIN price_list pl ON pl.id = ep.price_list_id
+          WHERE pl.codigo = ANY(${productIds}::text[]) OR ep.id = ANY(${productIds}::text[])
+        `);
+        const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
+        for (const r of (skuRows as any).rows || []) {
+          rules.set(r.sku, {
+            minUnit: Number(r.min_unit) || 1,
+            stepSize: Number(r.step_size) || 1,
+            format: r.format_unit || '',
+            color: r.color || '',
+            name: r.product_name || '',
+          });
+        }
+        const offenders: { productName: string; quantity: number; minUnit: number; stepSize: number; format: string }[] = [];
+        for (const item of validation.data.items) {
+          const rule = rules.get(item.productId) || rules.get(item.sku || '');
+          if (!rule) continue; // si no encontramos reglas, no bloqueamos (compat)
+          const q = Number(item.quantity);
+          if (q < rule.minUnit || (q - rule.minUnit) % rule.stepSize !== 0) {
+            offenders.push({
+              productName: `${rule.name}${rule.color ? ' ' + rule.color : ''} (${rule.format})`,
+              quantity: q,
+              minUnit: rule.minUnit,
+              stepSize: rule.stepSize,
+              format: rule.format,
+            });
+          }
+        }
+        if (offenders.length > 0) {
+          return res.status(400).json({
+            code: 'INVALID_QUANTITY',
+            message: 'Las cantidades deben respetar el formato de venta del producto.',
+            offenders,
+          });
+        }
+      }
+
       // Create quote request
       const quote = await storage.createPublicQuoteRequest(salesperson.id, validation.data);
 

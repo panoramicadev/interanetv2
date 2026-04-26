@@ -172,6 +172,8 @@ function formatPriceCL(price: number | string | null | undefined): string {
 
 export default function ProductCardExpandable(props: ProductCardExpandableProps) {
   const { product, adminTags = [], initialExpanded = false } = props;
+  const [packagingModalOpen, setPackagingModalOpen] = useState(false);
+  const onPackagingRulesClick = () => setPackagingModalOpen(true);
   const isStore = props.mode === 'store';
   const isCotizador = props.mode === 'cotizador';
 
@@ -306,6 +308,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
     : (product.tags || []);
 
   return (
+    <>
     <div
       className={`rounded-2xl overflow-hidden transition-all duration-300 flex flex-col ${
         expanded
@@ -698,20 +701,25 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                             <Minus className="w-3.5 h-3.5" />
                           </button>
 
-                          <input
-                            type="number"
-                            value={variantQty || ''}
-                            placeholder="0"
-                            onChange={e => {
+                          {/* Display-only: la cantidad sólo se ajusta con +/− para respetar el formato (galón=4, ¼=6, etc.) */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={e => {
                               e.stopPropagation();
-                              const raw = e.target.value === '' ? 0 : parseInt(e.target.value);
-                              if (!isNaN(raw)) setQty(variant.sku, raw);
+                              if (typeof onPackagingRulesClick === 'function') onPackagingRulesClick();
                             }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            min={0}
-                            step={variant.stepSize || 1}
-                          />
+                            onKeyDown={e => {
+                              if (e.key !== 'Tab') {
+                                e.preventDefault();
+                                if (typeof onPackagingRulesClick === 'function') onPackagingRulesClick();
+                              }
+                            }}
+                            className="w-12 h-full flex items-center justify-center text-sm font-bold border-x border-gray-200 select-none cursor-help"
+                            title="Las pinturas se venden por bulto. Usá los botones +/− para ajustar."
+                          >
+                            {variantQty || 0}
+                          </div>
 
                           <button
                             onClick={e => {
@@ -816,6 +824,46 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
         </div>
       </div>
     </div>
+    {packagingModalOpen && (
+      <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPackagingModalOpen(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setPackagingModalOpen(false)} className="absolute top-3 right-3 w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500" aria-label="Cerrar">
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+              <Info className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">Cantidades por bulto</h3>
+              <p className="text-sm text-gray-500 mt-1">No es posible seleccionar cantidades libres.</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed mb-4">
+            Las pinturas se entregan en su formato original de venta. Por eso las cantidades se ajustan en bloques:
+          </p>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+              <span className="font-bold text-orange-600 w-20">Galón</span>
+              <span className="text-gray-700">se vende de a <strong>4 unidades</strong></span>
+            </li>
+            <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+              <span className="font-bold text-orange-600 w-20">¼ Galón</span>
+              <span className="text-gray-700">se vende de a <strong>6 unidades</strong></span>
+            </li>
+            <li className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+              <span className="font-bold text-orange-600 w-20">Balde</span>
+              <span className="text-gray-700">se vende por <strong>unidad</strong></span>
+            </li>
+          </ul>
+          <p className="text-xs text-gray-500 mt-4">Usá los botones <strong>+</strong> y <strong>−</strong> para ajustar.</p>
+          <button onClick={() => setPackagingModalOpen(false)} className="mt-5 w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl transition">
+            Entendido
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
