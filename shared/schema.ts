@@ -3697,6 +3697,11 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   // Invoice PDFs uploaded by admin
   invoiceUrls: jsonb("invoice_urls").default(sql`'[]'::jsonb`), // Array of {url, name, uploadedAt}
 
+  // Descuento de sucursal aplicado en este pedido (snapshot al momento de creación/recálculo).
+  // Se persiste para que el panel pueda mostrarlo sin recalcular y para auditoría histórica.
+  branchDiscountPercent: numeric("branch_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+  priceListUsed: varchar("price_list_used"), // lcen aplicado (ej: LP01, LP02)
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

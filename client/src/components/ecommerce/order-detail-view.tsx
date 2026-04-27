@@ -45,6 +45,9 @@ export interface OrderItem {
   imageUrl?: string;
   selectedColor?: string;
   selectedPackaging?: string;
+  convenioPct?: number;
+  originalUnitPrice?: number;
+  isOffer?: boolean;
 }
 
 export interface InvoiceFile {
@@ -78,6 +81,8 @@ export interface EcommerceOrder {
   createdAt: string;
   approvedAt?: string;
   modifiedAt?: string;
+  branchDiscountPercent?: string | number;
+  priceListUsed?: string;
 }
 
 // Helpers
@@ -850,7 +855,18 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                         </div>
                       ) : (
                         <div className="text-xs text-gray-400 mt-1">
-                          {formatPrice(itemPrice)} × {item.quantity} unidades
+                          {item.convenioPct && item.originalUnitPrice && item.originalUnitPrice > itemPrice ? (
+                            <>
+                              <span className="line-through text-gray-300 mr-1">{formatPrice(item.originalUnitPrice)}</span>
+                              <span className="text-emerald-600 font-medium">{formatPrice(itemPrice)}</span>
+                              <span className="ml-1 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">
+                                -{item.convenioPct}% sucursal
+                              </span>
+                              <span className="ml-1">× {item.quantity}</span>
+                            </>
+                          ) : (
+                            <>{formatPrice(itemPrice)} × {item.quantity} unidades</>
+                          )}
                         </div>
                       )}
                     </div>
@@ -873,6 +889,21 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
+              {(() => {
+                const bdp = Number(currentOrder.branchDiscountPercent || 0);
+                if (bdp > 0) {
+                  return (
+                    <div className="flex justify-between items-center text-sm bg-emerald-50 -mx-5 px-5 py-2 border-y border-emerald-100">
+                      <span className="text-emerald-700 font-medium">
+                        Descuento sucursal aplicado
+                        {currentOrder.priceListUsed ? ` · Lista ${currentOrder.priceListUsed}` : ''}
+                      </span>
+                      <span className="font-bold text-emerald-700">-{bdp}%</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-500">Subtotal ({items.length} producto{items.length !== 1 ? 's' : ''})</span>
                 <span className="font-medium text-gray-700">{formatPrice(subtotal)}</span>
