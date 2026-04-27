@@ -251,9 +251,16 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 
   const isLoading = webLoading || erpLoading || clientLoading;
 
-  // Compute metrics from Web Orders
+  // Compute metrics from Web Orders.
+  // Incluimos todos los estados activos del flujo (pending → approved → sent → ingresado),
+  // descartando sólo los terminales/cancelados (rejected/archived). Antes el filtro dejaba
+  // fuera 'sent' e 'ingresado', así que clientes MCT — cuyos pedidos avanzan rápido al ERP —
+  // veían "No hay pedidos registrados" apenas el admin marcaba el pedido como enviado.
   const validOrders = useMemo(() => {
-    return webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved' || o.status === 'processing');
+    return webOrders.filter((o: any) => {
+      const s = (o.status || '').toLowerCase();
+      return s !== 'rejected' && s !== 'archived';
+    });
   }, [webOrders]);
 
   const totalAmount = useMemo(() => {
@@ -526,7 +533,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
                           {r.items?.length === 1 ? r.items[0].productName : `Mix de Productos (${r.items?.length || 0})`}
                         </p>
                         <Badge variant="secondary" className="text-[9px] px-1.5 font-normal tracking-wide">
-                          {r.status === 'pending' ? 'Pendiente' : r.status === 'approved' ? 'Aprobado' : r.status}
+                          {statusConfig[(r.status || 'pending').toLowerCase()]?.label || r.status}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
