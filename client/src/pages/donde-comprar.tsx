@@ -29,27 +29,27 @@ const TYPE_META: Record<RetailLocation["type"], { label: string; color: string; 
   ferreteria: { label: "Ferretería", color: "#ec4899", icon: Wrench },
 };
 
-// Pin compacto naranja con el ícono "C" Panorámica al medio.
+// Pin compacto naranja con el ícono "C" Panorámica centrado en círculo blanco.
 // Si la ubicación tiene un logo propio cargado, lo usa en lugar del default.
+const PIN_DEFAULT_LOGO = "/panoramica-icon.png";
 function makeIcon(_color: string, logoUrl?: string | null, _isFerreteria = false) {
   const PIN_COLOR = "#ff7f33"; // naranja Panorámica
-  const innerLogo = logoUrl || "/panoramica-icon.png";
-
+  const innerLogo = logoUrl || PIN_DEFAULT_LOGO;
+  // Tamaño del pin: 36×46. Círculo blanco interior 28×28 con el logo a tamaño completo.
   return L.divIcon({
-    className: "custom-pin-logo",
+    className: "panoramica-pin",
     html: `
-      <div style="position:relative;width:32px;height:40px;filter:drop-shadow(0 3px 5px rgba(0,0,0,0.28));">
-        <svg viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg" width="32" height="40" style="position:absolute;inset:0;">
-          <path d="M16 0C7 0 0 7 0 16c0 11 16 24 16 24s16-13 16-24C32 7 25 0 16 0z" fill="${PIN_COLOR}"/>
+      <div style="position:relative;width:36px;height:46px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.3));">
+        <svg viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg" width="36" height="46" style="position:absolute;inset:0;display:block;">
+          <path d="M18 0C8 0 0 8 0 18c0 12 18 28 18 28s18-16 18-28C36 8 28 0 18 0z" fill="${PIN_COLOR}"/>
+          <circle cx="18" cy="18" r="14" fill="white"/>
         </svg>
-        <div style="position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;overflow:hidden;background:white;display:flex;align-items:center;justify-content:center;">
-          <img src="${innerLogo}" style="width:90%;height:90%;object-fit:contain;" onerror="this.style.display='none'"/>
-        </div>
+        <img src="${innerLogo}" alt="" style="position:absolute;top:5px;left:5px;width:26px;height:26px;border-radius:50%;object-fit:contain;display:block;"/>
       </div>
     `,
-    iconSize: [32, 40],
-    iconAnchor: [16, 40],
-    popupAnchor: [0, -36],
+    iconSize: [36, 46],
+    iconAnchor: [18, 46],
+    popupAnchor: [0, -42],
   });
 }
 
