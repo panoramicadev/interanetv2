@@ -5902,11 +5902,18 @@ export function registerRoutes(app: Express): Server {
     const { clientIds, geocode } = parsed.data;
     console.log('[import-candidates] clientIds:', clientIds.length, 'geocode:', geocode);
 
+    // Construimos un array literal Postgres seguro: '{uuid1,uuid2,...}'.
+    // Filtramos a UUIDs válidos para no inyectar nada más.
+    const safeIds = clientIds.filter((id) => /^[0-9a-fA-F-]{36}$/.test(id));
+    if (safeIds.length === 0) {
+      return res.json({ inserted: 0, skipped: 0, withCoords: 0, failed: 0, details: [] });
+    }
+    const pgArrayLiteral = '{' + safeIds.join(',') + '}';
     const candidatesRes = await db.execute(sql`
       SELECT c.id, c.nokoen AS name, c.dien AS address, c.comuna, c.provincia AS region,
              c.foen AS phone, c.email
       FROM clients c
-      WHERE c.id = ANY(${clientIds}::text[])
+      WHERE c.id = ANY(${pgArrayLiteral}::text[])
     `);
     const candidates = (candidatesRes as any).rows || candidatesRes;
     console.log('[import-candidates] candidates fetched:', candidates.length);
