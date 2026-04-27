@@ -29,41 +29,27 @@ const TYPE_META: Record<RetailLocation["type"], { label: string; color: string; 
   ferreteria: { label: "Ferretería", color: "#ec4899", icon: Wrench },
 };
 
-function makeIcon(color: string, logoUrl?: string | null, isFerreteria = false) {
-  // Default logo para ferreterías si no tienen uno propio
-  const effectiveLogo = logoUrl || (isFerreteria ? "/panoramica-icon.png" : null);
+// Pin compacto naranja con el ícono "C" Panorámica al medio.
+// Si la ubicación tiene un logo propio cargado, lo usa en lugar del default.
+function makeIcon(_color: string, logoUrl?: string | null, _isFerreteria = false) {
+  const PIN_COLOR = "#ff7f33"; // naranja Panorámica
+  const innerLogo = logoUrl || "/panoramica-icon.png";
 
-  if (effectiveLogo) {
-    return L.divIcon({
-      className: "custom-pin-logo",
-      html: `
-        <div style="position:relative;width:54px;height:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,0.3));">
-          <svg viewBox="0 0 54 64" xmlns="http://www.w3.org/2000/svg" width="54" height="64" style="position:absolute;inset:0;">
-            <path d="M27 0C12 0 0 12 0 27c0 18 27 37 27 37s27-19 27-37C54 12 42 0 27 0z" fill="white" stroke="${color}" stroke-width="3"/>
-          </svg>
-          <div style="position:absolute;top:6px;left:6px;width:42px;height:42px;border-radius:50%;overflow:hidden;background:white;display:flex;align-items:center;justify-content:center;">
-            <img src="${effectiveLogo}" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'"/>
-          </div>
-        </div>
-      `,
-      iconSize: [54, 64],
-      iconAnchor: [27, 64],
-      popupAnchor: [0, -58],
-    });
-  }
   return L.divIcon({
-    className: "custom-pin",
+    className: "custom-pin-logo",
     html: `
-      <div style="position:relative;width:38px;height:48px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.25));">
-        <svg viewBox="0 0 38 48" xmlns="http://www.w3.org/2000/svg" width="38" height="48">
-          <path d="M19 0C8.5 0 0 8.4 0 18.8 0 32.5 19 48 19 48s19-15.5 19-29.2C38 8.4 29.5 0 19 0z" fill="${color}"/>
-          <circle cx="19" cy="18.5" r="7" fill="white"/>
+      <div style="position:relative;width:32px;height:40px;filter:drop-shadow(0 3px 5px rgba(0,0,0,0.28));">
+        <svg viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg" width="32" height="40" style="position:absolute;inset:0;">
+          <path d="M16 0C7 0 0 7 0 16c0 11 16 24 16 24s16-13 16-24C32 7 25 0 16 0z" fill="${PIN_COLOR}"/>
         </svg>
+        <div style="position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;overflow:hidden;background:white;display:flex;align-items:center;justify-content:center;">
+          <img src="${innerLogo}" style="width:90%;height:90%;object-fit:contain;" onerror="this.style.display='none'"/>
+        </div>
       </div>
     `,
-    iconSize: [38, 48],
-    iconAnchor: [19, 48],
-    popupAnchor: [0, -42],
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+    popupAnchor: [0, -36],
   });
 }
 
