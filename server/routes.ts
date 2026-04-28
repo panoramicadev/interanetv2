@@ -2034,7 +2034,27 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Cliente no encontrado' });
       }
 
-      res.json(client);
+      // Adjuntar nokoen/gien de la casa matriz para que el front pueda detectar
+      // pertenencia al segmento MCT cuando la sucursal no lleva el prefijo en su
+      // propio nokoen.
+      let parentNokoen: string | null = null;
+      let parentGien: string | null = null;
+      if (client.parentClientId) {
+        try {
+          const { clients: clientsTbl } = await import('@shared/schema');
+          const [parent] = await db
+            .select({ nokoen: clientsTbl.nokoen, gien: clientsTbl.gien })
+            .from(clientsTbl)
+            .where(eq(clientsTbl.id, client.parentClientId))
+            .limit(1);
+          parentNokoen = parent?.nokoen || null;
+          parentGien = parent?.gien || null;
+        } catch (parentErr) {
+          console.warn('Warning: could not load parent client:', parentErr);
+        }
+      }
+
+      res.json({ ...client, parentNokoen, parentGien });
     } catch (error) {
       console.error('Error al obtener datos del cliente:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
@@ -7450,6 +7470,32 @@ export function registerRoutes(app: Express): Server {
         console.warn('Warning: Could not fetch client details, proceeding without:', clientErr);
       }
 
+      // Enforce OC para clientes MCT. Identificamos MCT por el nombre del cliente
+      // (nokoen) o el de su casa matriz: la nomenclatura interna es "MCT <plaza>"
+      // (ej. "MCT CONCEPCION"). Sin OC no se permite crear el pedido.
+      try {
+        let names = `${client?.nokoen || ''} ${client?.gien || ''}`;
+        if (client?.parentClientId) {
+          const { clients: clientsTbl } = await import('@shared/schema');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const { db: dbLookup } = await import('./db');
+          const [parent] = await dbLookup
+            .select({ nokoen: clientsTbl.nokoen, gien: clientsTbl.gien })
+            .from(clientsTbl)
+            .where(eqOp(clientsTbl.id, client.parentClientId))
+            .limit(1);
+          if (parent) names += ` ${parent.nokoen || ''} ${parent.gien || ''}`;
+        }
+        const isMCT = /\bMCT\b/i.test(names);
+        if (isMCT && !orderData.purchaseOrderPdfUrl) {
+          return res.status(400).json({
+            message: 'Los clientes MCT deben adjuntar la Orden de Compra (PDF) para confirmar el pedido.',
+          });
+        }
+      } catch (segErr) {
+        console.warn('Warning: Could not validate MCT OC requirement:', segErr);
+      }
+
       // Authoritative server-side price resolution based on customer's assigned lcen price list.
       // Overrides frontend-supplied unitPrice to eliminate price-list mismatches.
       const resolved = await resolveItemsPricing(orderData.items, client);
@@ -7694,16 +7740,29 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/ecommerce/orders/pending-count', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const filters: any = { status: 'pending' };
 
+      // Recepción ve TODOS los pedidos que aún no han sido ingresados al ERP
+      // (pending, approved, modified, sent). De esa forma siempre ve la bandeja
+      // completa y puede marcarlos como "ingresado" cuando corresponda.
+      if (user.role === 'reception') {
+        const { ecommerceOrders } = await import('@shared/schema');
+        const { sql, notInArray } = await import('drizzle-orm');
+        const rows = await db
+          .select({ id: ecommerceOrders.id })
+          .from(ecommerceOrders)
+          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived']));
+        return res.json({ count: rows.length });
+      }
+
+      const filters: any = { status: 'pending' };
       if (user.role === 'salesperson') {
         filters.salespersonId = user.id;
-      } else if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception') {
-        // Admin/supervisor/reception see all pending orders
+      } else if (user.role === 'admin' || user.role === 'supervisor') {
+        // Admin/supervisor ven todos los pendientes
       } else {
         return res.json({ count: 0 }); // Other roles don't see this badge
       }
-      
+
       const orders = await storage.getEcommerceOrders(filters);
       res.json({ count: orders.length });
     } catch (error) {

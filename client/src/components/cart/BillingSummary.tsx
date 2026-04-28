@@ -146,7 +146,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   });
 
   // Fetch client data to get addresses, payment condition and credit info
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string }>({
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string; nokoen?: string; gien?: string; parentNokoen?: string }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -381,6 +381,15 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       return;
     }
 
+    if (isMissingRequiredOC) {
+      toast({
+        title: "Orden de Compra obligatoria",
+        description: "Los clientes MCT deben adjuntar la OC en PDF antes de confirmar el pedido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setShowConfirmDialog(true);
   };
 
@@ -582,6 +591,14 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
   // Highlight OC upload for credit clients who haven't attached one yet
   const shouldHighlightOCUpload = isCredit && selectedPaymentMethod === 'credit' && !purchaseOrderPdfUrl && !isUploadingOC;
+
+  // MCT clients deben adjuntar Orden de Compra obligatoriamente.
+  // Identificamos MCT por el nombre del cliente o casa matriz (nomenclatura interna
+  // "MCT <plaza>", ej. "MCT CONCEPCION"). El backend revalida.
+  const mctTokens = `${clientData?.nokoen || ''} ${clientData?.gien || ''} ${clientData?.parentNokoen || ''}`.toUpperCase();
+  const isMCT = /\bMCT\b/.test(mctTokens);
+  const requiresOC = isMCT;
+  const isMissingRequiredOC = requiresOC && !purchaseOrderPdfUrl;
 
   return (
     <>
@@ -1066,14 +1083,22 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
           />
         </div>
 
-        {/* Purchase Order PDF Upload (optional) */}
-        <div className={`space-y-2 rounded-xl transition-all ${shouldHighlightOCUpload ? 'p-3 -mx-1 bg-gradient-to-br from-blue-50/60 to-transparent dark:from-blue-950/30 ring-1 ring-blue-200/60 dark:ring-blue-800/60' : ''}`}>
-          <Label className={`text-sm font-medium flex items-center gap-2 ${shouldHighlightOCUpload ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
-            <FileUp className={`h-4 w-4 ${shouldHighlightOCUpload ? 'text-blue-500 animate-bounce-slow' : ''}`} />
-            Orden de Compra {shouldHighlightOCUpload ? <span className="text-[10px] font-semibold bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">Recomendado</span> : <span className="text-xs font-normal text-gray-400">(opcional)</span>}
+        {/* Purchase Order PDF Upload — obligatorio para clientes MCT */}
+        <div className={`space-y-2 rounded-xl transition-all ${isMissingRequiredOC ? 'p-3 -mx-1 bg-gradient-to-br from-red-50/70 to-transparent dark:from-red-950/30 ring-1 ring-red-300/70 dark:ring-red-800/60' : shouldHighlightOCUpload ? 'p-3 -mx-1 bg-gradient-to-br from-blue-50/60 to-transparent dark:from-blue-950/30 ring-1 ring-blue-200/60 dark:ring-blue-800/60' : ''}`}>
+          <Label className={`text-sm font-medium flex items-center gap-2 ${isMissingRequiredOC ? 'text-red-700 dark:text-red-300' : shouldHighlightOCUpload ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+            <FileUp className={`h-4 w-4 ${isMissingRequiredOC ? 'text-red-500 animate-bounce-slow' : shouldHighlightOCUpload ? 'text-blue-500 animate-bounce-slow' : ''}`} />
+            Orden de Compra {requiresOC ? (
+              <span className="text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full">Obligatorio</span>
+            ) : shouldHighlightOCUpload ? (
+              <span className="text-[10px] font-semibold bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">Recomendado</span>
+            ) : (
+              <span className="text-xs font-normal text-gray-400">(opcional)</span>
+            )}
           </Label>
-          <p className={`text-[11px] -mt-1 ${shouldHighlightOCUpload ? 'text-blue-600/80 dark:text-blue-400/80' : 'text-gray-400 dark:text-gray-500'}`}>
-            {shouldHighlightOCUpload
+          <p className={`text-[11px] -mt-1 ${isMissingRequiredOC ? 'text-red-600/90 dark:text-red-400/90' : shouldHighlightOCUpload ? 'text-blue-600/80 dark:text-blue-400/80' : 'text-gray-400 dark:text-gray-500'}`}>
+            {requiresOC
+              ? 'Como cliente MCT debes adjuntar la Orden de Compra en PDF para confirmar el pedido.'
+              : shouldHighlightOCUpload
               ? 'Al pagar a crédito te recomendamos adjuntar tu OC en PDF para agilizar el despacho.'
               : 'Puedes adjuntar tu OC en formato PDF para que acompañe el pedido.'}
           </p>
@@ -1172,12 +1197,16 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         <div className="pt-4">
           <Button
             onClick={handleConfirmOrder}
-            disabled={isSubmitting || state.items.length === 0}
+            disabled={isSubmitting || state.items.length === 0 || isMissingRequiredOC}
             className="w-full bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold py-3 text-lg"
             size="lg"
             data-testid="button-confirm-order"
           >
-            {isSubmitting ? 'Procesando...' : 'Confirmar pedido'}
+            {isSubmitting
+              ? 'Procesando...'
+              : isMissingRequiredOC
+              ? 'Adjunta la OC para continuar'
+              : 'Confirmar pedido'}
           </Button>
         </div>
 

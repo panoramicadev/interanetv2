@@ -44,7 +44,7 @@ export default function EcommercePedidos() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set('status', statusFilter);
-      const response = await fetch(`/api/ecommerce/orders?${params}`);
+      const response = await fetch(`/api/ecommerce/orders?${params}`, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch orders');
       return response.json();
     },
