@@ -16557,6 +16557,7 @@ export class DatabaseStorage implements IStorage {
         paymentCondition: orderData.paymentCondition || null,
         branchDiscountPercent: String(orderData.branchDiscountPercent ?? 0),
         priceListUsed: orderData.priceListUsed || null,
+        purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
       };
 
       if (orderData.approvedAt) cleanData.approvedAt = orderData.approvedAt;
