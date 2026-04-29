@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TrackingConfigSection from "@/components/ecommerce/tracking-config-section";
+import MailingSection from "@/components/ecommerce/mailing-section";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ShoppingCart, Search, Building2, Edit, Tag, Eye, EyeOff, Play, Pause, List, Grip, Link as LinkIcon, RefreshCw, Smartphone, Globe, PenTool, LayoutTemplate, Palette, MessageCircle, AlertTriangle, MonitorSmartphone, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
@@ -2249,6 +2250,7 @@ export default function EcommerceAdmin() {
              <TabsTrigger value="cupones" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Cupones</TabsTrigger>
              <TabsTrigger value="catalogos" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Catálogos de Vendedores</TabsTrigger>
              <TabsTrigger value="tracking" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Catálogo (Ads &amp; SEO)</TabsTrigger>
+             <TabsTrigger value="mailing" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Mailing</TabsTrigger>
           </TabsList>
         </div>
 
@@ -2626,6 +2628,18 @@ export default function EcommerceAdmin() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 Solo los administradores pueden configurar los códigos de tracking.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="mailing" className="space-y-6">
+          {isAdmin ? (
+            <MailingSection />
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Solo los administradores pueden gestionar el módulo de Mailing.
               </CardContent>
             </Card>
           )}

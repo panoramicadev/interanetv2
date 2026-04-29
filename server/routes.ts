@@ -85,7 +85,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
-import { wrapEmailContent } from "./email-templates";
+import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import sharp from "sharp";
@@ -17763,6 +17763,230 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('❌ Error al actualizar configuración:', error);
       res.status(500).json({ message: 'Error al actualizar configuración', error: error.message });
+    }
+  }));
+
+  // ==============================================
+  // MAILING MODULE (Panoramica Store > Mailing)
+  // ==============================================
+
+  // Lookup full client data by koen, returning email/teléfono/etc para autocompletar
+  app.get('/api/admin/mailing/client/:koen', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { koen } = req.params;
+      const client = await storage.getClientByKoen(koen);
+      if (!client) {
+        return res.status(404).json({ message: 'Cliente no encontrado' });
+      }
+      res.json({
+        id: client.id,
+        koen: client.koen,
+        nokoen: client.nokoen,
+        rten: client.rten,
+        email: client.email,
+        emailcomer: client.emailcomer,
+        foen: client.foen,
+        dien: client.dien,
+        comuna: client.comuna,
+        cmen: client.cmen,
+        cpen: client.cpen,
+        crsd: client.crsd,
+      });
+    } catch (error: any) {
+      console.error('❌ Error al obtener cliente para mailing:', error);
+      res.status(500).json({ message: 'Error al obtener cliente', error: error.message });
+    }
+  }));
+
+  // Helper: resolve internal CC list from email_notification_settings (recipients + cc) for a given type
+  const getInternalCcList = async (notificationType: string): Promise<string[]> => {
+    try {
+      const settings = await db.select()
+        .from(emailNotificationSettings)
+        .where(eq(emailNotificationSettings.notificationType, notificationType));
+      const setting = settings[0];
+      if (!setting || !setting.enabled) return [];
+      const list: string[] = [];
+      if (setting.recipients) list.push(...setting.recipients.split(',').map((s: string) => s.trim()).filter(Boolean));
+      if (setting.ccRecipients) list.push(...setting.ccRecipients.split(',').map((s: string) => s.trim()).filter(Boolean));
+      return Array.from(new Set(list));
+    } catch (e) {
+      console.error('Error resolviendo CC interno:', e);
+      return [];
+    }
+  };
+
+  const sendSaleNotificationSchema = z.object({
+    koen: z.string().min(1),
+    clientEmailOverride: z.string().email().optional().or(z.literal('')),
+    monto: z.union([z.number(), z.string()]).optional(),
+    detalle: z.string().optional(),
+    numeroDocumento: z.string().optional(),
+    sendToClient: z.boolean().optional().default(true),
+    ccInternal: z.boolean().optional().default(true),
+    extraCc: z.string().optional(),
+  }).strict();
+
+  app.post('/api/admin/mailing/send-sale', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const parsed = sendSaleNotificationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const { koen, clientEmailOverride, monto, detalle, numeroDocumento, sendToClient, ccInternal, extraCc } = parsed.data;
+
+    const client = await storage.getClientByKoen(koen);
+    if (!client) return res.status(404).json({ message: 'Cliente no encontrado' });
+
+    const clientEmail = (clientEmailOverride || client.email || '').trim();
+    if (sendToClient && !clientEmail) {
+      return res.status(400).json({ message: 'El cliente no tiene email registrado. Ingrese uno manualmente.' });
+    }
+
+    const recipients: string[] = [];
+    if (sendToClient && clientEmail) recipients.push(clientEmail);
+    const cc: string[] = [];
+    if (ccInternal) cc.push(...await getInternalCcList('mailing_venta'));
+    if (extraCc) cc.push(...extraCc.split(',').map(s => s.trim()).filter(Boolean));
+    const ccUnique = Array.from(new Set(cc.filter(e => !recipients.includes(e))));
+
+    if (recipients.length === 0 && ccUnique.length === 0) {
+      return res.status(400).json({ message: 'No hay destinatarios para enviar el correo' });
+    }
+
+    const { subject, html } = buildSaleNotificationEmail({
+      clientName: client.nokoen || 'Cliente',
+      clientRut: client.rten || undefined,
+      monto,
+      detalle,
+      numeroDocumento,
+      fecha: new Date(),
+    });
+
+    const to = recipients.length > 0 ? recipients.join(', ') : ccUnique.join(', ');
+    const ccStr = recipients.length > 0 && ccUnique.length > 0 ? ccUnique.join(', ') : undefined;
+
+    const logEntry = await db.insert(emailLogs).values({
+      recipient: [to, ccStr].filter(Boolean).join(' | '),
+      subject,
+      notificationType: 'mailing_venta_manual',
+      status: 'pending',
+    }).returning({ id: emailLogs.id });
+    const logId = logEntry[0]?.id;
+
+    try {
+      await emailService.sendEmail({ to, subject, html, cc: ccStr });
+      if (logId) {
+        await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
+      }
+      res.json({ success: true, to, cc: ccStr });
+    } catch (error: any) {
+      console.error('❌ Error enviando correo de venta:', error);
+      if (logId) {
+        await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
+      }
+      res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+    }
+  }));
+
+  const sendCobranzaSchema = z.object({
+    koen: z.string().min(1),
+    clientEmailOverride: z.string().email().optional().or(z.literal('')),
+    montoAdeudado: z.union([z.number(), z.string()]),
+    fechaVencimiento: z.string().min(1),
+    numeroDocumento: z.string().optional(),
+    mensajeAdicional: z.string().optional(),
+    sendToClient: z.boolean().optional().default(true),
+    ccInternal: z.boolean().optional().default(true),
+    extraCc: z.string().optional(),
+  }).strict();
+
+  app.post('/api/admin/mailing/send-cobranza', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const parsed = sendCobranzaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, sendToClient, ccInternal, extraCc } = parsed.data;
+
+    const montoNum = Number(montoAdeudado);
+    if (!isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ message: 'Monto adeudado inválido' });
+    }
+    const venc = new Date(fechaVencimiento);
+    if (isNaN(venc.getTime())) {
+      return res.status(400).json({ message: 'Fecha de vencimiento inválida' });
+    }
+
+    const client = await storage.getClientByKoen(koen);
+    if (!client) return res.status(404).json({ message: 'Cliente no encontrado' });
+
+    const clientEmail = (clientEmailOverride || client.email || '').trim();
+    if (sendToClient && !clientEmail) {
+      return res.status(400).json({ message: 'El cliente no tiene email registrado. Ingrese uno manualmente.' });
+    }
+
+    const recipients: string[] = [];
+    if (sendToClient && clientEmail) recipients.push(clientEmail);
+    const cc: string[] = [];
+    if (ccInternal) cc.push(...await getInternalCcList('cobranza'));
+    if (extraCc) cc.push(...extraCc.split(',').map(s => s.trim()).filter(Boolean));
+    const ccUnique = Array.from(new Set(cc.filter(e => !recipients.includes(e))));
+
+    if (recipients.length === 0 && ccUnique.length === 0) {
+      return res.status(400).json({ message: 'No hay destinatarios para enviar el correo' });
+    }
+
+    const { subject, html } = buildCobranzaEmail({
+      clientName: client.nokoen || 'Cliente',
+      clientRut: client.rten || undefined,
+      montoAdeudado: montoNum,
+      fechaVencimiento: venc,
+      numeroDocumento,
+      mensajeAdicional,
+    });
+
+    const to = recipients.length > 0 ? recipients.join(', ') : ccUnique.join(', ');
+    const ccStr = recipients.length > 0 && ccUnique.length > 0 ? ccUnique.join(', ') : undefined;
+
+    const logEntry = await db.insert(emailLogs).values({
+      recipient: [to, ccStr].filter(Boolean).join(' | '),
+      subject,
+      notificationType: 'mailing_cobranza_manual',
+      status: 'pending',
+    }).returning({ id: emailLogs.id });
+    const logId = logEntry[0]?.id;
+
+    try {
+      await emailService.sendEmail({ to, subject, html, cc: ccStr });
+      if (logId) {
+        await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
+      }
+      res.json({ success: true, to, cc: ccStr });
+    } catch (error: any) {
+      console.error('❌ Error enviando correo de cobranza:', error);
+      if (logId) {
+        await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
+      }
+      res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+    }
+  }));
+
+  // Auto-create cobranza notification setting if missing (so admins can configure CC internos)
+  app.post('/api/admin/mailing/ensure-settings', requireAdminOrSupervisor, asyncHandler(async (_req: any, res: any) => {
+    try {
+      const ensure = async (notificationType: string, displayName: string, description: string) => {
+        const existing = await db.select().from(emailNotificationSettings).where(eq(emailNotificationSettings.notificationType, notificationType));
+        if (existing.length === 0) {
+          await db.insert(emailNotificationSettings).values({
+            notificationType, displayName, description, enabled: true, recipients: '', ccRecipients: '',
+          });
+        }
+      };
+      await ensure('cobranza', 'Cobranza', 'Destinatarios internos en copia para correos manuales de cobranza');
+      await ensure('mailing_venta', 'Mailing - Venta manual', 'Destinatarios internos en copia para correos de notificación de venta enviados desde Mailing');
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('❌ Error inicializando settings de mailing:', error);
+      res.status(500).json({ message: 'Error inicializando settings', error: error.message });
     }
   }));
 
