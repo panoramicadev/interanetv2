@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -144,6 +145,18 @@ export default function EcommercePedidos() {
           <div className="text-xs text-gray-500 mt-0.5">facturado</div>
         </div>
       </div>
+
+      <Tabs defaultValue="tienda" className="w-full">
+        <TabsList className="bg-slate-100/70 border border-slate-200 rounded-xl p-1.5 h-auto gap-1">
+          <TabsTrigger value="tienda" className="gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-medium">
+            <ShoppingCart className="h-4 w-4" /> Pedidos de Tienda
+          </TabsTrigger>
+          <TabsTrigger value="cotizaciones" className="gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-medium">
+            <FileText className="h-4 w-4" /> Cotizaciones
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tienda" className="mt-4 space-y-6">
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4">
@@ -265,8 +278,12 @@ export default function EcommercePedidos() {
         )}
       </div>
 
-      {/* Cotizaciones enviadas a recepción (presupuestos para ingresar al ERP) */}
-      <SentQuotesSection />
+        </TabsContent>
+
+        <TabsContent value="cotizaciones" className="mt-4 space-y-6">
+          <SentQuotesTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -294,19 +311,40 @@ interface SentQuote {
   erpEnteredAt?: string | null;
 }
 
-function SentQuotesSection() {
+function SentQuotesTable() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: allQuotes = [], isLoading } = useQuery<SentQuote[]>({
     queryKey: ["/api/quotes"],
   });
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState<"all" | "pending" | "ingresado">("all");
   const [ingresarDialog, setIngresarDialog] = useState<SentQuote | null>(null);
   const [ingresarNotes, setIngresarNotes] = useState("");
+  const [detailQuote, setDetailQuote] = useState<SentQuote | null>(null);
 
   const sentQuotes = allQuotes.filter(
     (q) => q.status === "sent" || q.sentToFinanceAt
   );
+
+  const filtered = sentQuotes.filter((q) => {
+    if (filter === "pending" && q.erpEntered) return false;
+    if (filter === "ingresado" && !q.erpEntered) return false;
+    if (!searchTerm) return true;
+    const t = searchTerm.toLowerCase();
+    return (
+      q.clientName.toLowerCase().includes(t) ||
+      q.quoteNumber.toLowerCase().includes(t) ||
+      (q.creatorName || "").toLowerCase().includes(t) ||
+      (q.ocNumber || "").toLowerCase().includes(t)
+    );
+  });
+
+  const pendingCount = sentQuotes.filter((q) => !q.erpEntered).length;
+  const ingresadosCount = sentQuotes.filter((q) => q.erpEntered).length;
+  const totalRevenue = sentQuotes.reduce((s, q) => s + (Number(q.total) || 0), 0);
+  const pendingRevenue = sentQuotes.filter((q) => !q.erpEntered).reduce((s, q) => s + (Number(q.total) || 0), 0);
 
   const erpMutation = useMutation({
     mutationFn: async ({ id, entered, notes }: { id: string; entered: boolean; notes?: string }) => {
@@ -320,6 +358,7 @@ function SentQuotesSection() {
       toast({ title: vars.entered ? "✅ Presupuesto ingresado al ERP" : "Marcado como pendiente" });
       setIngresarDialog(null);
       setIngresarNotes("");
+      setDetailQuote(null);
     },
     onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
   });
@@ -329,42 +368,176 @@ function SentQuotesSection() {
     setIngresarNotes("");
   };
 
-  if (isLoading) return null;
-  if (sentQuotes.length === 0) return null;
-
-  const pending = sentQuotes.filter((q) => !q.erpEntered).length;
-
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-white flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-            <FileText className="w-5 h-5" />
+    <>
+      {/* KPI Cards (mismo formato que Pedidos) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">PENDIENTES</span>
           </div>
-          <div>
-            <h2 className="text-base font-bold text-gray-900">Presupuestos enviados a recepción</h2>
-            <p className="text-xs text-gray-500">Cotizaciones para ingresar al ERP — gestionar igual que pedidos de tienda</p>
-          </div>
+          <div className="text-2xl font-black text-gray-900">{pendingCount}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{formatPrice(pendingRevenue)}</div>
         </div>
-        {pending > 0 && (
-          <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full">
-            <Clock className="w-3.5 h-3.5" /> {pending} pendiente{pending !== 1 ? "s" : ""}
-          </span>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">INGRESADOS</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{ingresadosCount}</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-blue-600" />
+            </div>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">TOTAL</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{sentQuotes.length}</div>
+          <div className="text-xs text-gray-500 mt-0.5">cotizaciones</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-[#FF6E23]" />
+            </div>
+            <span className="text-[10px] font-bold text-[#FF6E23] bg-orange-50 px-2 py-0.5 rounded-full">REVENUE</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{formatPrice(totalRevenue)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">en cotizaciones</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por cliente, número, vendedor u OC..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 rounded-xl border-gray-200"
+            />
+          </div>
+          <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
+            <SelectTrigger className="w-[180px] rounded-xl">
+              <Filter className="h-4 w-4 mr-2 text-gray-400" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="pending">Pendientes</SelectItem>
+              <SelectItem value="ingresado">Ingresados al ERP</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Quotes Table — mismo grid que pedidos de tienda */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center">
+            <div className="w-12 h-12 border-4 border-gray-200 border-t-[#FF6E23] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm text-gray-500">Cargando cotizaciones...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-7 h-7 text-gray-400" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-1">Sin cotizaciones</h3>
+            <p className="text-sm text-gray-500">No hay cotizaciones {filter !== "all" ? "con este estado" : "enviadas aún"}</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              <span>Cliente</span>
+              <span>Vendedor</span>
+              <span>Estado</span>
+              <span className="text-right">Total</span>
+              <span>Fecha</span>
+              <span />
+            </div>
+            <div className="divide-y divide-gray-50">
+              {filtered.map((quote) => (
+                <div
+                  key={quote.id}
+                  onClick={() => setDetailQuote(quote)}
+                  className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-4 hover:bg-orange-50/30 cursor-pointer transition-colors items-center group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center flex-shrink-0 border border-gray-200 text-sm font-bold text-gray-400">
+                      {quote.clientName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-gray-900 truncate">{quote.clientName}</h4>
+                      <p className="text-[10px] text-gray-400 truncate">
+                        #{quote.quoteNumber}{quote.ocNumber ? ` · OC ${quote.ocNumber}` : ""}{quote.segment ? ` · ${quote.segment}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600 truncate">
+                    {quote.creatorName || <span className="text-gray-300">—</span>}
+                  </div>
+                  <div>
+                    {quote.erpEntered ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <CheckCircle className="w-3 h-3" /> Ingresado ERP
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
+                        <Clock className="w-3 h-3" /> Pendiente
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-gray-900">{formatPrice(quote.total)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500">
+                      {quote.sentToFinanceAt
+                        ? formatDistanceToNow(new Date(quote.sentToFinanceAt), { locale: es, addSuffix: true })
+                        : formatDistanceToNow(new Date(quote.createdAt), { locale: es, addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#FF6E23] transition-colors" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
+              Mostrando {filtered.length} de {sentQuotes.length} cotización{sentQuotes.length !== 1 ? "es" : ""}
+            </div>
+          </>
         )}
       </div>
 
-      <div className="p-5 space-y-4">
-        {sentQuotes.map((quote) => (
-          <div
-            key={quote.id}
-            className={`group border rounded-xl p-5 transition-all duration-200 ${
-              quote.erpEntered ? "bg-emerald-50/30 border-emerald-200" : "bg-white hover:shadow-md hover:border-orange-300"
-            }`}
-          >
-            <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
-              <div className="flex items-center gap-3">
-                <h3 className="text-lg font-bold text-gray-900">Presupuesto #{quote.quoteNumber}</h3>
-                {quote.erpEntered ? (
+      {/* Detail Dialog — abre al click en fila, muestra info + acción ingresar */}
+      <Dialog open={!!detailQuote} onOpenChange={(o) => { if (!o) setDetailQuote(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 bg-gradient-to-r from-amber-50 to-white border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-amber-600" />
+              Cotización #{detailQuote?.quoteNumber}
+            </DialogTitle>
+            <DialogDescription>{detailQuote?.clientName}</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Total</div>
+                <div className="font-bold text-gray-900 text-lg">{detailQuote && formatPrice(detailQuote.total)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Estado</div>
+                {detailQuote?.erpEntered ? (
                   <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 gap-1">
                     <CheckCircle className="h-3 w-3" /> Ingresado al ERP
                   </Badge>
@@ -373,85 +546,66 @@ function SentQuotesSection() {
                     <Clock className="h-3 w-3" /> Pendiente
                   </Badge>
                 )}
-                {quote.segment && <Badge variant="outline" className="text-[10px]">{quote.segment}</Badge>}
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{formatPrice(quote.total)}</div>
-                {quote.subtotal && <div className="text-xs text-gray-500">Subtotal: {formatPrice(quote.subtotal)}</div>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm">
-              <div>
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Cliente</div>
-                <div className="font-medium text-gray-900 truncate">{quote.clientName}</div>
-              </div>
-              <div>
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Fecha</div>
-                <div className="font-medium text-gray-900">
-                  {quote.sentToFinanceAt ? format(new Date(quote.sentToFinanceAt), "dd/MM/yyyy", { locale: es }) : format(new Date(quote.createdAt), "dd/MM/yyyy", { locale: es })}
-                </div>
-              </div>
-              {quote.creatorName && (
+              {detailQuote?.creatorName && (
                 <div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Vendedor</div>
-                  <div className="font-medium text-gray-900 truncate">{quote.creatorName}</div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Vendedor</div>
+                  <div className="font-medium text-gray-900">{detailQuote.creatorName}</div>
                 </div>
               )}
-              {quote.ocNumber && (
+              {detailQuote?.ocNumber && (
                 <div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">N° OC</div>
-                  <div className="font-medium text-orange-600">{quote.ocNumber}</div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">N° OC</div>
+                  <div className="font-medium text-orange-600">{detailQuote.ocNumber}</div>
                 </div>
               )}
-              {quote.paymentMethod && (
-                <div className="col-span-2">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Método de pago</div>
-                  <div className="font-medium text-gray-900">{quote.paymentMethod}</div>
+              {detailQuote?.segment && (
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Segmento</div>
+                  <div className="font-medium text-gray-900">{detailQuote.segment}</div>
+                </div>
+              )}
+              {detailQuote?.paymentMethod && (
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Método de pago</div>
+                  <div className="font-medium text-gray-900">{detailQuote.paymentMethod}</div>
                 </div>
               )}
             </div>
-
-            {quote.scope && (
-              <div className="mb-4 bg-slate-50 border-l-4 border-slate-400 rounded-r-lg p-3">
-                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Alcances</div>
-                <div className="text-sm text-gray-800 whitespace-pre-wrap">{quote.scope}</div>
+            {detailQuote?.scope && (
+              <div className="bg-slate-50 border-l-4 border-slate-400 rounded-r-lg p-3">
+                <div className="text-[10px] font-bold text-gray-500 uppercase mb-1">Alcances</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">{detailQuote.scope}</div>
               </div>
             )}
-
-            <div className="flex items-center gap-2 pt-3 border-t border-gray-100 flex-wrap">
-              {quote.erpEntered ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => erpMutation.mutate({ id: quote.id, entered: false })}
-                    disabled={erpMutation.isPending}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Marcar como no ingresado
-                  </Button>
-                  {quote.erpEnteredAt && (
-                    <span className="text-xs text-emerald-700 font-medium">
-                      ✓ Ingresado el {format(new Date(quote.erpEnteredAt), "dd/MM/yyyy HH:mm", { locale: es })}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => openIngresar(quote)}
-                  disabled={erpMutation.isPending}
-                >
-                  <Database className="h-4 w-4 mr-2" />
-                  Ingresar al ERP
-                </Button>
-              )}
-            </div>
+            {detailQuote?.erpEntered && detailQuote.erpEnteredAt && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800">
+                ✓ Ingresado al ERP el {format(new Date(detailQuote.erpEnteredAt), "dd/MM/yyyy HH:mm", { locale: es })}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+          <DialogFooter className="px-6 py-4 border-t bg-slate-50 shrink-0">
+            <Button variant="outline" onClick={() => setDetailQuote(null)}>Cerrar</Button>
+            {detailQuote && !detailQuote.erpEntered && (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => { openIngresar(detailQuote); setDetailQuote(null); }}
+              >
+                <Database className="h-4 w-4 mr-2" /> Ingresar al ERP
+              </Button>
+            )}
+            {detailQuote?.erpEntered && (
+              <Button
+                variant="outline"
+                onClick={() => erpMutation.mutate({ id: detailQuote.id, entered: false })}
+                disabled={erpMutation.isPending}
+              >
+                <XCircle className="h-4 w-4 mr-2" /> Marcar como no ingresado
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Ingresar al ERP con notas (mismo flujo que pedidos de tienda) */}
       <Dialog open={!!ingresarDialog} onOpenChange={(open) => { if (!open) setIngresarDialog(null); }}>
@@ -495,6 +649,6 @@ function SentQuotesSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
