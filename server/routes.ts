@@ -13125,17 +13125,6 @@ export function registerRoutes(app: Express): Server {
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
 
-      // Send email with default recipient (Felipe Parra) or custom one
-      const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
-      const cc = ccList.join(', ') || undefined;
-      const subjectParts = [
-        `Cotización ${quote.quoteNumber}`,
-        quote.clientName,
-        ocNumber ? `OC ${ocNumber}` : null,
-        segment ? `[${segment}]` : null,
-      ].filter(Boolean);
-      const subject = subjectParts.join(' - ');
-
       // Resolve assigned salesperson (admin/supervisor can send on behalf of any salesperson)
       let assignedSalesperson: { name: string; email?: string } | null = null;
       const isAdmin = user.role === 'admin' || user.role === 'supervisor';
@@ -13155,11 +13144,23 @@ export function registerRoutes(app: Express): Server {
       const fallbackName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email || 'Equipo Panorámica';
       const senderName = assignedSalesperson?.name || fallbackName;
       const senderEmail = assignedSalesperson?.email || user.email;
-      // If admin is sending on behalf of a salesperson, automatically CC the salesperson
+
+      // Build CC list (manual + auto-CC the salesperson when admin sends on their behalf)
       const ccList = (ccEmails || '').split(',').map((s: string) => s.trim()).filter(Boolean);
       if (assignedSalesperson?.email && assignedSalesperson.email !== user.email && !ccList.includes(assignedSalesperson.email)) {
         ccList.push(assignedSalesperson.email);
       }
+
+      // Send email with default recipient (Felipe Parra) or custom one
+      const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
+      const cc = ccList.join(', ') || undefined;
+      const subjectParts = [
+        `Cotización ${quote.quoteNumber}`,
+        quote.clientName,
+        ocNumber ? `OC ${ocNumber}` : null,
+        segment ? `[${segment}]` : null,
+      ].filter(Boolean);
+      const subject = subjectParts.join(' - ');
       const segmentLabel: Record<string, string> = {
         'MCT': 'MCT',
         'FERRETERIAS': 'Ferreterías',
