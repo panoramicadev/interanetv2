@@ -1038,180 +1038,236 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
       {/* Send Email Dialog */}
       <Dialog open={!!emailDialog} onOpenChange={(open) => { if (!open) { setEmailDialog(null); resetEmailForm(); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-orange-50 to-white shrink-0">
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 border border-orange-200">
-                <Mail className="h-5 w-5" />
+        <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden border-0 shadow-2xl rounded-2xl">
+          {/* Header con gradient oscuro */}
+          <DialogHeader className="relative px-7 pt-7 pb-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shrink-0">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+            <div className="relative flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-orange-500/20 backdrop-blur-sm border border-orange-400/30">
+                <Mail className="h-6 w-6 text-orange-300" />
               </div>
-              Enviar cotización por correo
-            </DialogTitle>
-            <DialogDescription className="pl-12 -mt-1">
-              {emailDialog && (
-                <>Cotización <strong className="text-slate-900">{emailDialog.quoteNumber}</strong> · {emailDialog.clientName}</>
-              )}
-            </DialogDescription>
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-xl text-white tracking-tight font-bold">
+                  Enviar cotización
+                </DialogTitle>
+                <DialogDescription className="text-slate-300 mt-1 text-sm">
+                  {emailDialog && (
+                    <>
+                      <span className="text-orange-300 font-mono">{emailDialog.quoteNumber}</span>
+                      <span className="text-slate-500 mx-2">·</span>
+                      <span className="text-slate-200">{emailDialog.clientName}</span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <div>
-              <Label className="text-xs font-medium">Destinatario</Label>
-              <Input
-                type="email"
-                value={emailRecipient}
-                onChange={(e) => setEmailRecipient(e.target.value)}
-                className="mt-1.5"
-                placeholder="fparra@pinturaspanoramica.cl"
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto bg-slate-50/50">
+            <div className="px-7 py-6 space-y-6">
 
-            <div>
-              <Label className="text-xs font-medium">CC (separar con coma)</Label>
-              <Input
-                value={emailCc}
-                onChange={(e) => setEmailCc(e.target.value)}
-                className="mt-1.5"
-                placeholder="copia@dom.cl, otro@dom.cl"
-              />
-            </div>
-
-            {isAdminOrSupervisor && (
-              <div>
-                <Label className="text-xs font-medium flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5" />
-                  Vendedor asignado
-                </Label>
-                <Select value={emailSalespersonId} onValueChange={setEmailSalespersonId}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar vendedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {salespeople.map((sp) => (
-                      <SelectItem key={sp.id} value={sp.id}>
-                        {sp.salespersonName || sp.email || sp.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  El correo se envía a nombre de este vendedor (firma).
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-medium">N° de OC (opcional)</Label>
-                <Input
-                  value={emailOcNumber}
-                  onChange={(e) => setEmailOcNumber(e.target.value)}
-                  className="mt-1.5"
-                  placeholder="OC-12345"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Segmento</Label>
-                <Select value={emailSegment} onValueChange={setEmailSegment}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar segmento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MCT">MCT</SelectItem>
-                    <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
-                    <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
-                    <SelectItem value="CANALES DIGITALES">Canales Digitales</SelectItem>
-                    <SelectItem value="FABRICACION MODULAR">Fabricación Modular</SelectItem>
-                    <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
-                    <SelectItem value="OTRO">Otro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium">Método de pago</Label>
-              <Select value={emailPaymentMethod} onValueChange={setEmailPaymentMethod}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Seleccionar método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Transferencia bancaria">Transferencia bancaria</SelectItem>
-                  <SelectItem value="Tarjeta (Getnet)">Tarjeta (Getnet)</SelectItem>
-                  <SelectItem value="Cheque">Cheque</SelectItem>
-                  <SelectItem value="Efectivo">Efectivo</SelectItem>
-                  <SelectItem value="Crédito 30 días">Crédito 30 días</SelectItem>
-                  <SelectItem value="Crédito 60 días">Crédito 60 días</SelectItem>
-                  <SelectItem value="Crédito 90 días">Crédito 90 días</SelectItem>
-                  <SelectItem value="Contra entrega">Contra entrega</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium">Alcances</Label>
-              <Textarea
-                value={emailScope}
-                onChange={(e) => setEmailScope(e.target.value)}
-                className="mt-1.5"
-                rows={3}
-                placeholder="Detalles de la entrega, plazos, condiciones especiales, despacho, etc."
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium flex items-center gap-1.5">
-                <Paperclip className="h-3.5 w-3.5" />
-                Archivo adjunto (OC, captura de pago, etc.)
-              </Label>
-              {emailAttachment ? (
-                <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 py-2">
-                  <div className="text-sm truncate flex items-center gap-2">
-                    <Paperclip className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    <span className="truncate">{emailAttachment.name}</span>
+              {/* Sección 1: Destinatarios */}
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-blue-500/10 text-blue-600 flex items-center justify-center text-xs font-bold">1</div>
+                  <h3 className="font-semibold text-sm text-slate-900">Destinatarios</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700">Para</Label>
+                    <Input
+                      type="email"
+                      value={emailRecipient}
+                      onChange={(e) => setEmailRecipient(e.target.value)}
+                      className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white"
+                      placeholder="fparra@pinturaspanoramica.cl"
+                    />
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)}>
-                    <XIcon className="h-3.5 w-3.5" />
-                  </Button>
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700">CC <span className="text-slate-400 font-normal">(separar con coma)</span></Label>
+                    <Input
+                      value={emailCc}
+                      onChange={(e) => setEmailCc(e.target.value)}
+                      className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white"
+                      placeholder="copia@dom.cl, otro@dom.cl"
+                    />
+                  </div>
+                  {isAdminOrSupervisor && (
+                    <div>
+                      <Label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-orange-500" />
+                        Vendedor asignado
+                      </Label>
+                      <Select value={emailSalespersonId} onValueChange={setEmailSalespersonId}>
+                        <SelectTrigger className="mt-1.5 bg-slate-50 border-slate-200">
+                          <SelectValue placeholder="Seleccionar vendedor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {salespeople.map((sp) => (
+                            <SelectItem key={sp.id} value={sp.id}>
+                              {sp.salespersonName || sp.email || sp.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+                        <span className="inline-block w-1 h-1 rounded-full bg-slate-400" />
+                        El correo se firma a nombre de este vendedor.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="mt-1.5">
-                  <input
-                    type="file"
-                    onChange={handleAttachmentChange}
-                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
-                    className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
-                    disabled={attachmentLoading}
-                  />
-                  <p className="text-xs text-slate-500 mt-1">PDF, imagen o documento. Máx 10 MB.</p>
-                </div>
-              )}
-            </div>
+              </section>
 
-            <div>
-              <Label className="text-xs font-medium">Mensaje adicional (opcional)</Label>
-              <Textarea
-                value={emailMessage}
-                onChange={(e) => setEmailMessage(e.target.value)}
-                className="mt-1.5"
-                rows={3}
-                placeholder="Notas o contexto para el destinatario..."
-              />
+              {/* Sección 2: Datos comerciales */}
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xs font-bold">2</div>
+                  <h3 className="font-semibold text-sm text-slate-900">Datos comerciales</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-medium text-slate-700">N° de OC <span className="text-slate-400 font-normal">(opcional)</span></Label>
+                      <Input
+                        value={emailOcNumber}
+                        onChange={(e) => setEmailOcNumber(e.target.value)}
+                        className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white"
+                        placeholder="OC-12345"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-slate-700">Segmento</Label>
+                      <Select value={emailSegment} onValueChange={setEmailSegment}>
+                        <SelectTrigger className="mt-1.5 bg-slate-50 border-slate-200">
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MCT">MCT</SelectItem>
+                          <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
+                          <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
+                          <SelectItem value="CANALES DIGITALES">Canales Digitales</SelectItem>
+                          <SelectItem value="FABRICACION MODULAR">Fabricación Modular</SelectItem>
+                          <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
+                          <SelectItem value="OTRO">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700">Método de pago</Label>
+                    <Select value={emailPaymentMethod} onValueChange={setEmailPaymentMethod}>
+                      <SelectTrigger className="mt-1.5 bg-slate-50 border-slate-200">
+                        <SelectValue placeholder="Seleccionar método de pago" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Transferencia bancaria">Transferencia bancaria</SelectItem>
+                        <SelectItem value="Tarjeta (Getnet)">Tarjeta (Getnet)</SelectItem>
+                        <SelectItem value="Cheque">Cheque</SelectItem>
+                        <SelectItem value="Efectivo">Efectivo</SelectItem>
+                        <SelectItem value="Crédito 30 días">Crédito 30 días</SelectItem>
+                        <SelectItem value="Crédito 60 días">Crédito 60 días</SelectItem>
+                        <SelectItem value="Crédito 90 días">Crédito 90 días</SelectItem>
+                        <SelectItem value="Contra entrega">Contra entrega</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700">Alcances</Label>
+                    <Textarea
+                      value={emailScope}
+                      onChange={(e) => setEmailScope(e.target.value)}
+                      className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white resize-none"
+                      rows={3}
+                      placeholder="Detalles de entrega, plazos, condiciones especiales, despacho..."
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Sección 3: Adjunto + mensaje */}
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-amber-500/10 text-amber-600 flex items-center justify-center text-xs font-bold">3</div>
+                  <h3 className="font-semibold text-sm text-slate-900">Adjunto y mensaje</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 text-slate-500" />
+                      Archivo adjunto <span className="text-slate-400 font-normal">(OC, captura de pago, etc.)</span>
+                    </Label>
+                    {emailAttachment ? (
+                      <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-4 py-3">
+                        <div className="text-sm truncate flex items-center gap-2 min-w-0">
+                          <div className="h-8 w-8 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                            <Paperclip className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-slate-900 truncate">{emailAttachment.name}</div>
+                            <div className="text-[11px] text-slate-500">Listo para enviar</div>
+                          </div>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)} className="text-slate-500 hover:text-red-600 shrink-0">
+                          <XIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <label className="mt-1.5 block rounded-lg border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/30 transition-colors cursor-pointer p-5 text-center">
+                        <input
+                          type="file"
+                          onChange={handleAttachmentChange}
+                          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                          className="hidden"
+                          disabled={attachmentLoading}
+                        />
+                        {attachmentLoading ? (
+                          <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+                          </div>
+                        ) : (
+                          <>
+                            <Paperclip className="h-6 w-6 text-slate-400 mx-auto mb-2" />
+                            <div className="text-sm font-medium text-slate-700">Click para subir archivo</div>
+                            <div className="text-xs text-slate-500 mt-0.5">PDF, imagen o documento · Máx 10 MB</div>
+                          </>
+                        )}
+                      </label>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-slate-700">Mensaje adicional <span className="text-slate-400 font-normal">(opcional)</span></Label>
+                    <Textarea
+                      value={emailMessage}
+                      onChange={(e) => setEmailMessage(e.target.value)}
+                      className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white resize-none"
+                      rows={3}
+                      placeholder="Notas o contexto para el destinatario..."
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-slate-50 shrink-0">
-            <Button variant="outline" onClick={() => { setEmailDialog(null); resetEmailForm(); }}>Cancelar</Button>
-            <Button
-              className="bg-orange-500 hover:bg-orange-600"
-              onClick={() => emailDialog && sendEmailMutation.mutate({ quoteId: emailDialog.quoteId })}
-              disabled={sendEmailMutation.isPending || !emailRecipient.trim()}
-            >
-              {sendEmailMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
-              ) : (
-                <><Send className="h-4 w-4 mr-2" /> Enviar correo</>
-              )}
-            </Button>
+          <DialogFooter className="px-7 py-4 border-t bg-white shrink-0 flex items-center justify-between sm:justify-between">
+            <div className="text-xs text-slate-500 hidden sm:block">
+              El PDF de la cotización se adjunta automáticamente.
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => { setEmailDialog(null); resetEmailForm(); }}>Cancelar</Button>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600 shadow-md shadow-orange-500/30"
+                onClick={() => emailDialog && sendEmailMutation.mutate({ quoteId: emailDialog.quoteId })}
+                disabled={sendEmailMutation.isPending || !emailRecipient.trim()}
+              >
+                {sendEmailMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
+                ) : (
+                  <><Send className="h-4 w-4 mr-2" /> Enviar correo</>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
