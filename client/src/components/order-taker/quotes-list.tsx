@@ -370,9 +370,11 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     onSuccess: async (res) => {
       const data = await res.json().catch(() => ({}));
       toast({
-        title: "Correo enviado",
+        title: "✉️ Correo enviado",
         description: `Para: ${data.sentTo}${data.cc ? ` · CC: ${data.cc}` : ""}`,
       });
+      // Invalidate quotes list so status changes from "Borrador" → "Enviada"
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
       setEmailDialog(null);
       resetEmailForm();
     },
@@ -879,31 +881,31 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         className="py-4"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center gap-1 justify-center">
-                          {/* Quick action: Mark as sent (draft only) */}
+                        <div className="flex items-center gap-1.5 justify-center">
+                          {/* Botón principal: Enviar por correo (destacado) */}
+                          <Button
+                            size="sm"
+                            className="h-8 gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/30 px-3"
+                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)}
+                            disabled={sendEmailMutation.isPending}
+                            title="Enviar cotización por correo"
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                            <span className="text-xs font-medium hidden lg:inline">Enviar</span>
+                          </Button>
+                          {/* Quick action: Mark as sent manually (draft only) */}
                           {quote.status === 'draft' && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
                               disabled={updateStatusMutation.isPending}
-                              title="Marcar como enviada"
+                              title="Marcar como enviada manualmente"
                             >
                               <Send className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {/* Quick action: Send email */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)}
-                            disabled={sendEmailMutation.isPending}
-                            title="Compartir por email"
-                          >
-                            <Mail className="h-3.5 w-3.5" />
-                          </Button>
                           {/* More actions dropdown */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
