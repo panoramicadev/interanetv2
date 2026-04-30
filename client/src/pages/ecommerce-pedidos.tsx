@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle, Package, Eye, FileText,
   Phone, Mail, Search, Filter, ArrowLeft, User, MapPin, ChevronRight,
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
-  Pencil, Archive, Trash2, FileImage, Landmark
+  Pencil, Archive, Trash2, FileImage, Landmark, Loader2, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,6 +257,171 @@ export default function EcommercePedidos() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Cotizaciones enviadas a recepción (presupuestos para ingresar al ERP) */}
+      <SentQuotesSection />
+    </div>
+  );
+}
+
+// ==================== SENT QUOTES (RECEPTION-MANAGEABLE) ====================
+
+interface SentQuote {
+  id: string;
+  quoteNumber: string;
+  clientName: string;
+  clientRut?: string;
+  status: string;
+  total: string | number;
+  subtotal?: string | number;
+  createdAt: string;
+  creatorName?: string;
+  creatorFirstName?: string;
+  creatorLastName?: string;
+  sentToFinanceAt?: string | null;
+  ocNumber?: string | null;
+  segment?: string | null;
+  paymentMethod?: string | null;
+  scope?: string | null;
+  erpEntered?: boolean;
+  erpEnteredAt?: string | null;
+}
+
+function SentQuotesSection() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: allQuotes = [], isLoading } = useQuery<SentQuote[]>({
+    queryKey: ["/api/quotes"],
+  });
+
+  const sentQuotes = allQuotes.filter(
+    (q) => q.status === "sent" || q.sentToFinanceAt
+  );
+
+  const erpMutation = useMutation({
+    mutationFn: async ({ id, entered }: { id: string; entered: boolean }) => {
+      return apiRequest(`/api/quotes/${id}/erp-status`, {
+        method: "PATCH",
+        data: { entered },
+      });
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: vars.entered ? "✅ Marcado ingresado al ERP" : "Marcado como pendiente" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return null;
+  if (sentQuotes.length === 0) return null;
+
+  const pending = sentQuotes.filter((q) => !q.erpEntered).length;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-white flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Presupuestos enviados a recepción</h2>
+            <p className="text-xs text-gray-500">Cotizaciones para ingresar al ERP — gestionar igual que pedidos de tienda</p>
+          </div>
+        </div>
+        {pending > 0 && (
+          <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full">
+            <Clock className="w-3.5 h-3.5" /> {pending} pendiente{pending !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      <div className="p-5 space-y-4">
+        {sentQuotes.map((quote) => (
+          <div
+            key={quote.id}
+            className={`group border rounded-xl p-5 transition-all duration-200 ${
+              quote.erpEntered ? "bg-emerald-50/30 border-emerald-200" : "bg-white hover:shadow-md hover:border-orange-300"
+            }`}
+          >
+            <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-bold text-gray-900">Presupuesto #{quote.quoteNumber}</h3>
+                {quote.erpEntered ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 gap-1">
+                    <CheckCircle className="h-3 w-3" /> Ingresado al ERP
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-300 gap-1">
+                    <Clock className="h-3 w-3" /> Pendiente
+                  </Badge>
+                )}
+                {quote.segment && <Badge variant="outline" className="text-[10px]">{quote.segment}</Badge>}
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-900">{formatPrice(quote.total)}</div>
+                {quote.subtotal && <div className="text-xs text-gray-500">Subtotal: {formatPrice(quote.subtotal)}</div>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm">
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Cliente</div>
+                <div className="font-medium text-gray-900 truncate">{quote.clientName}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Fecha</div>
+                <div className="font-medium text-gray-900">
+                  {quote.sentToFinanceAt ? format(new Date(quote.sentToFinanceAt), "dd/MM/yyyy", { locale: es }) : format(new Date(quote.createdAt), "dd/MM/yyyy", { locale: es })}
+                </div>
+              </div>
+              {quote.creatorName && (
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Vendedor</div>
+                  <div className="font-medium text-gray-900 truncate">{quote.creatorName}</div>
+                </div>
+              )}
+              {quote.ocNumber && (
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">N° OC</div>
+                  <div className="font-medium text-orange-600">{quote.ocNumber}</div>
+                </div>
+              )}
+              {quote.paymentMethod && (
+                <div className="col-span-2">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Método de pago</div>
+                  <div className="font-medium text-gray-900">{quote.paymentMethod}</div>
+                </div>
+              )}
+            </div>
+
+            {quote.scope && (
+              <div className="mb-4 bg-slate-50 border-l-4 border-slate-400 rounded-r-lg p-3">
+                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Alcances</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">{quote.scope}</div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+              <Button
+                size="sm"
+                className={quote.erpEntered ? "" : "bg-emerald-600 hover:bg-emerald-700"}
+                variant={quote.erpEntered ? "outline" : "default"}
+                onClick={() => erpMutation.mutate({ id: quote.id, entered: !quote.erpEntered })}
+                disabled={erpMutation.isPending}
+              >
+                {erpMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+                {quote.erpEntered ? "Marcar como no ingresado" : "Marcar ingresado al ERP"}
+              </Button>
+              {quote.erpEntered && quote.erpEnteredAt && (
+                <span className="text-xs text-slate-500 ml-2">
+                  Ingresado el {format(new Date(quote.erpEnteredAt), "dd/MM/yyyy HH:mm", { locale: es })}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
