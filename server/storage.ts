@@ -16547,6 +16547,7 @@ export class DatabaseStorage implements IStorage {
         clientPhone: orderData.clientPhone || null,
         assignedSalespersonId: orderData.assignedSalespersonId || null,
         assignedSalespersonName: orderData.assignedSalespersonName || null,
+        assignedSupervisorId: orderData.assignedSupervisorId || null,
         items: orderData.items,
         subtotal: String(orderData.subtotal || 0),
         tax: String(orderData.tax || 0),
@@ -16555,6 +16556,9 @@ export class DatabaseStorage implements IStorage {
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
         paymentCondition: orderData.paymentCondition || null,
+        paymentReceiptUrl: orderData.paymentReceiptUrl || null,
+        purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
+        quoteId: orderData.quoteId || null,
         branchDiscountPercent: String(orderData.branchDiscountPercent ?? 0),
         priceListUsed: orderData.priceListUsed || null,
       };

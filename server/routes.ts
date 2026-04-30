@@ -7536,7 +7536,12 @@ export function registerRoutes(app: Express): Server {
         branchDiscountPercent: String(resolved.branchDiscountPct || 0),
         priceListUsed: resolved.priceListUsed,
         clientId,
-        clientName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : (req.user.email || 'Cliente'),
+        // Usamos el nokoen del cliente (ej. "ELECTROCOM S.A. - MCT VALDIVIA") cuando
+        // está disponible, así el panel admin/recepción y el portal del cliente
+        // identifican el pedido por la razón social/sucursal — no por el nombre del
+        // usuario operador. Caemos al nombre del user sólo si no hay registro de cliente.
+        clientName: client?.nokoen
+          || (req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : (req.user.email || 'Cliente')),
         clientEmail: req.user.email,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null,
