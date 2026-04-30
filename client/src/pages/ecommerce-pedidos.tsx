@@ -26,6 +26,12 @@ import {
   AlertDialogTitle, AlertDialogDescription,
   AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -295,23 +301,33 @@ function SentQuotesSection() {
     queryKey: ["/api/quotes"],
   });
 
+  const [ingresarDialog, setIngresarDialog] = useState<SentQuote | null>(null);
+  const [ingresarNotes, setIngresarNotes] = useState("");
+
   const sentQuotes = allQuotes.filter(
     (q) => q.status === "sent" || q.sentToFinanceAt
   );
 
   const erpMutation = useMutation({
-    mutationFn: async ({ id, entered }: { id: string; entered: boolean }) => {
+    mutationFn: async ({ id, entered, notes }: { id: string; entered: boolean; notes?: string }) => {
       return apiRequest(`/api/quotes/${id}/erp-status`, {
         method: "PATCH",
-        data: { entered },
+        data: { entered, notes },
       });
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/quotes"] });
-      toast({ title: vars.entered ? "✅ Marcado ingresado al ERP" : "Marcado como pendiente" });
+      toast({ title: vars.entered ? "✅ Presupuesto ingresado al ERP" : "Marcado como pendiente" });
+      setIngresarDialog(null);
+      setIngresarNotes("");
     },
     onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
   });
+
+  const openIngresar = (q: SentQuote) => {
+    setIngresarDialog(q);
+    setIngresarNotes("");
+  };
 
   if (isLoading) return null;
   if (sentQuotes.length === 0) return null;
@@ -403,26 +419,82 @@ function SentQuotesSection() {
               </div>
             )}
 
-            <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-              <Button
-                size="sm"
-                className={quote.erpEntered ? "" : "bg-emerald-600 hover:bg-emerald-700"}
-                variant={quote.erpEntered ? "outline" : "default"}
-                onClick={() => erpMutation.mutate({ id: quote.id, entered: !quote.erpEntered })}
-                disabled={erpMutation.isPending}
-              >
-                {erpMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-                {quote.erpEntered ? "Marcar como no ingresado" : "Marcar ingresado al ERP"}
-              </Button>
-              {quote.erpEntered && quote.erpEnteredAt && (
-                <span className="text-xs text-slate-500 ml-2">
-                  Ingresado el {format(new Date(quote.erpEnteredAt), "dd/MM/yyyy HH:mm", { locale: es })}
-                </span>
+            <div className="flex items-center gap-2 pt-3 border-t border-gray-100 flex-wrap">
+              {quote.erpEntered ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => erpMutation.mutate({ id: quote.id, entered: false })}
+                    disabled={erpMutation.isPending}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Marcar como no ingresado
+                  </Button>
+                  {quote.erpEnteredAt && (
+                    <span className="text-xs text-emerald-700 font-medium">
+                      ✓ Ingresado el {format(new Date(quote.erpEnteredAt), "dd/MM/yyyy HH:mm", { locale: es })}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => openIngresar(quote)}
+                  disabled={erpMutation.isPending}
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  Ingresar al ERP
+                </Button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Dialog: Ingresar al ERP con notas (mismo flujo que pedidos de tienda) */}
+      <Dialog open={!!ingresarDialog} onOpenChange={(open) => { if (!open) setIngresarDialog(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-emerald-600" />
+              Ingresar presupuesto al ERP
+            </DialogTitle>
+            <DialogDescription>
+              {ingresarDialog && (
+                <>
+                  Confirma el ingreso al ERP de <strong>#{ingresarDialog.quoteNumber}</strong>
+                  {ingresarDialog.ocNumber && <> · OC <strong>{ingresarDialog.ocNumber}</strong></>}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs font-medium">Notas internas (opcional)</Label>
+              <Textarea
+                className="mt-1.5"
+                rows={3}
+                value={ingresarNotes}
+                onChange={(e) => setIngresarNotes(e.target.value)}
+                placeholder="N° NVV, observaciones del ingreso, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIngresarDialog(null)}>Cancelar</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => ingresarDialog && erpMutation.mutate({ id: ingresarDialog.id, entered: true, notes: ingresarNotes.trim() || undefined })}
+              disabled={erpMutation.isPending}
+            >
+              {erpMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Confirmar ingreso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
