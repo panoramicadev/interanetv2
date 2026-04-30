@@ -28,6 +28,35 @@ export function getEmailHeader(): string {
   `;
 }
 
+export function getPaymentInfoBlock(): string {
+  return `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 24px 0 8px 0; border-collapse: separate;">
+      <tr>
+        <td style="background-color: #1a1f2e; padding: 14px 18px; border-radius: 6px 6px 0 0;">
+          <p style="color: #ffffff; margin: 0; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">
+            DATOS PARA EL PAGO
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 0; padding: 18px; border-radius: 0 0 6px 6px;">
+          <p style="color: #1a1f2e; margin: 0 0 12px 0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
+            <strong style="color: #fd6301;">Transferencia bancaria</strong><br>
+            <span style="color: #333;">Pintureria Panoramica Limitada</span><br>
+            <span style="color: #333;">RUT: <strong>78.652.260-9</strong></span><br>
+            <span style="color: #333;">Cuenta Corriente <strong>Banco Santander</strong>: <strong>2592916-0</strong></span><br>
+            <span style="color: #333;">Email: <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a></span>
+          </p>
+          <p style="color: #1a1f2e; margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #f0f0f0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
+            <strong style="color: #fd6301;">Pago con tarjeta</strong><br>
+            <a href="https://micrositios.getnet.cl/pinturaspanoramica" style="color: #fd6301; text-decoration: none; word-break: break-all;">https://micrositios.getnet.cl/pinturaspanoramica</a>
+          </p>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
 export function getEmailFooter(): string {
   return `
     <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef; border-radius: 0 0 8px 8px;">
@@ -100,6 +129,8 @@ export function buildSaleNotificationEmail(data: SaleNotificationData): { subjec
     <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
       <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.detalle}</p>
     </div>` : ''}
+
+    ${getPaymentInfoBlock()}
 
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0;">
       Si tiene cualquier consulta sobre esta operación, no dude en contactarnos.
@@ -185,6 +216,8 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
     <div style="background-color: #f8f9fa; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
       <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.mensajeAdicional}</p>
     </div>` : ''}
+
+    ${getPaymentInfoBlock()}
 
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 5px 0;">
       Si ya realizó el pago, por favor haga caso omiso de este mensaje. Para coordinar el pago o regularizar este saldo, comuníquese con nuestro equipo de cobranzas.

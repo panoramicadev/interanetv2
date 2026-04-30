@@ -1,10 +1,13 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { wrapEmailContent } from '../email-templates';
 import { getValidAccessToken } from '../gmail-oauth';
 import { db } from '../db';
 import { smtpConfig } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
+
+const RESEND_DEFAULT_FROM = 'Panoramica <notificaciones@pinturaspanoramica.cl>';
 
 interface EmailOptions {
   to: string;
@@ -20,9 +23,29 @@ interface EmailOptions {
 
 class EmailService {
   private transporter: Transporter | null = null;
+  private resend: Resend | null = null;
+  private resendFrom: string = RESEND_DEFAULT_FROM;
 
   constructor() {
     this.initializeTransporter();
+    this.initializeResend();
+  }
+
+  private initializeResend() {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.warn('[email] RESEND_API_KEY no definido — Resend deshabilitado.');
+      return;
+    }
+    try {
+      this.resend = new Resend(apiKey);
+      if (process.env.RESEND_FROM) {
+        this.resendFrom = process.env.RESEND_FROM;
+      }
+      console.log(`[email] Resend inicializado (from: ${this.resendFrom})`);
+    } catch (error) {
+      console.error('[email] Error inicializando Resend:', error);
+    }
   }
 
   private initializeTransporter() {
@@ -91,6 +114,40 @@ class EmailService {
   async sendEmail(options: EmailOptions): Promise<boolean> {
     const ETAG = '[emailService.sendEmail]';
     console.log(`${ETAG} ▶️ to="${options.to}" cc="${options.cc || ''}" subjectLen=${options.subject.length}`);
+
+    // Prefer Resend when configured — much more reliable than SMTP/OAuth.
+    if (this.resend) {
+      try {
+        const toList = options.to.split(',').map(s => s.trim()).filter(Boolean);
+        const ccList = options.cc ? options.cc.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+        console.log(`${ETAG} usando Resend`, { from: this.resendFrom, to: toList, cc: ccList });
+        const { data, error } = await this.resend.emails.send({
+          from: this.resendFrom,
+          to: toList,
+          cc: ccList,
+          subject: options.subject,
+          html: options.html,
+          attachments: options.attachments?.map(a => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+        });
+        if (error) {
+          console.error(`${ETAG} ❌ Resend error:`, error);
+          throw new Error((error as any)?.message || 'Error de Resend al enviar correo');
+        }
+        console.log(`${ETAG} ✅ enviado vía Resend:`, data?.id);
+        return true;
+      } catch (error: any) {
+        console.error(`${ETAG} ❌ Error Resend:`, {
+          message: error?.message,
+          name: error?.name,
+          stack: error?.stack,
+        });
+        throw error;
+      }
+    }
 
     // Try OAuth first
     const config = await this.getDbConfig();
@@ -293,6 +350,8 @@ class EmailService {
    * Use this instead of isConfigured() when deciding whether to allow email sending.
    */
   async isAnyMethodConfigured(): Promise<boolean> {
+    // Resend
+    if (this.resend !== null) return true;
     // Check env vars transporter
     if (this.transporter !== null) return true;
     

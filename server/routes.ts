@@ -18011,7 +18011,7 @@ export function registerRoutes(app: Express): Server {
         if (logId) {
           await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
         }
-        res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+        res.status(500).json({ message: `Error al enviar correo: ${error?.message || 'desconocido'}`, error: error?.message });
       }
     } catch (outerError: any) {
       console.error(`${TAG} 💥 error no manejado en handler`, {
@@ -18021,7 +18021,7 @@ export function registerRoutes(app: Express): Server {
         stack: outerError?.stack,
       });
       if (!res.headersSent) {
-        res.status(500).json({ message: 'Error al enviar correo', error: outerError?.message });
+        res.status(500).json({ message: `Error al enviar correo: ${outerError?.message || 'desconocido'}`, error: outerError?.message });
       }
     }
   }));
@@ -18160,7 +18160,7 @@ export function registerRoutes(app: Express): Server {
         if (logId) {
           await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
         }
-        res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+        res.status(500).json({ message: `Error al enviar correo: ${error?.message || 'desconocido'}`, error: error?.message });
       }
     } catch (outerError: any) {
       console.error(`${TAG} 💥 error no manejado en handler`, {
@@ -18170,7 +18170,7 @@ export function registerRoutes(app: Express): Server {
         stack: outerError?.stack,
       });
       if (!res.headersSent) {
-        res.status(500).json({ message: 'Error al enviar correo', error: outerError?.message });
+        res.status(500).json({ message: `Error al enviar correo: ${outerError?.message || 'desconocido'}`, error: outerError?.message });
       }
     }
   }));
