@@ -293,8 +293,15 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [emailPaymentMethod, setEmailPaymentMethod] = useState<string>("");
   const [emailScope, setEmailScope] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
+  const [emailSalespersonId, setEmailSalespersonId] = useState<string>("");
   const [emailAttachment, setEmailAttachment] = useState<{ name: string; mime: string; base64: string } | null>(null);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+
+  const isAdminOrSupervisor = user?.role === 'admin' || user?.role === 'supervisor';
+  const { data: salespeople = [] } = useQuery<Array<{ id: string; salespersonName?: string; email?: string }>>({
+    queryKey: ["/api/users/salespeople"],
+    enabled: !!emailDialog && isAdminOrSupervisor,
+  });
 
   const resetEmailForm = () => {
     setEmailRecipient("fparra@pinturaspanoramica.cl");
@@ -304,6 +311,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     setEmailPaymentMethod("");
     setEmailScope("");
     setEmailMessage("");
+    setEmailSalespersonId("");
     setEmailAttachment(null);
   };
 
@@ -352,6 +360,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           paymentMethod: emailPaymentMethod || undefined,
           scope: emailScope.trim() || undefined,
           additionalMessage: emailMessage.trim() || undefined,
+          salespersonId: emailSalespersonId || undefined,
           attachmentBase64: emailAttachment?.base64,
           attachmentName: emailAttachment?.name,
           attachmentMime: emailAttachment?.mime,
@@ -376,8 +385,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     },
   });
 
-  const handleSendEmail = (quoteId: string, quoteNumber: string, clientName: string) => {
+  const handleSendEmail = (quoteId: string, quoteNumber: string, clientName: string, createdBy?: string) => {
     resetEmailForm();
+    setEmailSalespersonId(createdBy || user?.id || "");
     setEmailDialog({ quoteId, quoteNumber, clientName });
   };
 
@@ -714,7 +724,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             <DropdownMenuItem onClick={() => handleEditQuote(quote.id)}>
                               <FileText className="w-4 h-4 mr-2" /> Ver / Editar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName)} disabled={sendEmailMutation.isPending}>
+                            <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)} disabled={sendEmailMutation.isPending}>
                               <Mail className="w-4 h-4 mr-2" /> Compartir
                             </DropdownMenuItem>
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
@@ -888,7 +898,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName)}
+                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)}
                             disabled={sendEmailMutation.isPending}
                             title="Compartir por email"
                           >
@@ -1062,6 +1072,30 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                 placeholder="copia@dom.cl, otro@dom.cl"
               />
             </div>
+
+            {isAdminOrSupervisor && (
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" />
+                  Vendedor asignado
+                </Label>
+                <Select value={emailSalespersonId} onValueChange={setEmailSalespersonId}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Seleccionar vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salespeople.map((sp) => (
+                      <SelectItem key={sp.id} value={sp.id}>
+                        {sp.salespersonName || sp.email || sp.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  El correo se envía a nombre de este vendedor (firma).
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>

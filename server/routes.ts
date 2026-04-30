@@ -13066,6 +13066,7 @@ export function registerRoutes(app: Express): Server {
         paymentMethod,
         scope,
         additionalMessage,
+        salespersonId,
         attachmentBase64,
         attachmentName,
         attachmentMime,
@@ -13101,7 +13102,7 @@ export function registerRoutes(app: Express): Server {
 
       // Send email with default recipient (Felipe Parra) or custom one
       const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
-      const cc = (ccEmails || '').split(',').map((s: string) => s.trim()).filter(Boolean).join(', ') || undefined;
+      const cc = ccList.join(', ') || undefined;
       const subjectParts = [
         `Cotización ${quote.quoteNumber}`,
         quote.clientName,
@@ -13110,7 +13111,30 @@ export function registerRoutes(app: Express): Server {
       ].filter(Boolean);
       const subject = subjectParts.join(' - ');
 
-      const senderName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email || 'Equipo Panorámica';
+      // Resolve assigned salesperson (admin/supervisor can send on behalf of any salesperson)
+      let assignedSalesperson: { name: string; email?: string } | null = null;
+      const isAdmin = user.role === 'admin' || user.role === 'supervisor';
+      const targetId = (isAdmin && salespersonId) ? salespersonId : (quote.createdBy || user.id);
+      try {
+        const { salespeopleUsers } = await import('@shared/schema');
+        const sp = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, targetId)).limit(1);
+        if (sp[0]) {
+          assignedSalesperson = {
+            name: sp[0].salespersonName || sp[0].email || 'Vendedor',
+            email: sp[0].email || undefined,
+          };
+        }
+      } catch (e) {
+        console.warn('No se pudo resolver vendedor asignado:', e);
+      }
+      const fallbackName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email || 'Equipo Panorámica';
+      const senderName = assignedSalesperson?.name || fallbackName;
+      const senderEmail = assignedSalesperson?.email || user.email;
+      // If admin is sending on behalf of a salesperson, automatically CC the salesperson
+      const ccList = (ccEmails || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (assignedSalesperson?.email && assignedSalesperson.email !== user.email && !ccList.includes(assignedSalesperson.email)) {
+        ccList.push(assignedSalesperson.email);
+      }
       const segmentLabel: Record<string, string> = {
         'MCT': 'MCT',
         'FERRETERIAS': 'Ferreterías',
@@ -13144,6 +13168,7 @@ export function registerRoutes(app: Express): Server {
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px 0;">
           ${dataRow('N° Cotización', quote.quoteNumber)}
           ${dataRow('Cliente', quote.clientName)}
+          ${dataRow('Vendedor', `<strong>${senderName}</strong>${senderEmail ? ` <span style="color:#6b7280;">&lt;${senderEmail}&gt;</span>` : ''}`)}
           ${ocNumber ? dataRow('N° OC', `<strong>${ocNumber}</strong>`, true) : ''}
           ${segmentDisplay ? dataRow('Segmento', segmentDisplay) : ''}
           ${paymentMethod ? dataRow('Método de pago', paymentMethod) : ''}
