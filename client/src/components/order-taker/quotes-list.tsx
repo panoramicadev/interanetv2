@@ -51,6 +51,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Paperclip, Loader2, X as XIcon } from "lucide-react";
 
 interface Quote {
   id: string;
@@ -280,44 +284,92 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     }
   };
 
+  // Email dialog state
+  const [emailDialog, setEmailDialog] = useState<{ quoteId: string; quoteNumber: string; clientName: string } | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState("fparra@pinturaspanoramica.cl");
+  const [emailCc, setEmailCc] = useState("");
+  const [emailOcNumber, setEmailOcNumber] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailAttachment, setEmailAttachment] = useState<{ name: string; mime: string; base64: string } | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
+
+  const resetEmailForm = () => {
+    setEmailRecipient("fparra@pinturaspanoramica.cl");
+    setEmailCc("");
+    setEmailOcNumber("");
+    setEmailMessage("");
+    setEmailAttachment(null);
+  };
+
+  const handleAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Archivo muy grande", description: "El archivo no puede superar los 10 MB.", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    setAttachmentLoading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1] || "");
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      setEmailAttachment({ name: file.name, mime: file.type || "application/octet-stream", base64 });
+    } catch {
+      toast({ title: "Error", description: "No se pudo leer el archivo.", variant: "destructive" });
+    } finally {
+      setAttachmentLoading(false);
+    }
+  };
+
   // Mutation to send email with PDF
   const sendEmailMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
-      // Fetch quote details with items
-      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
+    mutationFn: async (params: { quoteId: string }) => {
+      const quoteResponse = await apiRequest(`/api/quotes/${params.quoteId}/with-items`);
       const quoteData = await quoteResponse.json();
-
-      // Generate PDF as base64
       const pdfBase64 = await generatePDFAsBase64(quoteData);
 
-      // Send email
-      return await apiRequest(`/api/quotes/${quoteId}/send-email`, {
+      return await apiRequest(`/api/quotes/${params.quoteId}/send-email`, {
         method: 'POST',
         data: {
           pdfBase64,
-          recipientEmail: 'contacto@pinturaspanoramica.cl'
-        }
+          recipientEmail: emailRecipient.trim() || 'fparra@pinturaspanoramica.cl',
+          ccEmails: emailCc.trim() || undefined,
+          ocNumber: emailOcNumber.trim() || undefined,
+          additionalMessage: emailMessage.trim() || undefined,
+          attachmentBase64: emailAttachment?.base64,
+          attachmentName: emailAttachment?.name,
+          attachmentMime: emailAttachment?.mime,
+        },
       });
     },
-    onSuccess: () => {
+    onSuccess: async (res) => {
+      const data = await res.json().catch(() => ({}));
       toast({
         title: "Correo enviado",
-        description: "El correo con el PDF de la cotización ha sido enviado exitosamente.",
+        description: `Para: ${data.sentTo}${data.cc ? ` · CC: ${data.cc}` : ""}`,
       });
+      setEmailDialog(null);
+      resetEmailForm();
     },
     onError: (error: any) => {
       toast({
         title: "Error al enviar correo",
-        description: error.message || "No se pudo enviar el correo. Verifica la configuración SMTP.",
+        description: error.message || "No se pudo enviar el correo.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSendEmail = (quoteId: string, quoteNumber: string) => {
-    if (window.confirm(`¿Deseas enviar el PDF de la cotización ${quoteNumber} a contacto@pinturaspanoramica.cl?`)) {
-      sendEmailMutation.mutate(quoteId);
-    }
+  const handleSendEmail = (quoteId: string, quoteNumber: string, clientName: string) => {
+    resetEmailForm();
+    setEmailDialog({ quoteId, quoteNumber, clientName });
   };
 
   // Generate PDF as base64 for email (simplified version)
@@ -653,7 +705,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             <DropdownMenuItem onClick={() => handleEditQuote(quote.id)}>
                               <FileText className="w-4 h-4 mr-2" /> Ver / Editar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber)} disabled={sendEmailMutation.isPending}>
+                            <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName)} disabled={sendEmailMutation.isPending}>
                               <Mail className="w-4 h-4 mr-2" /> Compartir
                             </DropdownMenuItem>
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
@@ -827,7 +879,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber)}
+                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName)}
                             disabled={sendEmailMutation.isPending}
                             title="Compartir por email"
                           >
@@ -964,6 +1016,111 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           Mostrando {Math.min(displayLimit, quotes.length)} de {quotes.length} cotizaciones
         </div>
       )}
+
+      {/* Send Email Dialog */}
+      <Dialog open={!!emailDialog} onOpenChange={(open) => { if (!open) { setEmailDialog(null); resetEmailForm(); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-orange-500" />
+              Enviar cotización por correo
+            </DialogTitle>
+            <DialogDescription>
+              {emailDialog && (
+                <>Cotización <strong>{emailDialog.quoteNumber}</strong> · {emailDialog.clientName}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs font-medium">Destinatario</Label>
+              <Input
+                type="email"
+                value={emailRecipient}
+                onChange={(e) => setEmailRecipient(e.target.value)}
+                className="mt-1.5"
+                placeholder="fparra@pinturaspanoramica.cl"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">CC (separar con coma)</Label>
+              <Input
+                value={emailCc}
+                onChange={(e) => setEmailCc(e.target.value)}
+                className="mt-1.5"
+                placeholder="copia@dom.cl, otro@dom.cl"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">N° de OC (opcional)</Label>
+              <Input
+                value={emailOcNumber}
+                onChange={(e) => setEmailOcNumber(e.target.value)}
+                className="mt-1.5"
+                placeholder="OC-12345"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5" />
+                Archivo adjunto (OC, captura de pago, etc.)
+              </Label>
+              {emailAttachment ? (
+                <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 py-2">
+                  <div className="text-sm truncate flex items-center gap-2">
+                    <Paperclip className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span className="truncate">{emailAttachment.name}</span>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)}>
+                    <XIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-1.5">
+                  <input
+                    type="file"
+                    onChange={handleAttachmentChange}
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                    className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    disabled={attachmentLoading}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">PDF, imagen o documento. Máx 10 MB.</p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">Mensaje adicional (opcional)</Label>
+              <Textarea
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                className="mt-1.5"
+                rows={3}
+                placeholder="Notas o contexto para el destinatario..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEmailDialog(null); resetEmailForm(); }}>Cancelar</Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => emailDialog && sendEmailMutation.mutate({ quoteId: emailDialog.quoteId })}
+              disabled={sendEmailMutation.isPending || !emailRecipient.trim()}
+            >
+              {sendEmailMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
+              ) : (
+                <><Send className="h-4 w-4 mr-2" /> Enviar correo</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

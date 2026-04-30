@@ -13057,7 +13057,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      const { pdfBase64, recipientEmail } = req.body;
+      const {
+        pdfBase64,
+        recipientEmail,
+        ccEmails,
+        ocNumber,
+        additionalMessage,
+        attachmentBase64,
+        attachmentName,
+        attachmentMime,
+      } = req.body;
 
       if (!pdfBase64) {
         return res.status(400).json({ message: "PDF data is required" });
@@ -13079,7 +13088,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control
-      const canSend = user.role === 'admin' || user.role === 'supervisor' || quote.createdBy === user.id;
+      const canSend = user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception' || quote.createdBy === user.id;
       if (!canSend) {
         return res.status(403).json({ message: "Not authorized to send this quote" });
       }
@@ -13087,19 +13096,66 @@ export function registerRoutes(app: Express): Server {
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
 
-      // Send email with default recipient or custom one
-      const recipient = recipientEmail || 'contacto@pinturaspanoramica.cl';
-      const subject = `Nueva Cotización Convertida a Pedido - ${quote.quoteNumber}`;
-      await emailService.sendQuoteEmail(
-        quote.quoteNumber,
-        quote.clientName,
-        pdfBuffer,
-        recipient
-      );
+      // Send email with default recipient (Felipe Parra) or custom one
+      const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
+      const cc = (ccEmails || '').split(',').map((s: string) => s.trim()).filter(Boolean).join(', ') || undefined;
+      const ocLabel = ocNumber ? ` - OC ${ocNumber}` : '';
+      const subject = `Cotización ${quote.quoteNumber} - ${quote.clientName}${ocLabel}`;
+
+      const { wrapEmailContent } = await import('./email-templates');
+      const html = wrapEmailContent(`
+        <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Cotización enviada</h2>
+        <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+          Adjuntamos la cotización <strong>${quote.quoteNumber}</strong> del cliente <strong>${quote.clientName}</strong>.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">N° Cotización:</span>
+            <span style="color: #333; margin-left: 8px;">${quote.quoteNumber}</span>
+          </td></tr>
+          <tr><td style="height: 6px;"></td></tr>
+          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">Cliente:</span>
+            <span style="color: #333; margin-left: 8px;">${quote.clientName}</span>
+          </td></tr>
+          ${ocNumber ? `
+          <tr><td style="height: 6px;"></td></tr>
+          <tr><td style="padding: 10px 12px; background-color: #fff7ed; border-left: 3px solid #fd6301; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">N° OC:</span>
+            <span style="color: #333; margin-left: 8px;"><strong>${ocNumber}</strong></span>
+          </td></tr>` : ''}
+          ${attachmentName ? `
+          <tr><td style="height: 6px;"></td></tr>
+          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">Archivo adjunto:</span>
+            <span style="color: #333; margin-left: 8px;">${attachmentName}</span>
+          </td></tr>` : ''}
+        </table>
+        ${additionalMessage ? `
+        <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
+          <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${additionalMessage}</p>
+        </div>` : ''}
+        <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0;">
+          Enviado por: ${user.firstName || user.email || 'Equipo Panorámica'}
+        </p>
+      `);
+
+      const attachments: Array<{ filename: string; content: Buffer; contentType?: string }> = [
+        { filename: `Cotizacion_${quote.quoteNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
+      ];
+      if (attachmentBase64 && attachmentName) {
+        attachments.push({
+          filename: attachmentName,
+          content: Buffer.from(attachmentBase64, 'base64'),
+          contentType: attachmentMime || 'application/octet-stream',
+        });
+      }
+
+      await emailService.sendEmail({ to: recipient, cc, subject, html, attachments });
 
       // Log the email in email_logs
       await db.insert(emailLogs).values({
-        recipient,
+        recipient: [recipient, cc].filter(Boolean).join(' | '),
         subject,
         notificationType: 'cotizacion_email',
         status: 'sent',
@@ -13109,7 +13165,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json({
         message: "Email sent successfully",
-        sentTo: recipient
+        sentTo: recipient,
+        cc,
       });
     } catch (error) {
       console.error("Error sending quote email:", error);
