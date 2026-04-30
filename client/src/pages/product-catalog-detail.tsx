@@ -74,6 +74,7 @@ interface ProductContentData {
     imagenDestacada?: string;
     fichasTecnicas?: Array<{ name: string; url: string; type: string; uploadedAt: string }>;
     hojasSeguridad?: Array<{ name: string; url: string; uploadedAt: string }>;
+    fotosPromocionales?: Array<{ name: string; url: string; uploadedAt: string }>;
     preguntasFrecuentes?: Array<{ pregunta: string; respuesta: string }>;
     updatedAt?: string;
     updatedBy?: string;
@@ -885,7 +886,7 @@ export default function ProductCatalogDetail() {
 
                     {/* ── Tab: Archivos ── */}
                     <TabsContent value="archivos" className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {/* Fichas Técnicas */}
                             <Card>
                                 <CardHeader className="pb-3">
@@ -1021,6 +1022,85 @@ export default function ProductCatalogDetail() {
                                         <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
                                         <p className="text-sm text-muted-foreground font-medium">Haz clic para subir hoja de seguridad</p>
                                         <p className="text-xs text-muted-foreground mt-1">PDF, máx. 10MB</p>
+                                    </label>
+                                </CardContent>
+                            </Card>
+
+                            {/* Fotos Promocionales */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">Fotos Promocionales</CardTitle>
+                                    <CardDescription>Imágenes que se muestran en el detalle público del producto</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    {(form.fotosPromocionales || []).length > 0 && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {(form.fotosPromocionales || []).map((f, i) => (
+                                                <div key={i} className="relative group rounded-lg overflow-hidden border bg-muted/40 aspect-square">
+                                                    <img
+                                                        src={f.url}
+                                                        alt={f.name}
+                                                        className="w-full h-full object-cover"
+                                                        loading="lazy"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = [...(form.fotosPromocionales || [])];
+                                                            updated.splice(i, 1);
+                                                            setForm(prev => ({ ...prev, fotosPromocionales: updated }));
+                                                            setIsDirty(true);
+                                                        }}
+                                                        className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                                                        title="Eliminar"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] px-1.5 py-1 truncate">
+                                                        {f.name}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <label className="border-2 border-dashed border-muted hover:border-purple-400 rounded-lg p-6 text-center cursor-pointer transition-colors block">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,image/jpg"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                if (file.size > 10 * 1024 * 1024) {
+                                                    toast({ title: "Archivo muy grande", description: "La imagen no puede superar los 10MB.", variant: "destructive" });
+                                                    e.target.value = '';
+                                                    return;
+                                                }
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+                                                try {
+                                                    const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' });
+                                                    if (!res.ok) throw new Error('Upload failed');
+                                                    const data = await res.json();
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        fotosPromocionales: [...(prev.fotosPromocionales || []), {
+                                                            name: file.name,
+                                                            url: data.url,
+                                                            uploadedAt: new Date().toISOString()
+                                                        }]
+                                                    }));
+                                                    setIsDirty(true);
+                                                    toast({ title: "Imagen cargada", description: `${file.name} subida correctamente.` });
+                                                } catch {
+                                                    toast({ title: "Error", description: "No se pudo subir la imagen.", variant: "destructive" });
+                                                }
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                        <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                                        <p className="text-sm text-muted-foreground font-medium">Haz clic para subir foto promocional</p>
+                                        <p className="text-xs text-muted-foreground mt-1">JPG/PNG/WEBP, máx. 10MB</p>
                                     </label>
                                 </CardContent>
                             </Card>

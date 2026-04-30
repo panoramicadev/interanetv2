@@ -13746,7 +13746,7 @@ export class DatabaseStorage implements IStorage {
       'codigo', 'productFamily', 'descripcion', 'usos', 'presentacion', 'rendimiento',
       'preparacionSuperficie', 'modoAplicacion', 'tiempoSecado', 'dilucion', 'capas',
       'observaciones', 'breveResena', 'youtubeUrl', 'imagenDestacada',
-      'fichasTecnicas', 'hojasSeguridad', 'preguntasFrecuentes', 'updatedBy'
+      'fichasTecnicas', 'hojasSeguridad', 'fotosPromocionales', 'preguntasFrecuentes', 'updatedBy'
     ];
     for (const key of allowedFields) {
       if (key in data) {

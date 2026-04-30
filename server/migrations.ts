@@ -616,6 +616,9 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE ecommerce_products ADD COLUMN IF NOT EXISTS slug VARCHAR`);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ecommerce_products_slug" ON ecommerce_products(slug) WHERE slug IS NOT NULL`);
 
+    // Migración 046: galería de fotos promocionales por producto (catálogo público)
+    await db.execute(sql`ALTER TABLE product_content ADD COLUMN IF NOT EXISTS fotos_promocionales JSONB DEFAULT '[]'::jsonb`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

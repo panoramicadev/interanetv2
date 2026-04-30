@@ -1835,6 +1835,7 @@ export const productContent = pgTable("product_content", {
   // File attachments (stored as JSON array: [{name, url, type, uploadedAt}])
   fichasTecnicas: jsonb("fichas_tecnicas").default([]), // Technical data sheets
   hojasSeguridad: jsonb("hojas_seguridad").default([]), // Safety data sheets
+  fotosPromocionales: jsonb("fotos_promocionales").default([]), // Promotional images: [{name, url, uploadedAt}]
   preguntasFrecuentes: jsonb("preguntas_frecuentes").default([]), // FAQ: [{pregunta, respuesta}]
   // Metadata
   updatedBy: varchar("updated_by"),

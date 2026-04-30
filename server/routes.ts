@@ -6259,6 +6259,26 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
+      // Fotos promocionales: leer también vía raw SQL por si Drizzle no tiene mapeada la columna nueva
+      let fotosPromocionales: any[] = Array.isArray((content as any).fotosPromocionales)
+        ? (content as any).fotosPromocionales
+        : [];
+      if (fotosPromocionales.length === 0) {
+        try {
+          const rawResult = await db.execute(
+            sql`SELECT fotos_promocionales FROM product_content WHERE codigo = ${content.codigo} LIMIT 1`
+          );
+          const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
+          const raw = rawRows[0]?.fotos_promocionales;
+          if (Array.isArray(raw)) fotosPromocionales = raw;
+          else if (typeof raw === 'string') {
+            try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) fotosPromocionales = parsed; } catch {}
+          }
+        } catch (e) {
+          // columna aún no migrada; ignorar
+        }
+      }
+
       // Return only the fields needed for the public modal
       res.json({
         breveResena,
@@ -6275,6 +6295,7 @@ export function registerRoutes(app: Express): Server {
         preguntasFrecuentes: content.preguntasFrecuentes || [],
         youtubeUrl,
         imagenDestacada,
+        fotosPromocionales,
       });
     } catch (error) {
       console.error('Error fetching public product content:', error);
@@ -14742,23 +14763,47 @@ export function registerRoutes(app: Express): Server {
 
       const content = await storage.getProductContent(codigo);
       
-      // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada (in case Drizzle schema doesn't include them)
+      // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada, fotos_promocionales (in case Drizzle schema doesn't include them)
       let breveResena = (content as any)?.breveResena || '';
       let preguntasFrecuentes = content?.preguntasFrecuentes || [];
       let youtubeUrl = (content as any)?.youtubeUrl || '';
       let imagenDestacada = (content as any)?.imagenDestacada || '';
+      let fotosPromocionales: any[] = Array.isArray((content as any)?.fotosPromocionales) ? (content as any).fotosPromocionales : [];
       if (content) {
-        const rawResult = await db.execute(
-          sql`SELECT breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada FROM product_content WHERE codigo = ${codigo} LIMIT 1`
-        );
-        const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
-        if (rawRows[0]) {
-          breveResena = (rawRows[0] as any).breve_resena || '';
-          youtubeUrl = (rawRows[0] as any).youtube_url || '';
-          imagenDestacada = (rawRows[0] as any).imagen_destacada || '';
-          const rawFaqs = (rawRows[0] as any).preguntas_frecuentes;
-          if (rawFaqs) {
-            preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
+        try {
+          const rawResult = await db.execute(
+            sql`SELECT breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada, fotos_promocionales FROM product_content WHERE codigo = ${codigo} LIMIT 1`
+          );
+          const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
+          if (rawRows[0]) {
+            breveResena = (rawRows[0] as any).breve_resena || '';
+            youtubeUrl = (rawRows[0] as any).youtube_url || '';
+            imagenDestacada = (rawRows[0] as any).imagen_destacada || '';
+            const rawFaqs = (rawRows[0] as any).preguntas_frecuentes;
+            if (rawFaqs) {
+              preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
+            }
+            const rawFotos = (rawRows[0] as any).fotos_promocionales;
+            if (Array.isArray(rawFotos)) fotosPromocionales = rawFotos;
+            else if (typeof rawFotos === 'string') {
+              try { const parsed = JSON.parse(rawFotos); if (Array.isArray(parsed)) fotosPromocionales = parsed; } catch {}
+            }
+          }
+        } catch (e: any) {
+          // Fallback sin fotos_promocionales si la columna aún no existe (migración 046 pendiente)
+          console.warn('[PRODUCT-CONTENT GET] fallback raw sin fotos_promocionales:', e?.message);
+          const rawResult = await db.execute(
+            sql`SELECT breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada FROM product_content WHERE codigo = ${codigo} LIMIT 1`
+          );
+          const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
+          if (rawRows[0]) {
+            breveResena = (rawRows[0] as any).breve_resena || '';
+            youtubeUrl = (rawRows[0] as any).youtube_url || '';
+            imagenDestacada = (rawRows[0] as any).imagen_destacada || '';
+            const rawFaqs = (rawRows[0] as any).preguntas_frecuentes;
+            if (rawFaqs) {
+              preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
+            }
           }
         }
       }
@@ -14769,10 +14814,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const responseData: any = {
-        ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] }),
+        ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [], fotosPromocionales: [] }),
         breveResena,
         preguntasFrecuentes,
         youtubeUrl,
+        fotosPromocionales,
         _meta: {
           productFamily: familyName,
           familySiblingCount,
@@ -14827,12 +14873,20 @@ export function registerRoutes(app: Express): Server {
             const result = await storage.upsertProductContent(data);
             // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada (Drizzle may not have these in compiled schema)
             if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined || contentData.youtubeUrl !== undefined || contentData.imagenDestacada !== undefined) {
-              await db.execute(sql`UPDATE product_content SET 
+              await db.execute(sql`UPDATE product_content SET
                 breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
                 preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes),
                 youtube_url = COALESCE(${contentData.youtubeUrl || null}, youtube_url),
                 imagen_destacada = COALESCE(${contentData.imagenDestacada || null}, imagen_destacada)
                 WHERE codigo = ${sibling.codigo}`);
+            }
+            // Raw SQL fallback para fotos_promocionales (columna nueva 046; Drizzle podría no tenerla en el schema compilado)
+            if (contentData.fotosPromocionales !== undefined) {
+              try {
+                await db.execute(sql`UPDATE product_content SET fotos_promocionales = ${JSON.stringify(contentData.fotosPromocionales || [])}::jsonb WHERE codigo = ${sibling.codigo}`);
+              } catch (e: any) {
+                console.warn('[PRODUCT-CONTENT PUT] No se pudo persistir fotos_promocionales (¿migración 046 pendiente?):', e?.message);
+              }
             }
             results.push(result);
           }
@@ -14848,12 +14902,20 @@ export function registerRoutes(app: Express): Server {
       const result = await storage.upsertProductContent(data);
       // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada
       if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined || contentData.youtubeUrl !== undefined || contentData.imagenDestacada !== undefined) {
-        await db.execute(sql`UPDATE product_content SET 
+        await db.execute(sql`UPDATE product_content SET
           breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
           preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes),
           youtube_url = COALESCE(${contentData.youtubeUrl || null}, youtube_url),
           imagen_destacada = COALESCE(${contentData.imagenDestacada || null}, imagen_destacada)
           WHERE codigo = ${codigo}`);
+      }
+      // Raw SQL fallback para fotos_promocionales (columna nueva 046)
+      if (contentData.fotosPromocionales !== undefined) {
+        try {
+          await db.execute(sql`UPDATE product_content SET fotos_promocionales = ${JSON.stringify(contentData.fotosPromocionales || [])}::jsonb WHERE codigo = ${codigo}`);
+        } catch (e: any) {
+          console.warn('[PRODUCT-CONTENT PUT] No se pudo persistir fotos_promocionales (¿migración 046 pendiente?):', e?.message);
+        }
       }
       res.json(result);
     } catch (error) {

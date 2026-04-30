@@ -2800,6 +2800,29 @@ export default function TiendaPage() {
                   </div>
                 )}
 
+                {/* Galería de fotos promocionales */}
+                {Array.isArray(infoModal.data.fotosPromocionales) && infoModal.data.fotosPromocionales.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {infoModal.data.fotosPromocionales.map((foto: any, idx: number) => (
+                      <a
+                        key={idx}
+                        href={foto.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden border border-gray-100 bg-gray-50 aspect-square hover:opacity-90 transition-opacity"
+                      >
+                        <img
+                          src={foto.url}
+                          alt={foto.name || infoModal.productName}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
                 {infoModal.data.breveResena && (
                   <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-base text-blue-800 font-medium">{infoModal.data.breveResena}</p>
