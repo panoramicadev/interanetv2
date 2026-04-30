@@ -101,6 +101,7 @@ import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
+import MailingPage from "@/pages/mailing";
 import DondeComprar from "@/pages/donde-comprar";
 import RetailLocationsAdmin from "@/pages/retail-locations-admin";
 import NotFound from "@/pages/not-found";
@@ -218,6 +219,7 @@ function Router() {
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
             <Route path="/ecommerce-usuarios" component={EcommerceUsuarios} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
+            <Route path="/mailing" component={MailingPage} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={Clients} />

@@ -34,7 +34,8 @@ import {
   PackageSearch,
   UserCheck,
   BookOpen,
-  MapPin
+  MapPin,
+  Mail
 } from "lucide-react";
 
 interface SidebarItem {
@@ -87,6 +88,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
           icon: MapPin,
+        },
+        {
+          href: "/mailing",
+          label: "Mailing",
+          icon: Mail,
         },
         {
           href: "/ecommerce",
@@ -418,6 +424,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: MapPin,
         },
         {
+          href: "/mailing",
+          label: "Mailing",
+          icon: Mail,
+        },
+        {
           href: "/ecommerce",
           label: "Configuración",
           icon: ShoppingCart,
@@ -744,6 +755,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
           icon: MapPin,
+        },
+        {
+          href: "/mailing",
+          label: "Mailing",
+          icon: Mail,
         },
         {
           href: "/ecommerce",
