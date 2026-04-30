@@ -207,6 +207,59 @@ export async function notifyMantencionResuelta(equipmentName: string, assignedTo
   });
 }
 
+/**
+ * Sends a customer-facing automated email if the given notification type is enabled.
+ * Uses emailNotificationSettings.ccRecipients as CC. Logs to emailLogs.
+ */
+export async function sendAutoCustomerEmail(opts: {
+  notificationType: string;
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  const TAG = `[auto-email:${opts.notificationType}]`;
+  if (!opts.to) {
+    console.log(`${TAG} sin destinatario, saltando`);
+    return;
+  }
+  try {
+    const settings = await db.select()
+      .from(emailNotificationSettings)
+      .where(eq(emailNotificationSettings.notificationType, opts.notificationType));
+    const setting = settings[0];
+    if (!setting || !setting.enabled) {
+      console.log(`${TAG} deshabilitado o no configurado, saltando`);
+      return;
+    }
+    const cc = setting.ccRecipients
+      ? setting.ccRecipients.split(',').map(s => s.trim()).filter(Boolean).join(', ')
+      : undefined;
+
+    await emailService.sendEmail({ to: opts.to, cc, subject: opts.subject, html: opts.html });
+    await db.insert(emailLogs).values({
+      recipient: [opts.to, cc].filter(Boolean).join(' | '),
+      subject: opts.subject,
+      notificationType: opts.notificationType,
+      status: 'sent',
+      sentAt: new Date(),
+      createdAt: new Date(),
+    });
+    console.log(`${TAG} ✅ enviado a ${opts.to}${cc ? ` (cc: ${cc})` : ''}`);
+  } catch (error: any) {
+    console.error(`${TAG} ❌ error:`, error?.message);
+    try {
+      await db.insert(emailLogs).values({
+        recipient: opts.to,
+        subject: opts.subject,
+        notificationType: opts.notificationType,
+        status: 'failed',
+        errorMessage: error?.message || 'Error desconocido',
+        createdAt: new Date(),
+      });
+    } catch {}
+  }
+}
+
 // Notificaciones para E-commerce
 export async function notifyNuevaOrden(orderNumber: string, clientName: string, total: number) {
   await createAutoNotification({

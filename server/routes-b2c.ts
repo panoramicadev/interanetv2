@@ -168,7 +168,24 @@ export function registerB2CRoutes(app: Express) {
 
       const request = await createQuoteRequest(validationResult.data);
 
-      // TODO: Send email notification to sales team
+      // Customer-facing auto-confirmation
+      try {
+        const { sendAutoCustomerEmail } = await import('./notifications-helper');
+        const { buildQuoteReceivedEmail } = await import('./email-templates');
+        const built = buildQuoteReceivedEmail({
+          clientName: validationResult.data.visitorName,
+          itemCount: (validationResult.data.items || []).length,
+          message: validationResult.data.message || undefined,
+        });
+        await sendAutoCustomerEmail({
+          notificationType: 'ecommerce_quote_auto',
+          to: validationResult.data.visitorEmail,
+          subject: built.subject,
+          html: built.html,
+        });
+      } catch (autoErr) {
+        console.warn('[B2C] auto-confirmation email failed:', autoErr);
+      }
 
       res.status(201).json({
         success: true,

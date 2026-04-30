@@ -408,6 +408,7 @@ export const requireRoles = (roles: string[]) => {
 
 // Convenience middleware for admin/supervisor only
 export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
+export const requireMailingAccess = requireRoles(['admin', 'supervisor', 'reception']);
 
 // Commercial Module Role-Based Access Control
 // Access to commercial modules (CRM, Metas, Usuarios, Sales Analytics Dashboard, Clientes, Pedidos, Marketing, Gastos, ETL, API Keys)

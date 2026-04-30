@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { setupAuth, requireAuth, requireAdminOrSupervisor, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -7637,6 +7637,32 @@ export function registerRoutes(app: Express): Server {
         );
       } catch (notifErr) {
         console.warn('Warning: notifyNuevaOrden failed:', notifErr);
+      }
+
+      // Customer-facing auto-confirmation email
+      try {
+        if (orderToCreate.clientEmail) {
+          const { buildOrderReceivedEmail } = await import('./email-templates');
+          const items = (resolved.items || []).map((it: any) => ({
+            name: it.productName || it.name || it.sku || 'Producto',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
+          }));
+          const built = buildOrderReceivedEmail({
+            clientName: orderToCreate.clientName || 'Cliente',
+            orderNumber: order.id,
+            total: Number(resolved.total) || 0,
+            items,
+          });
+          await NotifyHelper.sendAutoCustomerEmail({
+            notificationType: 'ecommerce_sale_auto',
+            to: orderToCreate.clientEmail,
+            subject: built.subject,
+            html: built.html,
+          });
+        }
+      } catch (autoErr) {
+        console.warn('Warning: auto-confirmation email failed:', autoErr);
       }
 
       res.status(201).json(order);
@@ -17444,7 +17470,7 @@ export function registerRoutes(app: Express): Server {
   // ==============================================
 
   // Get all email notification settings
-  app.get('/api/admin/email-notification-settings', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/admin/email-notification-settings', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const settings = await db.select().from(emailNotificationSettings).orderBy(emailNotificationSettings.displayName);
       res.json(settings);
@@ -17555,7 +17581,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get email logs
-  app.get('/api/admin/email-logs', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/admin/email-logs', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const logs = await db.select()
         .from(emailLogs)
@@ -17772,7 +17798,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Initialize default notification settings
-  app.post('/api/admin/email-notification-settings/initialize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/admin/email-notification-settings/initialize', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const defaultSettings = [
         { notificationType: 'pedido_nuevo', displayName: 'Pedido Nuevo (Tienda)', description: 'Notificar cuando se crea un nuevo pedido en Panorámica Market', enabled: false },
@@ -17807,7 +17833,7 @@ export function registerRoutes(app: Express): Server {
     ccRecipients: z.string().nullable().optional(),
   }).strict();
 
-  app.patch('/api/admin/email-notification-settings/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/admin/email-notification-settings/:id', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
 
@@ -17844,7 +17870,7 @@ export function registerRoutes(app: Express): Server {
   // ==============================================
 
   // Lookup full client data by koen, returning email/teléfono/etc para autocompletar
-  app.get('/api/admin/mailing/client/:koen', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/admin/mailing/client/:koen', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { koen } = req.params;
       const client = await storage.getClientByKoen(koen);
@@ -17900,7 +17926,7 @@ export function registerRoutes(app: Express): Server {
     extraCc: z.string().optional(),
   }).strict();
 
-  app.post('/api/admin/mailing/send-sale', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/admin/mailing/send-sale', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     const TAG = '[send-sale]';
     const t0 = Date.now();
     try {
@@ -18038,7 +18064,7 @@ export function registerRoutes(app: Express): Server {
     extraCc: z.string().optional(),
   }).strict();
 
-  app.post('/api/admin/mailing/send-cobranza', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/admin/mailing/send-cobranza', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
     const TAG = '[cobranza]';
     const t0 = Date.now();
     try {
@@ -18176,7 +18202,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Auto-create cobranza notification setting if missing (so admins can configure CC internos)
-  app.post('/api/admin/mailing/ensure-settings', requireAdminOrSupervisor, asyncHandler(async (_req: any, res: any) => {
+  app.post('/api/admin/mailing/ensure-settings', requireMailingAccess, asyncHandler(async (_req: any, res: any) => {
     try {
       const ensure = async (notificationType: string, displayName: string, description: string) => {
         const existing = await db.select().from(emailNotificationSettings).where(eq(emailNotificationSettings.notificationType, notificationType));
@@ -18188,6 +18214,8 @@ export function registerRoutes(app: Express): Server {
       };
       await ensure('cobranza', 'Cobranza', 'Destinatarios internos en copia para correos manuales de cobranza');
       await ensure('mailing_venta', 'Mailing - Venta manual', 'Destinatarios internos en copia para correos de notificación de venta enviados desde Mailing');
+      await ensure('ecommerce_sale_auto', 'Auto: Venta recibida (tienda)', 'Cuando un cliente realiza un pedido en Panorámica Market, se envía un correo automático de confirmación. CC: copias internas opcionales.');
+      await ensure('ecommerce_quote_auto', 'Auto: Cotización recibida (tienda)', 'Cuando un visitante envía una solicitud de cotización pública, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       res.json({ success: true });
     } catch (error: any) {
       console.error('❌ Error inicializando settings de mailing:', error);

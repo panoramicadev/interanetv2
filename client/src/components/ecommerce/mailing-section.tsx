@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mail, Search, Send, Loader2, RefreshCw, AlertCircle, CheckCircle2, XCircle, User as UserIcon,
+  Receipt, AlertTriangle, Users, History, Zap, ShoppingBag, FileText,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -328,63 +329,70 @@ function SaleNotificationCard() {
   const canSend = !!client && (sendToClient || ccInternal || extraCc.trim().length > 0);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Notificación de venta</CardTitle>
-        <CardDescription>
-          Envía un correo al cliente seleccionado con los datos de la venta. Puedes copiar al equipo interno definido en la pestaña Destinatarios.
-        </CardDescription>
+    <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-emerald-50 to-white border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-200">
+            <Receipt className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-lg text-slate-900">Notificación de venta</CardTitle>
+            <CardDescription className="text-xs">
+              Envía un correo al cliente con los datos de la venta. Copia opcional al equipo interno.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-6">
         <div>
-          <Label className="text-xs mb-2 block">Cliente</Label>
+          <Label className="text-xs font-medium text-slate-700 mb-2 block">Cliente</Label>
           <ClientPicker selected={client} onSelect={setClient} onClear={() => setClient(null)} />
         </div>
 
         {client && !client.email && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>Este cliente no tiene email registrado. Ingresa uno manualmente abajo si quieres enviarle el correo.</div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs">Email del cliente (sobrescribir)</Label>
-            <Input value={emailOverride} onChange={(e) => setEmailOverride(e.target.value)} placeholder={client?.email || "cliente@correo.cl"} />
+            <Label className="text-xs font-medium text-slate-700">Email del cliente (sobrescribir)</Label>
+            <Input className="mt-1.5" value={emailOverride} onChange={(e) => setEmailOverride(e.target.value)} placeholder={client?.email || "cliente@correo.cl"} />
           </div>
           <div>
-            <Label className="text-xs">N° documento (opcional)</Label>
-            <Input value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} placeholder="OC-12345" />
+            <Label className="text-xs font-medium text-slate-700">N° documento (opcional)</Label>
+            <Input className="mt-1.5" value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} placeholder="OC-12345" />
           </div>
           <div>
-            <Label className="text-xs">Monto (CLP, opcional)</Label>
-            <Input type="number" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0" />
+            <Label className="text-xs font-medium text-slate-700">Monto (CLP, opcional)</Label>
+            <Input className="mt-1.5" type="number" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0" />
           </div>
           <div>
-            <Label className="text-xs">CC adicional</Label>
-            <Input value={extraCc} onChange={(e) => setExtraCc(e.target.value)} placeholder="otro@correo.cl, otro2@..." />
+            <Label className="text-xs font-medium text-slate-700">CC adicional</Label>
+            <Input className="mt-1.5" value={extraCc} onChange={(e) => setExtraCc(e.target.value)} placeholder="otro@correo.cl, otro2@..." />
           </div>
         </div>
 
         <div>
-          <Label className="text-xs">Detalle / mensaje (opcional)</Label>
-          <Textarea rows={4} value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder="Descripción de la venta, productos, condiciones..." />
+          <Label className="text-xs font-medium text-slate-700">Detalle / mensaje (opcional)</Label>
+          <Textarea className="mt-1.5" rows={4} value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder="Descripción de la venta, productos, condiciones..." />
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2">
             <Switch checked={sendToClient} onCheckedChange={setSendToClient} id="ms-send-client" />
-            <Label htmlFor="ms-send-client" className="text-sm">Enviar al cliente</Label>
+            <Label htmlFor="ms-send-client" className="text-sm font-medium cursor-pointer">Enviar al cliente</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={ccInternal} onCheckedChange={setCcInternal} id="ms-cc-internal" />
-            <Label htmlFor="ms-cc-internal" className="text-sm">Copia al equipo interno (Mailing - Venta manual)</Label>
+            <Label htmlFor="ms-cc-internal" className="text-sm font-medium cursor-pointer">Copia al equipo interno</Label>
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={() => sendMutation.mutate()} disabled={!canSend || sendMutation.isPending}>
+        <div className="flex justify-end pt-2">
+          <Button size="lg" onClick={() => sendMutation.mutate()} disabled={!canSend || sendMutation.isPending} className="bg-orange-500 hover:bg-orange-600">
             {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
             Enviar correo
           </Button>
@@ -442,67 +450,74 @@ function CobranzaCard() {
   const canSend = !!client && !!montoAdeudado && !!fechaVencimiento && (sendToClient || ccInternal || extraCc.trim().length > 0);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Cobranza</CardTitle>
-        <CardDescription>
-          Envía un recordatorio de pago al cliente con monto adeudado y fecha de vencimiento.
-        </CardDescription>
+    <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-white border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-200">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-lg text-slate-900">Cobranza</CardTitle>
+            <CardDescription className="text-xs">
+              Envía un recordatorio de pago al cliente con monto adeudado y fecha de vencimiento.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-6">
         <div>
-          <Label className="text-xs mb-2 block">Cliente</Label>
+          <Label className="text-xs font-medium text-slate-700 mb-2 block">Cliente</Label>
           <ClientPicker selected={client} onSelect={setClient} onClear={() => setClient(null)} />
         </div>
 
         {client && !client.email && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>Este cliente no tiene email registrado. Ingresa uno manualmente abajo.</div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs">Email del cliente (sobrescribir)</Label>
-            <Input value={emailOverride} onChange={(e) => setEmailOverride(e.target.value)} placeholder={client?.email || "cliente@correo.cl"} />
+            <Label className="text-xs font-medium text-slate-700">Email del cliente (sobrescribir)</Label>
+            <Input className="mt-1.5" value={emailOverride} onChange={(e) => setEmailOverride(e.target.value)} placeholder={client?.email || "cliente@correo.cl"} />
           </div>
           <div>
-            <Label className="text-xs">N° documento (opcional)</Label>
-            <Input value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} placeholder="FAC-12345" />
+            <Label className="text-xs font-medium text-slate-700">N° documento (opcional)</Label>
+            <Input className="mt-1.5" value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} placeholder="FAC-12345" />
           </div>
           <div>
-            <Label className="text-xs">Monto adeudado (CLP) *</Label>
-            <Input type="number" value={montoAdeudado} onChange={(e) => setMontoAdeudado(e.target.value)} placeholder="0" />
+            <Label className="text-xs font-medium text-slate-700">Monto adeudado (CLP) <span className="text-red-500">*</span></Label>
+            <Input className="mt-1.5" type="number" value={montoAdeudado} onChange={(e) => setMontoAdeudado(e.target.value)} placeholder="0" />
           </div>
           <div>
-            <Label className="text-xs">Fecha de vencimiento *</Label>
-            <Input type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.target.value)} />
+            <Label className="text-xs font-medium text-slate-700">Fecha de vencimiento <span className="text-red-500">*</span></Label>
+            <Input className="mt-1.5" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.target.value)} />
           </div>
           <div className="md:col-span-2">
-            <Label className="text-xs">CC adicional</Label>
-            <Input value={extraCc} onChange={(e) => setExtraCc(e.target.value)} placeholder="cobranzas@dom.cl, ..." />
+            <Label className="text-xs font-medium text-slate-700">CC adicional</Label>
+            <Input className="mt-1.5" value={extraCc} onChange={(e) => setExtraCc(e.target.value)} placeholder="cobranzas@dom.cl, ..." />
           </div>
         </div>
 
         <div>
-          <Label className="text-xs">Mensaje adicional (opcional)</Label>
-          <Textarea rows={3} value={mensajeAdicional} onChange={(e) => setMensajeAdicional(e.target.value)} placeholder="Información adicional para el cliente..." />
+          <Label className="text-xs font-medium text-slate-700">Mensaje adicional (opcional)</Label>
+          <Textarea className="mt-1.5" rows={3} value={mensajeAdicional} onChange={(e) => setMensajeAdicional(e.target.value)} placeholder="Información adicional para el cliente..." />
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2">
             <Switch checked={sendToClient} onCheckedChange={setSendToClient} id="cb-send-client" />
-            <Label htmlFor="cb-send-client" className="text-sm">Enviar al cliente</Label>
+            <Label htmlFor="cb-send-client" className="text-sm font-medium cursor-pointer">Enviar al cliente</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={ccInternal} onCheckedChange={setCcInternal} id="cb-cc-internal" />
-            <Label htmlFor="cb-cc-internal" className="text-sm">Copia al equipo interno (Cobranza)</Label>
+            <Label htmlFor="cb-cc-internal" className="text-sm font-medium cursor-pointer">Copia al equipo interno</Label>
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={() => sendMutation.mutate()} disabled={!canSend || sendMutation.isPending}>
+        <div className="flex justify-end pt-2">
+          <Button size="lg" onClick={() => sendMutation.mutate()} disabled={!canSend || sendMutation.isPending} className="bg-orange-500 hover:bg-orange-600">
             {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
             Enviar cobranza
           </Button>
@@ -586,29 +601,214 @@ function HistoryCard() {
   );
 }
 
+function ModernTabTrigger({ value, icon: Icon, label }: { value: string; icon: any; label: string }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-slate-900 text-slate-600 transition-all"
+    >
+      <Icon className="h-4 w-4" />
+      <span className="font-medium">{label}</span>
+    </TabsTrigger>
+  );
+}
+
 export default function MailingSection() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="venta" className="w-full">
-        <TabsList>
-          <TabsTrigger value="venta">Notificación de venta</TabsTrigger>
-          <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
-          <TabsTrigger value="destinatarios">Destinatarios internos</TabsTrigger>
-          <TabsTrigger value="historial">Historial</TabsTrigger>
-        </TabsList>
-        <TabsContent value="venta" className="mt-4">
+        <div className="bg-slate-100/70 border border-slate-200 rounded-xl p-1.5 inline-flex flex-wrap gap-1">
+          <TabsList className="bg-transparent p-0 h-auto gap-1">
+            <ModernTabTrigger value="venta" icon={Receipt} label="Notificación de venta" />
+            <ModernTabTrigger value="cobranza" icon={AlertTriangle} label="Cobranza" />
+            <ModernTabTrigger value="automatizaciones" icon={Zap} label="Automatizaciones" />
+            <ModernTabTrigger value="destinatarios" icon={Users} label="Destinatarios" />
+            <ModernTabTrigger value="historial" icon={History} label="Historial" />
+          </TabsList>
+        </div>
+        <TabsContent value="venta" className="mt-6">
           <SaleNotificationCard />
         </TabsContent>
-        <TabsContent value="cobranza" className="mt-4">
+        <TabsContent value="cobranza" className="mt-6">
           <CobranzaCard />
         </TabsContent>
-        <TabsContent value="destinatarios" className="mt-4">
+        <TabsContent value="automatizaciones" className="mt-6">
+          <AutomationsCard />
+        </TabsContent>
+        <TabsContent value="destinatarios" className="mt-6">
           <RecipientsConfigCard />
         </TabsContent>
-        <TabsContent value="historial" className="mt-4">
+        <TabsContent value="historial" className="mt-6">
           <HistoryCard />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+const AUTO_TYPES = [
+  {
+    type: "ecommerce_sale_auto",
+    title: "Venta recibida (Tienda)",
+    desc: "Cuando un cliente realiza un pedido en Panorámica Market, le enviamos automáticamente un correo de confirmación con su número de orden, productos y datos de pago.",
+    icon: ShoppingBag,
+    color: "emerald",
+  },
+  {
+    type: "ecommerce_quote_auto",
+    title: "Cotización recibida (Tienda)",
+    desc: "Cuando un visitante envía una solicitud de cotización desde el sitio público, le confirmamos automáticamente que recibimos su pedido y que el equipo lo está revisando.",
+    icon: FileText,
+    color: "blue",
+  },
+];
+
+function AutomationsCard() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: settings = [], isLoading } = useQuery<EmailNotificationSetting[]>({
+    queryKey: ["/api/admin/email-notification-settings"],
+  });
+
+  const ensureMutation = useMutation({
+    mutationFn: () => apiRequest("/api/admin/mailing/ensure-settings", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/email-notification-settings"] }),
+  });
+
+  useEffect(() => {
+    if (!isLoading && settings.length > 0) {
+      const missing = AUTO_TYPES.some((t) => !settings.find((s) => s.notificationType === t.type));
+      if (missing) ensureMutation.mutate();
+    }
+  }, [isLoading, settings.length]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: { id: string; enabled?: boolean; ccRecipients?: string }) => {
+      const { id, ...rest } = payload;
+      return apiRequest(`/api/admin/email-notification-settings/${id}`, { method: "PATCH", data: rest });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/email-notification-settings"] });
+      toast({ title: "Automatización actualizada" });
+    },
+    onError: (e: any) => toast({ title: "Error al guardar", description: e?.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 shrink-0">
+          <Zap className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <div className="font-semibold text-slate-900">Correos automáticos</div>
+          <div className="text-sm text-slate-600 mt-0.5">
+            Activá o desactivá los correos que se envían automáticamente al cliente cuando interactúa con la tienda. Los CC son copias internas del equipo.
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando automatizaciones...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {AUTO_TYPES.map((meta) => {
+            const setting = settings.find((s) => s.notificationType === meta.type);
+            return (
+              <AutomationItem
+                key={meta.type}
+                meta={meta}
+                setting={setting}
+                onSave={updateMutation.mutate}
+                saving={updateMutation.isPending}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutomationItem({
+  meta,
+  setting,
+  onSave,
+  saving,
+}: {
+  meta: typeof AUTO_TYPES[number];
+  setting: EmailNotificationSetting | undefined;
+  onSave: (p: { id: string; enabled?: boolean; ccRecipients?: string }) => void;
+  saving: boolean;
+}) {
+  const Icon = meta.icon;
+  const [enabled, setEnabled] = useState(!!setting?.enabled);
+  const [cc, setCc] = useState(setting?.ccRecipients || "");
+
+  useEffect(() => {
+    setEnabled(!!setting?.enabled);
+    setCc(setting?.ccRecipients || "");
+  }, [setting?.id, setting?.enabled, setting?.ccRecipients]);
+
+  if (!setting) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" /> Inicializando {meta.title}...
+      </div>
+    );
+  }
+
+  const dirty = enabled !== !!setting.enabled || cc !== (setting.ccRecipients || "");
+  const colorMap: Record<string, string> = {
+    emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
+    blue: "bg-blue-500/10 text-blue-600 border-blue-200",
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+      <div className={`p-5 border-b border-slate-100 ${enabled ? "" : "opacity-70"}`}>
+        <div className="flex items-start gap-3">
+          <div className={`p-2 rounded-lg border ${colorMap[meta.color] || "bg-slate-100"}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-slate-900 truncate">{meta.title}</div>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{meta.desc}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-5 space-y-3 bg-slate-50/50">
+        <div>
+          <Label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+            <Users className="h-3 w-3" />
+            CC interno (separar con coma)
+          </Label>
+          <Input
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+            placeholder="ventas@dom.cl, jefe@dom.cl"
+            className="mt-1.5 bg-white"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-500">
+            Estado: <strong className={enabled ? "text-emerald-600" : "text-slate-400"}>{enabled ? "Activo" : "Pausado"}</strong>
+          </span>
+          <Button
+            size="sm"
+            disabled={!dirty || saving}
+            onClick={() => onSave({ id: setting.id, enabled, ccRecipients: cc })}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+            Guardar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

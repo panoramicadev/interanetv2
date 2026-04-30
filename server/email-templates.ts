@@ -1,5 +1,5 @@
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://ai.pinturaspanoramica.cl';
-const LOGO_URL = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/panoramica-logo.png`;
+const LOGO_URL = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/panoramica-logo-white.png`;
 
 export function getEmailHeader(): string {
   return `
@@ -205,6 +205,94 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
     </p>
   `);
 
+  return { subject, html };
+}
+
+interface OrderReceivedData {
+  clientName: string;
+  orderNumber: string;
+  total?: number;
+  items?: Array<{ name: string; quantity: number; price?: number }>;
+}
+
+export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: string; html: string } {
+  const totalStr = typeof data.total === 'number'
+    ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(data.total)
+    : null;
+  const subject = `Hemos recibido tu pedido #${data.orderNumber} - Pinturas Panorámica`;
+  const itemsRows = (data.items || []).slice(0, 30).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+      ${typeof it.price === 'number' ? `<td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: right;">${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(it.price)}</td>` : ''}
+    </tr>`).join('');
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Recibimos tu pedido!</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, gracias por elegir Pinturas Panorámica.
+    </p>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Tu pedido fue ingresado correctamente y está siendo procesado por nuestro equipo. Te contactaremos a la brevedad para confirmar la entrega o el retiro.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+      <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">N° Pedido:</span>
+        <span style="color: #333; margin-left: 8px;">${data.orderNumber}</span>
+      </td></tr>
+      ${totalStr ? `<tr><td style="height: 6px;"></td></tr>
+      <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">Total:</span>
+        <span style="color: #333; margin-left: 8px; font-size: 16px;"><strong>${totalStr}</strong></span>
+      </td></tr>` : ''}
+    </table>
+    ${itemsRows ? `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+          ${(data.items || []).some(i => typeof i.price === 'number') ? '<th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRECIO</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>` : ''}
+    ${getPaymentInfoBlock()}
+    <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
+      Si necesitás modificar algo o tenés dudas, escribinos a
+      <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
+    </p>
+  `);
+  return { subject, html };
+}
+
+interface QuoteReceivedData {
+  clientName: string;
+  itemCount?: number;
+  message?: string;
+}
+
+export function buildQuoteReceivedEmail(data: QuoteReceivedData): { subject: string; html: string } {
+  const subject = `Hemos recibido tu solicitud de cotización - Pinturas Panorámica`;
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Recibimos tu cotización!</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, gracias por contactar a Pinturas Panorámica.
+    </p>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Recibimos tu solicitud${typeof data.itemCount === 'number' ? ` con <strong>${data.itemCount} producto(s)</strong>` : ''}. Nuestro equipo comercial la está revisando y te enviará la cotización con precios y disponibilidad a la brevedad.
+    </p>
+    ${data.message ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Tu mensaje:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.message}</p>
+    </div>` : ''}
+    ${getPaymentInfoBlock()}
+    <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
+      Si necesitás algo urgente, escribinos a
+      <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
+    </p>
+  `);
   return { subject, html };
 }
 
