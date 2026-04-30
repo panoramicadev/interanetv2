@@ -541,6 +541,22 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_code ON ecommerce_coupons(UPPER(code))`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_active ON ecommerce_coupons(is_active)`);
+    // Asegurar columnas en ecommerce_coupons (idempotente: cubre tablas creadas con esquema antiguo)
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS description VARCHAR`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS discount_type VARCHAR`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS applies_to VARCHAR NOT NULL DEFAULT 'cart'`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS product_sku VARCHAR`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC(10, 2) DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS max_uses INTEGER DEFAULT NULL`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS times_used INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+    // discount_type debe ser NOT NULL — si quedó nullable de un esquema previo, forzar default y NOT NULL
+    await db.execute(sql`UPDATE ecommerce_coupons SET discount_type = 'percentage' WHERE discount_type IS NULL`);
+    await db.execute(sql`ALTER TABLE ecommerce_coupons ALTER COLUMN discount_type SET NOT NULL`);
     // 15. Crear tabla crm_ayuda_memoria si no existe
     console.log('  📝 Verificando tabla crm_ayuda_memoria...');
     await db.execute(sql`

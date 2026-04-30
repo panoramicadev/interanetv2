@@ -15719,27 +15719,38 @@ export function registerRoutes(app: Express): Server {
     try {
       const coupons = await storage.getCoupons();
       res.json(coupons);
-    } catch (error) {
-      console.error('Error fetching coupons:', error);
-      res.status(500).json({ error: 'Error al obtener cupones' });
+    } catch (error: any) {
+      console.error('[coupons GET] ❌ error:', { message: error?.message, code: error?.code, detail: error?.detail, hint: error?.hint, stack: error?.stack });
+      res.status(500).json({ error: 'Error al obtener cupones', details: error?.message });
     }
   }));
 
   // POST /api/admin/coupons — Admin: create coupon
   app.post('/api/admin/coupons', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
+      console.log('[coupons POST] ▶️ body recibido:', { ...req.body });
       const data = insertEcommerceCouponSchema.parse(req.body);
-      const coupon = await storage.createCoupon(data);
+      // Coerción: expiresAt llega como ISO string desde el frontend, Drizzle timestamp espera Date
+      const sanitized: any = { ...data };
+      if (sanitized.expiresAt && typeof sanitized.expiresAt === 'string') {
+        const d = new Date(sanitized.expiresAt);
+        if (!isNaN(d.getTime())) sanitized.expiresAt = d;
+      }
+      console.log('[coupons POST] 📝 datos sanitizados:', sanitized);
+      const coupon = await storage.createCoupon(sanitized);
+      console.log('[coupons POST] ✅ cupón creado:', coupon.id, coupon.code);
       res.status(201).json(coupon);
     } catch (error: any) {
       if (error?.name === 'ZodError') {
+        console.warn('[coupons POST] ❌ validación zod:', error.errors);
         return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
       }
       if (error?.code === '23505') {
+        console.warn('[coupons POST] ❌ código duplicado');
         return res.status(409).json({ error: 'El código de cupón ya existe' });
       }
-      console.error('Error creating coupon:', error);
-      res.status(500).json({ error: 'Error al crear cupón' });
+      console.error('[coupons POST] ❌ error:', { message: error?.message, code: error?.code, detail: error?.detail, hint: error?.hint, table: error?.table, column: error?.column, stack: error?.stack });
+      res.status(500).json({ error: 'Error al crear cupón', details: error?.message });
     }
   }));
 
