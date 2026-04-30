@@ -289,6 +289,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [emailRecipient, setEmailRecipient] = useState("fparra@pinturaspanoramica.cl");
   const [emailCc, setEmailCc] = useState("");
   const [emailOcNumber, setEmailOcNumber] = useState("");
+  const [emailSegment, setEmailSegment] = useState<string>("");
+  const [emailPaymentMethod, setEmailPaymentMethod] = useState<string>("");
+  const [emailScope, setEmailScope] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
   const [emailAttachment, setEmailAttachment] = useState<{ name: string; mime: string; base64: string } | null>(null);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
@@ -297,6 +300,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     setEmailRecipient("fparra@pinturaspanoramica.cl");
     setEmailCc("");
     setEmailOcNumber("");
+    setEmailSegment("");
+    setEmailPaymentMethod("");
+    setEmailScope("");
     setEmailMessage("");
     setEmailAttachment(null);
   };
@@ -342,6 +348,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           recipientEmail: emailRecipient.trim() || 'fparra@pinturaspanoramica.cl',
           ccEmails: emailCc.trim() || undefined,
           ocNumber: emailOcNumber.trim() || undefined,
+          segment: emailSegment || undefined,
+          paymentMethod: emailPaymentMethod || undefined,
+          scope: emailScope.trim() || undefined,
           additionalMessage: emailMessage.trim() || undefined,
           attachmentBase64: emailAttachment?.base64,
           attachmentName: emailAttachment?.name,
@@ -1054,13 +1063,62 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
               />
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">N° de OC (opcional)</Label>
+                <Input
+                  value={emailOcNumber}
+                  onChange={(e) => setEmailOcNumber(e.target.value)}
+                  className="mt-1.5"
+                  placeholder="OC-12345"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Segmento</Label>
+                <Select value={emailSegment} onValueChange={setEmailSegment}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Seleccionar segmento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MCT">MCT</SelectItem>
+                    <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
+                    <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
+                    <SelectItem value="CANALES DIGITALES">Canales Digitales</SelectItem>
+                    <SelectItem value="FABRICACION MODULAR">Fabricación Modular</SelectItem>
+                    <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
+                    <SelectItem value="OTRO">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div>
-              <Label className="text-xs font-medium">N° de OC (opcional)</Label>
-              <Input
-                value={emailOcNumber}
-                onChange={(e) => setEmailOcNumber(e.target.value)}
+              <Label className="text-xs font-medium">Método de pago</Label>
+              <Select value={emailPaymentMethod} onValueChange={setEmailPaymentMethod}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Seleccionar método de pago" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Transferencia bancaria">Transferencia bancaria</SelectItem>
+                  <SelectItem value="Tarjeta (Getnet)">Tarjeta (Getnet)</SelectItem>
+                  <SelectItem value="Cheque">Cheque</SelectItem>
+                  <SelectItem value="Efectivo">Efectivo</SelectItem>
+                  <SelectItem value="Crédito 30 días">Crédito 30 días</SelectItem>
+                  <SelectItem value="Crédito 60 días">Crédito 60 días</SelectItem>
+                  <SelectItem value="Crédito 90 días">Crédito 90 días</SelectItem>
+                  <SelectItem value="Contra entrega">Contra entrega</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium">Alcances</Label>
+              <Textarea
+                value={emailScope}
+                onChange={(e) => setEmailScope(e.target.value)}
                 className="mt-1.5"
-                placeholder="OC-12345"
+                rows={3}
+                placeholder="Detalles de la entrega, plazos, condiciones especiales, despacho, etc."
               />
             </div>
 

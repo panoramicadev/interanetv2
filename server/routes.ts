@@ -13062,6 +13062,9 @@ export function registerRoutes(app: Express): Server {
         recipientEmail,
         ccEmails,
         ocNumber,
+        segment,
+        paymentMethod,
+        scope,
         additionalMessage,
         attachmentBase64,
         attachmentName,
@@ -13099,44 +13102,77 @@ export function registerRoutes(app: Express): Server {
       // Send email with default recipient (Felipe Parra) or custom one
       const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
       const cc = (ccEmails || '').split(',').map((s: string) => s.trim()).filter(Boolean).join(', ') || undefined;
-      const ocLabel = ocNumber ? ` - OC ${ocNumber}` : '';
-      const subject = `Cotización ${quote.quoteNumber} - ${quote.clientName}${ocLabel}`;
+      const subjectParts = [
+        `Cotización ${quote.quoteNumber}`,
+        quote.clientName,
+        ocNumber ? `OC ${ocNumber}` : null,
+        segment ? `[${segment}]` : null,
+      ].filter(Boolean);
+      const subject = subjectParts.join(' - ');
+
+      const senderName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email || 'Equipo Panorámica';
+      const segmentLabel: Record<string, string> = {
+        'MCT': 'MCT',
+        'FERRETERIAS': 'Ferreterías',
+        'CONSTRUCCION': 'Construcción',
+        'CANALES DIGITALES': 'Canales Digitales',
+        'FABRICACION MODULAR': 'Fabricación Modular',
+        'PANORAMICA STORE': 'Panorámica Store',
+        'OTRO': 'Otro',
+      };
+      const segmentDisplay = segment ? (segmentLabel[segment] || segment) : null;
+
+      const dataRow = (label: string, value: string, highlight = false) => `
+        <tr><td style="padding: 11px 14px; background-color: ${highlight ? '#fff7ed' : '#f8f9fa'}; ${highlight ? 'border-left: 3px solid #fd6301;' : ''} border-radius: 6px;">
+          <span style="font-weight: 600; color: #fd6301; font-size: 13px;">${label}:</span>
+          <span style="color: #1a1f2e; margin-left: 8px; font-size: 14px;">${value}</span>
+        </td></tr>
+        <tr><td style="height: 6px;"></td></tr>`;
 
       const { wrapEmailContent } = await import('./email-templates');
       const html = wrapEmailContent(`
-        <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Cotización enviada</h2>
-        <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
-          Adjuntamos la cotización <strong>${quote.quoteNumber}</strong> del cliente <strong>${quote.clientName}</strong>.
+        <h2 style="color: #1a1f2e; margin: 0 0 8px 0; font-family: Arial, sans-serif;">Cotización ${quote.quoteNumber}</h2>
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 24px 0;">${quote.clientName}${ocNumber ? ` · OC ${ocNumber}` : ''}</p>
+
+        <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+          Estimado equipo,
         </p>
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
-          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
-            <span style="font-weight: bold; color: #fd6301;">N° Cotización:</span>
-            <span style="color: #333; margin-left: 8px;">${quote.quoteNumber}</span>
-          </td></tr>
-          <tr><td style="height: 6px;"></td></tr>
-          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
-            <span style="font-weight: bold; color: #fd6301;">Cliente:</span>
-            <span style="color: #333; margin-left: 8px;">${quote.clientName}</span>
-          </td></tr>
-          ${ocNumber ? `
-          <tr><td style="height: 6px;"></td></tr>
-          <tr><td style="padding: 10px 12px; background-color: #fff7ed; border-left: 3px solid #fd6301; border-radius: 4px;">
-            <span style="font-weight: bold; color: #fd6301;">N° OC:</span>
-            <span style="color: #333; margin-left: 8px;"><strong>${ocNumber}</strong></span>
-          </td></tr>` : ''}
-          ${attachmentName ? `
-          <tr><td style="height: 6px;"></td></tr>
-          <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
-            <span style="font-weight: bold; color: #fd6301;">Archivo adjunto:</span>
-            <span style="color: #333; margin-left: 8px;">${attachmentName}</span>
-          </td></tr>` : ''}
+        <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+          Adjunto la cotización <strong>${quote.quoteNumber}</strong> emitida a <strong>${quote.clientName}</strong>${segmentDisplay ? ` correspondiente al segmento <strong>${segmentDisplay}</strong>` : ''}${paymentMethod ? `, con método de pago <strong>${paymentMethod}</strong>` : ''}. Por favor revisar y dar curso según los alcances detallados a continuación.
+        </p>
+
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px 0;">
+          ${dataRow('N° Cotización', quote.quoteNumber)}
+          ${dataRow('Cliente', quote.clientName)}
+          ${ocNumber ? dataRow('N° OC', `<strong>${ocNumber}</strong>`, true) : ''}
+          ${segmentDisplay ? dataRow('Segmento', segmentDisplay) : ''}
+          ${paymentMethod ? dataRow('Método de pago', paymentMethod) : ''}
+          ${attachmentName ? dataRow('Archivo adjunto', attachmentName) : ''}
         </table>
-        ${additionalMessage ? `
-        <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
-          <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${additionalMessage}</p>
+
+        ${scope ? `
+        <div style="margin: 20px 0;">
+          <div style="font-weight: 600; color: #1a1f2e; font-size: 14px; margin-bottom: 8px;">Alcances</div>
+          <div style="background-color: #f8f9fa; border-left: 4px solid #1a1f2e; padding: 14px 16px; border-radius: 4px;">
+            <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${scope}</p>
+          </div>
         </div>` : ''}
-        <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0;">
-          Enviado por: ${user.firstName || user.email || 'Equipo Panorámica'}
+
+        ${additionalMessage ? `
+        <div style="margin: 20px 0;">
+          <div style="font-weight: 600; color: #1a1f2e; font-size: 14px; margin-bottom: 8px;">Comentarios adicionales</div>
+          <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px;">
+            <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${additionalMessage}</p>
+          </div>
+        </div>` : ''}
+
+        <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 28px 0 6px 0;">
+          Quedo atento a cualquier consulta.
+        </p>
+        <p style="color: #1a1f2e; font-size: 14px; line-height: 1.4; margin: 0;">
+          Saludos,<br>
+          <strong>${senderName}</strong><br>
+          <span style="color: #6b7280; font-size: 13px;">Pinturas Panorámica</span>
         </p>
       `);
 
