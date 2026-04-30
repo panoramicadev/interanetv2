@@ -89,15 +89,29 @@ class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    const ETAG = '[emailService.sendEmail]';
+    console.log(`${ETAG} ▶️ to="${options.to}" cc="${options.cc || ''}" subjectLen=${options.subject.length}`);
+
     // Try OAuth first
     const config = await this.getDbConfig();
-    
+    console.log(`${ETAG} dbConfig`, config ? {
+      id: (config as any).id,
+      authMethod: config.authMethod,
+      host: config.host,
+      port: config.port,
+      hasEmail: !!config.email,
+      hasPassword: !!config.password,
+      fromName: config.fromName,
+    } : null);
+
     if (config?.authMethod === 'oauth') {
+      console.log(`${ETAG} intentando OAuth...`);
       const oauthTransporter = await this.createOAuthTransporter();
-      
+
       if (oauthTransporter) {
         try {
           const tokenInfo = await getValidAccessToken();
+          console.log(`${ETAG} OAuth tokenInfo`, { hasToken: !!tokenInfo, email: tokenInfo?.email });
           const info = await oauthTransporter.sendMail({
             from: config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email,
             to: options.to,
@@ -107,17 +121,28 @@ class EmailService {
             attachments: options.attachments,
           });
 
-          console.log('Email sent successfully via OAuth:', info.messageId);
+          console.log(`${ETAG} ✅ enviado vía OAuth:`, info.messageId);
           return true;
-        } catch (error) {
-          console.error('Error sending email via OAuth:', error);
+        } catch (error: any) {
+          console.error(`${ETAG} ❌ Error OAuth:`, {
+            message: error?.message,
+            name: error?.name,
+            code: error?.code,
+            response: error?.response,
+            responseCode: error?.responseCode,
+            command: error?.command,
+            stack: error?.stack,
+          });
           throw error;
         }
+      } else {
+        console.warn(`${ETAG} ⚠️ OAuth configurado pero no se pudo crear transporter (token inválido?)`);
       }
     }
-    
+
     // Fallback to password auth from DB config
     if (config?.authMethod === 'password' && config.email && config.password) {
+      console.log(`${ETAG} usando password auth desde DB`, { host: config.host, port: config.port, user: config.email });
       try {
         const dbTransporter = nodemailer.createTransport({
           host: config.host,
@@ -131,11 +156,11 @@ class EmailService {
             rejectUnauthorized: false,
           },
         });
-        
-        const fromAddress = config.fromName 
+
+        const fromAddress = config.fromName
           ? `"${config.fromName}" <${config.email}>`
           : config.email;
-        
+
         const info = await dbTransporter.sendMail({
           from: fromAddress,
           to: options.to,
@@ -145,19 +170,29 @@ class EmailService {
           attachments: options.attachments,
         });
 
-        console.log('Email sent successfully via password auth:', info.messageId);
+        console.log(`${ETAG} ✅ enviado vía password auth (DB):`, info.messageId);
         return true;
-      } catch (error) {
-        console.error('Error sending email via password auth:', error);
+      } catch (error: any) {
+        console.error(`${ETAG} ❌ Error password auth (DB):`, {
+          message: error?.message,
+          name: error?.name,
+          code: error?.code,
+          response: error?.response,
+          responseCode: error?.responseCode,
+          command: error?.command,
+          stack: error?.stack,
+        });
         throw error;
       }
     }
-    
+
     // Fallback to environment variables
     if (!this.transporter) {
+      console.error(`${ETAG} ❌ no hay transporter SMTP por env y dbConfig=${config?.authMethod || 'null'}`);
       throw new Error('Email service not configured. Please configure SMTP or connect Gmail via OAuth.');
     }
 
+    console.log(`${ETAG} usando transporter SMTP por env (SMTP_HOST=${process.env.SMTP_HOST})`);
     try {
       const info = await this.transporter.sendMail({
         from: process.env.SMTP_USER,
@@ -168,10 +203,18 @@ class EmailService {
         attachments: options.attachments,
       });
 
-      console.log('Email sent successfully:', info.messageId);
+      console.log(`${ETAG} ✅ enviado vía env SMTP:`, info.messageId);
       return true;
-    } catch (error) {
-      console.error('Error sending email:', error);
+    } catch (error: any) {
+      console.error(`${ETAG} ❌ Error env SMTP:`, {
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        response: error?.response,
+        responseCode: error?.responseCode,
+        command: error?.command,
+        stack: error?.stack,
+      });
       throw error;
     }
   }

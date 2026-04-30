@@ -528,11 +528,15 @@ const pdfStyles = StyleSheet.create({
 });
 
 // React-PDF Document Component
-export const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false }: { quote: any; items: any[]; shippingCost?: number; showDiscount?: boolean }) => {
+export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, showDiscount = false }: { quote: any; items: any[]; shippingCost?: number; showDiscount?: boolean }) => {
   const formatCurrency = (value: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
+
+  // Orden canónico: 1/4 Galón → Galón → Balde 4 → Balde 5 → Unidad → Despachos/fletes (al final).
+  // Se ordena defensivamente acá para que cualquier consumidor del componente herede el orden correcto.
+  const items = [...(rawItems || [])].sort((a, b) => getQuoteItemSortOrder(a) - getQuoteItemSortOrder(b));
 
   // Calculate totals from items (includes shipping items as products)
   const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
@@ -2369,7 +2373,7 @@ export default function TomadorPedidos() {
     }
 
     // 1. Map regular cart items
-    const itemsForPDF = cart.map(item => ({
+    const rawItemsForPDF = cart.map(item => ({
       productName: item.productName,
       productCode: item.productCode || item.customSku || '',
       productUnit: item.productUnit || 'UN',
@@ -2384,9 +2388,9 @@ export default function TomadorPedidos() {
     if (showShipping && shippingLineItems.length > 0) {
       shippingLineItems.forEach(line => {
         // Avoid adding if an item with same name/sku exists in itemsForPDF (already loaded from DB)
-        const alreadyExists = itemsForPDF.some(it => it.productName === line.label);
+        const alreadyExists = rawItemsForPDF.some(it => it.productName === line.label || (line.sku && it.productCode === line.sku));
         if (!alreadyExists) {
-          itemsForPDF.push({
+          rawItemsForPDF.push({
             productName: line.label,
             productCode: line.sku || 'DESPACHO',
             productUnit: 'UN',
@@ -2398,6 +2402,30 @@ export default function TomadorPedidos() {
         }
       });
     }
+
+    // 2.b. Dedup/merge: products quedan tal cual; despachos (fletes) se consolidan por productCode/productName
+    // para evitar filas duplicadas si el carrito persistió flete y además se recalculó en sesión.
+    const isShippingItem = (it: any) => {
+      const name = it?.productName?.toString() || '';
+      return name.startsWith('Despacho') || name.toLowerCase().includes('flete');
+    };
+    const productsOnly = rawItemsForPDF.filter(it => !isShippingItem(it));
+    const shippingsRaw = rawItemsForPDF.filter(isShippingItem);
+    const shippingByKey = new Map<string, typeof rawItemsForPDF[number]>();
+    for (const s of shippingsRaw) {
+      const key = (s.productCode && s.productCode !== 'DESPACHO') ? `code:${s.productCode}` : `name:${s.productName}`;
+      const existing = shippingByKey.get(key);
+      if (!existing) {
+        shippingByKey.set(key, { ...s });
+      } else {
+        // Si ya existía un flete con la misma key, quedarse con la entrada del mayor totalPrice
+        // (asume que el carrito persistido o el cálculo en sesión es la fuente más reciente).
+        const existingTotal = Number(existing.totalPrice) || 0;
+        const incomingTotal = Number(s.totalPrice) || 0;
+        if (incomingTotal > existingTotal) shippingByKey.set(key, { ...s });
+      }
+    }
+    const itemsForPDF = [...productsOnly, ...Array.from(shippingByKey.values())];
 
     // 3. Calculate actual shipping total for the PDF summary row
     // Either from the identified items in the list OR from the session totalShippingCost

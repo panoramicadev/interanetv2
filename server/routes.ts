@@ -17828,63 +17828,128 @@ export function registerRoutes(app: Express): Server {
   }).strict();
 
   app.post('/api/admin/mailing/send-sale', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    const parsed = sendSaleNotificationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
-    }
-    const { koen, clientEmailOverride, monto, detalle, numeroDocumento, sendToClient, ccInternal, extraCc } = parsed.data;
-
-    const client = await storage.getClientByKoen(koen);
-    if (!client) return res.status(404).json({ message: 'Cliente no encontrado' });
-
-    const clientEmail = (clientEmailOverride || client.email || '').trim();
-    if (sendToClient && !clientEmail) {
-      return res.status(400).json({ message: 'El cliente no tiene email registrado. Ingrese uno manualmente.' });
-    }
-
-    const recipients: string[] = [];
-    if (sendToClient && clientEmail) recipients.push(clientEmail);
-    const cc: string[] = [];
-    if (ccInternal) cc.push(...await getInternalCcList('mailing_venta'));
-    if (extraCc) cc.push(...extraCc.split(',').map(s => s.trim()).filter(Boolean));
-    const ccUnique = Array.from(new Set(cc.filter(e => !recipients.includes(e))));
-
-    if (recipients.length === 0 && ccUnique.length === 0) {
-      return res.status(400).json({ message: 'No hay destinatarios para enviar el correo' });
-    }
-
-    const { subject, html } = buildSaleNotificationEmail({
-      clientName: client.nokoen || 'Cliente',
-      clientRut: client.rten || undefined,
-      monto,
-      detalle,
-      numeroDocumento,
-      fecha: new Date(),
-    });
-
-    const to = recipients.length > 0 ? recipients.join(', ') : ccUnique.join(', ');
-    const ccStr = recipients.length > 0 && ccUnique.length > 0 ? ccUnique.join(', ') : undefined;
-
-    const logEntry = await db.insert(emailLogs).values({
-      recipient: [to, ccStr].filter(Boolean).join(' | '),
-      subject,
-      notificationType: 'mailing_venta_manual',
-      status: 'pending',
-    }).returning({ id: emailLogs.id });
-    const logId = logEntry[0]?.id;
-
+    const TAG = '[send-sale]';
+    const t0 = Date.now();
     try {
-      await emailService.sendEmail({ to, subject, html, cc: ccStr });
-      if (logId) {
-        await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
+      console.log(`${TAG} ▶️ inicio request`, {
+        userId: req.user?.id,
+        bodyKeys: Object.keys(req.body || {}),
+        body: { ...req.body, detalle: req.body?.detalle ? '[redacted]' : undefined },
+      });
+
+      const parsed = sendSaleNotificationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.warn(`${TAG} ❌ validación falló`, parsed.error.errors);
+        return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
       }
-      res.json({ success: true, to, cc: ccStr });
-    } catch (error: any) {
-      console.error('❌ Error enviando correo de venta:', error);
-      if (logId) {
-        await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
+      const { koen, clientEmailOverride, monto, detalle, numeroDocumento, sendToClient, ccInternal, extraCc } = parsed.data;
+
+      console.log(`${TAG} 🔎 buscando cliente`, { koen });
+      const client = await storage.getClientByKoen(koen);
+      if (!client) {
+        console.warn(`${TAG} ❌ cliente no encontrado`, { koen });
+        return res.status(404).json({ message: 'Cliente no encontrado' });
       }
-      res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+      console.log(`${TAG} ✅ cliente`, { koen: client.koen, nokoen: client.nokoen, hasEmail: !!client.email });
+
+      const clientEmail = (clientEmailOverride || client.email || '').trim();
+      if (sendToClient && !clientEmail) {
+        console.warn(`${TAG} ❌ sin email para cliente`);
+        return res.status(400).json({ message: 'El cliente no tiene email registrado. Ingrese uno manualmente.' });
+      }
+
+      const recipients: string[] = [];
+      if (sendToClient && clientEmail) recipients.push(clientEmail);
+      const cc: string[] = [];
+      if (ccInternal) {
+        try {
+          const internalCc = await getInternalCcList('mailing_venta');
+          console.log(`${TAG} 📋 CC internos`, { count: internalCc.length, list: internalCc });
+          cc.push(...internalCc);
+        } catch (e: any) {
+          console.error(`${TAG} ❌ error obteniendo CC internos`, { message: e?.message, stack: e?.stack });
+          throw e;
+        }
+      }
+      if (extraCc) cc.push(...extraCc.split(',').map(s => s.trim()).filter(Boolean));
+      const ccUnique = Array.from(new Set(cc.filter(e => !recipients.includes(e))));
+
+      if (recipients.length === 0 && ccUnique.length === 0) {
+        console.warn(`${TAG} ❌ sin destinatarios`);
+        return res.status(400).json({ message: 'No hay destinatarios para enviar el correo' });
+      }
+
+      let subject = '';
+      let html = '';
+      try {
+        const built = buildSaleNotificationEmail({
+          clientName: client.nokoen || 'Cliente',
+          clientRut: client.rten || undefined,
+          monto,
+          detalle,
+          numeroDocumento,
+          fecha: new Date(),
+        });
+        subject = built.subject;
+        html = built.html;
+        console.log(`${TAG} 📝 template OK`, { subjectLen: subject.length, htmlLen: html.length });
+      } catch (e: any) {
+        console.error(`${TAG} ❌ error en buildSaleNotificationEmail`, { message: e?.message, stack: e?.stack });
+        throw e;
+      }
+
+      const to = recipients.length > 0 ? recipients.join(', ') : ccUnique.join(', ');
+      const ccStr = recipients.length > 0 && ccUnique.length > 0 ? ccUnique.join(', ') : undefined;
+      console.log(`${TAG} ✉️ destinatarios`, { to, cc: ccStr });
+
+      let logId: string | undefined;
+      try {
+        const logEntry = await db.insert(emailLogs).values({
+          recipient: [to, ccStr].filter(Boolean).join(' | '),
+          subject,
+          notificationType: 'mailing_venta_manual',
+          status: 'pending',
+        }).returning({ id: emailLogs.id });
+        logId = logEntry[0]?.id;
+        console.log(`${TAG} 🗒️ emailLogs insert`, { logId });
+      } catch (e: any) {
+        console.error(`${TAG} ❌ error insertando emailLogs`, { message: e?.message, code: e?.code, detail: e?.detail, stack: e?.stack });
+        throw e;
+      }
+
+      try {
+        console.log(`${TAG} 📤 enviando vía emailService.sendEmail...`);
+        await emailService.sendEmail({ to, subject, html, cc: ccStr });
+        console.log(`${TAG} ✅ enviado en ${Date.now() - t0}ms`);
+        if (logId) {
+          await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
+        }
+        res.json({ success: true, to, cc: ccStr });
+      } catch (error: any) {
+        console.error(`${TAG} ❌ Error enviando correo de venta:`, {
+          message: error?.message,
+          name: error?.name,
+          code: error?.code,
+          response: error?.response,
+          responseCode: error?.responseCode,
+          command: error?.command,
+          stack: error?.stack,
+        });
+        if (logId) {
+          await db.update(emailLogs).set({ status: 'failed', errorMessage: error?.message || 'Error desconocido' }).where(eq(emailLogs.id, logId));
+        }
+        res.status(500).json({ message: 'Error al enviar correo', error: error?.message });
+      }
+    } catch (outerError: any) {
+      console.error(`${TAG} 💥 error no manejado en handler`, {
+        message: outerError?.message,
+        name: outerError?.name,
+        code: outerError?.code,
+        stack: outerError?.stack,
+      });
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Error al enviar correo', error: outerError?.message });
+      }
     }
   }));
 
