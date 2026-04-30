@@ -1,29 +1,10 @@
-import fs from 'fs';
-import path from 'path';
-
-const LOGO_PATH = path.join(process.cwd(), 'attached_assets', 'Captura_de_pantalla_2025-12-15_a_la(s)_10.12.05_a.m._1765804326176.png');
-
-let cachedLogoBase64: string | null = null;
-
-function getLogoBase64(): string {
-  if (cachedLogoBase64) return cachedLogoBase64;
-  
-  try {
-    const logoBuffer = fs.readFileSync(LOGO_PATH);
-    cachedLogoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-    return cachedLogoBase64;
-  } catch (error) {
-    console.warn('Could not load logo for email template:', error);
-    return '';
-  }
-}
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://ai.pinturaspanoramica.cl';
+const LOGO_URL = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/panoramica-logo.png`;
 
 export function getEmailHeader(): string {
-  const logoDataUri = getLogoBase64();
-  
   return `
     <div style="background-color: #1a1f2e; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;">
-      ${logoDataUri ? `<img src="${logoDataUri}" alt="Panoramica" style="max-width: 280px; height: auto;" />` : '<h1 style="color: white; margin: 0; font-family: Arial, sans-serif; font-size: 28px; font-weight: bold;">PANORAMICA</h1>'}
+      <img src="${LOGO_URL}" alt="Panoramica" width="280" style="max-width: 280px; height: auto; display: inline-block; border: 0;" />
     </div>
   `;
 }
