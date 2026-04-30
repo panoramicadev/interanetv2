@@ -1038,20 +1038,22 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
       {/* Send Email Dialog */}
       <Dialog open={!!emailDialog} onOpenChange={(open) => { if (!open) { setEmailDialog(null); resetEmailForm(); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-orange-500" />
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-orange-50 to-white shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 border border-orange-200">
+                <Mail className="h-5 w-5" />
+              </div>
               Enviar cotización por correo
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="pl-12 -mt-1">
               {emailDialog && (
-                <>Cotización <strong>{emailDialog.quoteNumber}</strong> · {emailDialog.clientName}</>
+                <>Cotización <strong className="text-slate-900">{emailDialog.quoteNumber}</strong> · {emailDialog.clientName}</>
               )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
             <div>
               <Label className="text-xs font-medium">Destinatario</Label>
               <Input
@@ -1197,7 +1199,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-slate-50 shrink-0">
             <Button variant="outline" onClick={() => { setEmailDialog(null); resetEmailForm(); }}>Cancelar</Button>
             <Button
               className="bg-orange-500 hover:bg-orange-600"

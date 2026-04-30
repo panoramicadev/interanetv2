@@ -37,6 +37,14 @@ interface Quote {
   creatorEmail?: string;
   creatorFirstName?: string;
   creatorLastName?: string;
+  sentToFinanceAt?: string | null;
+  ocNumber?: string | null;
+  segment?: string | null;
+  paymentMethod?: string | null;
+  scope?: string | null;
+  erpEntered?: boolean;
+  erpEnteredAt?: string | null;
+  erpNotes?: string | null;
 }
 
 interface QuoteItem {
@@ -278,6 +286,24 @@ export default function Reception() {
   };
 
   // Mutation to update quote status
+  const erpStatusMutation = useMutation({
+    mutationFn: async ({ id, entered, notes }: { id: string; entered: boolean; notes?: string }) => {
+      return await apiRequest(`/api/quotes/${id}/erp-status`, {
+        method: 'PATCH',
+        data: { entered, notes },
+      });
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.setQueryData(["/api/quotes", selectedQuoteId, "with-items"], (old: any) =>
+        old ? { ...old, erpEntered: vars.entered, erpEnteredAt: vars.entered ? new Date().toISOString() : null } : old
+      );
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", selectedQuoteId, "with-items"] });
+      toast({ title: vars.entered ? 'Marcado ingresado al ERP' : 'Marcado como pendiente' });
+    },
+    onError: (e: any) => toast({ title: 'Error', description: e?.message, variant: 'destructive' }),
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ quoteId, status }: { quoteId: string; status: string }) => {
       return await apiRequest(`/api/quotes/${quoteId}/status`, {
@@ -1014,6 +1040,57 @@ export default function Reception() {
                       Archivo Random
                     </Button>
                   </div>
+
+                  {/* Metadata del envío a finanzas */}
+                  {selectedQuote.sentToFinanceAt && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-slate-900">Envío a finanzas</div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(selectedQuote.sentToFinanceAt).toLocaleString('es-CL')}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {selectedQuote.ocNumber && <div><span className="text-slate-500">N° OC:</span> <strong>{selectedQuote.ocNumber}</strong></div>}
+                        {selectedQuote.segment && <div><span className="text-slate-500">Segmento:</span> <strong>{selectedQuote.segment}</strong></div>}
+                        {selectedQuote.paymentMethod && <div className="col-span-2"><span className="text-slate-500">Método de pago:</span> <strong>{selectedQuote.paymentMethod}</strong></div>}
+                        {selectedQuote.scope && (
+                          <div className="col-span-2 mt-1">
+                            <div className="text-slate-500 mb-1">Alcances:</div>
+                            <div className="bg-white rounded p-2 border text-slate-800 whitespace-pre-wrap">{selectedQuote.scope}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Toggle ingreso a ERP */}
+                      <div className="pt-3 border-t border-slate-200 mt-3 flex items-center justify-between">
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-900">Ingresado al ERP:</span>{' '}
+                          {selectedQuote.erpEntered ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                              <CheckCircle className="h-3.5 w-3.5" /> Sí
+                              {selectedQuote.erpEnteredAt && (
+                                <span className="text-xs text-slate-500 font-normal ml-1">
+                                  ({new Date(selectedQuote.erpEnteredAt).toLocaleString('es-CL')})
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-semibold">Pendiente</span>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={selectedQuote.erpEntered ? 'outline' : 'default'}
+                          className={selectedQuote.erpEntered ? '' : 'bg-emerald-600 hover:bg-emerald-700'}
+                          onClick={() => erpStatusMutation.mutate({ id: selectedQuote.id, entered: !selectedQuote.erpEntered })}
+                          disabled={erpStatusMutation.isPending}
+                        >
+                          {selectedQuote.erpEntered ? 'Marcar como no ingresado' : 'Marcar ingresado al ERP'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Buttons - Only show for sent quotes */}
                   {selectedQuote.status === 'sent' && (

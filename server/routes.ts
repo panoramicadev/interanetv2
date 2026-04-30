@@ -12261,6 +12261,31 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Update quote status
+  // Reception marks a quote as entered (or not) in the ERP
+  app.patch('/api/quotes/:id/erp-status', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      if (!['admin', 'supervisor', 'reception'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const { entered, notes } = req.body || {};
+      const isEntered = !!entered;
+      const { quotes: quotesTable } = await import('@shared/schema');
+      await db.update(quotesTable).set({
+        erpEntered: isEntered,
+        erpEnteredAt: isEntered ? new Date() : null,
+        erpEnteredById: isEntered ? user.id : null,
+        erpNotes: notes ?? null,
+        updatedAt: new Date(),
+      } as any).where(eq(quotesTable.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error updating ERP status:', error);
+      res.status(500).json({ message: 'Error al actualizar estado ERP', error: error?.message });
+    }
+  });
+
   app.patch('/api/quotes/:id/status', requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
@@ -13214,6 +13239,39 @@ export function registerRoutes(app: Express): Server {
 
       await emailService.sendEmail({ to: recipient, cc, subject, html, attachments });
 
+      // Persist send metadata + status="sent" so it appears in reception panel
+      try {
+        const { quotes: quotesTable } = await import('@shared/schema');
+        await db.update(quotesTable).set({
+          status: 'sent',
+          sentToFinanceAt: new Date(),
+          ocNumber: ocNumber || null,
+          segment: segment || null,
+          paymentMethod: paymentMethod || null,
+          scope: scope || null,
+          assignedSalespersonId: targetId || null,
+          updatedAt: new Date(),
+        } as any).where(eq(quotesTable.id, id));
+      } catch (persistErr) {
+        console.warn('No se pudo persistir metadata de envío:', persistErr);
+      }
+
+      // Notify reception team
+      try {
+        const { createAutoNotification } = await import('./notifications-helper');
+        await createAutoNotification({
+          targetType: 'departamento',
+          targetDepartment: 'Recepción',
+          title: '📬 Cotización enviada a finanzas',
+          message: `${quote.quoteNumber} - ${quote.clientName}${ocNumber ? ` (OC ${ocNumber})` : ''} - Vendedor: ${senderName}`,
+          priority: 'alta',
+          actionUrl: '/reception',
+          createdByName: 'Sistema - Cotizaciones',
+        });
+      } catch (notifErr) {
+        console.warn('No se pudo notificar a recepción:', notifErr);
+      }
+
       // Log the email in email_logs
       await db.insert(emailLogs).values({
         recipient: [recipient, cc].filter(Boolean).join(' | '),
@@ -13245,9 +13303,10 @@ export function registerRoutes(app: Express): Server {
         });
       } catch (_) { /* ignore logging errors */ }
 
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({
-        message: "Failed to send email",
-        error: error instanceof Error ? error.message : "Unknown error"
+        message: `Error al enviar correo: ${errMsg}`,
+        error: errMsg,
       });
     }
   });

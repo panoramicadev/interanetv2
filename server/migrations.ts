@@ -635,6 +635,20 @@ export async function bootstrapDatabase(): Promise<void> {
     // Migración 046: galería de fotos promocionales por producto (catálogo público)
     await db.execute(sql`ALTER TABLE product_content ADD COLUMN IF NOT EXISTS fotos_promocionales JSONB DEFAULT '[]'::jsonb`);
 
+    // Migración 047: metadata de envío de cotización + tracking de ingreso a ERP por recepción
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS sent_to_finance_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS oc_number VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS segment VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS payment_method VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS scope TEXT`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS assigned_salesperson_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_entered BOOLEAN DEFAULT FALSE NOT NULL`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_entered_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_entered_by_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_notes TEXT`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_sent_to_finance_at" ON quotes (sent_to_finance_at) WHERE sent_to_finance_at IS NOT NULL`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_erp_entered" ON quotes (erp_entered) WHERE erp_entered = FALSE AND sent_to_finance_at IS NOT NULL`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

@@ -2044,6 +2044,18 @@ export const quotes = pgTable("quotes", {
   total: numeric("total", { precision: 15, scale: 2 }), // Final total
   paymentCondition: varchar("payment_condition"), // Payment condition: transferencia, boton_pago, credito_30, credito_45, credito_60
   notes: text("notes"), // Additional notes
+  // Metadata de envío a finanzas + recepción
+  sentToFinanceAt: timestamp("sent_to_finance_at"), // Timestamp del envío de la cotización a finanzas
+  ocNumber: varchar("oc_number"), // N° de orden de compra del cliente
+  segment: varchar("segment"), // Segmento (MCT, FERRETERIAS, etc)
+  paymentMethod: varchar("payment_method"), // Método de pago efectivo (Transferencia, Cheque, etc)
+  scope: text("scope"), // Alcances/condiciones detalladas
+  assignedSalespersonId: varchar("assigned_salesperson_id"), // Vendedor a cuyo nombre se envía
+  // Recepción: tracking de ingreso al ERP
+  erpEntered: boolean("erp_entered").default(false).notNull(),
+  erpEnteredAt: timestamp("erp_entered_at"),
+  erpEnteredById: varchar("erp_entered_by_id"),
+  erpNotes: text("erp_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
