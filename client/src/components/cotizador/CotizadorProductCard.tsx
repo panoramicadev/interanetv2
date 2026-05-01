@@ -79,9 +79,13 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
     setQuantities(prev => ({ ...prev, [variant.sku]: 0 }));
   };
 
+  // Get ALL variants (across all formats)
+  const allVariants = Object.values(product.colors).flat();
+
   const handleAddAllAndOpenPanel = () => {
     let added = 0;
-    variantsForFormat.forEach(v => {
+    // Add ALL variants with qty > 0, regardless of which format tab is active
+    allVariants.forEach(v => {
       const qty = quantities[v.sku];
       if (qty && qty > 0) {
         handleAddToQuote(v);
@@ -90,10 +94,18 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
     });
     if (added > 0) {
       setSelectorOpen(false);
-      // Small delay so state updates first
       setTimeout(() => onOpenQuotePanel(), 150);
     }
   };
+
+  // Count pending items per format (for badge on tab)
+  const pendingCountByFormat = (format: string) => {
+    const variants = formatsMap.get(format) || [];
+    return variants.filter(v => (quantities[v.sku] || 0) > 0).length;
+  };
+
+  // Total pending across ALL formats
+  const totalPending = allVariants.filter(v => (quantities[v.sku] || 0) > 0).length;
 
   // Count how many variants are already in quote
   const inQuoteCount = Object.values(product.colors).flat().filter(v => isItemInQuote(v.sku, v.color, v.format)).length;
@@ -230,17 +242,28 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
                 {formatsList.map(format => {
                   const isActive = format === activeFormat;
+                  const pendingCount = pendingCountByFormat(format);
                   return (
                     <button
                       key={format}
                       onClick={() => setActiveFormat(format)}
-                      className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-xs font-bold transition-all border min-w-[90px] text-center ${
+                      className={`relative flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-xs font-bold transition-all border min-w-[90px] text-center ${
                         isActive
                           ? 'bg-[#FF6E23] border-[#FF6E23] text-white shadow-md'
                           : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 active:bg-gray-100'
                       }`}
                     >
                       {format}
+                      {pendingCount > 0 && !isActive && (
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#FF6E23] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                          {pendingCount}
+                        </span>
+                      )}
+                      {pendingCount > 0 && isActive && (
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-[#FF6E23] text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm ring-2 ring-[#FF6E23]">
+                          {pendingCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -332,15 +355,15 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
               </div>
             </div>
 
-            {/* Footer — add all with qty > 0 */}
-            {Object.values(quantities).some(q => q > 0) && (
+            {/* Footer — add ALL pending across all formats */}
+            {totalPending > 0 && (
               <div className="border-t border-gray-100 px-4 sm:px-5 py-3 bg-white safe-area-bottom">
                 <button
                   onClick={handleAddAllAndOpenPanel}
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white font-bold rounded-xl active:scale-[0.98] transition-all shadow-lg text-sm"
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  Agregar {Object.values(quantities).filter(q => q > 0).length} a mi cotización
+                  Agregar {totalPending} producto{totalPending !== 1 ? 's' : ''} a mi cotización
                 </button>
               </div>
             )}
