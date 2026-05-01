@@ -9,6 +9,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const API_BASE = process.env.PANORAMICA_API_BASE ?? 'https://intranet.pinturaspanoramica.cl/api/external';
 const API_KEY = process.env.PANORAMICA_API_KEY;
@@ -38,6 +41,17 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
   return data;
 }
 
+// Fetch raw text (no JSON parse) — for HTML responses like the PDF.
+async function apiRaw(method: string, path: string): Promise<string> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: { 'X-API-Key': API_KEY! },
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${path}: ${text.slice(0, 200)}`);
+  return text;
+}
+
 function qs(params: Record<string, unknown>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '');
   if (entries.length === 0) return '';
@@ -50,7 +64,7 @@ const TOOLS = [
   // Discovery
   {
     name: 'search_products',
-    description: 'Busca productos en la lista de precios por nombre, código, unidad o color. Devuelve cada producto con todos los tiers de precio (lista, descuentos escalonados, mínimo, oferta). Usar antes de cotizar para obtener el código y precio correctos.',
+    description: 'Busca productos en la lista de precios por nombre, código, unidad o color. Devuelve cada producto con todos los tiers de precio (lista, descuentos escalonados, mínimo, oferta), costo de producción, porcentaje de utilidad y precio efectivo según la lista pedida. Usar antes de cotizar para obtener el código y precio correctos.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -58,7 +72,26 @@ const TOOLS = [
         unidad: { type: 'string', description: 'Filtrar por unidad exacta (ej: "1 Galon", "Balde 4 Galones")' },
         tipoProducto: { type: 'string' },
         color: { type: 'string' },
+        priceList: { type: 'string', description: 'Lista de precios: LP01 (base, default) o custom (LP02 Mix, LP03, etc.). Ver list_price_lists primero.' },
         limit: { type: 'number', default: 50 },
+      },
+    },
+  },
+  {
+    name: 'list_price_lists',
+    description: 'Lista todas las listas de precios disponibles (LP01 base + listas custom como Mix, MCT, VIP). Devuelve cada lista con su código, nombre y cantidad de items que sobrescribe.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_price_list_products',
+    description: 'Devuelve los productos con precios de una lista específica. Para listas custom (LP02+) muestra solo los items que tienen override de precio + diferencia vs LP01.',
+    inputSchema: {
+      type: 'object',
+      required: ['code'],
+      properties: {
+        code: { type: 'string', description: 'Código de la lista (LP01, LP02, etc.)' },
+        search: { type: 'string' },
+        limit: { type: 'number', default: 100 },
       },
     },
   },
@@ -238,6 +271,17 @@ const TOOLS = [
       properties: { id: { type: 'string' } },
     },
   },
+  {
+    name: 'get_quote_pdf',
+    description: 'Genera el PDF imprimible de una cotización y lo guarda como archivo HTML local. Devuelve la ruta absoluta al archivo (file://...) que el usuario abre en su navegador y guarda como PDF con un click. Usar inmediatamente después de create_quote para entregar el archivo al usuario.',
+    inputSchema: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: { type: 'string', description: 'ID de la cotización' },
+      },
+    },
+  },
 
   // Sales & inventory
   {
@@ -385,6 +429,28 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
     }
     case 'delete_quote':
       return api('DELETE', `/cotizaciones/${encodeURIComponent(String(args.id))}`);
+    case 'list_price_lists':
+      return api('GET', '/listas-precio');
+    case 'get_price_list_products': {
+      const { code, ...rest } = args;
+      return api('GET', `/listas-precio/${encodeURIComponent(String(code))}/productos${qs(rest)}`);
+    }
+    case 'get_quote_pdf': {
+      const id = String(args.id);
+      const html = await apiRaw('GET', `/cotizaciones/${encodeURIComponent(id)}/pdf`);
+      // Detectar quoteNumber para nombrar el archivo
+      const m = html.match(/Cotización N°:<\/strong>\s*([^<]+)/);
+      const quoteNumber = m?.[1]?.trim() || id;
+      const dir = mkdtempSync(join(tmpdir(), 'panoramica-'));
+      const filePath = join(dir, `Cotizacion_${quoteNumber}.html`);
+      writeFileSync(filePath, html, 'utf8');
+      return {
+        filePath,
+        fileUrl: `file://${filePath}`,
+        quoteNumber,
+        instructions: 'Abrí el archivo HTML en el navegador y usá el botón "Imprimir / Descargar PDF" o Cmd+P → Guardar como PDF.',
+      };
+    }
     case 'list_sales':
       return api('GET', `/ventas${qs(args)}`);
     case 'get_sales_dashboard':

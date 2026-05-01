@@ -4,7 +4,7 @@ import { validateApiKey, requireApiRole, type ApiAuthRequest } from './middlewar
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { db } from './db';
-import { users, notifications, ecommerceOrders, salespeopleUsers } from '@shared/schema';
+import { users, notifications, ecommerceOrders, salespeopleUsers, customPriceLists, customPriceListItems, priceList as priceListTable } from '@shared/schema';
 import { desc, eq, and, or, sql } from 'drizzle-orm';
 
 const router = Router();
@@ -194,10 +194,36 @@ const OPENAPI_SPEC = {
           { name: 'unidad', in: 'query', schema: { type: 'string' } },
           { name: 'tipoProducto', in: 'query', schema: { type: 'string' } },
           { name: 'color', in: 'query', schema: { type: 'string' } },
+          { name: 'priceList', in: 'query', schema: { type: 'string' }, description: 'LP01 (base) o código de lista custom (LP02, LP03, ...)' },
           { $ref: '#/components/parameters/limit' },
           { $ref: '#/components/parameters/offset' },
         ],
-        responses: { '200': { description: 'Productos con todos los tiers de precio' } },
+        responses: { '200': { description: 'Productos con todos los tiers de precio + costo + precio efectivo según lista' } },
+      },
+    },
+    '/listas-precio': {
+      get: {
+        summary: 'Lista de listas de precio disponibles (LP01 base + custom)',
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/listas-precio/{code}/productos': {
+      get: {
+        summary: 'Productos con precios de una lista específica',
+        parameters: [
+          { name: 'code', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Lista no encontrada' } },
+      },
+    },
+    '/cotizaciones/{id}/pdf': {
+      get: {
+        summary: 'HTML imprimible de la cotización (el navegador la guarda como PDF)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'text/html' }, '404': { description: 'Cotización no encontrada' } },
       },
     },
     '/productos/grupos': {
@@ -519,7 +545,10 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'POST /crm/leads': { body: ['clientName*', 'salespersonId*', 'clientPhone', 'clientEmail', 'clientType', 'estimatedValue', 'notes', 'stage', 'segment'] },
       'PATCH /crm/leads/:id': { body: ['stage', 'notes', '...'] },
       'DELETE /crm/leads/:id': {},
-      'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'limit', 'offset'], note: 'flat list with all price tiers' },
+      'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
+      'GET /listas-precio': { note: 'lists LP01 (base) + custom price lists (LP02 Mix, LP03 etc)' },
+      'GET /listas-precio/:code/productos': { filters: ['search', 'limit', 'offset'], note: 'products with prices for that specific list' },
+      'GET /cotizaciones/:id/pdf': { note: 'HTML imprimible — el navegador la convierte a PDF al imprimir' },
       'GET /productos/grupos': { filters: ['search', 'categoria', 'soloActivos', 'limit', 'offset'], note: 'grouped like the store: parent product + color/format variations with prices' },
       'GET /productos/:codigo': { note: 'product detail + stock per warehouse' },
       'GET /cotizaciones': { filters: ['status', 'createdBy', 'salespersonName', 'clientName', 'dateFrom', 'dateTo', 'limit', 'offset'], note: 'returns quote + creatorName' },
@@ -1123,7 +1152,7 @@ router.delete('/crm/leads/:id', requireApiRole(['read_write', 'admin']), async (
 // Devuelve cada producto con TODOS sus precios (lista, descuentos, mínimo, canal digital, oferta).
 router.get('/productos', async (req: ApiAuthRequest, res) => {
   try {
-    const { search, unidad, tipoProducto, color } = req.query;
+    const { search, unidad, tipoProducto, color, priceList: priceListCode } = req.query;
     const lim = parseLimit(req.query.limit);
     const off = parseOffset(req.query.offset);
 
@@ -1136,29 +1165,61 @@ router.get('/productos', async (req: ApiAuthRequest, res) => {
       offset: off,
     });
 
-    // Normalizar campos de precio a números para que sean fáciles de usar
-    const items = (result.items || []).map((p: any) => ({
-      codigo: p.codigo,
-      producto: p.producto,
-      unidad: p.unidad,
-      precioLista: Number(p.lista) || 0,
-      precioDesc10: Number(p.desc10) || 0,
-      precioDesc10_5: Number(p.desc10_5) || 0,
-      precioDesc10_5_3: Number(p.desc10_5_3) || 0,
-      precioMinimo: Number(p.minimo) || 0,
-      precioCanalDigital: Number(p.canalDigital) || 0,
-      precioOferta: p.offerPrice ? Number(p.offerPrice) : null,
-      esPersonalizado: p.esPersonalizado === 'Si',
-      modoPrecio: p.modoPrecio,
-      cantidadProducto: p.cantidadProducto ? Number(p.cantidadProducto) : null,
-      unidadMedida: p.unidadMedida,
-      rendimiento: p.rendimiento ? Number(p.rendimiento) : null,
-    }));
+    // Si se pidió una lista custom (LP02+), traer los overrides
+    const customList = priceListCode && priceListCode !== 'LP01' ? String(priceListCode).toUpperCase() : null;
+    const overrideMap = new Map<string, number>();
+    if (customList) {
+      const codes = (result.items || []).map((p: any) => p.codigo).filter(Boolean);
+      if (codes.length > 0) {
+        const overrides = await db
+          .select({ codigo: customPriceListItems.codigo, precio: customPriceListItems.precio })
+          .from(customPriceListItems)
+          .where(and(
+            eq(customPriceListItems.listCode, customList),
+            sql`UPPER(${customPriceListItems.codigo}) = ANY(ARRAY[${sql.raw(codes.map(c => `'${String(c).toUpperCase().replace(/'/g, "''")}'`).join(','))}])`
+          ));
+        for (const o of overrides) {
+          overrideMap.set(String(o.codigo).toUpperCase(), Number(o.precio));
+        }
+      }
+    }
+
+    const items = (result.items || []).map((p: any) => {
+      const override = customList ? overrideMap.get(String(p.codigo).toUpperCase()) : undefined;
+      return {
+        codigo: p.codigo,
+        producto: p.producto,
+        unidad: p.unidad,
+        // Precios estándar (lista LP01)
+        precioLista: Number(p.lista) || 0,
+        precioDesc10: Number(p.desc10) || 0,
+        precioDesc10_5: Number(p.desc10_5) || 0,
+        precioDesc10_5_3: Number(p.desc10_5_3) || 0,
+        precioMinimo: Number(p.minimo) || 0,
+        precioCanalDigital: Number(p.canalDigital) || 0,
+        precioOferta: p.offerPrice ? Number(p.offerPrice) : null,
+        // Precio efectivo según la lista pedida (override o lista base)
+        listaPrecio: customList ?? 'LP01',
+        precioListaCustom: override ?? null,
+        precioEfectivo: override ?? Number(p.lista) ?? 0,
+        // Costos y utilidad
+        costoProduccion: p.costoProduccion ? Number(p.costoProduccion) : null,
+        porcentajeUtilidad: p.porcentajeUtilidad ? Number(p.porcentajeUtilidad) : null,
+        margenLista: p.costoProduccion && p.lista ? Number(((Number(p.lista) - Number(p.costoProduccion)) / Number(p.lista) * 100).toFixed(2)) : null,
+        // Otros
+        esPersonalizado: p.esPersonalizado === 'Si',
+        modoPrecio: p.modoPrecio,
+        cantidadProducto: p.cantidadProducto ? Number(p.cantidadProducto) : null,
+        unidadMedida: p.unidadMedida,
+        rendimiento: p.rendimiento ? Number(p.rendimiento) : null,
+      };
+    });
 
     res.json({
       total: result.totalCount ?? items.length,
       offset: off,
       limit: lim,
+      priceList: customList ?? 'LP01',
       items,
     });
   } catch (error) {
@@ -1246,6 +1307,12 @@ router.get('/productos/:codigo', async (req: ApiAuthRequest, res) => {
 
     const totalAvailable = stock.reduce((sum, s) => sum + s.availableStock, 0);
 
+    // Buscar precios en TODAS las listas custom (LP02, LP03, ...)
+    const customPrices = await db
+      .select({ listCode: customPriceListItems.listCode, precio: customPriceListItems.precio })
+      .from(customPriceListItems)
+      .where(sql`UPPER(${customPriceListItems.codigo}) = UPPER(${codigo})`);
+
     res.json({
       codigo: product.codigo,
       producto: product.producto,
@@ -1259,6 +1326,20 @@ router.get('/productos/:codigo', async (req: ApiAuthRequest, res) => {
         canalDigital: Number(product.canalDigital) || 0,
         oferta: product.offerPrice ? Number(product.offerPrice) : null,
       },
+      preciosPorLista: {
+        LP01: Number(product.lista) || 0,
+        ...Object.fromEntries(customPrices.map(p => [p.listCode, Number(p.precio)])),
+      },
+      costos: {
+        costoProduccion: product.costoProduccion ? Number(product.costoProduccion) : null,
+        porcentajeUtilidad: product.porcentajeUtilidad ? Number(product.porcentajeUtilidad) : null,
+        margenLista: product.costoProduccion && product.lista
+          ? Number(((Number(product.lista) - Number(product.costoProduccion)) / Number(product.lista) * 100).toFixed(2))
+          : null,
+        margenMinimo: product.costoProduccion && product.minimo
+          ? Number(((Number(product.minimo) - Number(product.costoProduccion)) / Number(product.minimo) * 100).toFixed(2))
+          : null,
+      },
       esPersonalizado: product.esPersonalizado === 'Si',
       modoPrecio: product.modoPrecio,
       cantidadProducto: product.cantidadProducto ? Number(product.cantidadProducto) : null,
@@ -1269,6 +1350,132 @@ router.get('/productos/:codigo', async (req: ApiAuthRequest, res) => {
     });
   } catch (error) {
     console.error('Error fetching producto:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Listas de precios (Read)
+// LP01 es la lista base (tabla price_list). LP02+ son listas custom
+// que sobrescriben precios por SKU (ej: "Lista Mix", "Lista MCT").
+// ============================================
+
+router.get('/listas-precio', async (_req: ApiAuthRequest, res) => {
+  try {
+    const customLists = await db
+      .select()
+      .from(customPriceLists)
+      .orderBy(customPriceLists.code);
+
+    // Contar items por cada lista custom
+    const itemCounts = await db
+      .select({
+        listCode: customPriceListItems.listCode,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(customPriceListItems)
+      .groupBy(customPriceListItems.listCode);
+
+    const countMap = new Map(itemCounts.map(c => [c.listCode, Number(c.count)]));
+
+    res.json({
+      lists: [
+        {
+          code: 'LP01',
+          name: 'Lista Base',
+          description: 'Lista de precios estándar (tabla price_list con todos los tiers de descuento)',
+          active: true,
+          isBase: true,
+          itemCount: null,
+        },
+        ...customLists.map(l => ({
+          code: l.code,
+          name: l.name,
+          description: `Lista custom — overrides de precio sobre LP01`,
+          active: l.active ?? true,
+          isBase: false,
+          itemCount: countMap.get(l.code) ?? 0,
+          createdAt: l.createdAt,
+          updatedAt: l.updatedAt,
+        })),
+      ],
+    });
+  } catch (error) {
+    console.error('Error fetching listas-precio:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /listas-precio/:code/productos — productos con precios de una lista específica
+router.get('/listas-precio/:code/productos', async (req: ApiAuthRequest, res) => {
+  try {
+    const code = String(req.params.code).toUpperCase();
+    const { search } = req.query;
+    const lim = parseLimit(req.query.limit);
+    const off = parseOffset(req.query.offset);
+
+    if (code === 'LP01') {
+      // Para LP01 simplemente devolvemos los items de price_list normalmente
+      const result = await storage.getPriceList({
+        search: search as string | undefined,
+        limit: lim, offset: off,
+      });
+      return res.json({
+        listCode: code,
+        total: result.totalCount ?? result.items?.length ?? 0,
+        items: (result.items || []).map((p: any) => ({
+          codigo: p.codigo,
+          producto: p.producto,
+          unidad: p.unidad,
+          precio: Number(p.lista) || 0,
+          costoProduccion: p.costoProduccion ? Number(p.costoProduccion) : null,
+        })),
+      });
+    }
+
+    // Verificar que la lista exista
+    const [list] = await db.select().from(customPriceLists).where(eq(customPriceLists.code, code)).limit(1);
+    if (!list) return res.status(404).json({ error: `Lista '${code}' no encontrada` });
+
+    // Items de la lista custom (precios sobrescritos)
+    const conditions = [eq(customPriceListItems.listCode, code)];
+    if (search) {
+      const s = `%${String(search).toUpperCase()}%`;
+      conditions.push(sql`(UPPER(${customPriceListItems.codigo}) LIKE ${s} OR UPPER(${priceListTable.producto}) LIKE ${s})`);
+    }
+
+    const rows = await db
+      .select({
+        codigo: customPriceListItems.codigo,
+        precio: customPriceListItems.precio,
+        producto: priceListTable.producto,
+        unidad: priceListTable.unidad,
+        precioBase: priceListTable.lista,
+        costoProduccion: priceListTable.costoProduccion,
+      })
+      .from(customPriceListItems)
+      .leftJoin(priceListTable, sql`UPPER(${customPriceListItems.codigo}) = UPPER(${priceListTable.codigo})`)
+      .where(and(...conditions))
+      .orderBy(customPriceListItems.codigo)
+      .limit(lim)
+      .offset(off);
+
+    res.json({
+      listCode: code,
+      listName: list.name,
+      total: rows.length,
+      items: rows.map(r => ({
+        codigo: r.codigo,
+        producto: r.producto,
+        unidad: r.unidad,
+        precio: Number(r.precio),
+        precioBase: r.precioBase ? Number(r.precioBase) : null,
+        diferenciaVsBase: r.precioBase ? Number((Number(r.precio) - Number(r.precioBase)).toFixed(2)) : null,
+        costoProduccion: r.costoProduccion ? Number(r.costoProduccion) : null,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching productos por lista:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1460,6 +1667,131 @@ router.delete('/cotizaciones/:id', requireApiRole(['read_write', 'admin']), asyn
   } catch (error) {
     console.error('Error deleting cotización:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /cotizaciones/:id/pdf — HTML imprimible (el navegador lo guarda como PDF)
+// Mismo render que /api/quotes/:id/pdf interno, pero accesible con API key.
+router.get('/cotizaciones/:id/pdf', async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const quote: any = await storage.getQuoteById(id);
+    if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
+    const items = await storage.getQuoteItems(id);
+
+    const escHtml = (s: string | null | undefined) =>
+      !s ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const fmtCLP = (n: number) => `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
+    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const subtotal = parseFloat(quote.subtotal || '0');
+    const tax = parseFloat(quote.taxAmount || '0');
+    const total = parseFloat(quote.total || '0');
+
+    const productRows = items.map((item: any, idx: number) => {
+      const unitPrice = parseFloat(item.unitPrice || '0');
+      const lineTotal = parseFloat(item.totalPrice || String(unitPrice * parseFloat(item.quantity || '1')));
+      return `<tr>
+        <td style="text-align:center">${idx + 1}</td>
+        <td><div style="font-weight:600">${escHtml(item.productName)}</div>
+        ${item.productCode ? `<div style="color:#6b7280;font-size:11px">SKU: ${escHtml(item.productCode)}</div>` : ''}</td>
+        <td style="text-align:center">${escHtml(item.productUnit) || 'UN'}</td>
+        <td style="text-align:center">${parseFloat(item.quantity || '1')}</td>
+        <td style="text-align:right">${fmtCLP(unitPrice)}</td>
+        <td style="text-align:right;color:#fd6301;font-weight:600">${fmtCLP(lineTotal)}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Cotización ${escHtml(quote.quoteNumber)}</title>
+<style>
+@page { size: A4; margin: 15mm; }
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; font-size: 14px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
+.header h1 { color: #fd6301; margin: 0; font-size: 24px; }
+.header-info { font-size: 13px; color: #374151; margin-top: 8px; }
+.header-info p { margin: 4px 0; }
+.section { margin-bottom: 15px; }
+.section h3 { color: #fd6301; margin: 0 0 10px 0; font-size: 16px; }
+.client-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
+.client-info p { margin: 0 0 8px 0; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; }
+th { background: linear-gradient(to right, #fd6301, #e55100); color: white; padding: 8px; text-align: left; font-size: 12px; }
+td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+.totals { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+.total-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+.total-row span:first-child { color: #374151; font-weight: 500; }
+.total-row span:last-child { font-weight: 600; }
+.final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 8px; }
+.final-total span:last-child { color: #fd6301; }
+.terms { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
+.terms h4 { margin: 0 0 8px 0; font-size: 14px; color: #374151; }
+.terms ul { margin: 0; padding-left: 16px; font-size: 12px; color: #6b7280; }
+.terms li { margin-bottom: 4px; }
+.payment-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; font-size: 12px; }
+.payment-info h4 { color: #ea580c; margin: 0 0 10px 0; font-size: 14px; }
+.payment-info p { margin: 0 0 8px 0; }
+.payment-info a { color: #2563eb; }
+.no-print { margin-top: 20px; text-align: center; }
+@media print { .no-print { display: none; } body { padding: 0; } }
+</style></head><body>
+<div>
+  <div class="header">
+    <div><h1 style="color:#fd6301;margin:0">PINTURAS PANORÁMICA</h1></div>
+    <div style="text-align:right">
+      <h1>COTIZACIÓN</h1>
+      <div class="header-info">
+        <p><strong>Fecha:</strong> ${quoteDate}</p>
+        <p><strong>Cotización N°:</strong> ${escHtml(quote.quoteNumber)}</p>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Información del Cliente</h3>
+    <div class="client-info">
+      <p><strong>RUT:</strong> ${escHtml(quote.clientRut) || 'No especificado'}</p>
+      <p><strong>Cliente:</strong> ${escHtml(quote.clientName)}</p>
+      <p><strong>Email:</strong> ${escHtml(quote.clientEmail) || 'No especificado'}</p>
+      <p><strong>Teléfono:</strong> ${escHtml(quote.clientPhone) || 'No especificado'}</p>
+      <p><strong>Dirección:</strong> ${escHtml(quote.clientAddress) || 'No especificada'}</p>
+      <p><strong>Ubicación:</strong> Chile</p>
+      ${quote.notes ? `<div style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px solid #fdba74"><p><strong>Observaciones:</strong> ${escHtml(quote.notes)}</p></div>` : ''}
+    </div>
+  </div>
+  <div class="section">
+    <h3>Detalle de Productos</h3>
+    <table><thead><tr>
+      <th style="text-align:center;width:5%">#</th><th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
+    </tr></thead><tbody>${productRows}</tbody></table>
+  </div>
+  <div class="section">
+    <div class="totals">
+      <div class="total-row"><span>Subtotal:</span><span>${fmtCLP(subtotal)}</span></div>
+      <div class="total-row"><span>IVA (19%):</span><span>${fmtCLP(tax)}</span></div>
+      <div class="total-row final-total"><span>Total Final:</span><span>${fmtCLP(total)}</span></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="terms"><h4>Términos y Condiciones</h4><ul>
+      <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
+      <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
+      <li>Los productos están sujetos a disponibilidad de stock.</li>
+      <li>Condiciones de pago: según acuerdo comercial.</li>
+    </ul></div>
+  </div>
+</div>
+<div class="no-print">
+  <button onclick="window.print()" style="padding:10px 20px;background:#fd6301;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:14px">
+    Imprimir / Descargar PDF
+  </button>
+</div>
+</body></html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    console.error('Error generating quote PDF:', error);
+    res.status(500).json({ error: 'Failed to generate quote PDF' });
   }
 });
 
