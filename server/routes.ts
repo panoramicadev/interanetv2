@@ -584,6 +584,33 @@ export function registerRoutes(app: Express): Server {
 
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
 
+  // Public PDF download via signed token (no auth) — used by MCP / Claude links.
+  // Token-only access; no API key needed. Token validates quote id + expiry.
+  app.get('/api/public/quote-pdf', asyncHandler(async (req: any, res: any) => {
+    try {
+      const { verifyPdfToken } = await import('./utils/pdf-signed-url');
+      const { renderQuotePdf } = await import('./utils/quote-pdf-renderer');
+      const token = String(req.query.token || '');
+      const payload = verifyPdfToken(token);
+      if (!payload) {
+        return res.status(401).json({ error: 'Token inválido o expirado' });
+      }
+      const quote: any = await storage.getQuoteById(payload.q);
+      if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
+      const items = await storage.getQuoteItems(payload.q);
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+      const logoUrl = `${proto}://${host}/panoramica-logo.png`;
+      const pdf = await renderQuotePdf(quote, items, logoUrl);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Cotizacion_${quote.quoteNumber}.pdf"`);
+      res.send(pdf);
+    } catch (error) {
+      console.error('Error rendering public quote PDF:', error);
+      res.status(500).json({ error: 'Failed to render PDF' });
+    }
+  }));
+
   // Mount external API routes (with API key auth)
   app.use('/api/external', externalApiRouter);
 

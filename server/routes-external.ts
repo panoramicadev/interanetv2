@@ -7,6 +7,8 @@ import { db } from './db';
 import { users, notifications, ecommerceOrders, salespeopleUsers, customPriceLists, customPriceListItems, priceList as priceListTable } from '@shared/schema';
 import { desc, eq, and, or, sql } from 'drizzle-orm';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
+import { renderQuotePdf } from './utils/quote-pdf-renderer';
+import { signPdfToken } from './utils/pdf-signed-url';
 
 const router = Router();
 
@@ -222,9 +224,22 @@ const OPENAPI_SPEC = {
     },
     '/cotizaciones/{id}/pdf': {
       get: {
-        summary: 'HTML imprimible de la cotización (el navegador la guarda como PDF)',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'text/html' }, '404': { description: 'Cotización no encontrada' } },
+        summary: 'PDF binario de la cotización (mismo render que el tomador). ?format=html para HTML',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['pdf', 'html'], default: 'pdf' } },
+        ],
+        responses: { '200': { description: 'application/pdf o text/html' }, '404': { description: 'Cotización no encontrada' } },
+      },
+    },
+    '/cotizaciones/{id}/pdf-url': {
+      get: {
+        summary: 'URL pública firmada para descargar el PDF (no requiere API key, expira en 1h por default)',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'ttlMinutes', in: 'query', schema: { type: 'integer', default: 60, minimum: 5, maximum: 1440 } },
+        ],
+        responses: { '200': { description: '{ url, quoteNumber, filename, expiresAt }' } },
       },
     },
     '/productos/grupos': {
@@ -549,7 +564,8 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
       'GET /listas-precio': { note: 'lists LP01 (base) + custom price lists (LP02 Mix, LP03 etc)' },
       'GET /listas-precio/:code/productos': { filters: ['search', 'limit', 'offset'], note: 'products with prices for that specific list' },
-      'GET /cotizaciones/:id/pdf': { note: 'HTML imprimible — el navegador la convierte a PDF al imprimir' },
+      'GET /cotizaciones/:id/pdf': { note: 'PDF binario por defecto (?format=html para HTML)' },
+      'GET /cotizaciones/:id/pdf-url': { filters: ['ttlMinutes (default 60, max 1440)'], note: 'URL pública firmada para abrir el PDF directo en el navegador sin API key' },
       'GET /productos/grupos': { filters: ['search', 'categoria', 'soloActivos', 'limit', 'offset'], note: 'grouped like the store: parent product + color/format variations with prices' },
       'GET /productos/:codigo': { note: 'product detail + stock per warehouse' },
       'GET /cotizaciones': { filters: ['status', 'createdBy', 'salespersonName', 'clientName', 'dateFrom', 'dateTo', 'limit', 'offset'], note: 'returns quote + creatorName' },
@@ -1671,29 +1687,64 @@ router.delete('/cotizaciones/:id', requireApiRole(['read_write', 'admin']), asyn
   }
 });
 
-// GET /cotizaciones/:id/pdf — HTML imprimible idéntico al del tomador de pedidos.
-// Usa el template compartido en shared/quote-pdf-template.ts para que la salida
-// quede 1:1 con la del frontend (client/src/lib/quote-pdf-html.tsx).
+// GET /cotizaciones/:id/pdf — devuelve PDF binario por defecto (?format=html para HTML).
+// El render usa el template compartido en shared/quote-pdf-template.ts → 1:1 con el tomador.
 router.get('/cotizaciones/:id/pdf', async (req: ApiAuthRequest, res) => {
   try {
     const { id } = req.params;
+    const format = (req.query.format as string) || 'pdf';
+
     const quote: any = await storage.getQuoteById(id);
     if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
     const items = await storage.getQuoteItems(id);
 
-    // Logo: usar URL absoluta del request para que el server-side render
-    // referencie la imagen correctamente cuando se abre en el navegador.
     const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol || 'https');
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
     const logoUrl = `${proto}://${host}/panoramica-logo.png`;
 
-    const html = renderQuoteHtml(quote, items, { logoUrl, autoPrint: false });
+    if (format === 'html') {
+      const html = renderQuoteHtml(quote, items, { logoUrl, autoPrint: false });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    }
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    const pdfBuffer = await renderQuotePdf(quote, items, logoUrl);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Cotizacion_${quote.quoteNumber}.pdf"`);
+    res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generating quote PDF:', error);
     res.status(500).json({ error: 'Failed to generate quote PDF' });
+  }
+});
+
+// GET /cotizaciones/:id/pdf-url — devuelve una URL pública firmada (1h)
+// que abre el PDF directamente en el navegador, sin necesitar API key.
+router.get('/cotizaciones/:id/pdf-url', async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const quote: any = await storage.getQuoteById(id);
+    if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
+
+    const ttlMinutes = Math.min(Math.max(parseInt(String(req.query.ttlMinutes ?? '60'), 10) || 60, 5), 24 * 60);
+    const token = signPdfToken(id, ttlMinutes * 60 * 1000);
+
+    const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol || 'https');
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+    const url = `${proto}://${host}/api/public/quote-pdf?token=${encodeURIComponent(token)}`;
+
+    res.json({
+      url,
+      quoteId: id,
+      quoteNumber: quote.quoteNumber,
+      filename: `Cotizacion_${quote.quoteNumber}.pdf`,
+      expiresInMinutes: ttlMinutes,
+      expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
+    });
+  } catch (error) {
+    console.error('Error signing PDF URL:', error);
+    res.status(500).json({ error: 'Failed to sign PDF URL' });
   }
 });
 
