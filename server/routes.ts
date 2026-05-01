@@ -607,7 +607,8 @@ export function registerRoutes(app: Express): Server {
       res.send(pdf);
     } catch (error) {
       console.error('Error rendering public quote PDF:', error);
-      res.status(500).json({ error: 'Failed to render PDF' });
+      const msg = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: 'Failed to render PDF', detail: msg });
     }
   }));
 

@@ -1714,7 +1714,8 @@ router.get('/cotizaciones/:id/pdf', async (req: ApiAuthRequest, res) => {
     res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generating quote PDF:', error);
-    res.status(500).json({ error: 'Failed to generate quote PDF' });
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to generate quote PDF', detail: msg });
   }
 });
 

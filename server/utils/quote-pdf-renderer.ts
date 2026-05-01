@@ -1,34 +1,68 @@
 // Server-side PDF rendering using headless Chromium (Puppeteer-core).
 // Renders the shared HTML template into a real application/pdf binary.
-// Uses the system-installed Chromium via PUPPETEER_EXECUTABLE_PATH (set in
-// nixpacks.toml for Railway deploys, or auto-detected locally).
+// Resolves the Chromium binary at runtime: env var → which chromium → known paths.
 
 import puppeteer, { Browser } from 'puppeteer-core';
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
 
 let browserPromise: Promise<Browser> | null = null;
+let resolvedExecutablePath: string | null = null;
 
 function findChromiumExecutable(): string {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  // Common paths for local development
+  if (resolvedExecutablePath) return resolvedExecutablePath;
+
+  // 1. Explicit env var wins.
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    console.log(`[pdf-renderer] Using Chromium from PUPPETEER_EXECUTABLE_PATH: ${resolvedExecutablePath}`);
+    return resolvedExecutablePath;
+  }
+
+  // 2. Try `which` for binaries in PATH (works on Railway/nixpacks).
+  for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable']) {
+    try {
+      const found = execSync(`which ${name}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      if (found && existsSync(found)) {
+        resolvedExecutablePath = found;
+        console.log(`[pdf-renderer] Found Chromium via which: ${resolvedExecutablePath}`);
+        return resolvedExecutablePath;
+      }
+    } catch { /* not found, continue */ }
+  }
+
+  // 3. Try common absolute paths (Linux containers + Mac dev).
   const candidates = [
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
+    '/root/.nix-profile/bin/chromium',
+    '/nix/var/nix/profiles/default/bin/chromium',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
   ];
-  // We don't actually check FS here (puppeteer.launch will error if wrong);
-  // just pick the first as a hint. Production sets PUPPETEER_EXECUTABLE_PATH.
-  return candidates[0];
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      resolvedExecutablePath = path;
+      console.log(`[pdf-renderer] Found Chromium at: ${resolvedExecutablePath}`);
+      return resolvedExecutablePath;
+    }
+  }
+
+  throw new Error(
+    'Chromium not found. Install chromium (nixpacks: nixPkgs = ["chromium"]) or set PUPPETEER_EXECUTABLE_PATH to its absolute path.'
+  );
 }
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
+    const executablePath = findChromiumExecutable();
+    console.log(`[pdf-renderer] Launching Chromium from ${executablePath}`);
     browserPromise = puppeteer.launch({
       headless: true,
-      executablePath: findChromiumExecutable(),
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -39,6 +73,7 @@ async function getBrowser(): Promise<Browser> {
       ],
     }).catch((err) => {
       browserPromise = null; // Allow retry on next call
+      console.error('[pdf-renderer] Failed to launch Chromium:', err);
       throw err;
     });
   }
