@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { db } from './db';
 import { users, notifications, ecommerceOrders, salespeopleUsers, customPriceLists, customPriceListItems, priceList as priceListTable } from '@shared/schema';
 import { desc, eq, and, or, sql } from 'drizzle-orm';
+import { renderQuoteHtml } from '@shared/quote-pdf-template';
 
 const router = Router();
 
@@ -1670,8 +1671,9 @@ router.delete('/cotizaciones/:id', requireApiRole(['read_write', 'admin']), asyn
   }
 });
 
-// GET /cotizaciones/:id/pdf — HTML imprimible (el navegador lo guarda como PDF)
-// Mismo render que /api/quotes/:id/pdf interno, pero accesible con API key.
+// GET /cotizaciones/:id/pdf — HTML imprimible idéntico al del tomador de pedidos.
+// Usa el template compartido en shared/quote-pdf-template.ts para que la salida
+// quede 1:1 con la del frontend (client/src/lib/quote-pdf-html.tsx).
 router.get('/cotizaciones/:id/pdf', async (req: ApiAuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -1679,113 +1681,13 @@ router.get('/cotizaciones/:id/pdf', async (req: ApiAuthRequest, res) => {
     if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
     const items = await storage.getQuoteItems(id);
 
-    const escHtml = (s: string | null | undefined) =>
-      !s ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const fmtCLP = (n: number) => `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
-    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // Logo: usar URL absoluta del request para que el server-side render
+    // referencie la imagen correctamente cuando se abre en el navegador.
+    const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol || 'https');
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+    const logoUrl = `${proto}://${host}/panoramica-logo.png`;
 
-    const subtotal = parseFloat(quote.subtotal || '0');
-    const tax = parseFloat(quote.taxAmount || '0');
-    const total = parseFloat(quote.total || '0');
-
-    const productRows = items.map((item: any, idx: number) => {
-      const unitPrice = parseFloat(item.unitPrice || '0');
-      const lineTotal = parseFloat(item.totalPrice || String(unitPrice * parseFloat(item.quantity || '1')));
-      return `<tr>
-        <td style="text-align:center">${idx + 1}</td>
-        <td><div style="font-weight:600">${escHtml(item.productName)}</div>
-        ${item.productCode ? `<div style="color:#6b7280;font-size:11px">SKU: ${escHtml(item.productCode)}</div>` : ''}</td>
-        <td style="text-align:center">${escHtml(item.productUnit) || 'UN'}</td>
-        <td style="text-align:center">${parseFloat(item.quantity || '1')}</td>
-        <td style="text-align:right">${fmtCLP(unitPrice)}</td>
-        <td style="text-align:right;color:#fd6301;font-weight:600">${fmtCLP(lineTotal)}</td>
-      </tr>`;
-    }).join('');
-
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Cotización ${escHtml(quote.quoteNumber)}</title>
-<style>
-@page { size: A4; margin: 15mm; }
-body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; font-size: 14px; }
-.header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
-.header h1 { color: #fd6301; margin: 0; font-size: 24px; }
-.header-info { font-size: 13px; color: #374151; margin-top: 8px; }
-.header-info p { margin: 4px 0; }
-.section { margin-bottom: 15px; }
-.section h3 { color: #fd6301; margin: 0 0 10px 0; font-size: 16px; }
-.client-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
-.client-info p { margin: 0 0 8px 0; }
-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; }
-th { background: linear-gradient(to right, #fd6301, #e55100); color: white; padding: 8px; text-align: left; font-size: 12px; }
-td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
-.totals { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-.total-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
-.total-row span:first-child { color: #374151; font-weight: 500; }
-.total-row span:last-child { font-weight: 600; }
-.final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 8px; }
-.final-total span:last-child { color: #fd6301; }
-.terms { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
-.terms h4 { margin: 0 0 8px 0; font-size: 14px; color: #374151; }
-.terms ul { margin: 0; padding-left: 16px; font-size: 12px; color: #6b7280; }
-.terms li { margin-bottom: 4px; }
-.payment-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; font-size: 12px; }
-.payment-info h4 { color: #ea580c; margin: 0 0 10px 0; font-size: 14px; }
-.payment-info p { margin: 0 0 8px 0; }
-.payment-info a { color: #2563eb; }
-.no-print { margin-top: 20px; text-align: center; }
-@media print { .no-print { display: none; } body { padding: 0; } }
-</style></head><body>
-<div>
-  <div class="header">
-    <div><h1 style="color:#fd6301;margin:0">PINTURAS PANORÁMICA</h1></div>
-    <div style="text-align:right">
-      <h1>COTIZACIÓN</h1>
-      <div class="header-info">
-        <p><strong>Fecha:</strong> ${quoteDate}</p>
-        <p><strong>Cotización N°:</strong> ${escHtml(quote.quoteNumber)}</p>
-      </div>
-    </div>
-  </div>
-  <div class="section">
-    <h3>Información del Cliente</h3>
-    <div class="client-info">
-      <p><strong>RUT:</strong> ${escHtml(quote.clientRut) || 'No especificado'}</p>
-      <p><strong>Cliente:</strong> ${escHtml(quote.clientName)}</p>
-      <p><strong>Email:</strong> ${escHtml(quote.clientEmail) || 'No especificado'}</p>
-      <p><strong>Teléfono:</strong> ${escHtml(quote.clientPhone) || 'No especificado'}</p>
-      <p><strong>Dirección:</strong> ${escHtml(quote.clientAddress) || 'No especificada'}</p>
-      <p><strong>Ubicación:</strong> Chile</p>
-      ${quote.notes ? `<div style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px solid #fdba74"><p><strong>Observaciones:</strong> ${escHtml(quote.notes)}</p></div>` : ''}
-    </div>
-  </div>
-  <div class="section">
-    <h3>Detalle de Productos</h3>
-    <table><thead><tr>
-      <th style="text-align:center;width:5%">#</th><th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
-    </tr></thead><tbody>${productRows}</tbody></table>
-  </div>
-  <div class="section">
-    <div class="totals">
-      <div class="total-row"><span>Subtotal:</span><span>${fmtCLP(subtotal)}</span></div>
-      <div class="total-row"><span>IVA (19%):</span><span>${fmtCLP(tax)}</span></div>
-      <div class="total-row final-total"><span>Total Final:</span><span>${fmtCLP(total)}</span></div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="terms"><h4>Términos y Condiciones</h4><ul>
-      <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
-      <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
-      <li>Los productos están sujetos a disponibilidad de stock.</li>
-      <li>Condiciones de pago: según acuerdo comercial.</li>
-    </ul></div>
-  </div>
-</div>
-<div class="no-print">
-  <button onclick="window.print()" style="padding:10px 20px;background:#fd6301;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:14px">
-    Imprimir / Descargar PDF
-  </button>
-</div>
-</body></html>`;
+    const html = renderQuoteHtml(quote, items, { logoUrl, autoPrint: false });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
