@@ -18,6 +18,8 @@ import {
   Copy,
   Trash2,
   Mail,
+  Download,
+  Edit3,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -393,6 +395,33 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     setEmailDialog({ quoteId, quoteNumber, clientName });
   };
 
+  // Download PDF directly without entering the editor
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const handleDownloadPDF = async (quoteId: string, quoteNumber: string) => {
+    setDownloadingId(quoteId);
+    try {
+      const res = await apiRequest(`/api/quotes/${quoteId}/pdf`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Cotizacion_${quoteNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "PDF descargado", description: `Cotizacion_${quoteNumber}.pdf` });
+    } catch (err: any) {
+      toast({
+        title: "Error al descargar PDF",
+        description: err?.message || "No se pudo generar el PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   // Generate PDF as base64 for email (simplified version)
   const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
     const quote = quoteData;
@@ -727,7 +756,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               <FileText className="w-4 h-4 mr-2" /> Ver / Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)} disabled={sendEmailMutation.isPending}>
-                              <Mail className="w-4 h-4 mr-2" /> Compartir
+                              <Mail className="w-4 h-4 mr-2" /> Enviar por correo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPDF(quote.id, quote.quoteNumber)} disabled={downloadingId === quote.id}>
+                              <Download className="w-4 h-4 mr-2" /> Descargar PDF
                             </DropdownMenuItem>
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
                               <DropdownMenuItem onClick={() => handleDuplicateForEdit(quote.id)} disabled={duplicateQuoteMutation.isPending}>
@@ -772,21 +804,21 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           )}
         </div>
       ) : (
-      <Card>
+      <Card className="border-slate-200/70 shadow-sm rounded-2xl overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-b border-gray-200">
-                  <TableHead className="text-left hidden md:table-cell">Cotización</TableHead>
-                  <TableHead className="text-left">Cliente</TableHead>
-                  <TableHead className="text-left">Estado</TableHead>
+                <TableRow className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white hover:bg-slate-50">
+                  <TableHead className="text-left hidden md:table-cell text-[11px] uppercase tracking-wider font-semibold text-slate-500">Cotización</TableHead>
+                  <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Cliente</TableHead>
+                  <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Estado</TableHead>
                   {(user?.role === 'admin' || user?.role === 'supervisor') && (
-                    <TableHead className="text-left">Creado por</TableHead>
+                    <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Creado por</TableHead>
                   )}
-                  <TableHead className="text-left">Creada</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-center w-36">Acciones</TableHead>
+                  <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Creada</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase tracking-wider font-semibold text-slate-500">Monto</TableHead>
+                  <TableHead className="text-right pr-4 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[180px]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -807,7 +839,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   displayedQuotes.map((quote) => (
                     <TableRow
                       key={quote.id}
-                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                      className="border-b border-slate-100 hover:bg-orange-50/30 transition-colors cursor-pointer group"
                       data-testid={`quote-row-${quote.id}`}
                       onClick={() => handleEditQuote(quote.id)}
                     >
@@ -878,49 +910,74 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </TableCell>
 
                       <TableCell
-                        className="py-4"
+                        className="py-4 pr-4 text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center gap-1.5 justify-center">
-                          {/* Botón principal: Enviar por correo (destacado) */}
+                        <div className="flex items-center gap-1 justify-end">
+                          {/* Enviar (correo) - botón principal */}
                           <Button
                             size="sm"
-                            className="h-8 gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/30 px-3"
+                            className="h-8 gap-1.5 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-sm shadow-orange-500/30 px-3 rounded-lg"
                             onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)}
                             disabled={sendEmailMutation.isPending}
                             title="Enviar cotización por correo"
+                            data-testid={`send-email-${quote.id}`}
                           >
                             <Mail className="h-3.5 w-3.5" />
-                            <span className="text-xs font-medium hidden lg:inline">Enviar</span>
+                            <span className="text-xs font-medium hidden xl:inline">Enviar</span>
                           </Button>
-                          {/* Quick action: Mark as sent manually (draft only) */}
-                          {quote.status === 'draft' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                              onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
-                              disabled={updateStatusMutation.isPending}
-                              title="Marcar como enviada manualmente"
-                            >
-                              <Send className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {/* More actions dropdown */}
+
+                          {/* Duplicar */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                            onClick={() => handleDuplicateForEdit(quote.id)}
+                            disabled={duplicateQuoteMutation.isPending}
+                            title="Duplicar para editar"
+                            data-testid={`button-duplicate-quote-${quote.id}`}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+
+                          {/* Descargar PDF */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                            onClick={() => handleDownloadPDF(quote.id, quote.quoteNumber)}
+                            disabled={downloadingId === quote.id}
+                            title="Descargar PDF"
+                            data-testid={`download-pdf-${quote.id}`}
+                          >
+                            {downloadingId === quote.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+
+                          {/* Más opciones */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-100" data-testid={`actions-${quote.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                data-testid={`actions-${quote.id}`}
+                                title="Más acciones"
+                              >
                                 <MoreVertical className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuContent align="end" className="w-52">
                               <DropdownMenuItem
                                 data-testid={`view-${quote.id}`}
                                 onClick={() => handleEditQuote(quote.id)}
                                 className="text-xs gap-2"
                               >
-                                <FileText className="w-3.5 h-3.5" />
-                                Ver / Editar
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Ver / Editar cotización
                               </DropdownMenuItem>
 
                               {quote.status === 'draft' && (
@@ -959,17 +1016,13 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 </DropdownMenuItem>
                               )}
 
-                              {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
-                                <DropdownMenuItem
-                                  data-testid={`button-duplicate-quote-${quote.id}`}
-                                  onClick={() => handleDuplicateForEdit(quote.id)}
-                                  disabled={duplicateQuoteMutation.isPending}
-                                  className="text-xs gap-2"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                  Duplicar para editar
+                              {(quote.status === 'accepted' || quote.status === 'sent') && (
+                                <DropdownMenuItem data-testid={`convert-${quote.id}`} className="text-xs gap-2">
+                                  <Package className="w-3.5 h-3.5" />
+                                  Convertir a pedido
                                 </DropdownMenuItem>
                               )}
+
                               {(user?.role === 'admin' || user?.role === 'supervisor') && (
                                 <DropdownMenuItem
                                   data-testid={`button-delete-quote-${quote.id}`}
@@ -979,12 +1032,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                   Eliminar
-                                </DropdownMenuItem>
-                              )}
-                              {(quote.status === 'accepted' || quote.status === 'sent') && (
-                                <DropdownMenuItem data-testid={`convert-${quote.id}`} className="text-xs gap-2">
-                                  <Package className="w-3.5 h-3.5" />
-                                  Convertir a pedido
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
