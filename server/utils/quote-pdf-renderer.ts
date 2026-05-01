@@ -1,15 +1,34 @@
-// Server-side PDF rendering using headless Chromium (Puppeteer).
+// Server-side PDF rendering using headless Chromium (Puppeteer-core).
 // Renders the shared HTML template into a real application/pdf binary.
+// Uses the system-installed Chromium via PUPPETEER_EXECUTABLE_PATH (set in
+// nixpacks.toml for Railway deploys, or auto-detected locally).
 
-import puppeteer, { Browser } from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer-core';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
 
 let browserPromise: Promise<Browser> | null = null;
+
+function findChromiumExecutable(): string {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  // Common paths for local development
+  const candidates = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ];
+  // We don't actually check FS here (puppeteer.launch will error if wrong);
+  // just pick the first as a hint. Production sets PUPPETEER_EXECUTABLE_PATH.
+  return candidates[0];
+}
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = puppeteer.launch({
       headless: true,
+      executablePath: findChromiumExecutable(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',

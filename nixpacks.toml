@@ -1,8 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "chromium"]
+
 [phases.install]
 cmds = ["npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["npm run build"]
+
+[variables]
+PUPPETEER_SKIP_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"
 
 [start]
 cmd = "npm run db:push && npm start"
