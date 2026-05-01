@@ -20477,7 +20477,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: productStock.id,
         productSku: productStock.productSku,
-        productName: products.nokopr,
+        productName: products.name,
         warehouseCode: productStock.warehouseCode,
         warehouseName: warehouses.name,
         quantity: productStock.physicalStock1,
@@ -20487,7 +20487,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(productStock)
       .leftJoin(products, eq(productStock.productSku, products.kopr))
-      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.code));
+      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.kobo));
 
     const conditions = [];
 
