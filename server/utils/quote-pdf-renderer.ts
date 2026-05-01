@@ -1,78 +1,84 @@
-// Server-side PDF rendering using headless Chromium (Puppeteer-core).
-// Renders the shared HTML template into a real application/pdf binary.
-// Resolves the Chromium binary at runtime: env var → which chromium → known paths.
+// Server-side PDF rendering using headless Chromium via puppeteer-core +
+// @sparticuz/chromium. The Chromium binary ships INSIDE @sparticuz/chromium
+// (~50MB), so it works on any container without needing the OS to provide
+// chromium or its libs (Railway, Vercel, AWS Lambda, etc.).
+//
+// Local dev (Mac/Linux): if @sparticuz fails (it expects Linux), falls back
+// to PUPPETEER_EXECUTABLE_PATH or system Chrome.
 
 import puppeteer, { Browser } from 'puppeteer-core';
-import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
 
 let browserPromise: Promise<Browser> | null = null;
-let resolvedExecutablePath: string | null = null;
 
-function findChromiumExecutable(): string {
-  if (resolvedExecutablePath) return resolvedExecutablePath;
-
-  // 1. Explicit env var wins.
+async function findExecutablePath(): Promise<string> {
+  // 1. Explicit override
   if (process.env.PUPPETEER_EXECUTABLE_PATH && existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-    resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-    console.log(`[pdf-renderer] Using Chromium from PUPPETEER_EXECUTABLE_PATH: ${resolvedExecutablePath}`);
-    return resolvedExecutablePath;
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
 
-  // 2. Try `which` for binaries in PATH (works on Railway/nixpacks).
-  for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable']) {
+  // 2. @sparticuz/chromium (works on Linux containers — Railway, Vercel, Lambda)
+  if (process.platform === 'linux') {
     try {
-      const found = execSync(`which ${name}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-      if (found && existsSync(found)) {
-        resolvedExecutablePath = found;
-        console.log(`[pdf-renderer] Found Chromium via which: ${resolvedExecutablePath}`);
-        return resolvedExecutablePath;
+      const { default: chromium } = await import('@sparticuz/chromium');
+      const path = await chromium.executablePath();
+      if (path && existsSync(path)) {
+        console.log(`[pdf-renderer] Using @sparticuz/chromium: ${path}`);
+        return path;
       }
-    } catch { /* not found, continue */ }
-  }
-
-  // 3. Try common absolute paths (Linux containers + Mac dev).
-  const candidates = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/root/.nix-profile/bin/chromium',
-    '/nix/var/nix/profiles/default/bin/chromium',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  ];
-  for (const path of candidates) {
-    if (existsSync(path)) {
-      resolvedExecutablePath = path;
-      console.log(`[pdf-renderer] Found Chromium at: ${resolvedExecutablePath}`);
-      return resolvedExecutablePath;
+    } catch (err) {
+      console.warn('[pdf-renderer] @sparticuz/chromium not available:', (err as Error).message);
     }
   }
 
+  // 3. Local dev fallbacks
+  for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable']) {
+    try {
+      const found = execSync(`which ${name}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      if (found && existsSync(found)) return found;
+    } catch { /* not in PATH */ }
+  }
+  for (const path of [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+  ]) {
+    if (existsSync(path)) return path;
+  }
+
   throw new Error(
-    'Chromium not found. Install chromium (nixpacks: nixPkgs = ["chromium"]) or set PUPPETEER_EXECUTABLE_PATH to its absolute path.'
+    'Chromium not found. @sparticuz/chromium failed to provide a binary, and no system Chrome was detected.'
   );
 }
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    const executablePath = findChromiumExecutable();
-    console.log(`[pdf-renderer] Launching Chromium from ${executablePath}`);
-    browserPromise = puppeteer.launch({
-      headless: true,
-      executablePath,
-      args: [
+    browserPromise = (async () => {
+      const executablePath = await findExecutablePath();
+      console.log(`[pdf-renderer] Launching Chromium from ${executablePath}`);
+
+      // Use sparticuz args when on Linux container, otherwise minimal args.
+      let args: string[] = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--single-process',
         '--no-zygote',
-      ],
-    }).catch((err) => {
-      browserPromise = null; // Allow retry on next call
+      ];
+      if (process.platform === 'linux') {
+        try {
+          const { default: chromium } = await import('@sparticuz/chromium');
+          args = chromium.args;
+        } catch { /* keep defaults */ }
+      }
+
+      return puppeteer.launch({ headless: true, executablePath, args });
+    })().catch((err) => {
+      browserPromise = null;
       console.error('[pdf-renderer] Failed to launch Chromium:', err);
       throw err;
     });
@@ -98,7 +104,6 @@ export async function renderQuotePdf(quote: any, items: any[], logoUrl?: string 
   }
 }
 
-// Cleanup on process shutdown
 process.on('SIGINT', async () => {
   if (browserPromise) {
     const b = await browserPromise.catch(() => null);
