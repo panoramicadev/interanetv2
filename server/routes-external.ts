@@ -26,12 +26,476 @@ function parseOffset(raw: unknown): number {
 }
 
 // ============================================
+// OpenAPI 3.0 spec (for Claude / ChatGPT / Postman / MCP)
+// AI clients can fetch this and convert paths into tools[] automatically.
+// ============================================
+
+const OPENAPI_SPEC = {
+  openapi: '3.0.3',
+  info: {
+    title: 'API Externa Panorámica',
+    version: '2.0.0',
+    description: 'API REST de la intranet Panorámica. Pensada para integraciones y asistentes IA (Claude, ChatGPT). Todas las rutas requieren header X-API-Key.',
+  },
+  servers: [{ url: '/api/external', description: 'API externa' }],
+  components: {
+    securitySchemes: {
+      ApiKeyAuth: { type: 'apiKey' as const, in: 'header' as const, name: 'X-API-Key' },
+    },
+    parameters: {
+      limit: { name: 'limit', in: 'query', schema: { type: 'integer', default: 500, maximum: 5000 } },
+      offset: { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+    },
+    schemas: {
+      Error: { type: 'object', properties: { error: { type: 'string' }, message: { type: 'string' } } },
+      QuoteItem: {
+        type: 'object',
+        required: ['type', 'productName', 'quantity', 'unitPrice'],
+        properties: {
+          type: { type: 'string', enum: ['standard', 'custom'] },
+          productCode: { type: 'string', description: 'Código de price_list (para type=standard)' },
+          productName: { type: 'string' },
+          productUnit: { type: 'string' },
+          customSku: { type: 'string' },
+          quantity: { type: 'number' },
+          unitPrice: { type: 'number' },
+          notes: { type: 'string' },
+        },
+      },
+      Quote: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          quoteNumber: { type: 'string' },
+          clientName: { type: 'string' },
+          clientRut: { type: 'string' },
+          clientEmail: { type: 'string' },
+          clientPhone: { type: 'string' },
+          clientAddress: { type: 'string' },
+          status: { type: 'string', enum: ['draft', 'sent', 'accepted', 'rejected', 'converted'] },
+          createdBy: { type: 'string' },
+          creatorName: { type: 'string' },
+          paymentCondition: { type: 'string' },
+          segment: { type: 'string' },
+          subtotal: { type: 'number' },
+          discount: { type: 'number' },
+          taxRate: { type: 'number' },
+          taxAmount: { type: 'number' },
+          total: { type: 'number' },
+          notes: { type: 'string' },
+          validUntil: { type: 'string', format: 'date-time' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      QuoteCreate: {
+        type: 'object',
+        required: ['clientName', 'salespersonName'],
+        properties: {
+          clientName: { type: 'string' },
+          salespersonName: { type: 'string', description: 'Nombre del vendedor (resolver primero con GET /usuarios?source=salespeople)' },
+          clientRut: { type: 'string' },
+          clientEmail: { type: 'string' },
+          clientPhone: { type: 'string' },
+          clientAddress: { type: 'string' },
+          paymentCondition: { type: 'string' },
+          segment: { type: 'string' },
+          subtotal: { type: 'number' },
+          discount: { type: 'number' },
+          taxRate: { type: 'number', default: 19 },
+          taxAmount: { type: 'number' },
+          total: { type: 'number' },
+          notes: { type: 'string' },
+          validUntil: { type: 'string', format: 'date' },
+          items: { type: 'array', items: { $ref: '#/components/schemas/QuoteItem' } },
+        },
+      },
+      ProductGroup: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          nombre: { type: 'string' },
+          categoria: { type: 'string' },
+          descripcion: { type: 'string' },
+          variationCount: { type: 'integer' },
+          variations: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                codigo: { type: 'string' },
+                producto: { type: 'string' },
+                color: { type: 'string' },
+                unidad: { type: 'string' },
+                precio: { type: 'number' },
+                isMainVariant: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  security: [{ ApiKeyAuth: [] }],
+  paths: {
+    '/help': {
+      get: { summary: 'Catálogo auto-descriptivo de la API', responses: { '200': { description: 'OK' } } },
+    },
+    '/ventas': {
+      get: {
+        summary: 'Lista transacciones de venta facturadas (excluye GDV)',
+        parameters: [
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+          { name: 'product', in: 'query', schema: { type: 'string' } },
+          { name: 'client_rut', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/clientes': {
+      get: {
+        summary: 'Lista clientes con métricas de ventas',
+        parameters: [
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'creditStatus', in: 'query', schema: { type: 'string', enum: ['con_credito', 'contado'] } },
+          { name: 'businessType', in: 'query', schema: { type: 'string' } },
+          { name: 'debtStatus', in: 'query', schema: { type: 'string', enum: ['con_deuda', 'sin_deuda'] } },
+          { name: 'entityType', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/usuarios': {
+      get: {
+        summary: 'Lista usuarios y vendedores (salespeople_users)',
+        description: 'Para descubrir nombres válidos de salespersonName usar source=salespeople',
+        parameters: [
+          { name: 'role', in: 'query', schema: { type: 'string', enum: ['admin', 'supervisor', 'salesperson', 'client', 'tecnico_obra', 'reception', 'jefe_planta', 'mantencion'] } },
+          { name: 'source', in: 'query', schema: { type: 'string', enum: ['users', 'salespeople', 'all'], default: 'all' } },
+          { $ref: '#/components/parameters/limit' },
+        ],
+        responses: { '200': { description: '{ users, salespeople, counts }' } },
+      },
+    },
+    '/productos': {
+      get: {
+        summary: 'Búsqueda flat de productos en lista de precios',
+        parameters: [
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'unidad', in: 'query', schema: { type: 'string' } },
+          { name: 'tipoProducto', in: 'query', schema: { type: 'string' } },
+          { name: 'color', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'Productos con todos los tiers de precio' } },
+      },
+    },
+    '/productos/grupos': {
+      get: {
+        summary: 'Productos agrupados como en la tienda (padre + variantes color/formato)',
+        description: 'Devuelve cada grupo con sus variaciones. Útil para "qué colores hay de X y a qué precio".',
+        parameters: [
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'categoria', in: 'query', schema: { type: 'string' } },
+          { name: 'soloActivos', in: 'query', schema: { type: 'boolean', default: true } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: {
+          '200': {
+            description: 'OK',
+            content: { 'application/json': { schema: { type: 'object', properties: { total: { type: 'integer' }, groups: { type: 'array', items: { $ref: '#/components/schemas/ProductGroup' } } } } } },
+          },
+        },
+      },
+    },
+    '/productos/{codigo}': {
+      get: {
+        summary: 'Detalle de producto + stock por bodega',
+        parameters: [{ name: 'codigo', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Producto con precios y stock' }, '404': { description: 'No encontrado' } },
+      },
+    },
+    '/inventario': {
+      get: {
+        summary: 'Stock de productos por bodega',
+        parameters: [
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'bodega', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: '{ total, items }' } },
+      },
+    },
+    '/notificaciones': {
+      get: {
+        summary: 'Lista notificaciones',
+        parameters: [
+          { name: 'type', in: 'query', schema: { type: 'string' } },
+          { name: 'priority', in: 'query', schema: { type: 'string', enum: ['baja', 'media', 'alta', 'critica'] } },
+          { name: 'departamento', in: 'query', schema: { type: 'string' } },
+          { name: 'targetType', in: 'query', schema: { type: 'string', enum: ['personal', 'general', 'departamento'] } },
+          { name: 'archived', in: 'query', schema: { type: 'boolean' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Crear notificación',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['title', 'message'], properties: {
+            title: { type: 'string' }, message: { type: 'string' },
+            type: { type: 'string', default: 'manual' },
+            priority: { type: 'string', enum: ['baja', 'media', 'alta', 'critica'], default: 'media' },
+            departamento: { type: 'string' }, actionUrl: { type: 'string' },
+          } } } },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/reclamos': {
+      get: {
+        summary: 'Lista reclamos generales',
+        parameters: [
+          { name: 'estado', in: 'query', schema: { type: 'string', enum: ['registrado', 'en_revision_tecnica', 'en_area_responsable', 'resuelto', 'cerrado'] } },
+          { name: 'areaResponsable', in: 'query', schema: { type: 'string' } },
+          { name: 'gravedad', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Crear reclamo',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['clienteNombre', 'motivo'], properties: {
+          clienteNombre: { type: 'string' }, clienteRut: { type: 'string' }, clienteEmail: { type: 'string' }, clienteTelefono: { type: 'string' },
+          motivo: { type: 'string' }, descripcion: { type: 'string' }, severidad: { type: 'string' },
+        } } } } },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/mantencion': {
+      get: {
+        summary: 'Lista solicitudes de mantención',
+        parameters: [
+          { name: 'estado', in: 'query', schema: { type: 'string' } },
+          { name: 'tipoMantencion', in: 'query', schema: { type: 'string', enum: ['correctivo', 'preventivo', 'predictivo'] } },
+          { name: 'gravedad', in: 'query', schema: { type: 'string' } },
+          { name: 'area', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Crear solicitud de mantención',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['equipoNombre', 'descripcionProblema'], properties: {
+          equipoNombre: { type: 'string' }, equipoCodigo: { type: 'string' }, equipoArea: { type: 'string' }, equipoUbicacion: { type: 'string' },
+          descripcionProblema: { type: 'string' }, tipoMantencion: { type: 'string', enum: ['correctivo', 'preventivo', 'predictivo'] },
+          severidad: { type: 'string' }, solicitadoPor: { type: 'string' },
+        } } } } },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/tareas': {
+      get: {
+        summary: 'Lista tareas',
+        parameters: [
+          { name: 'assignedTo', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled'] } },
+          { name: 'priority', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Crear tarea',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['title'], properties: {
+          title: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string' },
+          dueDate: { type: 'string', format: 'date' }, createdBy: { type: 'string' }, assignments: { type: 'array' },
+        } } } } },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/tareas/{id}': {
+      patch: {
+        summary: 'Actualizar tarea',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } } },
+        responses: { '200': { description: 'OK' }, '404': { description: 'No encontrada' } },
+      },
+      delete: {
+        summary: 'Eliminar tarea',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/crm/leads': {
+      get: {
+        summary: 'Lista leads del CRM',
+        parameters: [
+          { name: 'stage', in: 'query', schema: { type: 'string', enum: ['lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'] } },
+          { name: 'salespersonId', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Crear lead',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['clientName', 'salespersonId'], properties: {
+          clientName: { type: 'string' }, salespersonId: { type: 'string' }, clientPhone: { type: 'string' }, clientEmail: { type: 'string' },
+          clientType: { type: 'string', enum: ['nuevo', 'recurrente'] }, estimatedValue: { type: 'number' }, stage: { type: 'string' },
+          segment: { type: 'string' }, notes: { type: 'string' },
+        } } } } },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/crm/leads/{id}': {
+      patch: {
+        summary: 'Actualizar lead',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } } },
+        responses: { '200': { description: 'OK' } },
+      },
+      delete: {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ecommerce/orders': {
+      get: {
+        summary: 'Lista pedidos eCommerce',
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'approved', 'modified', 'rejected', 'sent'] } },
+          { name: 'clientId', in: 'query', schema: { type: 'string' } },
+          { name: 'salespersonId', in: 'query', schema: { type: 'string' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ecommerce/orders/{id}': {
+      patch: {
+        summary: 'Cambiar estado de pedido',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['pending', 'approved', 'modified', 'rejected', 'sent'] } } } } } },
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/cotizaciones': {
+      get: {
+        summary: 'Lista cotizaciones / presupuestos',
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['draft', 'sent', 'accepted', 'rejected', 'converted'] } },
+          { name: 'salespersonName', in: 'query', schema: { type: 'string' } },
+          { name: 'clientName', in: 'query', schema: { type: 'string' } },
+          { name: 'dateFrom', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'dateTo', in: 'query', schema: { type: 'string', format: 'date' } },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Quote' } } } } } },
+      },
+      post: {
+        summary: 'Crear cotización (con items[] inline opcional)',
+        description: 'salespersonName es obligatorio. Para descubrir nombres válidos: GET /usuarios?source=salespeople',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteCreate' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Quote' } } } }, '404': { description: 'Vendedor no encontrado' } },
+      },
+    },
+    '/cotizaciones/{id}': {
+      get: {
+        summary: 'Detalle de cotización + items',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+      patch: {
+        summary: 'Actualizar cotización',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } } },
+        responses: { '200': { description: 'OK' } },
+      },
+      delete: {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/cotizaciones/{id}/status': {
+      patch: {
+        summary: 'Cambiar estado de cotización',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['draft', 'sent', 'accepted', 'rejected', 'converted'] } } } } } },
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/cotizaciones/{id}/items': {
+      get: {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        summary: 'Agregar item a cotización',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteItem' } } } },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/cotizaciones/items/{itemId}': {
+      patch: {
+        parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } } },
+        responses: { '200': { description: 'OK' } },
+      },
+      delete: {
+        parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/dashboard': {
+      get: {
+        summary: 'Métricas agregadas de ventas',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' }, description: 'YYYY | YYYY-MM | YYYY-MM-DD' },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day'] } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+  },
+};
+
+router.get('/openapi.json', (_req: ApiAuthRequest, res) => {
+  res.json(OPENAPI_SPEC);
+});
+
+// ============================================
 // Self-describing help endpoint (for AI/chat clients)
 // ============================================
 
 router.get('/help', async (_req: ApiAuthRequest, res) => {
   res.json({
     description: 'External API for Panorámica intranet — read & write access for integrations and AI assistants.',
+    openapi: '/api/external/openapi.json',
     auth: { header: 'X-API-Key', roles: ['readonly', 'read_write', 'admin'] },
     pagination: { default_limit: 500, max_limit: 5000, params: ['limit', 'offset'] },
     endpoints: {
