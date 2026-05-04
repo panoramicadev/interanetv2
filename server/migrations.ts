@@ -98,7 +98,19 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_feemdo_nokofu_tido ON ventas.fact_ventas(feemdo, nokofu, tido)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_feemdo_noruen_tido ON ventas.fact_ventas(feemdo, noruen, tido)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_nokoen_feemdo ON ventas.fact_ventas(nokoen, feemdo)`);
-    
+
+    // 2.2 Tabla cache de precios GRI (costo real desde SQL Server, usado por análisis de margen)
+    console.log('  📋 Verificando tabla gri_prices_cache...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gri_prices_cache (
+        sku VARCHAR(100) PRIMARY KEY,
+        price NUMERIC(18, 6) NOT NULL,
+        fecha DATE,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_prices_cache_sku ON gri_prices_cache(sku)`);
+
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
     

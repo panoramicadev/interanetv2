@@ -26778,11 +26778,18 @@ export class DatabaseStorage implements IStorage {
           fv."nokoprct" AS product,
           fv."monto" AS revenue,
           (
-            COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+            COALESCE(
+              gpc."price",
+              NULLIF(fv."ppprpm", 0),
+              NULLIF(fv."listacost", 0),
+              pl."costo_produccion",
+              0
+            )
             * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
           ) AS cost
         FROM ventas.fact_ventas fv
-        LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
+        LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
+        LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
         WHERE fv."tido" != 'GDV'
           AND fv."monto" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
@@ -26903,13 +26910,20 @@ export class DatabaseStorage implements IStorage {
         COALESCE(NULLIF(TRIM(fv."noruen"), ''), 'SIN SEGMENTO') AS segment,
         SUM(fv."monto") AS revenue,
         SUM(
-          COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+          COALESCE(
+            gpc."price",
+            NULLIF(fv."ppprpm", 0),
+            NULLIF(fv."listacost", 0),
+            pl."costo_produccion",
+            0
+          )
           * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
       FROM ventas.fact_ventas fv
-      LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
+      LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
+      LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
       WHERE fv."tido" != 'GDV'
         AND fv."monto" IS NOT NULL
         ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
@@ -26963,14 +26977,21 @@ export class DatabaseStorage implements IStorage {
         fv."nokofu" AS salesperson,
         SUM(fv."monto") AS revenue,
         SUM(
-          COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+          COALESCE(
+            gpc."price",
+            NULLIF(fv."ppprpm", 0),
+            NULLIF(fv."listacost", 0),
+            pl."costo_produccion",
+            0
+          )
           * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoen") AS client_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
       FROM ventas.fact_ventas fv
-      LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
+      LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
+      LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
       WHERE fv."tido" != 'GDV'
         AND fv."nokofu" IS NOT NULL
         AND fv."nokofu" != ''
@@ -27036,12 +27057,19 @@ export class DatabaseStorage implements IStorage {
           fv."nokoprct" AS product,
           SUM(fv."monto") AS revenue,
           SUM(
-            COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+            COALESCE(
+              gpc."price",
+              NULLIF(fv."ppprpm", 0),
+              NULLIF(fv."listacost", 0),
+              pl."costo_produccion",
+              0
+            )
             * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
           ) AS cost,
           SUM(CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END) AS units_sold
         FROM ventas.fact_ventas fv
-        LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
+        LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
+        LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
         WHERE fv."tido" != 'GDV'
           AND fv."nokoprct" IS NOT NULL
           AND fv."monto" IS NOT NULL

@@ -23797,8 +23797,43 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      // Cache the result
+      // Cache the result in memory
       griPriceCache = { data: priceMap, timestamp: Date.now() };
+
+      // Persist to PostgreSQL so margen analysis can JOIN it. Idempotent: creates the
+      // table on first run, then upserts the latest snapshot. Errors here must not
+      // break the API (the in-memory cache is the source of truth for the response).
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gri_prices_cache (
+            sku VARCHAR(100) PRIMARY KEY,
+            price NUMERIC(18, 6) NOT NULL,
+            fecha DATE,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+          )
+        `);
+        const entries = Object.entries(priceMap);
+        if (entries.length > 0) {
+          // Upsert in batches of 1000 to avoid huge query payloads
+          const batchSize = 1000;
+          for (let i = 0; i < entries.length; i += batchSize) {
+            const batch = entries.slice(i, i + batchSize);
+            const values = batch.map(([sku, v]) =>
+              sql`(${sku}, ${v.price}, ${v.date}, NOW())`
+            );
+            await db.execute(sql`
+              INSERT INTO gri_prices_cache (sku, price, fecha, updated_at)
+              VALUES ${sql.join(values, sql`, `)}
+              ON CONFLICT (sku) DO UPDATE SET
+                price = EXCLUDED.price,
+                fecha = EXCLUDED.fecha,
+                updated_at = EXCLUDED.updated_at
+            `);
+          }
+        }
+      } catch (persistErr) {
+        console.warn('⚠️ [GRI Prices] Failed to persist to PostgreSQL cache:', persistErr);
+      }
 
       console.log(`📊 [GRI Prices] Loaded ${Object.keys(priceMap).length} SKU prices from SQL Server`);
       res.json(priceMap);

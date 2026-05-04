@@ -117,6 +117,18 @@ export default function MargenPage() {
     return p.toString();
   }, [periodCfg, segmentFilter, salespersonFilter]);
 
+  // Disparamos la carga del cache de precios GRI (costos reales desde SQL Server,
+  // los mismos que se ven en Lista de Precios). El endpoint persiste el snapshot
+  // a PostgreSQL para que el JOIN del análisis de margen pueda usarlos.
+  useQuery<Record<string, { price: number; date: string | null }>>({
+    queryKey: ["/api/inventory/gri-prices"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/inventory/gri-prices");
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   // Para los selectores de filtro: lista de segmentos y vendedores disponibles
   // Usamos los mismos endpoints que el dashboard principal para que aparezcan
   // aunque aún no haya costos calculados en el período seleccionado.
