@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -261,6 +261,13 @@ const ETL_CONFIGS = [
     icon: Users,
     color: 'green',
   },
+  {
+    id: 'costos',
+    name: 'Costos',
+    description: 'Costos GRI por SKU (Bodega 006). Cada cambio crea un snapshot histórico.',
+    icon: DollarSign,
+    color: 'amber',
+  },
 ];
 
 export default function ETLMonitor() {
@@ -449,6 +456,8 @@ export default function ETLMonitor() {
               <GDVTabContent autoRefresh={autoRefresh} />
             ) : etl.id === 'nvv' ? (
               <NVVTabContent autoRefresh={autoRefresh} />
+            ) : etl.id === 'costos' ? (
+              <CostosTabContent autoRefresh={autoRefresh} />
             ) : (
               <>
                 <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
@@ -2086,6 +2095,543 @@ function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
         showBranches={false}
       />
       <ETLHistorySection etlName="nvv" autoRefresh={autoRefresh} />
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Costos Tab — historial pivotado SKU × snapshot + comparación con FCV
+// ═══════════════════════════════════════════════════════════════
+
+interface CostosHistoryRow {
+  sku: string;
+  producto: string | null;
+  unidad: string | null;
+  lastSnapshot: string | null;
+  prices: Record<string, { price: number; fecha: string | null }>;
+}
+
+interface CostosHistoryResponse {
+  snapshots: string[];
+  rows: CostosHistoryRow[];
+  totalCount: number;
+}
+
+interface SalesComparisonRow {
+  sku: string;
+  producto: string | null;
+  unidad: string | null;
+  cost: number | null;
+  costDate: string | null;
+  avgSellPrice: number | null;
+  revenue: number;
+  qty: number;
+  lineCount: number;
+  totalCost: number | null;
+  marginAmount: number | null;
+  marginPct: number | null;
+  unitMarginPct: number | null;
+}
+
+interface SalesComparisonResponse {
+  rows: SalesComparisonRow[];
+  totalCount: number;
+}
+
+interface SalesBySalespersonRow {
+  salesperson: string;
+  segment: string | null;
+  revenue: number;
+  qty: number;
+  lineCount: number;
+  avgSellPrice: number | null;
+  totalCost: number | null;
+  marginAmount: number | null;
+  marginPct: number | null;
+}
+
+interface SalesBySegmentRow {
+  segment: string;
+  revenue: number;
+  qty: number;
+  lineCount: number;
+  salespersonCount: number;
+  avgSellPrice: number | null;
+  totalCost: number | null;
+  marginAmount: number | null;
+  marginPct: number | null;
+}
+
+interface SalesBySkuResponse {
+  sku: string;
+  cost: number | null;
+  costDate: string | null;
+  bySalesperson: SalesBySalespersonRow[];
+  bySegment: SalesBySegmentRow[];
+}
+
+const COMPARISON_PERIOD_OPTIONS = [
+  { value: "current-month", label: "Mes actual" },
+  { value: "last-month", label: "Mes anterior" },
+  { value: "last-30-days", label: "Últimos 30 días" },
+  { value: "last-90-days", label: "Últimos 90 días" },
+  { value: `year-${new Date().getFullYear()}`, label: `Año ${new Date().getFullYear()}` },
+  { value: "all", label: "Todo" },
+];
+
+function CostComparisonSection({ autoRefresh }: { autoRefresh: boolean }) {
+  const [period, setPeriod] = useState<string>("last-90-days");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(0);
+  const [expandedSku, setExpandedSku] = useState<string | null>(null);
+  const limit = 50;
+
+  const fmtCLP = (n: number | null | undefined) =>
+    n == null ? "—" : new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
+  const fmtPct = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(1)}%`);
+  const fmtInt = (n: number) => new Intl.NumberFormat("es-CL").format(Math.round(n));
+
+  const marginBadgeClass = (pct: number | null) => {
+    if (pct == null) return "bg-gray-50 text-gray-500 border-gray-200";
+    if (pct >= 30) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (pct >= 15) return "bg-amber-50 text-amber-700 border-amber-200";
+    if (pct >= 0) return "bg-orange-50 text-orange-700 border-orange-200";
+    return "bg-red-50 text-red-700 border-red-200";
+  };
+
+  const { data, isLoading } = useQuery<SalesComparisonResponse>({
+    queryKey: [`/api/etl/costos/sales-comparison`, { period, search, limit, offset: page * limit }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        period,
+        search,
+        limit: String(limit),
+        offset: String(page * limit),
+      });
+      const res = await apiRequest(`/api/etl/costos/sales-comparison?${params}`);
+      return res.json();
+    },
+    refetchInterval: autoRefresh ? 60000 : false,
+  });
+
+  const breakdownQuery = useQuery<SalesBySkuResponse>({
+    queryKey: [`/api/etl/costos/sales-by-sku`, { sku: expandedSku, period }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ sku: expandedSku!, period });
+      const res = await apiRequest(`/api/etl/costos/sales-by-sku?${params}`);
+      return res.json();
+    },
+    enabled: !!expandedSku,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-emerald-600" />
+              Costo vs Venta FCV (margen real)
+            </CardTitle>
+            <CardDescription>
+              Cruza el costo GRI con el precio efectivo de venta en facturas FCV. Click en un SKU para desglosar por vendedor y segmento del vendedor.
+              {data ? ` ${data.totalCount.toLocaleString("es-CL")} SKUs con ventas en el período.` : ""}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={period}
+              onChange={e => { setPeriod(e.target.value); setPage(0); setExpandedSku(null); }}
+              className="text-sm border rounded-md px-2 py-1.5 h-9"
+              data-testid="select-comparison-period"
+            >
+              {COMPARISON_PERIOD_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <form
+              className="flex items-center gap-2"
+              onSubmit={e => {
+                e.preventDefault();
+                setSearch(searchInput);
+                setPage(0);
+                setExpandedSku(null);
+              }}
+            >
+              <Input
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="Buscar SKU o producto..."
+                className="w-64 text-sm"
+              />
+              <Button type="submit" size="sm" variant="secondary">Buscar</Button>
+              {search && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setSearch(""); setSearchInput(""); setPage(0); }}
+                >
+                  Limpiar
+                </Button>
+              )}
+            </form>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando comparación...
+          </div>
+        ) : !data || data.rows.length === 0 ? (
+          <div className="py-10 text-center text-muted-foreground text-sm">
+            {search ? "Sin resultados." : "No hay ventas FCV en el período seleccionado."}
+          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted">
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="text-xs">SKU</TableHead>
+                  <TableHead className="text-xs">Producto</TableHead>
+                  <TableHead className="text-right text-xs text-amber-700">Costo</TableHead>
+                  <TableHead className="text-right text-xs">Precio venta prom.</TableHead>
+                  <TableHead className="text-right text-xs">Unidades</TableHead>
+                  <TableHead className="text-right text-xs">Ingresos</TableHead>
+                  <TableHead className="text-right text-xs">Margen $</TableHead>
+                  <TableHead className="text-right text-xs">Margen %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.rows.map(row => {
+                  const isExpanded = expandedSku === row.sku;
+                  return (
+                    <Fragment key={row.sku}>
+                      <TableRow
+                        className="text-xs cursor-pointer hover:bg-muted/40"
+                        onClick={() => setExpandedSku(isExpanded ? null : row.sku)}
+                        data-testid={`row-comparison-${row.sku}`}
+                      >
+                        <TableCell className="py-2">
+                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </TableCell>
+                        <TableCell className="font-mono py-2">{row.sku}</TableCell>
+                        <TableCell className="py-2 max-w-[280px] truncate" title={row.producto || ""}>
+                          {row.producto || <span className="text-muted-foreground italic">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums py-2 text-amber-700 font-semibold">
+                          {fmtCLP(row.cost)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums py-2">
+                          {fmtCLP(row.avgSellPrice)}
+                          {row.unitMarginPct != null && (
+                            <span className={`block text-[9px] ${row.unitMarginPct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                              {row.unitMarginPct >= 0 ? "+" : ""}{row.unitMarginPct.toFixed(1)}% unit.
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums py-2">{fmtInt(row.qty)}</TableCell>
+                        <TableCell className="text-right tabular-nums py-2 font-semibold">{fmtCLP(row.revenue)}</TableCell>
+                        <TableCell className="text-right tabular-nums py-2">
+                          {fmtCLP(row.marginAmount)}
+                        </TableCell>
+                        <TableCell className="text-right py-2">
+                          <Badge variant="outline" className={marginBadgeClass(row.marginPct)}>
+                            {fmtPct(row.marginPct)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell colSpan={9} className="p-4">
+                            {breakdownQuery.isLoading ? (
+                              <div className="flex items-center text-xs text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando desglose...
+                              </div>
+                            ) : !breakdownQuery.data ? (
+                              <div className="text-xs text-muted-foreground">Sin datos.</div>
+                            ) : (
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div>
+                                  <div className="font-semibold text-xs mb-2 flex items-center gap-1.5">
+                                    <Users className="h-3.5 w-3.5" /> Por vendedor
+                                  </div>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="text-[10px]">
+                                        <TableHead className="text-[10px]">Vendedor</TableHead>
+                                        <TableHead className="text-[10px]">Segmento</TableHead>
+                                        <TableHead className="text-right text-[10px]">Unid.</TableHead>
+                                        <TableHead className="text-right text-[10px]">Precio prom.</TableHead>
+                                        <TableHead className="text-right text-[10px]">Ingresos</TableHead>
+                                        <TableHead className="text-right text-[10px]">Margen %</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {breakdownQuery.data.bySalesperson.map(s => (
+                                        <TableRow key={s.salesperson} className="text-[11px]">
+                                          <TableCell className="py-1.5 font-medium">{s.salesperson}</TableCell>
+                                          <TableCell className="py-1.5 text-muted-foreground">
+                                            {s.segment || <span className="italic">—</span>}
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
+                                          <TableCell className="text-right py-1.5">
+                                            <Badge variant="outline" className={`${marginBadgeClass(s.marginPct)} text-[10px]`}>
+                                              {fmtPct(s.marginPct)}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-xs mb-2 flex items-center gap-1.5">
+                                    <Building2 className="h-3.5 w-3.5" /> Por segmento del vendedor
+                                  </div>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="text-[10px]">
+                                        <TableHead className="text-[10px]">Segmento</TableHead>
+                                        <TableHead className="text-right text-[10px]">Vend.</TableHead>
+                                        <TableHead className="text-right text-[10px]">Unid.</TableHead>
+                                        <TableHead className="text-right text-[10px]">Precio prom.</TableHead>
+                                        <TableHead className="text-right text-[10px]">Ingresos</TableHead>
+                                        <TableHead className="text-right text-[10px]">Margen %</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {breakdownQuery.data.bySegment.map(s => (
+                                        <TableRow key={s.segment} className="text-[11px]">
+                                          <TableCell className="py-1.5 font-medium">{s.segment}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.salespersonCount)}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
+                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
+                                          <TableCell className="text-right py-1.5">
+                                            <Badge variant="outline" className={`${marginBadgeClass(s.marginPct)} text-[10px]`}>
+                                              {fmtPct(s.marginPct)}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {data.totalCount > limit && (
+              <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/50 text-xs">
+                <div className="text-muted-foreground">
+                  Mostrando {page * limit + 1}–{Math.min((page + 1) * limit, data.totalCount)} de{" "}
+                  {data.totalCount.toLocaleString("es-CL")}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { setPage(p => Math.max(0, p - 1)); setExpandedSku(null); }} disabled={page === 0}>
+                    <ChevronRight className="h-4 w-4 rotate-180" /> Anterior
+                  </Button>
+                  <span className="px-2">Página {page + 1} de {Math.max(1, Math.ceil(data.totalCount / limit))}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setPage(p => p + 1); setExpandedSku(null); }}
+                    disabled={(page + 1) * limit >= data.totalCount}
+                  >
+                    Siguiente <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CostosTabContent({ autoRefresh }: { autoRefresh: boolean }) {
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(0);
+  const limit = 50;
+
+  const { data, isLoading } = useQuery<CostosHistoryResponse>({
+    queryKey: [`/api/etl/costos/history`, { search, limit, offset: page * limit }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        search,
+        limit: String(limit),
+        offset: String(page * limit),
+      });
+      const res = await apiRequest(`/api/etl/costos/history?${params}`);
+      return res.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const fmtCLP = (n: number) =>
+    new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
+
+  const fmtSnapshotHeader = (iso: string) => {
+    const d = new Date(iso);
+    return formatInTimeZone(d, CHILE_TIMEZONE, "dd MMM yy HH:mm", { locale: es });
+  };
+
+  return (
+    <>
+      <ETLStatusSection etlName="costos" autoRefresh={autoRefresh} showDocumentTypes={false} showBranches={false} />
+
+      <CostComparisonSection autoRefresh={autoRefresh} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-amber-600" />
+                Historial de costos por SKU
+              </CardTitle>
+              <CardDescription>
+                Cada columna es un snapshot del ETL. Solo se agrega cuando el costo cambió respecto al anterior.
+                {data ? ` ${data.totalCount.toLocaleString("es-CL")} SKUs con historial · ${data.snapshots.length} snapshots totales.` : ""}
+              </CardDescription>
+            </div>
+            <form
+              className="flex items-center gap-2"
+              onSubmit={e => {
+                e.preventDefault();
+                setSearch(searchInput);
+                setPage(0);
+              }}
+            >
+              <Input
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="Buscar SKU o producto..."
+                className="w-64 text-sm"
+                data-testid="input-costos-history-search"
+              />
+              <Button type="submit" size="sm" variant="secondary">Buscar</Button>
+              {search && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setSearch(""); setSearchInput(""); setPage(0); }}
+                >
+                  Limpiar
+                </Button>
+              )}
+            </form>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando historial...
+            </div>
+          ) : !data || data.rows.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">
+              {search ? "Sin resultados." : "Aún no hay historial de costos. Ejecutá el ETL Costos para empezar a acumular snapshots."}
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted">
+                      <TableHead className="text-xs sticky left-0 bg-muted z-10 min-w-[140px]">SKU</TableHead>
+                      <TableHead className="text-xs sticky left-[140px] bg-muted z-10 min-w-[260px]">Producto</TableHead>
+                      {data.snapshots.map(ts => (
+                        <TableHead key={ts} className="text-right text-xs whitespace-nowrap">
+                          {fmtSnapshotHeader(ts)}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.rows.map(row => {
+                      // Para resaltar cambios, comparamos cada celda con el snapshot anterior del mismo SKU.
+                      let prevPrice: number | null = null;
+                      return (
+                        <TableRow key={row.sku} className="text-xs" data-testid={`row-costos-${row.sku}`}>
+                          <TableCell className="font-mono py-2 sticky left-0 bg-background z-10">{row.sku}</TableCell>
+                          <TableCell className="py-2 sticky left-[140px] bg-background z-10 max-w-[260px] truncate" title={row.producto || ""}>
+                            {row.producto || <span className="text-muted-foreground italic">—</span>}
+                          </TableCell>
+                          {data.snapshots.map(ts => {
+                            const cell = row.prices[ts];
+                            if (!cell) {
+                              return (
+                                <TableCell key={ts} className="text-right tabular-nums py-2 text-muted-foreground/40">
+                                  —
+                                </TableCell>
+                              );
+                            }
+                            const isUp = prevPrice !== null && cell.price > prevPrice;
+                            const isDown = prevPrice !== null && cell.price < prevPrice;
+                            prevPrice = cell.price;
+                            return (
+                              <TableCell
+                                key={ts}
+                                className={`text-right tabular-nums py-2 whitespace-nowrap ${
+                                  isUp ? "text-red-600 font-semibold" : isDown ? "text-emerald-600 font-semibold" : ""
+                                }`}
+                              >
+                                {fmtCLP(cell.price)}
+                                {(isUp || isDown) && (
+                                  <span className="ml-0.5 text-[9px]">{isUp ? "▲" : "▼"}</span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              {data.totalCount > limit && (
+                <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/50 text-xs">
+                  <div className="text-muted-foreground">
+                    Mostrando {page * limit + 1}–{Math.min((page + 1) * limit, data.totalCount)} de{" "}
+                    {data.totalCount.toLocaleString("es-CL")}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
+                      <ChevronRight className="h-4 w-4 rotate-180" /> Anterior
+                    </Button>
+                    <span className="px-2">
+                      Página {page + 1} de {Math.max(1, Math.ceil(data.totalCount / limit))}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage(p => p + 1)}
+                      disabled={(page + 1) * limit >= data.totalCount}
+                    >
+                      Siguiente <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

@@ -111,6 +111,24 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_prices_cache_sku ON gri_prices_cache(sku)`);
 
+    // 2.3 Historial de costos GRI — cada ejecución del ETL Costos agrega un snapshot
+    // por SKU; el panel pivota (sku) × (snapshot_at) para mostrar cada precio nuevo
+    // como una columna. Solo se inserta si el precio cambió respecto al último snapshot,
+    // para no inflar la tabla con duplicados.
+    console.log('  📋 Verificando tabla gri_price_history...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gri_price_history (
+        id BIGSERIAL PRIMARY KEY,
+        sku VARCHAR(100) NOT NULL,
+        snapshot_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        price NUMERIC(18, 6) NOT NULL,
+        fecha DATE,
+        execution_id VARCHAR(100)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_price_history_sku ON gri_price_history(sku)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_price_history_snapshot ON gri_price_history(snapshot_at DESC)`);
+
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
     

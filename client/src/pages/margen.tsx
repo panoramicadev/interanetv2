@@ -1,24 +1,52 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Package,
   Loader2,
   Search,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Database,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 import type { PriceList } from "@shared/schema";
 
 interface PriceListResponse {
   items: PriceList[];
   totalCount: number;
   hasMore: boolean;
+}
+
+interface CostosExecution {
+  id: string;
+  startTime: string;
+  endTime: string | null;
+  status: string;
+  recordsProcessed: number | null;
+  executionTimeMs: number | null;
+  errorMessage: string | null;
+  statistics: string | null;
+}
+
+interface CostosStatus {
+  lastExecution: CostosExecution | null;
+  isRunning: boolean;
+  history: CostosExecution[];
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
 }
 
 const formatCLP = (n: number) =>
@@ -35,13 +63,44 @@ function marginBadgeClass(pct: number): string {
   return "bg-red-50 text-red-700 border-red-200";
 }
 
+function parseStats(raw: string | null): { totalErp?: number; newSnapshots?: number; unchanged?: number } {
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
 export default function MargenPage() {
+  const { toast } = useToast();
   const [productsSearch, setProductsSearch] = useState<string>("");
   const [productsSearchInput, setProductsSearchInput] = useState<string>("");
   const [productsPage, setProductsPage] = useState<number>(0);
   const productsPerPage = 50;
 
-  // Costos GRI (Bodega 006) — mismo origen que Lista de Precios
+  // Estado del ETL Costos: muestra resultado de la última importación
+  const { data: costosStatus, isLoading: loadingStatus } = useQuery<CostosStatus>({
+    queryKey: ["/api/etl/status?etlName=costos"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/etl/status?etlName=costos");
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+
+  // Disparar ETL de costos
+  const runCostosMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/etl/execute?etlName=costos");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Importación iniciada", description: "El ETL de costos está corriendo en segundo plano." });
+      queryClient.invalidateQueries({ queryKey: ["/api/etl/status?etlName=costos"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "No se pudo iniciar la importación", variant: "destructive" });
+    },
+  });
+
+  // Costos GRI (último valor por SKU) — usado para enriquecer la tabla de productos
   const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ["/api/inventory/gri-prices"],
     queryFn: async () => {
@@ -65,8 +124,115 @@ export default function MargenPage() {
     },
   });
 
+  const lastExec = costosStatus?.lastExecution;
+  const isRunning = costosStatus?.isRunning ?? false;
+  const stats = parseStats(lastExec?.statistics ?? null);
+
   return (
     <div className="space-y-6">
+      {/* Resultado de la última importación de costos */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Database className="h-4 w-4 text-emerald-600" />
+                Importación de costos (ETL)
+              </CardTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                Última extracción del costo GRI (Bodega 006) desde SQL Server. Cada cambio se guarda como un nuevo snapshot histórico.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => runCostosMutation.mutate()}
+              disabled={isRunning || runCostosMutation.isPending}
+              data-testid="button-run-costos-etl"
+            >
+              {isRunning || runCostosMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Importar costos ahora
+                </>
+              )}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingStatus ? (
+            <div className="flex items-center text-gray-500 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando estado...
+            </div>
+          ) : !lastExec ? (
+            <div className="text-sm text-gray-500">
+              Aún no se ejecutó ninguna importación. Hacé clic en <strong>Importar costos ahora</strong> para traer los costos desde SQL Server.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-md border bg-gray-50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                  {lastExec.status === "success" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : lastExec.status === "running" ? (
+                    <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-red-600" />
+                  )}
+                  Estado
+                </div>
+                <div className="text-sm font-semibold mt-0.5 capitalize" data-testid="status-costos-last">
+                  {lastExec.status === "success" ? "Exitoso" : lastExec.status === "running" ? "En curso" : "Error"}
+                </div>
+                {lastExec.errorMessage && (
+                  <div className="text-[10px] text-red-600 mt-0.5 truncate" title={lastExec.errorMessage}>
+                    {lastExec.errorMessage}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-md border bg-gray-50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                  <Clock className="h-3.5 w-3.5 text-gray-500" />
+                  Hace
+                </div>
+                <div className="text-sm font-semibold mt-0.5" data-testid="status-costos-when">
+                  {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">
+                  {lastExec.executionTimeMs != null
+                    ? `${(lastExec.executionTimeMs / 1000).toFixed(1)}s de ejecución`
+                    : ""}
+                </div>
+              </div>
+
+              <div className="rounded-md border bg-gray-50 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500">SKUs procesados</div>
+                <div className="text-lg font-bold mt-0.5" data-testid="status-costos-records">
+                  {formatInt(lastExec.recordsProcessed ?? 0)}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">desde SQL Server</div>
+              </div>
+
+              <div className="rounded-md border bg-gray-50 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500">Snapshots nuevos</div>
+                <div className="text-lg font-bold mt-0.5 text-emerald-700" data-testid="status-costos-changes">
+                  {formatInt(stats.newSnapshots ?? 0)}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">
+                  {stats.unchanged != null ? `${formatInt(stats.unchanged)} sin cambio` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Listado de productos con su costo */}
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3 flex-wrap">

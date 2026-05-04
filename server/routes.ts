@@ -83,6 +83,7 @@ import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitte
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
+import { executeCostosETL, costosEtlProgressEmitter } from "./etl-costos";
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
@@ -23844,6 +23845,394 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Historial de costos GRI pivotado: SKU como filas, cada snapshot_at como columna.
+  // Útil para el panel de ETL Costos — permite ver cómo evolucionó el costo por producto.
+  app.get('/api/etl/costos/history', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, limit = 50, offset = 0 } = req.query;
+      const parsedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 500);
+      const parsedOffset = Math.max(parseInt(offset as string) || 0, 0);
+
+      // 1. Lista de snapshots distintos (orden cronológico ascendente para que las
+      //    columnas en la UI se lean de izquierda a derecha como una línea de tiempo).
+      const snapshotsResult = await db.execute(sql`
+        SELECT DISTINCT snapshot_at
+        FROM gri_price_history
+        ORDER BY snapshot_at ASC
+      `);
+      const snapshots: string[] = (snapshotsResult as any).rows.map((r: any) =>
+        new Date(r.snapshot_at).toISOString()
+      );
+
+      // 2. Universo de SKUs disponibles (los que tienen historial). Aplicamos filtro
+      //    por búsqueda contra price_list.codigo + producto para que el usuario pueda
+      //    encontrar productos por nombre, no solo por código.
+      const searchPattern = search ? `%${String(search).toUpperCase()}%` : null;
+
+      const totalCountResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT h.sku) AS total
+        FROM gri_price_history h
+        LEFT JOIN price_list p ON UPPER(p.codigo) = h.sku
+        ${searchPattern
+          ? sql`WHERE UPPER(h.sku) LIKE ${searchPattern} OR UPPER(p.producto) LIKE ${searchPattern}`
+          : sql``}
+      `);
+      const totalCount = Number((totalCountResult as any).rows[0]?.total || 0);
+
+      const skusResult = await db.execute(sql`
+        SELECT
+          h.sku,
+          MAX(p.producto) AS producto,
+          MAX(p.unidad) AS unidad,
+          MAX(h.snapshot_at) AS last_snapshot
+        FROM gri_price_history h
+        LEFT JOIN price_list p ON UPPER(p.codigo) = h.sku
+        ${searchPattern
+          ? sql`WHERE UPPER(h.sku) LIKE ${searchPattern} OR UPPER(p.producto) LIKE ${searchPattern}`
+          : sql``}
+        GROUP BY h.sku
+        ORDER BY MAX(h.snapshot_at) DESC, h.sku ASC
+        LIMIT ${parsedLimit} OFFSET ${parsedOffset}
+      `);
+      const skuRows = (skusResult as any).rows;
+
+      if (skuRows.length === 0) {
+        return res.json({ snapshots, rows: [], totalCount });
+      }
+
+      // 3. Traer todos los precios para esos SKUs en una sola consulta y agrupar.
+      const skuList = skuRows.map((r: any) => r.sku);
+      const pricesResult = await db.execute(sql`
+        SELECT sku, snapshot_at, price::TEXT AS price, fecha
+        FROM gri_price_history
+        WHERE sku = ANY(${skuList})
+        ORDER BY sku, snapshot_at ASC
+      `);
+
+      type PriceCell = { price: number; fecha: string | null };
+      const pricesBySku = new Map<string, Map<string, PriceCell>>();
+      for (const r of (pricesResult as any).rows) {
+        const sku = String(r.sku);
+        const ts = new Date(r.snapshot_at).toISOString();
+        if (!pricesBySku.has(sku)) pricesBySku.set(sku, new Map());
+        pricesBySku.get(sku)!.set(ts, {
+          price: Number(r.price),
+          fecha: r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : null,
+        });
+      }
+
+      const rows = skuRows.map((r: any) => {
+        const sku = String(r.sku);
+        const cells: Record<string, PriceCell> = {};
+        const skuPrices = pricesBySku.get(sku);
+        if (skuPrices) {
+          for (const [ts, cell] of Array.from(skuPrices.entries())) {
+            cells[ts] = cell;
+          }
+        }
+        return {
+          sku,
+          producto: r.producto || null,
+          unidad: r.unidad || null,
+          lastSnapshot: r.last_snapshot ? new Date(r.last_snapshot).toISOString() : null,
+          prices: cells,
+        };
+      });
+
+      res.json({ snapshots, rows, totalCount });
+    } catch (error: any) {
+      console.error('Error fetching cost history:', error);
+      res.status(500).json({ message: 'Error al obtener historial de costos', error: error.message });
+    }
+  }));
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Costo vs Precio FCV: cruza el costo (gri_prices_cache) con las ventas
+  // reales en fact_ventas (solo TIDO='FCV') para poder analizar margen real
+  // y luego desglosar por vendedor y por segmento del vendedor.
+  // ───────────────────────────────────────────────────────────────────────
+
+  // Helper: rango de fechas a partir de "period" (last-30-days, last-90-days,
+  // current-month, last-month, year-YYYY) — replica la convención usada en
+  // otros endpoints de margen.
+  function resolveCostosPeriod(period: string | undefined): { startDate: string | null; endDate: string | null } {
+    if (!period) return { startDate: null, endDate: null };
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+
+    if (period === 'last-30-days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 30);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (period === 'last-90-days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 90);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (period === 'current-month') {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (period === 'last-month') {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { startDate: fmt(start), endDate: fmt(end) };
+    }
+    if (period.startsWith('year-')) {
+      const year = parseInt(period.slice(5), 10);
+      if (Number.isFinite(year)) {
+        return { startDate: `${year}-01-01`, endDate: `${year}-12-31` };
+      }
+    }
+    if (period === 'all') return { startDate: null, endDate: null };
+    return { startDate: null, endDate: null };
+  }
+
+  // Resumen por SKU: costo actual vs ventas FCV agregadas (revenue, unidades,
+  // precio promedio, margen %). Soporta búsqueda por código/producto y
+  // paginación. Sólo incluye SKUs con ventas FCV en el período.
+  app.get('/api/etl/costos/sales-comparison', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { period = 'last-90-days', search, limit = 50, offset = 0 } = req.query;
+      const parsedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 500);
+      const parsedOffset = Math.max(parseInt(offset as string) || 0, 0);
+      const { startDate, endDate } = resolveCostosPeriod(period as string);
+
+      const searchPattern = search ? `%${String(search).toUpperCase()}%` : null;
+
+      const totalCountResult = await db.execute(sql`
+        WITH fcv AS (
+          SELECT DISTINCT UPPER(TRIM(fv."koprct")) AS sku
+          FROM ventas.fact_ventas fv
+          WHERE fv."tido" = 'FCV'
+            AND fv."koprct" IS NOT NULL
+            ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+            ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        )
+        SELECT COUNT(*) AS total
+        FROM fcv f
+        LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = f.sku
+        ${searchPattern
+          ? sql`WHERE f.sku LIKE ${searchPattern} OR UPPER(pl."producto") LIKE ${searchPattern}`
+          : sql``}
+      `);
+      const totalCount = Number((totalCountResult as any).rows[0]?.total || 0);
+
+      const result = await db.execute(sql`
+        WITH lineas AS (
+          SELECT
+            UPPER(TRIM(fv."koprct")) AS sku,
+            fv."nokoprct" AS producto_fact,
+            fv."monto" AS revenue,
+            COALESCE(fv."caprco2", 0) AS qty
+          FROM ventas.fact_ventas fv
+          WHERE fv."tido" = 'FCV'
+            AND fv."koprct" IS NOT NULL
+            AND fv."monto" IS NOT NULL
+            ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+            ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        ),
+        agg AS (
+          SELECT
+            sku,
+            MAX(producto_fact) AS producto_fact,
+            SUM(revenue) AS revenue,
+            SUM(qty) AS qty,
+            COUNT(*) AS line_count
+          FROM lineas
+          GROUP BY sku
+        )
+        SELECT
+          a.sku,
+          COALESCE(MAX(pl."producto"), a.producto_fact) AS producto,
+          MAX(pl."unidad") AS unidad,
+          a.revenue::TEXT AS revenue,
+          a.qty::TEXT AS qty,
+          a.line_count,
+          (CASE WHEN a.qty > 0 THEN (a.revenue / a.qty) ELSE NULL END)::TEXT AS avg_sell_price,
+          MAX(gpc."price")::TEXT AS cost,
+          MAX(gpc."fecha")::TEXT AS cost_date
+        FROM agg a
+        LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = a.sku
+        LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = a.sku
+        ${searchPattern
+          ? sql`WHERE a.sku LIKE ${searchPattern} OR UPPER(pl."producto") LIKE ${searchPattern}`
+          : sql``}
+        GROUP BY a.sku, a.producto_fact, a.revenue, a.qty, a.line_count
+        ORDER BY a.revenue DESC
+        LIMIT ${parsedLimit} OFFSET ${parsedOffset}
+      `);
+
+      const rows = ((result as any).rows || []).map((r: any) => {
+        const revenue = Number(r.revenue ?? 0);
+        const qty = Number(r.qty ?? 0);
+        const avgSellPrice = r.avg_sell_price != null ? Number(r.avg_sell_price) : null;
+        const cost = r.cost != null ? Number(r.cost) : null;
+        const totalCost = cost != null ? cost * qty : null;
+        const marginAmount = totalCost != null ? revenue - totalCost : null;
+        const marginPct = revenue > 0 && marginAmount != null ? (marginAmount / revenue) * 100 : null;
+        const unitMarginPct = avgSellPrice && avgSellPrice > 0 && cost != null
+          ? ((avgSellPrice - cost) / avgSellPrice) * 100
+          : null;
+        return {
+          sku: r.sku,
+          producto: r.producto || null,
+          unidad: r.unidad || null,
+          cost,
+          costDate: r.cost_date || null,
+          avgSellPrice,
+          revenue,
+          qty,
+          lineCount: Number(r.line_count ?? 0),
+          totalCost,
+          marginAmount,
+          marginPct,
+          unitMarginPct,
+        };
+      });
+
+      res.json({ rows, totalCount, period: { startDate, endDate } });
+    } catch (error: any) {
+      console.error('Error in sales-comparison:', error);
+      res.status(500).json({ message: 'Error al obtener comparación costo vs venta', error: error.message });
+    }
+  }));
+
+  // Desglose para un SKU: ventas agrupadas por vendedor y por segmento del
+  // vendedor. El "segmento del vendedor" se obtiene cruzando salespeople_users
+  // con su supervisor (sup.assigned_segment).
+  app.get('/api/etl/costos/sales-by-sku', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { sku, period = 'last-90-days' } = req.query;
+      if (!sku) return res.status(400).json({ message: 'sku es requerido' });
+      const { startDate, endDate } = resolveCostosPeriod(period as string);
+      const skuUpper = String(sku).toUpperCase();
+
+      // 1. Costo actual del SKU
+      const costRes = await db.execute(sql`
+        SELECT price::TEXT AS price, fecha::TEXT AS fecha
+        FROM gri_prices_cache
+        WHERE UPPER(TRIM(sku)) = ${skuUpper}
+        LIMIT 1
+      `);
+      const costRow = (costRes as any).rows[0];
+      const cost = costRow?.price != null ? Number(costRow.price) : null;
+
+      // 2. Por vendedor — además trae el segmento (vía supervisor.assigned_segment)
+      const bySalespersonRes = await db.execute(sql`
+        WITH salesperson_segment AS (
+          SELECT s.salesperson_name, sup.assigned_segment AS segment
+          FROM salespeople_users s
+          LEFT JOIN salespeople_users sup ON s.supervisor_id = sup.id
+        ),
+        lineas AS (
+          SELECT
+            fv."nokofu" AS salesperson,
+            fv."monto" AS revenue,
+            COALESCE(fv."caprco2", 0) AS qty
+          FROM ventas.fact_ventas fv
+          WHERE fv."tido" = 'FCV'
+            AND UPPER(TRIM(fv."koprct")) = ${skuUpper}
+            AND fv."monto" IS NOT NULL
+            ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+            ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        )
+        SELECT
+          COALESCE(l.salesperson, '(sin vendedor)') AS salesperson,
+          ss.segment AS segment,
+          SUM(l.revenue)::TEXT AS revenue,
+          SUM(l.qty)::TEXT AS qty,
+          COUNT(*) AS line_count,
+          (CASE WHEN SUM(l.qty) > 0 THEN SUM(l.revenue) / SUM(l.qty) ELSE NULL END)::TEXT AS avg_sell_price
+        FROM lineas l
+        LEFT JOIN salesperson_segment ss ON ss.salesperson_name = l.salesperson
+        GROUP BY l.salesperson, ss.segment
+        ORDER BY SUM(l.revenue) DESC
+      `);
+
+      const bySalesperson = ((bySalespersonRes as any).rows || []).map((r: any) => {
+        const revenue = Number(r.revenue ?? 0);
+        const qty = Number(r.qty ?? 0);
+        const avgSellPrice = r.avg_sell_price != null ? Number(r.avg_sell_price) : null;
+        const totalCost = cost != null ? cost * qty : null;
+        const marginAmount = totalCost != null ? revenue - totalCost : null;
+        const marginPct = revenue > 0 && marginAmount != null ? (marginAmount / revenue) * 100 : null;
+        return {
+          salesperson: r.salesperson,
+          segment: r.segment || null,
+          revenue,
+          qty,
+          lineCount: Number(r.line_count ?? 0),
+          avgSellPrice,
+          totalCost,
+          marginAmount,
+          marginPct,
+        };
+      });
+
+      // 3. Por segmento del vendedor
+      const bySegmentRes = await db.execute(sql`
+        WITH salesperson_segment AS (
+          SELECT s.salesperson_name, sup.assigned_segment AS segment
+          FROM salespeople_users s
+          LEFT JOIN salespeople_users sup ON s.supervisor_id = sup.id
+        )
+        SELECT
+          COALESCE(ss.segment, '(sin segmento)') AS segment,
+          SUM(fv."monto")::TEXT AS revenue,
+          SUM(COALESCE(fv."caprco2", 0))::TEXT AS qty,
+          COUNT(*) AS line_count,
+          COUNT(DISTINCT fv."nokofu") AS salesperson_count,
+          (CASE WHEN SUM(COALESCE(fv."caprco2", 0)) > 0
+                THEN SUM(fv."monto") / SUM(COALESCE(fv."caprco2", 0))
+                ELSE NULL END)::TEXT AS avg_sell_price
+        FROM ventas.fact_ventas fv
+        LEFT JOIN salesperson_segment ss ON ss.salesperson_name = fv."nokofu"
+        WHERE fv."tido" = 'FCV'
+          AND UPPER(TRIM(fv."koprct")) = ${skuUpper}
+          AND fv."monto" IS NOT NULL
+          ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+          ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        GROUP BY ss.segment
+        ORDER BY SUM(fv."monto") DESC
+      `);
+
+      const bySegment = ((bySegmentRes as any).rows || []).map((r: any) => {
+        const revenue = Number(r.revenue ?? 0);
+        const qty = Number(r.qty ?? 0);
+        const avgSellPrice = r.avg_sell_price != null ? Number(r.avg_sell_price) : null;
+        const totalCost = cost != null ? cost * qty : null;
+        const marginAmount = totalCost != null ? revenue - totalCost : null;
+        const marginPct = revenue > 0 && marginAmount != null ? (marginAmount / revenue) * 100 : null;
+        return {
+          segment: r.segment,
+          revenue,
+          qty,
+          lineCount: Number(r.line_count ?? 0),
+          salespersonCount: Number(r.salesperson_count ?? 0),
+          avgSellPrice,
+          totalCost,
+          marginAmount,
+          marginPct,
+        };
+      });
+
+      res.json({
+        sku: skuUpper,
+        cost,
+        costDate: costRow?.fecha || null,
+        period: { startDate, endDate },
+        bySalesperson,
+        bySegment,
+      });
+    } catch (error: any) {
+      console.error('Error in sales-by-sku:', error);
+      res.status(500).json({ message: 'Error al obtener desglose por vendedor', error: error.message });
+    }
+  }));
+
   // Sync products from ERP to PostgreSQL
   app.post('/api/inventory/sync', requirePlantOperationsAccess, asyncHandler(async (req: any, res: any) => {
     try {
@@ -26556,7 +26945,9 @@ Instrucciones extra:
           ? executeGDVETL()
           : etlName === 'clientes'
             ? executeClientETL()
-            : executeIncrementalETL(etlName as string);
+            : etlName === 'costos'
+              ? executeCostosETL()
+              : executeIncrementalETL(etlName as string);
 
       etlPromise
         .then((result: any) => {
@@ -26741,7 +27132,9 @@ Instrucciones extra:
     // 🔀 ROUTER: Seleccionar el emitter correcto según etlName
     const emitter = etlName === 'nvv' ? nvvEtlProgressEmitter :
       etlName === 'gdv' ? gdvEtlProgressEmitter :
-        etlProgressEmitter;
+        etlName === 'clientes' ? clientEtlProgressEmitter :
+          etlName === 'costos' ? costosEtlProgressEmitter :
+            etlProgressEmitter;
 
     // 📼 REPLAY BUFFER: Enviar eventos históricos primero (solo para NVV por ahora)
     if (etlName === 'nvv') {
