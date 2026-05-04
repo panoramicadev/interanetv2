@@ -286,6 +286,16 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     }
   };
 
+  // Contactos internos predefinidos para selección rápida en el envío de cotizaciones
+  const presetEmailContacts = [
+    { name: "Jefferson", email: "jperdomo@pinturaspanoramica.cl" },
+    { name: "Carolina", email: "yfernandez@pinturaspanoramica.cl" },
+    { name: "Franco", email: "fparra@pinturaspanoramica.cl" },
+    { name: "Oscar", email: "storeconcepcion@pinturaspanoramica.cl" },
+    { name: "Carlos", email: "cmelgarejo@pinturaspanoramica.cl" },
+    { name: "Joaquin", email: "jsaiz@pinturaspanoramica.cl" },
+  ];
+
   // Email dialog state
   const [emailDialog, setEmailDialog] = useState<{ quoteId: string; quoteNumber: string; clientName: string } | null>(null);
   const [emailRecipient, setEmailRecipient] = useState("fparra@pinturaspanoramica.cl");
@@ -1131,6 +1141,26 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white"
                       placeholder="fparra@pinturaspanoramica.cl"
                     />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {presetEmailContacts.map((c) => {
+                        const active = emailRecipient.trim().toLowerCase() === c.email.toLowerCase();
+                        return (
+                          <button
+                            key={c.email}
+                            type="button"
+                            onClick={() => setEmailRecipient(c.email)}
+                            className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                              active
+                                ? "bg-orange-500 border-orange-500 text-white"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                            }`}
+                            title={c.email}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div>
                     <Label className="text-xs font-medium text-slate-700">CC <span className="text-slate-400 font-normal">(separar con coma)</span></Label>
@@ -1140,6 +1170,34 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       className="mt-1.5 bg-slate-50 border-slate-200 focus-visible:bg-white"
                       placeholder="copia@dom.cl, otro@dom.cl"
                     />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {presetEmailContacts.map((c) => {
+                        const ccItems = emailCc.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+                        const active = ccItems.includes(c.email.toLowerCase());
+                        const toggle = () => {
+                          const items = emailCc.split(",").map((s) => s.trim()).filter(Boolean);
+                          const idx = items.findIndex((it) => it.toLowerCase() === c.email.toLowerCase());
+                          if (idx >= 0) items.splice(idx, 1);
+                          else items.push(c.email);
+                          setEmailCc(items.join(", "));
+                        };
+                        return (
+                          <button
+                            key={c.email}
+                            type="button"
+                            onClick={toggle}
+                            className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                              active
+                                ? "bg-blue-500 border-blue-500 text-white"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                            }`}
+                            title={c.email}
+                          >
+                            {active ? "✓ " : "+ "}{c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   {isAdminOrSupervisor && (
                     <div>
@@ -1161,7 +1219,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </Select>
                       <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
                         <span className="inline-block w-1 h-1 rounded-full bg-slate-400" />
-                        El correo se firma a nombre de este vendedor.
+                        El correo se firma a nombre de este vendedor y se envía con copia automática a su email.
                       </p>
                     </div>
                   )}

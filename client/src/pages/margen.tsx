@@ -118,19 +118,20 @@ export default function MargenPage() {
   }, [periodCfg, segmentFilter, salespersonFilter]);
 
   // Para los selectores de filtro: lista de segmentos y vendedores disponibles
-  const { data: segmentsData = [] } = useQuery<Array<{ code?: string; name?: string; segment?: string }>>({
-    queryKey: ["/api/sales/segments-list"],
+  // Usamos los mismos endpoints que el dashboard principal para que aparezcan
+  // aunque aún no haya costos calculados en el período seleccionado.
+  const { data: segmentsData = [] } = useQuery<Array<{ segment: string; totalSales: number }>>({
+    queryKey: ["/api/sales/segments", "year", currentYear],
     queryFn: async () => {
-      // Reutilizamos /api/sales/margins/by-segment del año actual para listar segmentos disponibles
-      const res = await apiRequest("GET", `/api/sales/margins/by-segment?period=${currentYear}&filterType=year`);
+      const res = await apiRequest("GET", `/api/sales/segments?period=${currentYear}&filterType=year`);
       return res.json();
     },
   });
 
-  const { data: salespeopleData = [] } = useQuery<SalespersonRow[]>({
-    queryKey: ["/api/sales/margins/salespeople-list"],
+  const { data: salespeopleData = [] } = useQuery<Array<{ id: string; salespersonName?: string; email?: string }>>({
+    queryKey: ["/api/users/salespeople"],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/sales/margins/by-salesperson?period=${currentYear}&filterType=year`);
+      const res = await apiRequest("GET", `/api/users/salespeople`);
       return res.json();
     },
   });
@@ -192,7 +193,10 @@ export default function MargenPage() {
   }, [segmentsData]);
 
   const salespersonNames = useMemo(() => {
-    return [...salespeopleData].map(s => s.salesperson).filter(Boolean).sort();
+    return salespeopleData
+      .map(s => s.salespersonName || s.email || s.id)
+      .filter((n): n is string => !!n)
+      .sort();
   }, [salespeopleData]);
 
   const hasData = !!metrics && metrics.transactionCount > 0;

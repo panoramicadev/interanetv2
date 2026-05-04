@@ -26743,10 +26743,11 @@ export class DatabaseStorage implements IStorage {
   // ===========================================
   // MARGEN / MARGIN ANALYSIS
   // ===========================================
-  // Costos vienen de fact_ventas.ppprpm (precio promedio ponderado por unidad)
+  // Costo unitario: prefer fact_ventas.ppprpm (costo histórico al momento de la venta);
+  // si no está cargado en el ETL, usa price_list.costo_produccion como fallback.
   // Excluye GDV (guías de despacho) que no son ventas reales.
   // Para NCV (notas de crédito), las cantidades se restan: el monto ya viene firmado.
-  // El costo por línea = ppprpm * (caprco2 con signo según tido).
+  // El costo por línea = costo_unitario * (caprco2 con signo según tido).
 
   async getMarginMetrics(filters: {
     startDate?: string;
@@ -26776,12 +26777,14 @@ export class DatabaseStorage implements IStorage {
         SELECT
           fv."nokoprct" AS product,
           fv."monto" AS revenue,
-          (fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost
+          (
+            COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+            * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+          ) AS cost
         FROM ventas.fact_ventas fv
+        LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
         WHERE fv."tido" != 'GDV'
           AND fv."monto" IS NOT NULL
-          AND fv."ppprpm" IS NOT NULL
-          AND fv."caprco2" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
@@ -26899,14 +26902,16 @@ export class DatabaseStorage implements IStorage {
       SELECT
         COALESCE(NULLIF(TRIM(fv."noruen"), ''), 'SIN SEGMENTO') AS segment,
         SUM(fv."monto") AS revenue,
-        SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
+        SUM(
+          COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+          * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+        ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
       FROM ventas.fact_ventas fv
+      LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
       WHERE fv."tido" != 'GDV'
         AND fv."monto" IS NOT NULL
-        AND fv."ppprpm" IS NOT NULL
-        AND fv."caprco2" IS NOT NULL
         ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
         ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
@@ -26957,17 +26962,19 @@ export class DatabaseStorage implements IStorage {
       SELECT
         fv."nokofu" AS salesperson,
         SUM(fv."monto") AS revenue,
-        SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
+        SUM(
+          COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+          * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+        ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoen") AS client_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
       FROM ventas.fact_ventas fv
+      LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
       WHERE fv."tido" != 'GDV'
         AND fv."nokofu" IS NOT NULL
         AND fv."nokofu" != ''
         AND fv."monto" IS NOT NULL
-        AND fv."ppprpm" IS NOT NULL
-        AND fv."caprco2" IS NOT NULL
         ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
         ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
         ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
@@ -27028,14 +27035,16 @@ export class DatabaseStorage implements IStorage {
         SELECT
           fv."nokoprct" AS product,
           SUM(fv."monto") AS revenue,
-          SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
-          SUM(CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END) AS units_sold
+          SUM(
+            COALESCE(NULLIF(fv."ppprpm", 0), pl."costo_produccion", 0)
+            * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+          ) AS cost,
+          SUM(CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END) AS units_sold
         FROM ventas.fact_ventas fv
+        LEFT JOIN price_list pl ON UPPER(pl."codigo") = UPPER(fv."koprct")
         WHERE fv."tido" != 'GDV'
           AND fv."nokoprct" IS NOT NULL
           AND fv."monto" IS NOT NULL
-          AND fv."ppprpm" IS NOT NULL
-          AND fv."caprco2" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
