@@ -10,8 +10,7 @@ WORKDIR /app
 
 # Install only deps. This layer is cached unless package.json or lock changes.
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
 
 # ---------- Stage 2: build ----------
 FROM node:20-bookworm-slim AS build
