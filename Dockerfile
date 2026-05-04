@@ -9,8 +9,9 @@ FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 
 # Install only deps. This layer is cached unless package.json or lock changes.
+# Nota: el repo no tiene package-lock.json, por eso usamos `npm install` y no `npm ci`.
 COPY package.json package-lock.json* ./
-RUN npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
+RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
 
 # ---------- Stage 2: build ----------
 FROM node:20-bookworm-slim AS build
