@@ -1,34 +1,8 @@
 # Build + runtime image for Panorámica intranet.
-# Multi-stage: deps cached separately, build runs in slim layer, runtime only ships
-# what's needed (incluyendo libs de Chromium para que @sparticuz/chromium imprima PDFs).
+# Includes Chromium dependencies so @sparticuz/chromium / puppeteer-core can render PDFs.
 # Railway picks Dockerfile over nixpacks.toml automatically when present.
 
-# ---------- Stage 1: deps (cacheable) ----------
-FROM node:20-bookworm-slim AS deps
-
-WORKDIR /app
-
-# Install only deps. This layer is cached unless package.json or lock changes.
-# Nota: el repo no tiene package-lock.json, por eso usamos `npm install` y no `npm ci`.
-COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
-
-# ---------- Stage 2: build ----------
-FROM node:20-bookworm-slim AS build
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV PUPPETEER_SKIP_DOWNLOAD=true
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-# vite + esbuild
-RUN npm run build
-
-# ---------- Stage 3: runtime ----------
-FROM node:20-bookworm-slim AS runtime
+FROM node:20-bookworm-slim AS base
 
 # Chrome/Chromium runtime libraries (everything @sparticuz/chromium binary needs).
 # Source: https://pptr.dev/troubleshooting#running-puppeteer-on-aws-lambda
@@ -75,17 +49,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PUPPETEER_SKIP_DOWNLOAD=true
+# Install dependencies (with legacy peer deps as in nixpacks).
+COPY package.json package-lock.json* ./
+RUN npm install --legacy-peer-deps
 
-# Copy production artifacts only
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package.json ./package.json
-# Drizzle/migrations need these at runtime
-COPY --from=build /app/shared ./shared
-COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=build /app/tsconfig.json ./tsconfig.json
+# Copy the rest and build.
+COPY . .
+RUN npm run build
+
+# Skip Puppeteer Chromium download (we use @sparticuz/chromium).
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV NODE_ENV=production
 
 EXPOSE 8080
 
