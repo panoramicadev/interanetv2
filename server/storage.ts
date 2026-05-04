@@ -26740,6 +26740,334 @@ export class DatabaseStorage implements IStorage {
     return { isValid: true, coupon };
   }
 
+  // ===========================================
+  // MARGEN / MARGIN ANALYSIS
+  // ===========================================
+  // Costos vienen de fact_ventas.ppprpm (precio promedio ponderado por unidad)
+  // Excluye GDV (guías de despacho) que no son ventas reales.
+  // Para NCV (notas de crédito), las cantidades se restan: el monto ya viene firmado.
+  // El costo por línea = ppprpm * (caprco2 con signo según tido).
+
+  async getMarginMetrics(filters: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+    client?: string;
+  } = {}): Promise<{
+    totalRevenue: number;
+    totalCost: number;
+    totalMarginAmount: number;
+    averageMarginPct: number;          // ponderado por revenue (revenue-cost)/revenue
+    averageMarginPctSimple: number;    // promedio simple por producto
+    highestMargin: { product: string; marginPct: number; revenue: number; cost: number; marginAmount: number } | null;
+    lowestMargin: { product: string; marginPct: number; revenue: number; cost: number; marginAmount: number } | null;
+    productCount: number;
+    transactionCount: number;
+  }> {
+    const { startDate, endDate, salesperson, segment, client } = filters;
+
+    const cacheKey = `marginMetrics:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await db.execute(sql`
+      WITH lineas AS (
+        SELECT
+          fv."nokoprct" AS product,
+          fv."monto" AS revenue,
+          (fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost
+        FROM ventas.fact_ventas fv
+        WHERE fv."tido" != 'GDV'
+          AND fv."monto" IS NOT NULL
+          AND fv."ppprpm" IS NOT NULL
+          AND fv."caprco2" IS NOT NULL
+          ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+          ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+          ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+          ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+      ),
+      por_producto AS (
+        SELECT
+          product,
+          SUM(revenue) AS rev,
+          SUM(cost) AS cst
+        FROM lineas
+        WHERE product IS NOT NULL
+        GROUP BY product
+        HAVING SUM(revenue) > 0
+      ),
+      con_margen AS (
+        SELECT
+          product,
+          rev,
+          cst,
+          (rev - cst) AS margin_amount,
+          ((rev - cst) / NULLIF(rev, 0)) * 100 AS margin_pct
+        FROM por_producto
+      )
+      SELECT
+        (SELECT COALESCE(SUM(revenue), 0) FROM lineas) AS total_revenue,
+        (SELECT COALESCE(SUM(cost), 0) FROM lineas) AS total_cost,
+        (SELECT COUNT(*) FROM lineas) AS transaction_count,
+        (SELECT COUNT(*) FROM con_margen) AS product_count,
+        (SELECT COALESCE(AVG(margin_pct), 0) FROM con_margen) AS avg_margin_simple,
+        (
+          SELECT json_build_object(
+            'product', product,
+            'marginPct', margin_pct,
+            'revenue', rev,
+            'cost', cst,
+            'marginAmount', margin_amount
+          )
+          FROM con_margen
+          ORDER BY margin_pct DESC NULLS LAST
+          LIMIT 1
+        ) AS highest_margin,
+        (
+          SELECT json_build_object(
+            'product', product,
+            'marginPct', margin_pct,
+            'revenue', rev,
+            'cost', cst,
+            'marginAmount', margin_amount
+          )
+          FROM con_margen
+          ORDER BY margin_pct ASC NULLS LAST
+          LIMIT 1
+        ) AS lowest_margin
+    `);
+
+    const row = result.rows[0] as any;
+    const totalRevenue = Number(row?.total_revenue || 0);
+    const totalCost = Number(row?.total_cost || 0);
+    const totalMarginAmount = totalRevenue - totalCost;
+    const averageMarginPct = totalRevenue > 0 ? (totalMarginAmount / totalRevenue) * 100 : 0;
+
+    const out = {
+      totalRevenue,
+      totalCost,
+      totalMarginAmount,
+      averageMarginPct,
+      averageMarginPctSimple: Number(row?.avg_margin_simple || 0),
+      highestMargin: row?.highest_margin
+        ? {
+            product: row.highest_margin.product,
+            marginPct: Number(row.highest_margin.marginPct),
+            revenue: Number(row.highest_margin.revenue),
+            cost: Number(row.highest_margin.cost),
+            marginAmount: Number(row.highest_margin.marginAmount),
+          }
+        : null,
+      lowestMargin: row?.lowest_margin
+        ? {
+            product: row.lowest_margin.product,
+            marginPct: Number(row.lowest_margin.marginPct),
+            revenue: Number(row.lowest_margin.revenue),
+            cost: Number(row.lowest_margin.cost),
+            marginAmount: Number(row.lowest_margin.marginAmount),
+          }
+        : null,
+      productCount: Number(row?.product_count || 0),
+      transactionCount: Number(row?.transaction_count || 0),
+    };
+
+    this.setCache(cacheKey, out, 300000);
+    return out;
+  }
+
+  async getMarginBySegment(filters: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+  } = {}): Promise<Array<{
+    segment: string;
+    revenue: number;
+    cost: number;
+    marginAmount: number;
+    marginPct: number;
+    transactionCount: number;
+    productCount: number;
+  }>> {
+    const { startDate, endDate, salesperson } = filters;
+    const cacheKey = `marginBySegment:${startDate || ''}:${endDate || ''}:${salesperson || ''}`;
+    const cached = this.getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
+    const result = await db.execute(sql`
+      SELECT
+        COALESCE(NULLIF(TRIM(fv."noruen"), ''), 'SIN SEGMENTO') AS segment,
+        SUM(fv."monto") AS revenue,
+        SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
+        COUNT(*) AS transaction_count,
+        COUNT(DISTINCT fv."nokoprct") AS product_count
+      FROM ventas.fact_ventas fv
+      WHERE fv."tido" != 'GDV'
+        AND fv."monto" IS NOT NULL
+        AND fv."ppprpm" IS NOT NULL
+        AND fv."caprco2" IS NOT NULL
+        ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+        ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+      GROUP BY COALESCE(NULLIF(TRIM(fv."noruen"), ''), 'SIN SEGMENTO')
+      HAVING SUM(fv."monto") > 0
+      ORDER BY SUM(fv."monto") DESC
+    `);
+
+    const out = (result.rows as any[]).map(r => {
+      const revenue = Number(r.revenue || 0);
+      const cost = Number(r.cost || 0);
+      const marginAmount = revenue - cost;
+      return {
+        segment: r.segment,
+        revenue,
+        cost,
+        marginAmount,
+        marginPct: revenue > 0 ? (marginAmount / revenue) * 100 : 0,
+        transactionCount: Number(r.transaction_count || 0),
+        productCount: Number(r.product_count || 0),
+      };
+    });
+
+    this.setCache(cacheKey, out, 300000);
+    return out;
+  }
+
+  async getMarginBySalesperson(filters: {
+    startDate?: string;
+    endDate?: string;
+    segment?: string;
+  } = {}): Promise<Array<{
+    salesperson: string;
+    revenue: number;
+    cost: number;
+    marginAmount: number;
+    marginPct: number;
+    transactionCount: number;
+    clientCount: number;
+    productCount: number;
+  }>> {
+    const { startDate, endDate, segment } = filters;
+    const cacheKey = `marginBySalesperson:${startDate || ''}:${endDate || ''}:${segment || ''}`;
+    const cached = this.getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
+    const result = await db.execute(sql`
+      SELECT
+        fv."nokofu" AS salesperson,
+        SUM(fv."monto") AS revenue,
+        SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
+        COUNT(*) AS transaction_count,
+        COUNT(DISTINCT fv."nokoen") AS client_count,
+        COUNT(DISTINCT fv."nokoprct") AS product_count
+      FROM ventas.fact_ventas fv
+      WHERE fv."tido" != 'GDV'
+        AND fv."nokofu" IS NOT NULL
+        AND fv."nokofu" != ''
+        AND fv."monto" IS NOT NULL
+        AND fv."ppprpm" IS NOT NULL
+        AND fv."caprco2" IS NOT NULL
+        ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+        ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+      GROUP BY fv."nokofu"
+      HAVING SUM(fv."monto") > 0
+      ORDER BY SUM(fv."monto") DESC
+    `);
+
+    const out = (result.rows as any[]).map(r => {
+      const revenue = Number(r.revenue || 0);
+      const cost = Number(r.cost || 0);
+      const marginAmount = revenue - cost;
+      return {
+        salesperson: r.salesperson,
+        revenue,
+        cost,
+        marginAmount,
+        marginPct: revenue > 0 ? (marginAmount / revenue) * 100 : 0,
+        transactionCount: Number(r.transaction_count || 0),
+        clientCount: Number(r.client_count || 0),
+        productCount: Number(r.product_count || 0),
+      };
+    });
+
+    this.setCache(cacheKey, out, 300000);
+    return out;
+  }
+
+  async getMarginByProduct(filters: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+    sortBy?: 'highest' | 'lowest' | 'revenue';
+    limit?: number;
+  } = {}): Promise<Array<{
+    product: string;
+    revenue: number;
+    cost: number;
+    marginAmount: number;
+    marginPct: number;
+    unitsSold: number;
+  }>> {
+    const { startDate, endDate, salesperson, segment, sortBy = 'highest', limit = 20 } = filters;
+    const cacheKey = `marginByProduct:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${sortBy}:${limit}`;
+    const cached = this.getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
+    const orderClause =
+      sortBy === 'lowest'
+        ? sql`margin_pct ASC NULLS LAST`
+        : sortBy === 'revenue'
+        ? sql`revenue DESC`
+        : sql`margin_pct DESC NULLS LAST`;
+
+    const result = await db.execute(sql`
+      WITH por_producto AS (
+        SELECT
+          fv."nokoprct" AS product,
+          SUM(fv."monto") AS revenue,
+          SUM(fv."ppprpm" * (CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END)) AS cost,
+          SUM(CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END) AS units_sold
+        FROM ventas.fact_ventas fv
+        WHERE fv."tido" != 'GDV'
+          AND fv."nokoprct" IS NOT NULL
+          AND fv."monto" IS NOT NULL
+          AND fv."ppprpm" IS NOT NULL
+          AND fv."caprco2" IS NOT NULL
+          ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
+          ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+          ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        GROUP BY fv."nokoprct"
+        HAVING SUM(fv."monto") > 0
+      )
+      SELECT
+        product,
+        revenue,
+        cost,
+        (revenue - cost) AS margin_amount,
+        ((revenue - cost) / NULLIF(revenue, 0)) * 100 AS margin_pct,
+        units_sold
+      FROM por_producto
+      ORDER BY ${orderClause}
+      LIMIT ${limit}
+    `);
+
+    const out = (result.rows as any[]).map(r => ({
+      product: r.product,
+      revenue: Number(r.revenue || 0),
+      cost: Number(r.cost || 0),
+      marginAmount: Number(r.margin_amount || 0),
+      marginPct: Number(r.margin_pct || 0),
+      unitsSold: Number(r.units_sold || 0),
+    }));
+
+    this.setCache(cacheKey, out, 300000);
+    return out;
+  }
+
 }
 
 export const storage = new DatabaseStorage();

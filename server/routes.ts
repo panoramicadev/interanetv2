@@ -3177,6 +3177,83 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ===== MARGIN ANALYSIS ENDPOINTS =====
+  // Calcula margen sobre ventas (fact_ventas), excluyendo GDV.
+  // Costo = ppprpm (precio promedio ponderado) por unidad.
+  // Margen = (revenue - cost) / revenue.
+
+  app.get('/api/sales/margins', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { period, filterType, salesperson, segment, client, startDate, endDate } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const metrics = await storage.getMarginMetrics({
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      });
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching margin metrics:", error);
+      res.status(500).json({ message: "Failed to fetch margin metrics" });
+    }
+  });
+
+  app.get('/api/sales/margins/by-segment', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { period, filterType, salesperson, startDate, endDate } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const data = await storage.getMarginBySegment({
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
+        salesperson: salesperson as string,
+      });
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching margin by segment:", error);
+      res.status(500).json({ message: "Failed to fetch margin by segment" });
+    }
+  });
+
+  app.get('/api/sales/margins/by-salesperson', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { period, filterType, segment, startDate, endDate } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const data = await storage.getMarginBySalesperson({
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
+        segment: segment as string,
+      });
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching margin by salesperson:", error);
+      res.status(500).json({ message: "Failed to fetch margin by salesperson" });
+    }
+  });
+
+  app.get('/api/sales/margins/by-product', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { period, filterType, salesperson, segment, sortBy, limit, startDate, endDate } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const sortByValid = ['highest', 'lowest', 'revenue'].includes(sortBy as string)
+        ? (sortBy as 'highest' | 'lowest' | 'revenue')
+        : 'highest';
+      const data = await storage.getMarginByProduct({
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
+        salesperson: salesperson as string,
+        segment: segment as string,
+        sortBy: sortByValid,
+        limit: limit ? Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100) : 20,
+      });
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching margin by product:", error);
+      res.status(500).json({ message: "Failed to fetch margin by product" });
+    }
+  });
+
   // Packaging metrics endpoint
   app.get('/api/sales/packaging-metrics', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     const { period, filterType, salesperson, segment, branch, client } = req.query;
