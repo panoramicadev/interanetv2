@@ -327,16 +327,9 @@ export function setupAuth(app: Express) {
 }
 
 // Auth middleware
+// NOTA: solo loggeamos en fallo (401 y 403). El happy path generaba 5+ líneas
+// por request y saturaba el rate limit de logs de Railway (500 logs/seg).
 export const requireAuth = (req: any, res: any, next: any) => {
-  console.log('🔐 [AUTH] requireAuth check:', {
-    isAuthenticated: req.isAuthenticated(),
-    user: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
-    sessionID: req.sessionID,
-    url: req.url,
-    method: req.method,
-    timestamp: new Date().toISOString()
-  });
-
   if (!req.isAuthenticated()) {
     console.warn('❌ [AUTH] Authentication failed for:', {
       url: req.url,
@@ -346,27 +339,12 @@ export const requireAuth = (req: any, res: any, next: any) => {
     });
     return res.status(401).json({ message: "No autenticado" });
   }
-
-  console.log('✅ [AUTH] Authentication successful for:', {
-    user: { id: req.user.id, email: req.user.email, role: req.user.role },
-    url: req.url,
-    method: req.method
-  });
   next();
 };
 
 // Role-based authorization middleware
 export const requireRoles = (roles: string[]) => {
   return (req: any, res: any, next: any) => {
-    console.log('🔒 [AUTHORIZATION] requireRoles check:', {
-      requiredRoles: roles,
-      isAuthenticated: req.isAuthenticated(),
-      user: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
-      url: req.url,
-      method: req.method,
-      timestamp: new Date().toISOString()
-    });
-
     if (!req.isAuthenticated()) {
       console.warn('❌ [AUTHORIZATION] Not authenticated for role check:', {
         url: req.url,
@@ -377,12 +355,6 @@ export const requireRoles = (roles: string[]) => {
     }
 
     const userRole = req.user?.role;
-    console.log('👤 [AUTHORIZATION] User role check:', {
-      userRole,
-      requiredRoles: roles,
-      hasValidRole: userRole && roles.includes(userRole)
-    });
-
     if (!userRole || !roles.includes(userRole)) {
       console.warn('❌ [AUTHORIZATION] Insufficient permissions:', {
         userRole,
@@ -396,12 +368,6 @@ export const requireRoles = (roles: string[]) => {
       });
     }
 
-    console.log('✅ [AUTHORIZATION] Role authorization successful:', {
-      userRole,
-      requiredRoles: roles,
-      url: req.url,
-      method: req.method
-    });
     next();
   };
 };
