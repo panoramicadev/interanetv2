@@ -26743,11 +26743,11 @@ export class DatabaseStorage implements IStorage {
   // ===========================================
   // MARGEN / MARGIN ANALYSIS
   // ===========================================
-  // Costo unitario: prefer fact_ventas.ppprpm (costo histórico al momento de la venta);
-  // si no está cargado en el ETL, usa price_list.costo_produccion como fallback.
-  // Excluye GDV (guías de despacho) que no son ventas reales.
-  // Para NCV (notas de crédito), las cantidades se restan: el monto ya viene firmado.
-  // El costo por línea = costo_unitario * (caprco2 con signo según tido).
+  // Solo FCV (facturas de venta): el "precio efectivamente vendido" sale del monto
+  // de cada línea de FCV (monto = caprco2 * ppprne en la fuente).
+  // Costo unitario (cadena COALESCE): gri_prices_cache.price (mismo costo que muestra
+  // Lista Comercial) → fv.ppprpm → fv.listacost → price_list.costo_produccion → 0.
+  // Costo por línea = costo_unitario * caprco2.
 
   async getMarginMetrics(filters: {
     startDate?: string;
@@ -26785,12 +26785,12 @@ export class DatabaseStorage implements IStorage {
               pl."costo_produccion",
               0
             )
-            * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+            * COALESCE(fv."caprco2", 0)
           ) AS cost
         FROM ventas.fact_ventas fv
         LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
         LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
-        WHERE fv."tido" != 'GDV'
+        WHERE fv."tido" = 'FCV'
           AND fv."monto" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
@@ -26917,14 +26917,14 @@ export class DatabaseStorage implements IStorage {
             pl."costo_produccion",
             0
           )
-          * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+          * COALESCE(fv."caprco2", 0)
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
       FROM ventas.fact_ventas fv
       LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
       LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
-      WHERE fv."tido" != 'GDV'
+      WHERE fv."tido" = 'FCV'
         AND fv."monto" IS NOT NULL
         ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
         ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
@@ -26984,7 +26984,7 @@ export class DatabaseStorage implements IStorage {
             pl."costo_produccion",
             0
           )
-          * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+          * COALESCE(fv."caprco2", 0)
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoen") AS client_count,
@@ -26992,7 +26992,7 @@ export class DatabaseStorage implements IStorage {
       FROM ventas.fact_ventas fv
       LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
       LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
-      WHERE fv."tido" != 'GDV'
+      WHERE fv."tido" = 'FCV'
         AND fv."nokofu" IS NOT NULL
         AND fv."nokofu" != ''
         AND fv."monto" IS NOT NULL
@@ -27064,13 +27064,13 @@ export class DatabaseStorage implements IStorage {
               pl."costo_produccion",
               0
             )
-            * (CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END)
+            * COALESCE(fv."caprco2", 0)
           ) AS cost,
-          SUM(CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0) ELSE COALESCE(fv."caprco2", 0) END) AS units_sold
+          SUM(COALESCE(fv."caprco2", 0)) AS units_sold
         FROM ventas.fact_ventas fv
         LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
         LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
-        WHERE fv."tido" != 'GDV'
+        WHERE fv."tido" = 'FCV'
           AND fv."nokoprct" IS NOT NULL
           AND fv."monto" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}

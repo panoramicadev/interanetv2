@@ -1,0 +1,58 @@
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist
+build
+client/dist
+.cache
+.parcel-cache
+.next
+.nuxt
+
+# Source control
+.git
+.gitignore
+.github
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+
+# Tests / coverage
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+__tests__
+
+# Claude / agents
+.claude
+.cursor
+.copilot
+
+# Docs / scratch
+*.md
+!README.md
+docs
+
+# Misc
+.eslintcache
+*.tsbuildinfo
+tmp
+temp

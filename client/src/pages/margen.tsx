@@ -223,8 +223,8 @@ export default function MargenPage() {
             Análisis de Margen
           </CardTitle>
           <p className="text-sm text-gray-500">
-            Margen comercial = (Venta neta − Costo promedio ponderado) sobre ventas reales
-            (excluye guías de despacho).
+            Margen comercial = (Precio efectivamente vendido en FCV − Costo de la lista) sobre el monto vendido.
+            Solo facturas de venta (FCV); no incluye notas de crédito ni guías de despacho.
           </p>
         </CardHeader>
         <CardContent>
