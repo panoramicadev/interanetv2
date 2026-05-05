@@ -59,7 +59,7 @@ import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
 import GastosEmpresarialesDashboard, { type DashboardExportHandle } from "./gastos-empresariales-dashboard";
-import GastosFilterBar from "@/components/gastos-filter-bar";
+import GastosFilterBarDashboard from "@/components/gastos-filter-bar-dashboard";
 
 const solicitarFondoSchema = z.object({
   monto: z.string().min(1, "El monto es requerido"),
@@ -136,6 +136,8 @@ export default function GastosEmpresariales() {
   const usuarioFilter = gastosFilter.usuarioFilter;
   const diaDesde = gastosFilter.diaDesde || '';
   const diaHasta = gastosFilter.diaHasta || '';
+  const vista = gastosFilter.vista || 'all';
+  const vistaValue = gastosFilter.vistaValue || '';
   const setMes = (v: string) => updateGastosFilter({ mes: v });
   const setAnio = (v: string) => updateGastosFilter({ anio: v });
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
@@ -263,7 +265,7 @@ export default function GastosEmpresariales() {
   };
 
   const { data: gastos = [], isLoading } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
       const params = new URLSearchParams();
@@ -272,6 +274,13 @@ export default function GastosEmpresariales() {
       if (usuarioFilter !== 'todos') params.append('userId', usuarioFilter);
       if (estadoFilter !== 'all') params.append('estado', estadoFilter);
       if (categoriaFilter !== 'all') params.append('categoria', categoriaFilter);
+      // Apply Vista (dashboard-style slice) on top of existing filters
+      if (vista !== 'all' && vistaValue) {
+        if (vista === 'segmento') params.append('segmentCode', vistaValue);
+        else if (vista === 'centroCostos') params.append('centroCostos', vistaValue);
+        else if (vista === 'categoria') params.set('categoria', vistaValue);
+        else if (vista === 'estado') params.set('estado', vistaValue);
+      }
 
       const response = await fetch(`/api/gastos-empresariales?${params}`, {
         credentials: 'include'
@@ -543,17 +552,7 @@ export default function GastosEmpresariales() {
           </TabsList>
 
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pt-3 pb-1 rounded-lg">
-            <GastosFilterBar
-              mes={mes}
-              setMes={setMes}
-              anio={anio}
-              setAnio={setAnio}
-              usuarioFilter={usuarioFilter}
-              setUsuarioFilter={setUsuarioFilter}
-              diaDesde={diaDesde}
-              setDiaDesde={setDiaDesde}
-              diaHasta={diaHasta}
-              setDiaHasta={setDiaHasta}
+            <GastosFilterBarDashboard
               actions={
                 <>
                   {activeMainTab === 'dashboard' && dashboardRef.current?.canExport && (

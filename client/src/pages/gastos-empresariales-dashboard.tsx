@@ -60,7 +60,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
-import GastosFilterBar from "@/components/gastos-filter-bar";
 
 // Configure PDF.js worker - using static file from public folder
 // This avoids dynamic import issues in production builds
@@ -344,6 +343,8 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
   const diaDesde = gastosFilter.diaDesde || '';
   const diaHasta = gastosFilter.diaHasta || '';
+  const vista = gastosFilter.vista || 'all';
+  const vistaValue = gastosFilter.vistaValue || '';
 
   const canExport = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
   const [estadoFilter, setEstadoFilter] = useState("todos");
@@ -359,13 +360,26 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     return { fechaDesde, fechaHasta };
   };
 
+  // Append the active "Vista" slice (segment / centro / categoría / estado)
+  // to a URL string. Used by every analytics request below.
+  const withVistaParams = (url: string): string => {
+    if (vista === 'all' || !vistaValue) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    if (vista === 'segmento') return `${url}${sep}segmentCode=${encodeURIComponent(vistaValue)}`;
+    if (vista === 'centroCostos') return `${url}${sep}centroCostos=${encodeURIComponent(vistaValue)}`;
+    if (vista === 'categoria') return `${url}${sep}categoria=${encodeURIComponent(vistaValue)}`;
+    if (vista === 'estado') return `${url}${sep}estado=${encodeURIComponent(vistaValue)}`;
+    return url;
+  };
+
   const { data: summary, isLoading: isLoadingSummary } = useQuery<GastosSummary>({
-    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/summary?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
+      url = withVistaParams(url);
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar resumen');
       return response.json();
@@ -373,12 +387,13 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: porCategoria = [], isLoading: isLoadingCategoria } = useQuery<GastosByCategoria[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-categoria?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
+      url = withVistaParams(url);
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por categoría');
       return response.json();
@@ -386,12 +401,13 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: porUsuario = [], isLoading: isLoadingUsuario } = useQuery<GastosByUser[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-usuario?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
+      url = withVistaParams(url);
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por usuario');
       return response.json();
@@ -400,12 +416,13 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
 
   const { data: porDia = [], isLoading: isLoadingDia } = useQuery<GastosByDia[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-dia?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
+      url = withVistaParams(url);
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por día');
       return response.json();
@@ -413,13 +430,14 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: gastosRecientes = [] } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
       let url = `/api/gastos-empresariales?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}&limit=500`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
+      url = withVistaParams(url);
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar gastos recientes');
       return response.json();
@@ -427,11 +445,19 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: fondosData = [] } = useQuery<FundAllocation[]>({
-    queryKey: ['/api/fund-allocations', mes, anio, usuarioFilter, diaDesde, diaHasta],
+    queryKey: ['/api/fund-allocations', mes, anio, usuarioFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       let url = `/api/fund-allocations?limit=500`;
       if (usuarioFilter !== 'todos') {
         url += `&assignedToId=${usuarioFilter}`;
+      }
+      // Fund allocations are filtered client-side by date below; vista
+      // (segmentCode / centroCostos) is also applied here so that the panel
+      // only shows funds matching the active slice.
+      if (vista === 'segmento' && vistaValue) {
+        url += `&segmentCode=${encodeURIComponent(vistaValue)}`;
+      } else if (vista === 'centroCostos' && vistaValue) {
+        url += `&centroCostos=${encodeURIComponent(vistaValue)}`;
       }
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar fondos');

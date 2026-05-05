@@ -25548,7 +25548,7 @@ Instrucciones extra:
   app.get('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { estado, fechaDesde, fechaHasta, categoria, userId, limit, offset } = req.query;
+      const { estado, fechaDesde, fechaHasta, categoria, segmentCode, centroCostos, userId, limit, offset } = req.query;
 
       const filters: any = {};
 
@@ -25564,6 +25564,8 @@ Instrucciones extra:
       if (fechaDesde) filters.fechaDesde = fechaDesde;
       if (fechaHasta) filters.fechaHasta = fechaHasta;
       if (categoria) filters.categoria = categoria;
+      if (segmentCode) filters.segmentCode = segmentCode;
+      if (centroCostos) filters.centroCostos = centroCostos;
       if (limit) filters.limit = parseInt(limit);
       if (offset) filters.offset = parseInt(offset);
 
@@ -26003,7 +26005,7 @@ Instrucciones extra:
   app.get('/api/gastos-empresariales/analytics/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { mes, anio, userId } = req.query;
+      const { mes, anio, userId, categoria, estado, segmentCode, centroCostos } = req.query;
 
       const filters: any = {};
 
@@ -26017,6 +26019,10 @@ Instrucciones extra:
 
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
+      if (categoria) filters.categoria = categoria;
+      if (estado) filters.estado = estado;
+      if (segmentCode) filters.segmentCode = segmentCode;
+      if (centroCostos) filters.centroCostos = centroCostos;
 
       const summary = await storage.getGastosEmpresarialesSummary(filters);
       res.json(summary);
@@ -26029,7 +26035,7 @@ Instrucciones extra:
   app.get('/api/gastos-empresariales/analytics/por-categoria', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { mes, anio, userId } = req.query;
+      const { mes, anio, userId, categoria, estado, segmentCode, centroCostos } = req.query;
 
       const filters: any = {};
 
@@ -26043,6 +26049,10 @@ Instrucciones extra:
 
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
+      if (categoria) filters.categoria = categoria;
+      if (estado) filters.estado = estado;
+      if (segmentCode) filters.segmentCode = segmentCode;
+      if (centroCostos) filters.centroCostos = centroCostos;
 
       const data = await storage.getGastosEmpresarialesByCategoria(filters);
       res.json(data);
@@ -26115,7 +26125,7 @@ Instrucciones extra:
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { mes, anio, userId } = req.query;
+      const { mes, anio, userId, categoria, estado, segmentCode, centroCostos } = req.query;
 
       const filters: any = {};
 
@@ -26132,6 +26142,10 @@ Instrucciones extra:
 
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
+      if (categoria) filters.categoria = categoria;
+      if (estado) filters.estado = estado;
+      if (segmentCode) filters.segmentCode = segmentCode;
+      if (centroCostos) filters.centroCostos = centroCostos;
 
       const data = await storage.getGastosEmpresarialesByUser(filters);
       res.json(data);
@@ -26144,7 +26158,7 @@ Instrucciones extra:
   app.get('/api/gastos-empresariales/analytics/por-dia', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { mes, anio, userId } = req.query;
+      const { mes, anio, userId, categoria, estado, segmentCode, centroCostos } = req.query;
 
       const filters: any = {};
 
@@ -26158,6 +26172,10 @@ Instrucciones extra:
 
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
+      if (categoria) filters.categoria = categoria;
+      if (estado) filters.estado = estado;
+      if (segmentCode) filters.segmentCode = segmentCode;
+      if (centroCostos) filters.centroCostos = centroCostos;
 
       const data = await storage.getGastosEmpresarialesByDia(filters);
       res.json(data);

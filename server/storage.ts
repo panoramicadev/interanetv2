@@ -1878,6 +1878,8 @@ export interface IStorage {
     fechaDesde?: string;
     fechaHasta?: string;
     categoria?: string;
+    segmentCode?: string;
+    centroCostos?: string;
     limit?: number;
     offset?: number;
   }): Promise<GastoEmpresarial[]>;
@@ -1900,6 +1902,10 @@ export interface IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<{
     totalGastos: number;
     totalAprobados: number;
@@ -1912,6 +1918,10 @@ export interface IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     categoria: string;
     total: number;
@@ -1920,6 +1930,11 @@ export interface IStorage {
   getGastosEmpresarialesByUser(filters?: {
     mes?: number;
     anio?: number;
+    userId?: string;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     userId: string;
     userName: string;
@@ -1934,6 +1949,10 @@ export interface IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     dia: string;
     total: number;
@@ -21683,6 +21702,8 @@ export class DatabaseStorage implements IStorage {
     fechaDesde?: string;
     fechaHasta?: string;
     categoria?: string;
+    segmentCode?: string;
+    centroCostos?: string;
     limit?: number;
     offset?: number;
   }): Promise<GastoEmpresarial[]> {
@@ -21714,6 +21735,14 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.categoria) {
       conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    }
+
+    if (filters?.segmentCode) {
+      conditions.push(eq(gastosEmpresariales.segmentCode, filters.segmentCode));
+    }
+
+    if (filters?.centroCostos) {
+      conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
     }
 
     if (conditions.length > 0) {
@@ -21905,6 +21934,10 @@ export class DatabaseStorage implements IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<{
     totalGastos: number;
     totalAprobados: number;
@@ -21929,6 +21962,11 @@ export class DatabaseStorage implements IStorage {
         sql`${gastosEmpresariales.createdAt} <= ${endDate}`
       );
     }
+
+    if (filters?.categoria) conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    if (filters?.estado) conditions.push(eq(gastosEmpresariales.estado, filters.estado));
+    if (filters?.segmentCode) conditions.push(eq(gastosEmpresariales.segmentCode, filters.segmentCode));
+    if (filters?.centroCostos) conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
 
     let query = db.select().from(gastosEmpresariales);
 
@@ -21973,6 +22011,10 @@ export class DatabaseStorage implements IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     categoria: string;
     total: number;
@@ -21995,6 +22037,11 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
+    if (filters?.categoria) conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    if (filters?.estado) conditions.push(eq(gastosEmpresariales.estado, filters.estado));
+    if (filters?.segmentCode) conditions.push(eq(gastosEmpresariales.segmentCode, filters.segmentCode));
+    if (filters?.centroCostos) conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
+
     const results = await db
       .select({
         categoria: gastosEmpresariales.categoria,
@@ -22015,6 +22062,11 @@ export class DatabaseStorage implements IStorage {
   async getGastosEmpresarialesByUser(filters?: {
     mes?: number;
     anio?: number;
+    userId?: string;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     userId: string;
     userName: string;
@@ -22034,6 +22086,12 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
+    if (filters?.userId) conditions.push(eq(gastosEmpresariales.userId, filters.userId));
+    if (filters?.categoria) conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    if (filters?.estado) conditions.push(eq(gastosEmpresariales.estado, filters.estado));
+    if (filters?.segmentCode) conditions.push(eq(gastosEmpresariales.segmentCode, filters.segmentCode));
+    if (filters?.centroCostos) conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
+
     const results = await db
       .select({
         userId: gastosEmpresariales.userId,
@@ -22044,7 +22102,7 @@ export class DatabaseStorage implements IStorage {
       .from(gastosEmpresariales)
       .leftJoin(users, eq(gastosEmpresariales.userId, users.id))
       .leftJoin(salespeopleUsers, eq(gastosEmpresariales.userId, salespeopleUsers.id))
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(gastosEmpresariales.userId, users.firstName, users.lastName, salespeopleUsers.salespersonName);
 
     return results.map(r => ({
@@ -22099,6 +22157,10 @@ export class DatabaseStorage implements IStorage {
     userId?: string;
     mes?: number;
     anio?: number;
+    categoria?: string;
+    estado?: string;
+    segmentCode?: string;
+    centroCostos?: string;
   }): Promise<Array<{
     dia: string;
     total: number;
@@ -22121,6 +22183,11 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
+    if (filters?.categoria) conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    if (filters?.estado) conditions.push(eq(gastosEmpresariales.estado, filters.estado));
+    if (filters?.segmentCode) conditions.push(eq(gastosEmpresariales.segmentCode, filters.segmentCode));
+    if (filters?.centroCostos) conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
+
     const results = await db
       .select({
         dia: sql<string>`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`,
@@ -22128,7 +22195,7 @@ export class DatabaseStorage implements IStorage {
         cantidad: sql<number>`COUNT(*)`,
       })
       .from(gastosEmpresariales)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(sql`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`)
       .orderBy(sql`SUM(${gastosEmpresariales.monto}) DESC`)
       .limit(10); // Top 10 días más gastados

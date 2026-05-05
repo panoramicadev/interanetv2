@@ -51,7 +51,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2, Pencil } from "lucide-react";
-import GastosFilterBar from "@/components/gastos-filter-bar";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),

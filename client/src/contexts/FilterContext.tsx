@@ -16,12 +16,24 @@ export interface GlobalFilter {
   value?: string;
 }
 
+export type GastosVista =
+  | "all"
+  | "usuario"
+  | "segmento"
+  | "categoria"
+  | "estado"
+  | "centroCostos";
+
 export interface GastosFilter {
   mes: string;
   anio: string;
   usuarioFilter: string;
   diaDesde?: string; // DD format, e.g. "1", "15"
   diaHasta?: string; // DD format, e.g. "31"
+  // Dashboard-style filter system applied to gastos
+  selection?: YearMonthSelection; // Period selector state
+  vista?: GastosVista;            // What to slice by
+  vistaValue?: string;            // Selected value for the slice
 }
 
 interface FilterContextType {
@@ -64,8 +76,78 @@ const getDefaultGastosFilter = (): GastosFilter => {
     usuarioFilter: "todos",
     diaDesde: firstDay,
     diaHasta: lastDay,
+    selection: {
+      years: [y],
+      period: "month",
+      months: [m + 1],
+      display: format(now, "MMMM yyyy"),
+    },
+    vista: "all",
+    vistaValue: "",
   };
 };
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Derive the legacy date-range fields (mes/anio/diaDesde/diaHasta) from a YearMonthSelection.
+// This keeps the existing backend queries unchanged when the user picks a period via the new selector.
+export function gastosDatesFromSelection(sel: YearMonthSelection): {
+  mes: string;
+  anio: string;
+  diaDesde: string;
+  diaHasta: string;
+} {
+  const now = new Date();
+  const year = sel.years?.[0] ?? now.getFullYear();
+
+  // custom-range: explicit start/end
+  if (sel.period === "custom-range" && sel.startDate && sel.endDate) {
+    const from = sel.startDate;
+    const to = sel.endDate;
+    return {
+      mes: String(from.getMonth() + 1),
+      anio: String(from.getFullYear()),
+      diaDesde: `${from.getFullYear()}-${pad2(from.getMonth() + 1)}-${pad2(from.getDate())}`,
+      diaHasta: `${to.getFullYear()}-${pad2(to.getMonth() + 1)}-${pad2(to.getDate())}`,
+    };
+  }
+
+  // full-year: 1-jan to 31-dec
+  if (sel.period === "full-year") {
+    return {
+      mes: "1",
+      anio: String(year),
+      diaDesde: `${year}-01-01`,
+      diaHasta: `${year}-12-31`,
+    };
+  }
+
+  // day / days: pick min/max day within the selected month
+  if ((sel.period === "day" || sel.period === "days") && sel.days && sel.days.length > 0) {
+    const month = sel.months?.[0] ?? now.getMonth() + 1;
+    const minDay = Math.min(...sel.days);
+    const maxDay = Math.max(...sel.days);
+    return {
+      mes: String(month),
+      anio: String(year),
+      diaDesde: `${year}-${pad2(month)}-${pad2(minDay)}`,
+      diaHasta: `${year}-${pad2(month)}-${pad2(maxDay)}`,
+    };
+  }
+
+  // month / months: span first day of min-month to last day of max-month
+  const months = sel.months && sel.months.length > 0 ? sel.months : [now.getMonth() + 1];
+  const minMonth = Math.min(...months);
+  const maxMonth = Math.max(...months);
+  const firstDay = new Date(year, minMonth - 1, 1);
+  const lastDay = new Date(year, maxMonth, 0);
+  return {
+    mes: String(minMonth),
+    anio: String(year),
+    diaDesde: `${year}-${pad2(minMonth)}-${pad2(firstDay.getDate())}`,
+    diaHasta: `${year}-${pad2(maxMonth)}-${pad2(lastDay.getDate())}`,
+  };
+}
 
 export function FilterProvider({ children }: { children: ReactNode }) {
   // Initialize from localStorage or defaults
@@ -113,7 +195,27 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_GASTOS_FILTER);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored) as GastosFilter;
+        // Backfill new fields for users that have an older persisted shape
+        if (!parsed.selection) {
+          const m = parseInt(parsed.mes || `${new Date().getMonth() + 1}`, 10);
+          const y = parseInt(parsed.anio || `${new Date().getFullYear()}`, 10);
+          parsed.selection = {
+            years: [y],
+            period: "month",
+            months: [m],
+            display: format(new Date(y, m - 1, 1), "MMMM yyyy"),
+          };
+        } else if (parsed.selection.startDate) {
+          // Revive Date objects for custom-range
+          parsed.selection.startDate = new Date(parsed.selection.startDate as any);
+          if (parsed.selection.endDate) {
+            parsed.selection.endDate = new Date(parsed.selection.endDate as any);
+          }
+        }
+        if (!parsed.vista) parsed.vista = "all";
+        if (parsed.vistaValue === undefined) parsed.vistaValue = "";
+        return parsed;
       }
     } catch (e) {
       console.error("Error loading gastos filter from localStorage:", e);
@@ -175,7 +277,19 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   };
 
   const updateGastosFilter = (partial: Partial<GastosFilter>) => {
-    setGastosFilterState(prev => ({ ...prev, ...partial }));
+    setGastosFilterState(prev => {
+      const next = { ...prev, ...partial };
+      // If selection was updated, derive the legacy date fields automatically.
+      // This keeps existing backend queries working without changes.
+      if (partial.selection) {
+        const dates = gastosDatesFromSelection(partial.selection);
+        next.mes = dates.mes;
+        next.anio = dates.anio;
+        next.diaDesde = dates.diaDesde;
+        next.diaHasta = dates.diaHasta;
+      }
+      return next;
+    });
   };
 
   const resetFilters = () => {
