@@ -1587,6 +1587,19 @@ export default function TiendaPage() {
                   Envío gratis sobre {freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
                 </span>
               )}
+              {(() => {
+                const pct = Number(config?.checkoutSettings?.shippingDiscountPercentage) || 0;
+                const min = Number(config?.checkoutSettings?.shippingDiscountMinAmount) || 0;
+                if (pct <= 0) return null;
+                return (
+                  <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                    <Truck className="h-3 w-3" />
+                    {min > 0
+                      ? `${pct}% dcto. envío sobre $${min.toLocaleString('es-CL')}`
+                      : `${pct}% dcto. envío`}
+                  </span>
+                );
+              })()}
               {topbarConfig?.customText?.visible && topbarConfig.customText.value && (
                 <span className="text-[#FF6E23] font-semibold flex items-center gap-1 text-center">
                   {topbarConfig.customText.value}
