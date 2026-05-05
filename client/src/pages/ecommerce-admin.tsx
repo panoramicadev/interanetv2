@@ -857,19 +857,29 @@ function CheckoutSettings() {
   });
 
   const [shippingDiscount, setShippingDiscount] = useState<number>(0);
+  const [shippingMinAmount, setShippingMinAmount] = useState<number>(0);
 
   React.useEffect(() => {
     if (config?.checkoutSettings?.shippingDiscountPercentage !== undefined) {
       setShippingDiscount(config.checkoutSettings.shippingDiscountPercentage);
     }
+    if (config?.checkoutSettings?.shippingDiscountMinAmount !== undefined) {
+      setShippingMinAmount(config.checkoutSettings.shippingDiscountMinAmount);
+    }
   }, [config]);
 
   const updateMutation = useMutation({
-    mutationFn: async (newDiscount: number) => {
+    mutationFn: async (payload: { discount: number; minAmount: number }) => {
       const res = await fetch('/api/ecommerce/store-config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkoutSettings: { ...config?.checkoutSettings, shippingDiscountPercentage: newDiscount } })
+        body: JSON.stringify({
+          checkoutSettings: {
+            ...config?.checkoutSettings,
+            shippingDiscountPercentage: payload.discount,
+            shippingDiscountMinAmount: payload.minAmount,
+          },
+        }),
       });
       if (!res.ok) throw new Error('Error saving shipping discount');
       return res.json();
@@ -882,6 +892,10 @@ function CheckoutSettings() {
 
   if (isLoading) return null;
 
+  const savedDiscount = config?.checkoutSettings?.shippingDiscountPercentage || 0;
+  const savedMinAmount = config?.checkoutSettings?.shippingDiscountMinAmount || 0;
+  const isDirty = shippingDiscount !== savedDiscount || shippingMinAmount !== savedMinAmount;
+
   return (
     <div className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 mb-6 w-full">
       <div className="flex items-center gap-3">
@@ -890,26 +904,39 @@ function CheckoutSettings() {
         </div>
         <div>
           <h3 className="font-semibold text-emerald-900 text-sm">Configuración de Checkout</h3>
-          <p className="text-xs text-emerald-700">Aplica descuentos automáticos para conceptos de envío en el carrito de compras</p>
+          <p className="text-xs text-emerald-700">
+            Aplica el descuento de envío solo cuando el subtotal (neto) del carrito alcanza el monto mínimo
+          </p>
         </div>
       </div>
       <div className="md:ml-auto flex items-end gap-3 bg-white p-3 rounded-lg shadow-sm w-full md:w-auto mt-2 md:mt-0">
-        <div className="flex flex-col gap-1 w-full md:w-32">
+        <div className="flex flex-col gap-1 w-full md:w-28">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Descto. Envío (%)</span>
-          <Input 
-            type="number" 
-            className="h-9 font-bold bg-gray-50 border-gray-200" 
-            value={shippingDiscount} 
-            onChange={(e) => setShippingDiscount(parseInt(e.target.value) || 0)} 
+          <Input
+            type="number"
+            className="h-9 font-bold bg-gray-50 border-gray-200"
+            value={shippingDiscount}
+            onChange={(e) => setShippingDiscount(parseInt(e.target.value) || 0)}
             min="0"
             max="100"
           />
         </div>
-        <Button 
-          size="sm" 
+        <div className="flex flex-col gap-1 w-full md:w-44">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Monto Mín. Neto ($)</span>
+          <Input
+            type="number"
+            className="h-9 font-bold bg-gray-50 border-gray-200"
+            value={shippingMinAmount}
+            onChange={(e) => setShippingMinAmount(parseInt(e.target.value) || 0)}
+            min="0"
+            placeholder="0 = sin mínimo"
+          />
+        </div>
+        <Button
+          size="sm"
           className="h-9 whitespace-nowrap bg-emerald-600 hover:bg-emerald-700"
-          onClick={() => updateMutation.mutate(shippingDiscount)}
-          disabled={updateMutation.isPending || shippingDiscount === (config?.checkoutSettings?.shippingDiscountPercentage || 0)}
+          onClick={() => updateMutation.mutate({ discount: shippingDiscount, minAmount: shippingMinAmount })}
+          disabled={updateMutation.isPending || !isDirty}
         >
           {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
         </Button>

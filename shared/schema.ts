@@ -2521,6 +2521,7 @@ export const storeConfig = pgTable("store_config", {
   }>(), // Códigos de tracking para catálogo público (solo admin)
   checkoutSettings: jsonb("checkout_settings").$type<{
     shippingDiscountPercentage?: number;
+    shippingDiscountMinAmount?: number; // Monto mínimo (neto) para aplicar el descuento de envío
   }>(), // Configuraciones del checkout y envíos
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),

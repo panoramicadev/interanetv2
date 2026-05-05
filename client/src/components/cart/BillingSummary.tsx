@@ -129,6 +129,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     queryKey: ['/api/ecommerce/store-config'],
   });
   const shippingDiscountPercent = storeConfig?.checkoutSettings?.shippingDiscountPercentage || 0;
+  const shippingDiscountMinAmount = storeConfig?.checkoutSettings?.shippingDiscountMinAmount || 0;
 
   // Fetch warehouses for pickup option
   const { data: warehouses = [] } = useQuery<Warehouse[]>({
@@ -426,8 +427,8 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       // downstream views can split "Subtotal Productos" vs "Subtotal Flete"
       // and the SKU (ZZFLETE001, etc.) matches the store config.
       if (deliveryMethod === 'despacho' && shippingCost > 0) {
-        const shippingFactor = Math.max(0, 1 - shippingDiscountPercent / 100);
-        const discountSuffix = shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : '';
+        const shippingFactor = Math.max(0, 1 - effectiveShippingDiscountPercent / 100);
+        const discountSuffix = effectiveShippingDiscountPercent > 0 ? ` (-${effectiveShippingDiscountPercent}%)` : '';
         shippingBreakdownMap.forEach((b, rateKey) => {
           const unitPrice = Math.round(b.cost * shippingFactor);
           if (unitPrice <= 0 || b.qty <= 0) return;
@@ -516,6 +517,10 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   // Calculate neto (subtotal without any discounts or taxes)
   const neto = state.subtotal;
 
+  // Shipping discount aplica solo si el neto del carrito alcanza el monto mínimo configurado
+  const shippingDiscountActive = shippingDiscountPercent > 0 && neto >= shippingDiscountMinAmount;
+  const effectiveShippingDiscountPercent = shippingDiscountActive ? shippingDiscountPercent : 0;
+
   // Aggregate branch (convenio) discount info from cart items.
   // Convenio discount is already applied to each item's unitPrice; we derive the
   // savings-vs-original purely for display in the billing breakdown.
@@ -553,13 +558,13 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const hasFreeShipping = hasCouponFreeShipping || (FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD);
   if (hasFreeShipping) {
     shippingCost = 0;
-  } else if (shippingDiscountPercent > 0) {
-    shippingCost = Math.round(shippingCost * (1 - shippingDiscountPercent / 100));
+  } else if (effectiveShippingDiscountPercent > 0) {
+    shippingCost = Math.round(shippingCost * (1 - effectiveShippingDiscountPercent / 100));
   }
 
   const shippingBreakdownText = Array.from(shippingBreakdownMap.values())
     .map(b => `${b.qty}x ${b.unit} a ${formatPrice(b.cost)}`)
-    .join(' + ') + (shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : "");
+    .join(' + ') + (effectiveShippingDiscountPercent > 0 ? ` (-${effectiveShippingDiscountPercent}%)` : "");
   
   // Calculate final subtotal after discounts
   const subtotalAfterDiscount = neto - state.discountAmount;
@@ -743,9 +748,14 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                     🎉 ¡Envío gratis aplicado!
                   </span>
                 )}
-                {!hasFreeShipping && shippingDiscountPercent > 0 && (
+                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && (
                   <span className="text-[10px] text-orange-600 font-bold mt-0.5">
-                     ¡Descuento de envío aplicado ({shippingDiscountPercent}%)!
+                     ¡Descuento de envío aplicado ({effectiveShippingDiscountPercent}%)!
+                  </span>
+                )}
+                {!hasFreeShipping && shippingDiscountPercent > 0 && !shippingDiscountActive && shippingDiscountMinAmount > 0 && (
+                  <span className="text-[10px] text-gray-500 mt-0.5">
+                    Te faltan {formatPrice(shippingDiscountMinAmount - neto)} para activar el {shippingDiscountPercent}% de descuento en envío
                   </span>
                 )}
                 {!hasFreeShipping && shippingBreakdownText && (
@@ -755,7 +765,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {!hasFreeShipping && shippingDiscountPercent > 0 && originalShippingCost > shippingCost && (
+                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && originalShippingCost > shippingCost && (
                   <span className="text-sm line-through text-gray-400">
                     {formatPrice(originalShippingCost)}
                   </span>

@@ -74,7 +74,7 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
     queryKey: ['/api/ecommerce/store-config'],
   });
   const shippingDiscountPercent = Number(storeConfig?.checkoutSettings?.shippingDiscountPercentage) || 0;
-  const shippingFactor = Math.max(0, 1 - shippingDiscountPercent / 100);
+  const shippingDiscountMinAmount = Number(storeConfig?.checkoutSettings?.shippingDiscountMinAmount) || 0;
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -84,6 +84,16 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
     setIsGenerating(true);
     try {
       const items = getOrderItems(order);
+
+      const productsSubtotal = items.reduce(
+        (sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity),
+        0,
+      );
+
+      // El descuento de envío solo aplica si el subtotal de productos alcanza el monto mínimo configurado
+      const shippingDiscountActive = shippingDiscountPercent > 0 && productsSubtotal >= shippingDiscountMinAmount;
+      const effectiveShippingDiscountPercent = shippingDiscountActive ? shippingDiscountPercent : 0;
+      const shippingFactor = Math.max(0, 1 - effectiveShippingDiscountPercent / 100);
 
       // One flete line per order item so each product's despacho is distinguishable.
       // Order items use `selectedPackaging` (or `productUnit`) to carry the unit
@@ -98,7 +108,7 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
           if (qty <= 0) return null;
           const baseUnitPrice = shippingRates[key];
           const unitPrice = Math.round(baseUnitPrice * shippingFactor);
-          const discountSuffix = shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : '';
+          const discountSuffix = effectiveShippingDiscountPercent > 0 ? ` (-${effectiveShippingDiscountPercent}%)` : '';
           return {
             key,
             sku: shippingSkus[key] || key,
@@ -109,10 +119,6 @@ export function EcommerceQuoteModal({ order, open, onOpenChange, onSuccess }: Ec
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
 
-      const productsSubtotal = items.reduce(
-        (sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity),
-        0,
-      );
       const shippingSubtotal = shippingLineItems.reduce((sum, s) => sum + s.unitPrice * s.qty, 0);
       const subtotal = productsSubtotal + shippingSubtotal;
       const tax = Math.round(subtotal * 0.19);
