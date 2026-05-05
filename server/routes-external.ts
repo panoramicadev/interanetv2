@@ -16,6 +16,7 @@ import {
   crmSeguimientoHitos,
   clients,
   salesTransactions,
+  pedidoBitacora,
 } from '@shared/schema';
 import { desc, eq, and, or, sql, ilike, inArray, getTableColumns } from 'drizzle-orm';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
@@ -557,6 +558,41 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: '{ nvvs[], clienteVinculado }' } },
       },
     },
+    '/crm/seguimiento/{id}/bitacora': {
+      get: {
+        operationId: 'listClienteBitacora',
+        summary: 'Lista entradas de la bitácora del cliente (panel derecho del seguimiento)',
+        description: 'Distinta del timeline de hitos. La bitácora es un cuaderno de notas internas (nota, llamada, visita, seguimiento, problema) sobre el cliente.',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'ID del cliente en seguimiento (CRM)' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100 } },
+        ],
+        responses: { '200': { description: 'Array de entradas ordenadas por createdAt desc' } },
+      },
+      post: {
+        operationId: 'addClienteBitacora',
+        summary: 'Agregar entrada a la bitácora del cliente (panel derecho del seguimiento)',
+        description: 'Inserta una nota en la bitácora del cliente CRM. Si el tipo es de contacto/seguimiento (cualquiera distinto de "problema"), también refresca ultimoContacto del registro CRM.',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'ID del cliente en seguimiento (CRM)' }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['nota'], properties: {
+          nota: { type: 'string', description: 'Texto de la entrada' },
+          tipo: { type: 'string', enum: ['nota', 'llamada', 'visita', 'seguimiento', 'problema'], default: 'nota' },
+          autor: { type: 'string', description: 'Nombre del autor (default: nombre asociado a la API key, sino "API")' },
+        } } } } },
+        responses: { '201': { description: 'Created' }, '404': { description: 'Cliente CRM no encontrado' } },
+      },
+    },
+    '/crm/seguimiento/{id}/bitacora/{entryId}': {
+      delete: {
+        operationId: 'deleteClienteBitacora',
+        summary: 'Eliminar una entrada de la bitácora del cliente',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'ID del cliente en seguimiento (CRM)' },
+          { name: 'entryId', in: 'path', required: true, schema: { type: 'string' }, description: 'ID de la entrada de bitácora' },
+        ],
+        responses: { '200': { description: 'OK' }, '404': { description: 'No encontrado' } },
+      },
+    },
     '/ecommerce/orders': {
       get: {
         summary: 'Lista pedidos eCommerce',
@@ -708,6 +744,9 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'POST /crm/seguimiento/:id/vincular-rut': { body: ['rut*'], note: 'Auto-busca y enlaza al cliente del ERP' },
       'GET /crm/seguimiento/:id/detectar-compras': { note: 'Devuelve últimas 20 ventas y crea hitos automáticos por documento nuevo' },
       'GET /crm/seguimiento/:id/nvv': { note: 'NVV y GDV del cliente vinculado (últimos 6 meses)' },
+      'GET /crm/seguimiento/:id/bitacora': { filters: ['limit'], note: 'Lista entradas de la BITÁCORA (panel derecho), distinta del timeline /hito' },
+      'POST /crm/seguimiento/:id/bitacora': { body: ['nota*', 'tipo (nota|llamada|visita|seguimiento|problema)', 'autor'], note: 'Refresca ultimoContacto del CRM' },
+      'DELETE /crm/seguimiento/:id/bitacora/:entryId': { note: 'Eliminar entrada' },
       'GET /crm/seguimiento/stats': { filters: ['vendedor'], note: '{ total, porEstado, porPrioridad, sinContacto7Dias }' },
       'GET /crm/seguimiento/segmentos': { note: 'Catálogo de segmentos del ERP' },
       'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
@@ -1630,6 +1669,91 @@ router.post('/crm/seguimiento/:id/hito', requireApiRole(['read_write', 'admin'])
     res.status(201).json(hito);
   } catch (error) {
     console.error('Error adding seguimiento hito:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento/:id/bitacora — List bitácora entries for a CRM client
+router.get('/crm/seguimiento/:id/bitacora', requireApiRole(['read_only', 'read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseLimit(req.query.limit, 100, 500);
+
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const entries = await db.select().from(pedidoBitacora)
+      .where(and(
+        eq(pedidoBitacora.documentoTipo, 'cliente'),
+        or(
+          eq(pedidoBitacora.documentoId, id),
+          existing.clienteId ? eq(pedidoBitacora.documentoId, existing.clienteId) : sql`false`,
+        )!,
+      ))
+      .orderBy(desc(pedidoBitacora.createdAt))
+      .limit(limit);
+
+    res.json(entries);
+  } catch (error) {
+    console.error('Error listing cliente bitacora:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /crm/seguimiento/:id/bitacora — Add bitácora entry to a CRM client
+router.post('/crm/seguimiento/:id/bitacora', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { nota, tipo, autor } = req.body || {};
+    if (!nota) return res.status(400).json({ error: 'nota is required' });
+
+    const validTipos = ['nota', 'llamada', 'visita', 'seguimiento', 'problema'];
+    const tipoFinal = tipo && validTipos.includes(tipo) ? tipo : 'nota';
+
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const [entry] = await db.insert(pedidoBitacora).values({
+      documentoTipo: 'cliente',
+      documentoId: id,
+      documentoNumero: existing.rut || null,
+      clienteNombre: existing.nombre || null,
+      clienteRut: existing.rut || null,
+      nota,
+      tipo: tipoFinal,
+      autorId: 'api',
+      autorNombre: apiAuthorFromKey(req, autor),
+    }).returning();
+
+    // Refresh ultimoContacto except for "problema" entries (informational only)
+    if (tipoFinal !== 'problema') {
+      await db.update(crmSeguimientoClientes)
+        .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+        .where(eq(crmSeguimientoClientes.id, id));
+    }
+
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error('Error adding cliente bitacora:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /crm/seguimiento/:id/bitacora/:entryId — Delete a bitácora entry
+router.delete('/crm/seguimiento/:id/bitacora/:entryId', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id, entryId } = req.params;
+    const [entry] = await db.select().from(pedidoBitacora)
+      .where(eq(pedidoBitacora.id, entryId)).limit(1);
+    if (!entry || entry.documentoTipo !== 'cliente' || entry.documentoId !== id) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    await db.delete(pedidoBitacora).where(eq(pedidoBitacora.id, entryId));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting cliente bitacora:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
