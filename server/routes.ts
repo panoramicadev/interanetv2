@@ -92,6 +92,7 @@ import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
 import { randomUUID } from "crypto";
+import { createSupabase } from "./supabase-client";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -811,8 +812,7 @@ export function registerRoutes(app: Express): Server {
 
       // Option 1: Supabase Storage (Railway deployment)
       if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
         const bucket = process.env.SUPABASE_STORAGE_BUCKET;
 
         const { data, error } = await supabase.storage
@@ -8562,8 +8562,7 @@ export function registerRoutes(app: Express): Server {
 
     // Upload to Supabase or local storage (same pattern as /api/upload)
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
       const bucket = process.env.SUPABASE_STORAGE_BUCKET;
 
       const { error } = await supabase.storage
@@ -16151,8 +16150,7 @@ export function registerRoutes(app: Express): Server {
     let supabase: any = null;
     let bucket = '';
     if (hasSupabase) {
-      const { createClient } = await import('@supabase/supabase-js');
-      supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+      supabase = await createSupabase(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
       bucket = process.env.SUPABASE_STORAGE_BUCKET!;
     }
 
@@ -16904,8 +16902,7 @@ export function registerRoutes(app: Express): Server {
 
         // Use Supabase Storage
         if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+          const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
           const bucket = process.env.SUPABASE_STORAGE_BUCKET;
 
           const { data, error } = await supabase.storage
@@ -25155,8 +25152,7 @@ export function registerRoutes(app: Express): Server {
 
       // Option 1: Supabase Storage (Railway deployment)
       if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
         const bucket = process.env.SUPABASE_STORAGE_BUCKET;
 
         const { data, error } = await supabase.storage
@@ -25275,8 +25271,7 @@ export function registerRoutes(app: Express): Server {
 
       // Option 1: Supabase Storage (Railway deployment)
       if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
         const bucket = process.env.SUPABASE_STORAGE_BUCKET;
 
         const { data, error } = await supabase.storage
