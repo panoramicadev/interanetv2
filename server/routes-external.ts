@@ -4,8 +4,20 @@ import { validateApiKey, requireApiRole, type ApiAuthRequest } from './middlewar
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { db } from './db';
-import { users, notifications, ecommerceOrders, salespeopleUsers, customPriceLists, customPriceListItems, priceList as priceListTable } from '@shared/schema';
-import { desc, eq, and, or, sql } from 'drizzle-orm';
+import {
+  users,
+  notifications,
+  ecommerceOrders,
+  salespeopleUsers,
+  customPriceLists,
+  customPriceListItems,
+  priceList as priceListTable,
+  crmSeguimientoClientes,
+  crmSeguimientoHitos,
+  clients,
+  salesTransactions,
+} from '@shared/schema';
+import { desc, eq, and, or, sql, ilike, inArray, getTableColumns } from 'drizzle-orm';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
 import { renderQuotePdf } from './utils/quote-pdf-renderer';
 import { signPdfToken } from './utils/pdf-signed-url';
@@ -420,6 +432,131 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'OK' } },
       },
     },
+    // Pipeline CRM — Seguimiento de Clientes (panel "/seguimiento-clientes")
+    // Estos endpoints dan control completo del panel: listar, crear, editar,
+    // borrar (soft), agregar hitos/notas, vincular RUT, detectar compras y
+    // consultar NVV/GDV pendientes.
+    '/crm/seguimiento': {
+      get: {
+        operationId: 'listSeguimientoClientes',
+        summary: 'Lista clientes en seguimiento del Pipeline CRM',
+        parameters: [
+          { name: 'vendedor', in: 'query', schema: { type: 'string' }, description: 'Filtra por vendedorId (salespeople_users.id)' },
+          { name: 'estado', in: 'query', schema: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'] } },
+          { name: 'prioridad', in: 'query', schema: { type: 'string', enum: ['baja', 'media', 'alta'] } },
+          { name: 'busqueda', in: 'query', schema: { type: 'string' }, description: 'Búsqueda por nombre/empresa/rut/email (ILIKE)' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/offset' },
+        ],
+        responses: { '200': { description: 'Array de clientes en seguimiento, enriquecido con datos del ERP (comuna, región, segmento, condición de pago, etc.)' } },
+      },
+      post: {
+        operationId: 'createSeguimientoCliente',
+        summary: 'Crear cliente en el pipeline de seguimiento',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['nombre', 'vendedorId'], properties: {
+            nombre: { type: 'string' },
+            vendedorId: { type: 'string', description: 'salespeople_users.id (resolver con GET /usuarios?source=salespeople)' },
+            telefono: { type: 'string' }, email: { type: 'string' }, empresa: { type: 'string' }, rut: { type: 'string' },
+            estado: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'], default: 'cotizacion' },
+            prioridad: { type: 'string', enum: ['baja', 'media', 'alta'], default: 'media' },
+            origen: { type: 'string', enum: ['manual', 'referido', 'web', 'llamada'], default: 'manual' },
+            notas: { type: 'string' }, montoEstimado: { type: 'number' },
+            proximoContacto: { type: 'string', format: 'date-time' },
+            region: { type: 'string' }, comuna: { type: 'string' },
+            contactoEncargado: { type: 'string' }, segmento: { type: 'string' }, condicionPago: { type: 'string' },
+            destacado: { type: 'boolean' },
+          } } } },
+        },
+        responses: { '201': { description: 'Created — Si se entrega RUT, intenta vincular automáticamente al cliente del ERP' } },
+      },
+    },
+    '/crm/seguimiento/stats': {
+      get: {
+        operationId: 'getSeguimientoStats',
+        summary: 'Estadísticas del pipeline (total, por estado, por prioridad, sin contacto >7 días)',
+        parameters: [{ name: 'vendedor', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: '{ total, porEstado, porPrioridad, sinContacto7Dias }' } },
+      },
+    },
+    '/crm/seguimiento/segmentos': {
+      get: {
+        operationId: 'listSeguimientoSegmentos',
+        summary: 'Catálogo de segmentos disponibles (ventas.stg_tabru)',
+        responses: { '200': { description: 'Array de { code, name }' } },
+      },
+    },
+    '/crm/seguimiento/{id}': {
+      get: {
+        operationId: 'getSeguimientoCliente',
+        summary: 'Detalle del cliente + hitos (timeline)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Cliente con campos enriquecidos del ERP y array hitos[]' }, '404': { description: 'No encontrado' } },
+      },
+      patch: {
+        operationId: 'updateSeguimientoCliente',
+        summary: 'Actualizar cliente (estado, prioridad, vendedor, destacado, notas, próximo contacto, etc.)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: {
+          nombre: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, empresa: { type: 'string' },
+          estado: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'] },
+          prioridad: { type: 'string', enum: ['baja', 'media', 'alta'] },
+          notas: { type: 'string' }, montoEstimado: { type: 'number' },
+          origen: { type: 'string' }, proximoContacto: { type: 'string', format: 'date-time' },
+          region: { type: 'string' }, comuna: { type: 'string' }, contactoEncargado: { type: 'string' },
+          segmento: { type: 'string' }, condicionPago: { type: 'string' }, destacado: { type: 'boolean' },
+          vendedorId: { type: 'string', description: 'salespeople_users.id — reasignar vendedor' },
+        } } } } },
+        responses: { '200': { description: 'OK — Genera hito automático "sistema" si cambia estado o vendedor' }, '404': { description: 'No encontrado' } },
+      },
+      delete: {
+        operationId: 'deleteSeguimientoCliente',
+        summary: 'Eliminar cliente del pipeline (soft delete: active=false)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'No encontrado' } },
+      },
+    },
+    '/crm/seguimiento/{id}/hito': {
+      post: {
+        operationId: 'addSeguimientoHito',
+        summary: 'Agregar hito al timeline (nota, llamada, visita, cotización, venta, etc.)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['tipo', 'descripcion'], properties: {
+          tipo: { type: 'string', enum: ['contacto', 'llamada', 'cotizacion', 'visita', 'venta', 'despacho', 'nota', 'sistema'] },
+          descripcion: { type: 'string' },
+          documentoTipo: { type: 'string', enum: ['nvv', 'gdv', 'factura', 'cotizacion'] },
+          documentoNumero: { type: 'string' },
+          autor: { type: 'string', description: 'Nombre del autor del hito (default: "API")' },
+        } } } } },
+        responses: { '201': { description: 'Created — Tipos contacto/llamada/cotizacion/visita/venta actualizan ultimoContacto' } },
+      },
+    },
+    '/crm/seguimiento/{id}/vincular-rut': {
+      post: {
+        operationId: 'linkSeguimientoRut',
+        summary: 'Vincular un RUT al cliente del pipeline (auto-busca el cliente del ERP)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['rut'], properties: { rut: { type: 'string' } } } } } },
+        responses: { '200': { description: 'Cliente actualizado + clienteVinculado (datos del ERP) si se encontró' } },
+      },
+    },
+    '/crm/seguimiento/{id}/detectar-compras': {
+      get: {
+        operationId: 'detectSeguimientoCompras',
+        summary: 'Buscar últimas 20 ventas del cliente vinculado y crear hitos automáticos por documento nuevo',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: '{ compras[], nuevosHitosCreados, clienteVinculado }' } },
+      },
+    },
+    '/crm/seguimiento/{id}/nvv': {
+      get: {
+        operationId: 'getSeguimientoNvv',
+        summary: 'Notas de venta y guías de despacho del cliente vinculado (últimos 6 meses)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: '{ nvvs[], clienteVinculado }' } },
+      },
+    },
     '/ecommerce/orders': {
       get: {
         summary: 'Lista pedidos eCommerce',
@@ -561,6 +698,18 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'POST /crm/leads': { body: ['clientName*', 'salespersonId*', 'clientPhone', 'clientEmail', 'clientType', 'estimatedValue', 'notes', 'stage', 'segment'] },
       'PATCH /crm/leads/:id': { body: ['stage', 'notes', '...'] },
       'DELETE /crm/leads/:id': {},
+      // Pipeline panel "Seguimiento de Clientes" (control total)
+      'GET /crm/seguimiento': { filters: ['vendedor (vendedorId)', 'estado (nuevo|contactado|cotizacion|venta|despacho|completado|perdido)', 'prioridad (baja|media|alta)', 'busqueda (nombre|empresa|rut|email)', 'limit', 'offset'] },
+      'POST /crm/seguimiento': { body: ['nombre*', 'vendedorId*', 'telefono', 'email', 'empresa', 'rut', 'estado', 'prioridad', 'origen', 'notas', 'montoEstimado', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado'], note: 'Si se entrega rut, vincula automáticamente al cliente del ERP' },
+      'GET /crm/seguimiento/:id': { note: 'Detalle + hitos[] (timeline)' },
+      'PATCH /crm/seguimiento/:id': { body: ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado', 'vendedorId'], note: 'Cambios de estado/vendedor generan hitos automáticos' },
+      'DELETE /crm/seguimiento/:id': { note: 'Soft delete (active=false)' },
+      'POST /crm/seguimiento/:id/hito': { body: ['tipo* (contacto|llamada|cotizacion|visita|venta|despacho|nota|sistema)', 'descripcion*', 'documentoTipo', 'documentoNumero', 'autor'] },
+      'POST /crm/seguimiento/:id/vincular-rut': { body: ['rut*'], note: 'Auto-busca y enlaza al cliente del ERP' },
+      'GET /crm/seguimiento/:id/detectar-compras': { note: 'Devuelve últimas 20 ventas y crea hitos automáticos por documento nuevo' },
+      'GET /crm/seguimiento/:id/nvv': { note: 'NVV y GDV del cliente vinculado (últimos 6 meses)' },
+      'GET /crm/seguimiento/stats': { filters: ['vendedor'], note: '{ total, porEstado, porPrioridad, sinContacto7Dias }' },
+      'GET /crm/seguimiento/segmentos': { note: 'Catálogo de segmentos del ERP' },
       'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
       'GET /listas-precio': { note: 'lists LP01 (base) + custom price lists (LP02 Mix, LP03 etc)' },
       'GET /listas-precio/:code/productos': { filters: ['search', 'limit', 'offset'], note: 'products with prices for that specific list' },
@@ -1156,6 +1305,478 @@ router.delete('/crm/leads/:id', requireApiRole(['read_write', 'admin']), async (
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting CRM lead:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// CRM Seguimiento de Clientes (Pipeline) — Read & Write
+// Mirrors the internal /api/crm/seguimiento/* endpoints used by the
+// "Seguimiento de Clientes" panel. Authentication uses X-API-Key (no
+// per-user role filtering — every API key with the right permission can
+// see/edit all active rows).
+// ============================================
+
+const SEGUIMIENTO_ALLOWED_FIELDS = [
+  'nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas',
+  'montoEstimado', 'origen', 'proximoContacto', 'region', 'comuna',
+  'contactoEncargado', 'segmento', 'condicionPago', 'destacado',
+] as const;
+
+// Author identity to stamp on system-generated milestones from API calls.
+// We use the API key name so the audit trail shows which integration acted.
+const apiAuthorFromKey = (req: ApiAuthRequest, fallback?: string) =>
+  fallback || (req.apiKey?.name ? `API: ${req.apiKey.name}` : 'API');
+
+// GET /crm/seguimiento/segmentos — Catálogo de segmentos del ERP
+router.get('/crm/seguimiento/segmentos', async (_req: ApiAuthRequest, res) => {
+  try {
+    const result = await db.execute(sql`SELECT koru, nokoru FROM ventas.stg_tabru ORDER BY nokoru`);
+    const segmentos = (result.rows || []).map((r: any) => ({ code: r.koru, name: r.nokoru }));
+    res.json(segmentos);
+  } catch (error) {
+    console.error('Error fetching seguimiento segmentos:', error);
+    res.json([]);
+  }
+});
+
+// GET /crm/seguimiento/stats — Pipeline statistics
+router.get('/crm/seguimiento/stats', async (req: ApiAuthRequest, res) => {
+  try {
+    const vendedorFilter = req.query.vendedor as string | undefined;
+    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+    if (vendedorFilter) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
+    }
+
+    const allClients = await db.select().from(crmSeguimientoClientes).where(and(...conditions));
+
+    const porEstado: Record<string, number> = {};
+    const porPrioridad: Record<string, number> = {};
+    let sinContacto7Dias = 0;
+    const ahora = Date.now();
+
+    for (const c of allClients) {
+      porEstado[c.estado] = (porEstado[c.estado] || 0) + 1;
+      porPrioridad[c.prioridad] = (porPrioridad[c.prioridad] || 0) + 1;
+      if (c.ultimoContacto) {
+        const diffDays = (ahora - new Date(c.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays > 7) sinContacto7Dias++;
+      } else {
+        sinContacto7Dias++;
+      }
+    }
+
+    res.json({ total: allClients.length, porEstado, porPrioridad, sinContacto7Dias });
+  } catch (error) {
+    console.error('Error fetching seguimiento stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento — List tracked clients (enriched with ERP data)
+router.get('/crm/seguimiento', async (req: ApiAuthRequest, res) => {
+  try {
+    const { vendedor, estado, prioridad, busqueda } = req.query;
+    const lim = parseLimit(req.query.limit, 100);
+    const off = parseOffset(req.query.offset);
+
+    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+    if (vendedor) conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
+    if (estado) conditions.push(eq(crmSeguimientoClientes.estado, estado as string));
+    if (prioridad) conditions.push(eq(crmSeguimientoClientes.prioridad, prioridad as string));
+    if (busqueda) {
+      const search = `%${busqueda}%`;
+      conditions.push(or(
+        ilike(crmSeguimientoClientes.nombre, search),
+        ilike(crmSeguimientoClientes.empresa, search),
+        ilike(crmSeguimientoClientes.rut, search),
+        ilike(crmSeguimientoClientes.email, search),
+      )!);
+    }
+
+    const results = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        ciudad: clients.cmen,
+        ultimaCompraDate: clients.feultr,
+        linkedComuna: clients.comuna,
+        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region'),
+        linkedCpen: clients.cpen,
+        linkedFoen: clients.foen,
+        linkedRuen: clients.ruen,
+        linkedSegmento: sql<string>`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`.as('linked_segmento'),
+      })
+      .from(crmSeguimientoClientes)
+      .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
+      .where(and(...conditions))
+      .orderBy(desc(crmSeguimientoClientes.updatedAt))
+      .limit(lim)
+      .offset(off);
+
+    res.json(results);
+  } catch (error) {
+    console.error('Error listing seguimiento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento/:id — Detail with milestones
+router.get('/crm/seguimiento/:id', async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [cliente] = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        ciudad: clients.cmen,
+        linkedComuna: clients.comuna,
+        linkedCpen: clients.cpen,
+        linkedFoen: clients.foen,
+        linkedRuen: clients.ruen,
+        linkedNokoen: clients.nokoen,
+      })
+      .from(crmSeguimientoClientes)
+      .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!cliente) return res.status(404).json({ error: 'Not found' });
+
+    const hitos = await db.select()
+      .from(crmSeguimientoHitos)
+      .where(eq(crmSeguimientoHitos.seguimientoId, id))
+      .orderBy(desc(crmSeguimientoHitos.createdAt));
+
+    res.json({ ...cliente, hitos });
+  } catch (error) {
+    console.error('Error fetching seguimiento detail:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /crm/seguimiento — Create tracked client
+router.post('/crm/seguimiento', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const body = req.body || {};
+
+    if (!body.nombre) return res.status(400).json({ error: 'nombre is required' });
+    if (!body.vendedorId) return res.status(400).json({ error: 'vendedorId is required' });
+
+    // Resolve vendedor to denormalize the name (matches internal POST behavior)
+    const [vendedor] = await db.select().from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, body.vendedorId)).limit(1);
+    if (!vendedor) return res.status(400).json({ error: 'vendedorId not found in salespeople_users' });
+
+    // If RUT provided, try to link to ERP client
+    let clienteId: string | null = null;
+    if (body.rut) {
+      const [existingClient] = await db.select().from(clients)
+        .where(eq(clients.rten, body.rut)).limit(1);
+      if (existingClient) clienteId = existingClient.id;
+    }
+
+    const [created] = await db.insert(crmSeguimientoClientes).values({
+      nombre: body.nombre,
+      telefono: body.telefono || null,
+      email: body.email || null,
+      empresa: body.empresa || null,
+      rut: body.rut || null,
+      vendedorId: vendedor.id,
+      vendedorNombre: vendedor.salespersonName,
+      estado: body.estado || 'cotizacion',
+      prioridad: body.prioridad || 'media',
+      notas: body.notas || null,
+      proximoContacto: body.proximoContacto ? new Date(body.proximoContacto) : null,
+      montoEstimado: body.montoEstimado != null ? String(body.montoEstimado) : null,
+      origen: body.origen || 'manual',
+      region: body.region || null,
+      comuna: body.comuna || null,
+      contactoEncargado: body.contactoEncargado || null,
+      segmento: body.segmento || null,
+      condicionPago: body.condicionPago || null,
+      destacado: body.destacado === true,
+      clienteId,
+      ultimoContacto: new Date(),
+    }).returning();
+
+    // Initial milestone — same convention as the internal endpoint
+    const autorNombre = apiAuthorFromKey(req, body.autor);
+    await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: created.id,
+      tipo: 'nota',
+      descripcion: `Cliente creado vía API. ${body.notas ? 'Nota: ' + body.notas : ''}`.trim(),
+      autorId: 'api',
+      autorNombre,
+    });
+
+    res.status(201).json(created);
+  } catch (error) {
+    console.error('Error creating seguimiento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /crm/seguimiento/:id — Update tracked client
+router.patch('/crm/seguimiento/:id', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const updateData: any = { updatedAt: new Date() };
+    for (const field of SEGUIMIENTO_ALLOWED_FIELDS) {
+      if (req.body?.[field] !== undefined) {
+        if (field === 'proximoContacto' && req.body[field]) {
+          updateData[field] = new Date(req.body[field]);
+        } else if (field === 'montoEstimado' && req.body[field] != null) {
+          updateData[field] = String(req.body[field]);
+        } else {
+          updateData[field] = req.body[field];
+        }
+      }
+    }
+
+    // Vendedor reassignment — resolve and denormalize the name + log a milestone
+    if (req.body?.vendedorId && req.body.vendedorId !== existing.vendedorId) {
+      const [newVendedor] = await db.select().from(salespeopleUsers)
+        .where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
+      if (!newVendedor) return res.status(400).json({ error: 'vendedorId not found in salespeople_users' });
+
+      updateData.vendedorId = newVendedor.id;
+      updateData.vendedorNombre = newVendedor.salespersonName;
+
+      await db.insert(crmSeguimientoHitos).values({
+        seguimientoId: id,
+        tipo: 'sistema',
+        descripcion: `Vendedor reasignado de "${existing.vendedorNombre}" a "${newVendedor.salespersonName}"`,
+        autorId: 'api',
+        autorNombre: apiAuthorFromKey(req),
+      });
+    }
+
+    // Log estado change as a system milestone
+    if (req.body?.estado && req.body.estado !== existing.estado) {
+      await db.insert(crmSeguimientoHitos).values({
+        seguimientoId: id,
+        tipo: 'sistema',
+        descripcion: `Estado cambiado de "${existing.estado}" a "${req.body.estado}"`,
+        autorId: 'api',
+        autorNombre: apiAuthorFromKey(req),
+      });
+    }
+
+    const [updated] = await db.update(crmSeguimientoClientes)
+      .set(updateData)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating seguimiento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /crm/seguimiento/:id — Soft delete (active=false)
+router.delete('/crm/seguimiento/:id', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    await db.update(crmSeguimientoClientes)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(crmSeguimientoClientes.id, id));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting seguimiento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /crm/seguimiento/:id/hito — Add timeline milestone
+router.post('/crm/seguimiento/:id/hito', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const { tipo, descripcion, documentoTipo, documentoNumero, autor } = req.body || {};
+    if (!tipo || !descripcion) {
+      return res.status(400).json({ error: 'tipo and descripcion are required' });
+    }
+
+    const [hito] = await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: id,
+      tipo,
+      descripcion,
+      autorId: 'api',
+      autorNombre: apiAuthorFromKey(req, autor),
+      documentoTipo: documentoTipo || null,
+      documentoNumero: documentoNumero || null,
+      autoDetectado: false,
+    }).returning();
+
+    // Match internal logic: refresh ultimoContacto for outbound interaction types
+    const contactTypes = ['contacto', 'llamada', 'cotizacion', 'visita', 'venta'];
+    if (contactTypes.includes(tipo)) {
+      await db.update(crmSeguimientoClientes)
+        .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+        .where(eq(crmSeguimientoClientes.id, id));
+    }
+
+    res.status(201).json(hito);
+  } catch (error) {
+    console.error('Error adding seguimiento hito:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /crm/seguimiento/:id/vincular-rut — Link RUT to ERP client
+router.post('/crm/seguimiento/:id/vincular-rut', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { rut } = req.body || {};
+    if (!rut) return res.status(400).json({ error: 'rut is required' });
+
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const [linkedClient] = await db.select().from(clients)
+      .where(eq(clients.rten, rut)).limit(1);
+
+    const updateData: any = { rut, updatedAt: new Date() };
+    if (linkedClient) updateData.clienteId = linkedClient.id;
+
+    const [updated] = await db.update(crmSeguimientoClientes)
+      .set(updateData)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .returning();
+
+    await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: id,
+      tipo: 'sistema',
+      descripcion: linkedClient
+        ? `RUT ${rut} vinculado. Cliente encontrado: ${linkedClient.nokoen || 'Sin nombre'}`
+        : `RUT ${rut} asociado. No se encontró cliente en la base de datos de ventas.`,
+      autorId: 'api',
+      autorNombre: apiAuthorFromKey(req),
+      autoDetectado: false,
+    });
+
+    res.json({ ...updated, clienteVinculado: linkedClient || null });
+  } catch (error) {
+    console.error('Error linking RUT:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento/:id/detectar-compras — Discover recent purchases for the linked RUT
+router.get('/crm/seguimiento/:id/detectar-compras', async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+
+    if (!existing || !existing.rut) return res.json({ compras: [], message: 'Sin RUT asociado' });
+
+    const [linkedClient] = await db.select().from(clients)
+      .where(eq(clients.rten, existing.rut)).limit(1);
+    if (!linkedClient) return res.json({ compras: [], message: 'Cliente no encontrado en base de datos de ventas' });
+
+    const recentSales = await db.select({
+      id: salesTransactions.id,
+      nudo: salesTransactions.nudo,
+      feemdo: salesTransactions.feemdo,
+      tido: salesTransactions.tido,
+      nokoprct: salesTransactions.nokoprct,
+      nokoen: salesTransactions.nokoen,
+      vanedo: salesTransactions.vanedo,
+      eslido: salesTransactions.eslido,
+    })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, linkedClient.nokoen!))
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(20);
+
+    // Auto-create one milestone per new document (mirrors the internal endpoint)
+    const existingAutoHitos = await db.select().from(crmSeguimientoHitos)
+      .where(and(
+        eq(crmSeguimientoHitos.seguimientoId, id),
+        eq(crmSeguimientoHitos.autoDetectado, true),
+      ));
+    const existingDocNumbers = new Set(existingAutoHitos.map(h => h.documentoNumero).filter(Boolean));
+
+    let newHitosCreated = 0;
+    for (const sale of recentSales) {
+      if (sale.nudo && !existingDocNumbers.has(sale.nudo)) {
+        const docTipo = sale.tido || 'factura';
+        await db.insert(crmSeguimientoHitos).values({
+          seguimientoId: id,
+          tipo: 'sistema',
+          descripcion: `Documento detectado: ${docTipo} #${sale.nudo} — ${sale.nokoprct || 'Sin producto'} — $${sale.vanedo || '0'}`,
+          autorId: 'sistema',
+          autorNombre: 'Sistema Automático',
+          documentoTipo: docTipo,
+          documentoNumero: sale.nudo,
+          autoDetectado: true,
+        });
+        newHitosCreated++;
+        existingDocNumbers.add(sale.nudo);
+      }
+    }
+
+    if (newHitosCreated > 0 && existing.estado === 'nuevo') {
+      await db.update(crmSeguimientoClientes)
+        .set({ estado: 'contactado', updatedAt: new Date() })
+        .where(eq(crmSeguimientoClientes.id, id));
+    }
+
+    res.json({ compras: recentSales, nuevosHitosCreados: newHitosCreated, clienteVinculado: linkedClient });
+  } catch (error) {
+    console.error('Error detecting compras:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento/:id/nvv — NVV/GDV pendientes del cliente vinculado
+router.get('/crm/seguimiento/:id/nvv', async (req: ApiAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await db.select().from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id)).limit(1);
+    if (!existing || !existing.rut) return res.json({ nvvs: [], message: 'Sin RUT asociado' });
+
+    const [linkedClient] = await db.select().from(clients)
+      .where(eq(clients.rten, existing.rut)).limit(1);
+    if (!linkedClient) return res.json({ nvvs: [], message: 'Cliente no encontrado en base de datos de ventas' });
+
+    const nvvSales = await db.select({
+      id: salesTransactions.id,
+      nudo: salesTransactions.nudo,
+      feemdo: salesTransactions.feemdo,
+      tido: salesTransactions.tido,
+      nokoprct: salesTransactions.nokoprct,
+      nokoen: salesTransactions.nokoen,
+      vanedo: salesTransactions.vanedo,
+      eslido: salesTransactions.eslido,
+      nokofu: salesTransactions.nokofu,
+    })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokoen, linkedClient.nokoen!),
+        inArray(salesTransactions.tido, ['NVV', 'GDV']),
+        sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '6 months'`,
+      ))
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(100);
+
+    res.json({ nvvs: nvvSales, clienteVinculado: linkedClient });
+  } catch (error) {
+    console.error('Error fetching seguimiento NVV:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
