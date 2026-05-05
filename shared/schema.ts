@@ -15,6 +15,7 @@ import {
   uniqueIndex,
   primaryKey,
   pgSchema,
+  bigserial,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1792,6 +1793,39 @@ export const priceList = pgTable("price_list", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// GRI Prices Cache: último costo unitario por SKU desde la última GRI (Bodega 006).
+// Se sobreescribe en cada corrida del ETL Costos. Source of truth para joins
+// rápidos de margen.
+export const griPricesCache = pgTable("gri_prices_cache", {
+  sku: varchar("sku", { length: 100 }).primaryKey(),
+  price: numeric("price", { precision: 18, scale: 6 }).notNull(),
+  fecha: date("fecha"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  ixSku: index("ix_gri_prices_cache_sku").on(table.sku),
+}));
+
+export type GriPriceCache = typeof griPricesCache.$inferSelect;
+export type InsertGriPriceCache = typeof griPricesCache.$inferInsert;
+
+// GRI Price History: append-only. Cada vez que el ETL Costos detecta un cambio
+// de precio respecto al snapshot anterior, agrega una fila nueva. Se usa para
+// pivotar (sku × snapshot_at) y mostrar la evolución del costo.
+export const griPriceHistory = pgTable("gri_price_history", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  sku: varchar("sku", { length: 100 }).notNull(),
+  snapshotAt: timestamp("snapshot_at").notNull().defaultNow(),
+  price: numeric("price", { precision: 18, scale: 6 }).notNull(),
+  fecha: date("fecha"),
+  executionId: varchar("execution_id", { length: 100 }),
+}, (table) => ({
+  ixSku: index("ix_gri_price_history_sku").on(table.sku),
+  ixSnapshot: index("ix_gri_price_history_snapshot").on(table.snapshotAt),
+}));
+
+export type GriPriceHistory = typeof griPriceHistory.$inferSelect;
+export type InsertGriPriceHistory = typeof griPriceHistory.$inferInsert;
 
 // Segment Average Prices - Precios promedio por segmento (Ferretería/Construcción)
 export const segmentAveragePrices = pgTable("segment_average_prices", {
