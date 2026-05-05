@@ -13266,7 +13266,7 @@ export function registerRoutes(app: Express): Server {
       const recipient = recipientEmail || 'fparra@pinturaspanoramica.cl';
       const cc = ccList.join(', ') || undefined;
       const subjectParts = [
-        `Cotización ${quote.quoteNumber}`,
+        `Nuevo pedido ${quote.quoteNumber}`,
         quote.clientName,
         ocNumber ? `OC ${ocNumber}` : null,
         segment ? `[${segment}]` : null,
@@ -13349,7 +13349,11 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      await emailService.sendEmail({ to: recipient, cc, subject, html, attachments });
+      // Sender: use shared "Contacto" mailbox so the email arrives a nombre de contacto.
+      // We keep replyTo=vendor so the recipient still replies directly to the salesperson.
+      const fromAddress = `"Contacto Pinturas Panorámica" <contacto@pinturaspanoramica.cl>`;
+      const replyTo = senderEmail || undefined;
+      await emailService.sendEmail({ to: recipient, cc, subject, html, attachments, from: fromAddress, replyTo });
 
       // Persist send metadata + status="sent" so it appears in reception panel
       try {
@@ -16131,6 +16135,56 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Build a banner uploader that picks Supabase, Replit ObjStore, or local
+  // filesystem depending on which env vars are configured. Mirrors the 3-tier
+  // fallback used by /api/upload (line ~805) so banners no longer crash on
+  // environments without Supabase credentials.
+  async function buildBannerUploader() {
+    const path = await import('path');
+    const hasSupabase = !!(
+      process.env.SUPABASE_URL &&
+      process.env.SUPABASE_SERVICE_KEY &&
+      process.env.SUPABASE_STORAGE_BUCKET
+    );
+    const hasReplitObjStore = !!process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+
+    let supabase: any = null;
+    let bucket = '';
+    if (hasSupabase) {
+      const { createClient } = await import('@supabase/supabase-js');
+      supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+      bucket = process.env.SUPABASE_STORAGE_BUCKET!;
+    }
+
+    return async (file: Express.Multer.File, prefix: string): Promise<string> => {
+      const fileExtension = path.extname(file.originalname);
+      const fileName = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
+      const objectPath = `banners/${fileName}`;
+
+      if (hasSupabase) {
+        const { error } = await supabase.storage.from(bucket).upload(objectPath, file.buffer, {
+          contentType: file.mimetype || 'image/png',
+          upsert: false,
+        });
+        if (error) throw error;
+        const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+        return data.publicUrl;
+      }
+
+      if (hasReplitObjStore) {
+        const objectStorageService = new ObjectStorageService();
+        return await objectStorageService.uploadImage(objectPath, file.buffer, file.mimetype);
+      }
+
+      const fs = await import('fs');
+      const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const localFileName = `banner_${fileName}`;
+      fs.writeFileSync(path.join(uploadsDir, localFileName), file.buffer);
+      return `/api/uploads/${localFileName}`;
+    };
+  }
+
   // Create banner with image upload
   app.post('/api/ecommerce/admin/banners',
     requireAuth,
@@ -16142,22 +16196,7 @@ export function registerRoutes(app: Express): Server {
     asyncHandler(async (req: any, res: any) => {
       try {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-        const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
-
-        const uploadBanner = async (file: Express.Multer.File, prefix: string) => {
-          const path = await import('path');
-          const fileExtension = path.extname(file.originalname);
-          const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
-          const { error } = await supabase.storage.from(bucket).upload(fileName, file.buffer, {
-            contentType: file.mimetype || 'image/png',
-            upsert: false
-          });
-          if (error) throw error;
-          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-          return data.publicUrl;
-        }
+        const uploadBanner = await buildBannerUploader();
 
         let imagenDesktopUrl = req.body.imagenDesktop || '';
         let imagenMobileUrl = req.body.imagenMobile || '';
@@ -16209,22 +16248,7 @@ export function registerRoutes(app: Express): Server {
       try {
         const { id } = req.params;
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-        const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
-
-        const uploadBanner = async (file: Express.Multer.File, prefix: string) => {
-          const path = await import('path');
-          const fileExtension = path.extname(file.originalname);
-          const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
-          const { error } = await supabase.storage.from(bucket).upload(fileName, file.buffer, {
-            contentType: file.mimetype || 'image/png',
-            upsert: false
-          });
-          if (error) throw error;
-          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-          return data.publicUrl;
-        }
+        const uploadBanner = await buildBannerUploader();
 
         const updates: any = {};
 

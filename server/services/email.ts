@@ -14,6 +14,8 @@ interface EmailOptions {
   subject: string;
   html: string;
   cc?: string;
+  from?: string;
+  replyTo?: string;
   attachments?: Array<{
     filename: string;
     content: Buffer;
@@ -120,11 +122,13 @@ class EmailService {
       try {
         const toList = options.to.split(',').map(s => s.trim()).filter(Boolean);
         const ccList = options.cc ? options.cc.split(',').map(s => s.trim()).filter(Boolean) : undefined;
-        console.log(`${ETAG} usando Resend`, { from: this.resendFrom, to: toList, cc: ccList });
+        const fromAddress = options.from || this.resendFrom;
+        console.log(`${ETAG} usando Resend`, { from: fromAddress, to: toList, cc: ccList, replyTo: options.replyTo });
         const { data, error } = await this.resend.emails.send({
-          from: this.resendFrom,
+          from: fromAddress,
           to: toList,
           cc: ccList,
+          replyTo: options.replyTo,
           subject: options.subject,
           html: options.html,
           attachments: options.attachments?.map(a => ({
@@ -170,9 +174,10 @@ class EmailService {
           const tokenInfo = await getValidAccessToken();
           console.log(`${ETAG} OAuth tokenInfo`, { hasToken: !!tokenInfo, email: tokenInfo?.email });
           const info = await oauthTransporter.sendMail({
-            from: config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email,
+            from: options.from || (config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email),
             to: options.to,
             cc: options.cc || undefined,
+            replyTo: options.replyTo || undefined,
             subject: options.subject,
             html: options.html,
             attachments: options.attachments,
@@ -214,14 +219,15 @@ class EmailService {
           },
         });
 
-        const fromAddress = config.fromName
+        const fromAddress = options.from || (config.fromName
           ? `"${config.fromName}" <${config.email}>`
-          : config.email;
+          : config.email);
 
         const info = await dbTransporter.sendMail({
           from: fromAddress,
           to: options.to,
           cc: options.cc || undefined,
+          replyTo: options.replyTo || undefined,
           subject: options.subject,
           html: options.html,
           attachments: options.attachments,
@@ -252,9 +258,10 @@ class EmailService {
     console.log(`${ETAG} usando transporter SMTP por env (SMTP_HOST=${process.env.SMTP_HOST})`);
     try {
       const info = await this.transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: options.from || process.env.SMTP_USER,
         to: options.to,
         cc: options.cc || undefined,
+        replyTo: options.replyTo || undefined,
         subject: options.subject,
         html: options.html,
         attachments: options.attachments,

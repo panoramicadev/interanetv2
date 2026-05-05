@@ -612,8 +612,11 @@ function BannerForm({ onSuccess, existingBanner, type = 'hero' }: { onSuccess: (
         : '/api/ecommerce/admin/banners';
       const method = existingBanner ? 'PATCH' : 'POST';
 
-      const res = await fetch(url, { method, body: formData });
-      if (!res.ok) throw new Error((await res.json()).message || 'Error');
+      const res = await fetch(url, { method, body: formData, credentials: 'include' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || `Error ${res.status}`);
+      }
       onSuccess();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });

@@ -410,8 +410,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const handleDownloadPDF = async (quoteId: string, quoteNumber: string) => {
     setDownloadingId(quoteId);
     try {
-      const res = await apiRequest(`/api/quotes/${quoteId}/pdf`);
-      const blob = await res.blob();
+      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
+      const quoteData = await quoteResponse.json();
+      const blob = await generatePDFAsBlob(quoteData);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -432,8 +433,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     }
   };
 
-  // Generate PDF as base64 for email (simplified version)
-  const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
+  // Generate PDF as Blob (used by both download button and email flow)
+  const generatePDFAsBlob = async (quoteData: any): Promise<Blob> => {
     const quote = quoteData;
     const items = quoteData.items || [];
 
@@ -526,7 +527,12 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
     const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
     document.body.removeChild(element);
+    return pdfBlob as Blob;
+  };
 
+  // Generate PDF as base64 for email
+  const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
+    const pdfBlob = await generatePDFAsBlob(quoteData);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -1315,9 +1321,60 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             <div className="text-[11px] text-slate-500">Listo para enviar</div>
                           </div>
                         </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)} className="text-slate-500 hover:text-red-600 shrink-0">
-                          <XIcon className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              try {
+                                const byteChars = atob(emailAttachment.base64);
+                                const byteNumbers = new Array(byteChars.length);
+                                for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+                                const blob = new Blob([new Uint8Array(byteNumbers)], { type: emailAttachment.mime || 'application/octet-stream' });
+                                const url = URL.createObjectURL(blob);
+                                window.open(url, '_blank', 'noopener,noreferrer');
+                                setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                              } catch {
+                                toast({ title: 'Error', description: 'No se pudo abrir el archivo.', variant: 'destructive' });
+                              }
+                            }}
+                            className="text-slate-500 hover:text-orange-600"
+                            title="Ver archivo"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              try {
+                                const byteChars = atob(emailAttachment.base64);
+                                const byteNumbers = new Array(byteChars.length);
+                                for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+                                const blob = new Blob([new Uint8Array(byteNumbers)], { type: emailAttachment.mime || 'application/octet-stream' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = emailAttachment.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                              } catch {
+                                toast({ title: 'Error', description: 'No se pudo descargar el archivo.', variant: 'destructive' });
+                              }
+                            }}
+                            className="text-slate-500 hover:text-emerald-600"
+                            title="Descargar archivo"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)} className="text-slate-500 hover:text-red-600" title="Quitar archivo">
+                            <XIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <label className="mt-1.5 block rounded-lg border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/30 transition-colors cursor-pointer p-5 text-center">
