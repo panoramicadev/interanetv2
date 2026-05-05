@@ -86,6 +86,7 @@ import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
 import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
+import MargenPage from "@/pages/margen";
 import MetricasProductos from "@/pages/metricas-productos";
 import ProductDashboard from "@/pages/product-dashboard";
 import ETLMonitor from "@/pages/etl-monitor";
@@ -340,6 +341,13 @@ function Router() {
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
             <Route path="/etl-monitor" component={ETLMonitor} />
+            <Route path="/margen" component={() => {
+              if (!user || user.role !== 'admin') {
+                window.location.replace('/');
+                return null;
+              }
+              return <MargenPage />;
+            }} />
             <Route path="/configuracion" component={ConfiguracionPage} />
             <Route path="/date-selector-demo" component={DateSelectorDemo} />
 

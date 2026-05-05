@@ -3,14 +3,13 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, TrendingUp, BarChart3, Truck, DollarSign, FileSpreadsheet, Percent } from "lucide-react";
+import { FileText, TrendingUp, BarChart3, Truck, DollarSign, FileSpreadsheet } from "lucide-react";
 import { FacturasTable } from "@/components/facturas/facturas-table";
 import NVVPage from "./nvv";
 import GDVPage from "./gdv";
 import ProyeccionPage from "./proyeccion";
 import ListaPrecios from "./lista-precios";
 import PresupuestoVentas from "./presupuesto-ventas";
-import MargenPage from "./margen";
 
 export default function FacturasMainPage() {
   const [, setLocation] = useLocation();
@@ -25,9 +24,6 @@ export default function FacturasMainPage() {
 
   // Check if user can see proyección tab
   const canSeeProyeccion = user.role !== 'salesperson';
-
-  // Margen muestra datos de costo: solo admin / supervisor
-  const canSeeMargen = user.role === 'admin' || user.role === 'supervisor';
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
@@ -97,17 +93,6 @@ export default function FacturasMainPage() {
                     <span className="sm:hidden">Proy.</span>
                   </TabsTrigger>
                 )}
-                {canSeeMargen && (
-                  <TabsTrigger
-                    value="margen"
-                    className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
-                    data-testid="tab-margen"
-                  >
-                    <Percent className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="hidden sm:inline">Margen</span>
-                    <span className="sm:hidden">Marg.</span>
-                  </TabsTrigger>
-                )}
                 <TabsTrigger
                   value="solicitud-credito"
                   className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
@@ -159,13 +144,6 @@ export default function FacturasMainPage() {
           {canSeeProyeccion && (
             <TabsContent value="proyeccion" className="mt-0">
               <ProyeccionPage />
-            </TabsContent>
-          )}
-
-          {/* Margen Tab */}
-          {canSeeMargen && (
-            <TabsContent value="margen" className="mt-0">
-              <MargenPage />
             </TabsContent>
           )}
 

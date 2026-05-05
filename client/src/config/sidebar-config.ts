@@ -150,6 +150,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
+    },
+    {
+      href: "/margen",
+      label: "Margen",
+      icon: TrendingUp,
       separator: true,
     },
     {

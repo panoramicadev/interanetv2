@@ -24109,6 +24109,258 @@ export function registerRoutes(app: Express): Server {
   // Desglose para un SKU: ventas agrupadas por vendedor y por segmento del
   // vendedor. El "segmento del vendedor" se obtiene cruzando salespeople_users
   // con su supervisor (sup.assigned_segment).
+  // Dashboard de margen: KPIs globales del período + comparativo con período
+  // anterior + alertas de SKUs con margen bajo (negativo, <10%, <15%) + breakdown
+  // por segmento y vendedor con su variación. Pensado para el panel de Margen.
+  app.get('/api/etl/costos/margin-dashboard', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { period = 'last-90-days', salesperson, segment, lowMarginThreshold = '15' } = req.query;
+      const { startDate, endDate } = resolveCostosPeriod(period as string);
+      const threshold = parseFloat(lowMarginThreshold as string) || 15;
+
+      // Calcular período anterior del mismo largo (para comparativo)
+      let prevStart: string | null = null;
+      let prevEnd: string | null = null;
+      if (startDate && endDate) {
+        const start = new Date(startDate + 'T00:00:00Z');
+        const end = new Date(endDate + 'T00:00:00Z');
+        const lengthDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+        const pe = new Date(start);
+        pe.setUTCDate(pe.getUTCDate() - 1);
+        const ps = new Date(pe);
+        ps.setUTCDate(ps.getUTCDate() - lengthDays);
+        prevStart = ps.toISOString().split('T')[0];
+        prevEnd = pe.toISOString().split('T')[0];
+      }
+
+      // CTE base parametrizada por rango — devuelve líneas FCV con costo enriquecido
+      const buildLineas = (s: string | null, e: string | null) => sql`
+        SELECT
+          UPPER(TRIM(fv."koprct")) AS sku,
+          fv."nokoprct" AS producto,
+          fv."nokofu" AS salesperson,
+          fv."noruen" AS segment,
+          fv."monto" AS revenue,
+          COALESCE(fv."caprco2", 0) AS qty,
+          gpc."price" AS unit_cost
+        FROM ventas.fact_ventas fv
+        LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
+        WHERE fv."tido" = 'FCV'
+          AND fv."koprct" IS NOT NULL
+          AND fv."monto" IS NOT NULL
+          ${s ? sql`AND fv."feemdo" >= ${s}::date` : sql``}
+          ${e ? sql`AND fv."feemdo" <= ${e}::date` : sql``}
+          ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+      `;
+
+      // 1. Overview del período actual + anterior
+      const overviewRes = await db.execute(sql`
+        WITH curr AS (${buildLineas(startDate, endDate)}),
+             prev AS (${buildLineas(prevStart, prevEnd)})
+        SELECT
+          COALESCE(SUM(curr.revenue), 0)::TEXT AS curr_revenue,
+          COALESCE(SUM(curr.unit_cost * curr.qty), 0)::TEXT AS curr_cost,
+          COUNT(DISTINCT curr.sku) AS curr_sku_count,
+          COUNT(curr.*) AS curr_line_count,
+          (SELECT COALESCE(SUM(prev.revenue), 0) FROM prev)::TEXT AS prev_revenue,
+          (SELECT COALESCE(SUM(prev.unit_cost * prev.qty), 0) FROM prev)::TEXT AS prev_cost,
+          (SELECT COUNT(DISTINCT prev.sku) FROM prev) AS prev_sku_count
+        FROM curr
+      `);
+
+      const ovRow = (overviewRes as any).rows[0] || {};
+      const currRevenue = Number(ovRow.curr_revenue || 0);
+      const currCost = Number(ovRow.curr_cost || 0);
+      const currMargin = currRevenue - currCost;
+      const currMarginPct = currRevenue > 0 ? (currMargin / currRevenue) * 100 : 0;
+      const prevRevenue = Number(ovRow.prev_revenue || 0);
+      const prevCost = Number(ovRow.prev_cost || 0);
+      const prevMargin = prevRevenue - prevCost;
+      const prevMarginPct = prevRevenue > 0 ? (prevMargin / prevRevenue) * 100 : 0;
+
+      const overview = {
+        period: { startDate, endDate },
+        prevPeriod: { startDate: prevStart, endDate: prevEnd },
+        revenue: currRevenue,
+        cost: currCost,
+        margin: currMargin,
+        marginPct: currMarginPct,
+        skuCount: Number(ovRow.curr_sku_count || 0),
+        lineCount: Number(ovRow.curr_line_count || 0),
+        prev: {
+          revenue: prevRevenue,
+          cost: prevCost,
+          margin: prevMargin,
+          marginPct: prevMarginPct,
+          skuCount: Number(ovRow.prev_sku_count || 0),
+        },
+        deltas: {
+          revenuePct: prevRevenue > 0 ? ((currRevenue - prevRevenue) / prevRevenue) * 100 : null,
+          marginPct: prevMargin !== 0 ? ((currMargin - prevMargin) / Math.abs(prevMargin)) * 100 : null,
+          marginPctPoints: currMarginPct - prevMarginPct, // en puntos porcentuales
+        },
+      };
+
+      // 2. Alertas de margen bajo: top SKUs ordenados por menor margen %
+      const alertsRes = await db.execute(sql`
+        WITH curr AS (${buildLineas(startDate, endDate)}),
+             agg AS (
+               SELECT
+                 sku,
+                 MAX(producto) AS producto,
+                 SUM(revenue) AS revenue,
+                 SUM(qty) AS qty,
+                 SUM(unit_cost * qty) AS cost
+               FROM curr
+               GROUP BY sku
+               HAVING SUM(revenue) > 0
+             )
+        SELECT
+          sku,
+          producto,
+          revenue::TEXT AS revenue,
+          qty::TEXT AS qty,
+          cost::TEXT AS cost,
+          ((revenue - cost) / NULLIF(revenue, 0) * 100)::TEXT AS margin_pct,
+          (revenue - cost)::TEXT AS margin_amount
+        FROM agg
+        WHERE cost IS NOT NULL AND cost > 0
+        ORDER BY (revenue - cost) / NULLIF(revenue, 0) ASC
+        LIMIT 20
+      `);
+
+      const lowMarginAlerts = ((alertsRes as any).rows || [])
+        .map((r: any) => ({
+          sku: r.sku,
+          producto: r.producto || null,
+          revenue: Number(r.revenue || 0),
+          qty: Number(r.qty || 0),
+          cost: Number(r.cost || 0),
+          marginAmount: Number(r.margin_amount || 0),
+          marginPct: r.margin_pct != null ? Number(r.margin_pct) : null,
+        }))
+        // Filtramos por threshold pero también incluimos los negativos siempre
+        .filter((r: any) => r.marginPct != null && r.marginPct < threshold);
+
+      // 3. Por segmento (cliente) — comparativo con período anterior
+      const bySegmentRes = await db.execute(sql`
+        WITH curr AS (${buildLineas(startDate, endDate)}),
+             prev AS (${buildLineas(prevStart, prevEnd)}),
+             curr_agg AS (
+               SELECT segment,
+                      SUM(revenue) AS revenue,
+                      SUM(unit_cost * qty) AS cost,
+                      COUNT(*) AS line_count
+               FROM curr GROUP BY segment
+             ),
+             prev_agg AS (
+               SELECT segment,
+                      SUM(revenue) AS revenue,
+                      SUM(unit_cost * qty) AS cost
+               FROM prev GROUP BY segment
+             )
+        SELECT
+          COALESCE(c.segment, '(sin segmento)') AS segment,
+          c.revenue::TEXT AS revenue,
+          c.cost::TEXT AS cost,
+          c.line_count,
+          (CASE WHEN c.revenue > 0 THEN (c.revenue - c.cost) / c.revenue * 100 ELSE NULL END)::TEXT AS margin_pct,
+          (CASE WHEN p.revenue > 0 THEN (p.revenue - p.cost) / p.revenue * 100 ELSE NULL END)::TEXT AS prev_margin_pct,
+          p.revenue::TEXT AS prev_revenue
+        FROM curr_agg c
+        LEFT JOIN prev_agg p ON p.segment IS NOT DISTINCT FROM c.segment
+        ORDER BY c.revenue DESC NULLS LAST
+      `);
+
+      const bySegment = ((bySegmentRes as any).rows || []).map((r: any) => {
+        const revenue = Number(r.revenue || 0);
+        const cost = Number(r.cost || 0);
+        const marginPct = r.margin_pct != null ? Number(r.margin_pct) : null;
+        const prevMarginPct = r.prev_margin_pct != null ? Number(r.prev_margin_pct) : null;
+        return {
+          segment: r.segment,
+          revenue,
+          cost,
+          marginAmount: revenue - cost,
+          marginPct,
+          lineCount: Number(r.line_count || 0),
+          prevRevenue: r.prev_revenue != null ? Number(r.prev_revenue) : null,
+          prevMarginPct,
+          marginPctDelta: marginPct != null && prevMarginPct != null ? marginPct - prevMarginPct : null,
+        };
+      });
+
+      // 4. Por vendedor con su segmento (vía supervisor.assigned_segment)
+      const bySalespersonRes = await db.execute(sql`
+        WITH salesperson_segment AS (
+          SELECT s.salesperson_name, sup.assigned_segment AS segment
+          FROM salespeople_users s
+          LEFT JOIN salespeople_users sup ON s.supervisor_id = sup.id
+        ),
+        curr AS (${buildLineas(startDate, endDate)}),
+        prev AS (${buildLineas(prevStart, prevEnd)}),
+        curr_agg AS (
+          SELECT salesperson,
+                 SUM(revenue) AS revenue,
+                 SUM(unit_cost * qty) AS cost,
+                 COUNT(*) AS line_count
+          FROM curr GROUP BY salesperson
+        ),
+        prev_agg AS (
+          SELECT salesperson,
+                 SUM(revenue) AS revenue,
+                 SUM(unit_cost * qty) AS cost
+          FROM prev GROUP BY salesperson
+        )
+        SELECT
+          COALESCE(c.salesperson, '(sin vendedor)') AS salesperson,
+          ss.segment AS sp_segment,
+          c.revenue::TEXT AS revenue,
+          c.cost::TEXT AS cost,
+          c.line_count,
+          (CASE WHEN c.revenue > 0 THEN (c.revenue - c.cost) / c.revenue * 100 ELSE NULL END)::TEXT AS margin_pct,
+          (CASE WHEN p.revenue > 0 THEN (p.revenue - p.cost) / p.revenue * 100 ELSE NULL END)::TEXT AS prev_margin_pct,
+          p.revenue::TEXT AS prev_revenue
+        FROM curr_agg c
+        LEFT JOIN salesperson_segment ss ON ss.salesperson_name = c.salesperson
+        LEFT JOIN prev_agg p ON p.salesperson IS NOT DISTINCT FROM c.salesperson
+        ORDER BY c.revenue DESC NULLS LAST
+        LIMIT 50
+      `);
+
+      const bySalesperson = ((bySalespersonRes as any).rows || []).map((r: any) => {
+        const revenue = Number(r.revenue || 0);
+        const cost = Number(r.cost || 0);
+        const marginPct = r.margin_pct != null ? Number(r.margin_pct) : null;
+        const prevMarginPct = r.prev_margin_pct != null ? Number(r.prev_margin_pct) : null;
+        return {
+          salesperson: r.salesperson,
+          segment: r.sp_segment || null,
+          revenue,
+          cost,
+          marginAmount: revenue - cost,
+          marginPct,
+          lineCount: Number(r.line_count || 0),
+          prevRevenue: r.prev_revenue != null ? Number(r.prev_revenue) : null,
+          prevMarginPct,
+          marginPctDelta: marginPct != null && prevMarginPct != null ? marginPct - prevMarginPct : null,
+        };
+      });
+
+      res.json({
+        overview,
+        lowMarginAlerts,
+        threshold,
+        bySegment,
+        bySalesperson,
+      });
+    } catch (error: any) {
+      console.error('Error in margin-dashboard:', error);
+      res.status(500).json({ message: 'Error al obtener dashboard de margen', error: error.message });
+    }
+  }));
+
   app.get('/api/etl/costos/sales-by-sku', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { sku, period = 'last-90-days', salesperson, segment } = req.query;

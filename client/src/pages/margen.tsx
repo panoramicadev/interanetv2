@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -18,11 +19,16 @@ import {
   XCircle,
   Clock,
   Database,
+  Percent,
+  LayoutDashboard,
+  Scale,
+  ListChecks,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { PriceList } from "@shared/schema";
 import { CostComparisonSection } from "@/components/finanzas/cost-comparison-section";
+import { MarginDashboard } from "@/components/finanzas/margin-dashboard";
 
 interface PriceListResponse {
   items: PriceList[];
@@ -71,12 +77,12 @@ function parseStats(raw: string | null): { totalErp?: number; newSnapshots?: num
 
 export default function MargenPage() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [productsSearch, setProductsSearch] = useState<string>("");
   const [productsSearchInput, setProductsSearchInput] = useState<string>("");
   const [productsPage, setProductsPage] = useState<number>(0);
   const productsPerPage = 50;
 
-  // Estado del ETL Costos: muestra resultado de la última importación
   const { data: costosStatus, isLoading: loadingStatus } = useQuery<CostosStatus>({
     queryKey: ["/api/etl/status?etlName=costos"],
     queryFn: async () => {
@@ -86,7 +92,6 @@ export default function MargenPage() {
     refetchInterval: 10000,
   });
 
-  // Disparar ETL de costos
   const runCostosMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/etl/execute?etlName=costos");
@@ -101,7 +106,6 @@ export default function MargenPage() {
     },
   });
 
-  // Costos GRI (último valor por SKU) — usado para enriquecer la tabla de productos
   const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ["/api/inventory/gri-prices"],
     queryFn: async () => {
@@ -111,7 +115,6 @@ export default function MargenPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Listado paginado de productos de la lista de precios
   const { data: productsData, isLoading: loadingProducts } = useQuery<PriceListResponse>({
     queryKey: ["/api/price-list", { search: productsSearch, limit: productsPerPage, offset: productsPage * productsPerPage }],
     queryFn: async () => {
@@ -130,271 +133,350 @@ export default function MargenPage() {
   const stats = parseStats(lastExec?.statistics ?? null);
 
   return (
-    <div className="space-y-6">
-      {/* Resultado de la última importación de costos */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
+      {/* Modern SaaS Header */}
+      <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-900 dark:from-emerald-950 dark:via-slate-950 dark:to-slate-950">
+        <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Database className="h-4 w-4 text-emerald-600" />
-                Importación de costos (ETL)
-              </CardTitle>
-              <p className="text-sm text-gray-500 mt-1">
-                Última extracción del costo GRI (Bodega 006) desde SQL Server. Cada cambio se guarda como un nuevo snapshot histórico.
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 bg-emerald-500/20 rounded-lg">
+                  <Percent className="h-5 w-5 text-emerald-400" />
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Margen</h1>
+              </div>
+              <p className="text-slate-400 text-sm ml-12">
+                Análisis de margen real, alertas y comparativas — solo administradores
               </p>
             </div>
-            <Button
-              size="sm"
-              onClick={() => runCostosMutation.mutate()}
-              disabled={isRunning || runCostosMutation.isPending}
-              data-testid="button-run-costos-etl"
-            >
-              {isRunning || runCostosMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Importando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Importar costos ahora
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loadingStatus ? (
-            <div className="flex items-center text-gray-500 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando estado...
-            </div>
-          ) : !lastExec ? (
-            <div className="text-sm text-gray-500">
-              Aún no se ejecutó ninguna importación. Hacé clic en <strong>Importar costos ahora</strong> para traer los costos desde SQL Server.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-md border bg-gray-50 px-3 py-2">
-                <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+            <div className="flex items-center gap-2 flex-wrap">
+              {lastExec && (
+                <div className="flex items-center gap-2 text-xs text-slate-300 bg-white/5 backdrop-blur-sm rounded-md px-3 py-1.5">
                   {lastExec.status === "success" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  ) : lastExec.status === "running" ? (
-                    <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  ) : lastExec.status === "running" || isRunning ? (
+                    <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
                   ) : (
-                    <XCircle className="h-3.5 w-3.5 text-red-600" />
+                    <XCircle className="h-3.5 w-3.5 text-red-400" />
                   )}
-                  Estado
+                  <span>
+                    Costos: {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
+                  </span>
                 </div>
-                <div className="text-sm font-semibold mt-0.5 capitalize" data-testid="status-costos-last">
-                  {lastExec.status === "success" ? "Exitoso" : lastExec.status === "running" ? "En curso" : "Error"}
+              )}
+              <Button
+                size="sm"
+                onClick={() => runCostosMutation.mutate()}
+                disabled={isRunning || runCostosMutation.isPending}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white border-0"
+                data-testid="button-run-costos-etl"
+              >
+                {isRunning || runCostosMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Importar costos
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs Navigation - inside header */}
+        <div className="px-4 sm:px-6 lg:px-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="overflow-x-auto -mx-2 px-2 scrollbar-hide">
+              <TabsList className="inline-flex min-w-max gap-0.5 p-1 bg-white/10 backdrop-blur-sm rounded-t-xl border-0 h-auto">
+                <TabsTrigger
+                  value="dashboard"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-margen-dashboard"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5 flex-shrink-0" />
+                  Dashboard
+                </TabsTrigger>
+                <TabsTrigger
+                  value="comparativa"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-margen-comparativa"
+                >
+                  <Scale className="h-3.5 w-3.5 flex-shrink-0" />
+                  Costo vs Venta FCV
+                </TabsTrigger>
+                <TabsTrigger
+                  value="productos"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-margen-productos"
+                >
+                  <ListChecks className="h-3.5 w-3.5 flex-shrink-0" />
+                  Productos & costos
+                </TabsTrigger>
+                <TabsTrigger
+                  value="etl"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-margen-etl"
+                >
+                  <Database className="h-3.5 w-3.5 flex-shrink-0" />
+                  ETL Costos
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Tab Contents */}
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="dashboard" className="mt-0">
+            <MarginDashboard />
+          </TabsContent>
+
+          <TabsContent value="comparativa" className="mt-0">
+            <CostComparisonSection />
+          </TabsContent>
+
+          <TabsContent value="productos" className="mt-0">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Package className="h-4 w-4 text-blue-600" />
+                      Productos de la lista de precios y su costo
+                    </CardTitle>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Costo desde la última GRI (Bodega 006); si no hay, se usa el costo de producción cargado.
+                      {productsData ? ` ${formatInt(productsData.totalCount)} productos.` : ""}
+                    </p>
+                  </div>
+                  <form
+                    className="flex items-center gap-2"
+                    onSubmit={e => {
+                      e.preventDefault();
+                      setProductsSearch(productsSearchInput);
+                      setProductsPage(0);
+                    }}
+                  >
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <Input
+                        value={productsSearchInput}
+                        onChange={e => setProductsSearchInput(e.target.value)}
+                        placeholder="Buscar código o producto..."
+                        className="pl-7 h-9 w-64 text-sm"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" variant="secondary">Buscar</Button>
+                    {productsSearch && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setProductsSearch("");
+                          setProductsSearchInput("");
+                          setProductsPage(0);
+                        }}
+                      >
+                        Limpiar
+                      </Button>
+                    )}
+                  </form>
                 </div>
-                {lastExec.errorMessage && (
-                  <div className="text-[10px] text-red-600 mt-0.5 truncate" title={lastExec.errorMessage}>
-                    {lastExec.errorMessage}
+              </CardHeader>
+              <CardContent className="p-0">
+                {loadingProducts ? (
+                  <div className="flex items-center justify-center py-10 text-gray-500">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando productos...
+                  </div>
+                ) : !productsData || productsData.items.length === 0 ? (
+                  <div className="py-10 text-center text-gray-500 text-sm">
+                    {productsSearch ? "Sin resultados para la búsqueda." : "No hay productos en la lista de precios."}
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="text-xs">Código</TableHead>
+                          <TableHead className="text-xs">Producto</TableHead>
+                          <TableHead className="text-xs">Formato</TableHead>
+                          <TableHead className="text-right text-xs">Lista</TableHead>
+                          <TableHead className="text-right text-xs">Mínimo</TableHead>
+                          <TableHead className="text-right text-xs text-amber-700">Costo</TableHead>
+                          <TableHead className="text-right text-xs">Margen vs mínimo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productsData.items.map(item => {
+                          const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                          const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                          const costoDate = griEntry?.date ?? null;
+                          const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
+                          const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
+                          const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
+                          return (
+                            <TableRow key={item.id} className="text-xs">
+                              <TableCell className="font-mono py-2">{item.codigo}</TableCell>
+                              <TableCell className="py-2 max-w-[320px] truncate" title={item.producto}>{item.producto}</TableCell>
+                              <TableCell className="py-2">{item.unidad || "-"}</TableCell>
+                              <TableCell className="text-right tabular-nums py-2">
+                                {item.lista ? formatCLP(Number(item.lista)) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums py-2">
+                                {item.minimo ? formatCLP(Number(item.minimo)) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums py-2 font-semibold text-amber-700">
+                                {costoNum ? (
+                                  <div>
+                                    {formatCLP(costoNum)}
+                                    {costoDate && (
+                                      <span className="block text-[9px] leading-tight mt-0.5 font-normal text-gray-500">
+                                        {new Date(costoDate + "T00:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right py-2">
+                                {margenPct !== null ? (
+                                  <Badge variant="outline" className={marginBadgeClass(margenPct)}>
+                                    {formatPct(margenPct)}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    {productsData.totalCount > productsPerPage && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 text-xs">
+                        <div className="text-gray-600">
+                          Mostrando {productsPage * productsPerPage + 1}–
+                          {Math.min((productsPage + 1) * productsPerPage, productsData.totalCount)} de{" "}
+                          {formatInt(productsData.totalCount)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setProductsPage(p => Math.max(0, p - 1))}
+                            disabled={productsPage === 0}
+                          >
+                            <ChevronLeft className="h-4 w-4" /> Anterior
+                          </Button>
+                          <span className="text-gray-700 px-2">
+                            Página {productsPage + 1} de{" "}
+                            {Math.max(1, Math.ceil(productsData.totalCount / productsPerPage))}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setProductsPage(p => p + 1)}
+                            disabled={!productsData.hasMore}
+                          >
+                            Siguiente <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="etl" className="mt-0">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Database className="h-4 w-4 text-emerald-600" />
+                  Importación de costos (ETL)
+                </CardTitle>
+                <p className="text-sm text-gray-500 mt-1">
+                  Última extracción del costo GRI (Bodega 006) desde SQL Server. Cada cambio se guarda como un nuevo snapshot histórico.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {loadingStatus ? (
+                  <div className="flex items-center text-gray-500 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando estado...
+                  </div>
+                ) : !lastExec ? (
+                  <div className="text-sm text-gray-500">
+                    Aún no se ejecutó ninguna importación. Hacé clic en <strong>Importar costos</strong> arriba para traer los costos desde SQL Server.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-md border bg-gray-50 px-3 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                        {lastExec.status === "success" ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : lastExec.status === "running" ? (
+                          <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-red-600" />
+                        )}
+                        Estado
+                      </div>
+                      <div className="text-sm font-semibold mt-0.5 capitalize">
+                        {lastExec.status === "success" ? "Exitoso" : lastExec.status === "running" ? "En curso" : "Error"}
+                      </div>
+                      {lastExec.errorMessage && (
+                        <div className="text-[10px] text-red-600 mt-0.5 truncate" title={lastExec.errorMessage}>
+                          {lastExec.errorMessage}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border bg-gray-50 px-3 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                        <Clock className="h-3.5 w-3.5 text-gray-500" />
+                        Hace
+                      </div>
+                      <div className="text-sm font-semibold mt-0.5">
+                        {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">
+                        {lastExec.executionTimeMs != null
+                          ? `${(lastExec.executionTimeMs / 1000).toFixed(1)}s de ejecución`
+                          : ""}
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border bg-gray-50 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">SKUs procesados</div>
+                      <div className="text-lg font-bold mt-0.5">
+                        {formatInt(lastExec.recordsProcessed ?? 0)}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">desde SQL Server</div>
+                    </div>
+
+                    <div className="rounded-md border bg-gray-50 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">Snapshots nuevos</div>
+                      <div className="text-lg font-bold mt-0.5 text-emerald-700">
+                        {formatInt(stats.newSnapshots ?? 0)}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">
+                        {stats.unchanged != null ? `${formatInt(stats.unchanged)} sin cambio` : ""}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-md border bg-gray-50 px-3 py-2">
-                <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
-                  <Clock className="h-3.5 w-3.5 text-gray-500" />
-                  Hace
-                </div>
-                <div className="text-sm font-semibold mt-0.5" data-testid="status-costos-when">
-                  {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">
-                  {lastExec.executionTimeMs != null
-                    ? `${(lastExec.executionTimeMs / 1000).toFixed(1)}s de ejecución`
-                    : ""}
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-gray-50 px-3 py-2">
-                <div className="text-[11px] uppercase tracking-wide text-gray-500">SKUs procesados</div>
-                <div className="text-lg font-bold mt-0.5" data-testid="status-costos-records">
-                  {formatInt(lastExec.recordsProcessed ?? 0)}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">desde SQL Server</div>
-              </div>
-
-              <div className="rounded-md border bg-gray-50 px-3 py-2">
-                <div className="text-[11px] uppercase tracking-wide text-gray-500">Snapshots nuevos</div>
-                <div className="text-lg font-bold mt-0.5 text-emerald-700" data-testid="status-costos-changes">
-                  {formatInt(stats.newSnapshots ?? 0)}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">
-                  {stats.unchanged != null ? `${formatInt(stats.unchanged)} sin cambio` : ""}
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Costo vs Venta FCV (margen real) */}
-      <CostComparisonSection />
-
-      {/* Listado de productos con su costo */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Package className="h-4 w-4 text-blue-600" />
-                Productos de la lista de precios y su costo
-              </CardTitle>
-              <p className="text-sm text-gray-500 mt-1">
-                Costo desde la última GRI (Bodega 006); si no hay, se usa el costo de producción cargado.
-                {productsData ? ` ${formatInt(productsData.totalCount)} productos.` : ""}
-              </p>
-            </div>
-            <form
-              className="flex items-center gap-2"
-              onSubmit={e => {
-                e.preventDefault();
-                setProductsSearch(productsSearchInput);
-                setProductsPage(0);
-              }}
-            >
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input
-                  value={productsSearchInput}
-                  onChange={e => setProductsSearchInput(e.target.value)}
-                  placeholder="Buscar código o producto..."
-                  className="pl-7 h-9 w-64 text-sm"
-                  data-testid="input-margen-products-search"
-                />
-              </div>
-              <Button type="submit" size="sm" variant="secondary" data-testid="button-margen-products-search">
-                Buscar
-              </Button>
-              {productsSearch && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setProductsSearch("");
-                    setProductsSearchInput("");
-                    setProductsPage(0);
-                  }}
-                >
-                  Limpiar
-                </Button>
-              )}
-            </form>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loadingProducts ? (
-            <div className="flex items-center justify-center py-10 text-gray-500">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando productos...
-            </div>
-          ) : !productsData || productsData.items.length === 0 ? (
-            <div className="py-10 text-center text-gray-500 text-sm">
-              {productsSearch ? "Sin resultados para la búsqueda." : "No hay productos en la lista de precios."}
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="text-xs">Código</TableHead>
-                    <TableHead className="text-xs">Producto</TableHead>
-                    <TableHead className="text-xs">Formato</TableHead>
-                    <TableHead className="text-right text-xs">Lista</TableHead>
-                    <TableHead className="text-right text-xs">Mínimo</TableHead>
-                    <TableHead className="text-right text-xs text-amber-700">Costo</TableHead>
-                    <TableHead className="text-right text-xs">Margen vs mínimo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {productsData.items.map(item => {
-                    const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                    const costoValue = griEntry?.price ?? (item as any).costoProduccion;
-                    const costoDate = griEntry?.date ?? null;
-                    const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
-                    const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
-                    const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
-                    return (
-                      <TableRow key={item.id} className="text-xs" data-testid={`row-margen-product-${item.id}`}>
-                        <TableCell className="font-mono py-2">{item.codigo}</TableCell>
-                        <TableCell className="py-2 max-w-[320px] truncate" title={item.producto}>{item.producto}</TableCell>
-                        <TableCell className="py-2">{item.unidad || "-"}</TableCell>
-                        <TableCell className="text-right tabular-nums py-2">
-                          {item.lista ? formatCLP(Number(item.lista)) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums py-2">
-                          {item.minimo ? formatCLP(Number(item.minimo)) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums py-2 font-semibold text-amber-700">
-                          {costoNum ? (
-                            <div>
-                              {formatCLP(costoNum)}
-                              {costoDate && (
-                                <span className="block text-[9px] leading-tight mt-0.5 font-normal text-gray-500">
-                                  {new Date(costoDate + "T00:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
-                                </span>
-                              )}
-                            </div>
-                          ) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right py-2">
-                          {margenPct !== null ? (
-                            <Badge variant="outline" className={marginBadgeClass(margenPct)}>
-                              {formatPct(margenPct)}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {productsData.totalCount > productsPerPage && (
-                <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 text-xs">
-                  <div className="text-gray-600">
-                    Mostrando {productsPage * productsPerPage + 1}–
-                    {Math.min((productsPage + 1) * productsPerPage, productsData.totalCount)} de{" "}
-                    {formatInt(productsData.totalCount)}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setProductsPage(p => Math.max(0, p - 1))}
-                      disabled={productsPage === 0}
-                      data-testid="button-margen-products-prev"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Anterior
-                    </Button>
-                    <span className="text-gray-700 px-2">
-                      Página {productsPage + 1} de{" "}
-                      {Math.max(1, Math.ceil(productsData.totalCount / productsPerPage))}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setProductsPage(p => p + 1)}
-                      disabled={!productsData.hasMore}
-                      data-testid="button-margen-products-next"
-                    >
-                      Siguiente
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
