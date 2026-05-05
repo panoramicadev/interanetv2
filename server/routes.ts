@@ -23993,9 +23993,11 @@ export function registerRoutes(app: Express): Server {
   // Resumen por SKU: costo actual vs ventas FCV agregadas (revenue, unidades,
   // precio promedio, margen %). Soporta búsqueda por código/producto y
   // paginación. Sólo incluye SKUs con ventas FCV en el período.
+  // Filtros opcionales `salesperson` (nokofu) y `segment` (noruen) — mismo
+  // patrón que el dashboard.
   app.get('/api/etl/costos/sales-comparison', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { period = 'last-90-days', search, limit = 50, offset = 0 } = req.query;
+      const { period = 'last-90-days', search, salesperson, segment, limit = 50, offset = 0 } = req.query;
       const parsedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 500);
       const parsedOffset = Math.max(parseInt(offset as string) || 0, 0);
       const { startDate, endDate } = resolveCostosPeriod(period as string);
@@ -24010,6 +24012,8 @@ export function registerRoutes(app: Express): Server {
             AND fv."koprct" IS NOT NULL
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+            ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         )
         SELECT COUNT(*) AS total
         FROM fcv f
@@ -24033,6 +24037,8 @@ export function registerRoutes(app: Express): Server {
             AND fv."monto" IS NOT NULL
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+            ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         ),
         agg AS (
           SELECT
@@ -24105,7 +24111,7 @@ export function registerRoutes(app: Express): Server {
   // con su supervisor (sup.assigned_segment).
   app.get('/api/etl/costos/sales-by-sku', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { sku, period = 'last-90-days' } = req.query;
+      const { sku, period = 'last-90-days', salesperson, segment } = req.query;
       if (!sku) return res.status(400).json({ message: 'sku es requerido' });
       const { startDate, endDate } = resolveCostosPeriod(period as string);
       const skuUpper = String(sku).toUpperCase();
@@ -24138,6 +24144,8 @@ export function registerRoutes(app: Express): Server {
             AND fv."monto" IS NOT NULL
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+            ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         )
         SELECT
           COALESCE(l.salesperson, '(sin vendedor)') AS salesperson,
@@ -24195,6 +24203,8 @@ export function registerRoutes(app: Express): Server {
           AND fv."monto" IS NOT NULL
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
+          ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         GROUP BY ss.segment
         ORDER BY SUM(fv."monto") DESC
       `);

@@ -22,6 +22,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { PriceList } from "@shared/schema";
+import { CostComparisonSection } from "@/components/finanzas/cost-comparison-section";
 
 interface PriceListResponse {
   items: PriceList[];
@@ -231,6 +232,9 @@ export default function MargenPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Costo vs Venta FCV (margen real) */}
+      <CostComparisonSection />
 
       {/* Listado de productos con su costo */}
       <Card className="border-0 shadow-sm">
