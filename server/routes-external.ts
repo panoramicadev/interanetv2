@@ -1717,7 +1717,7 @@ router.post('/crm/seguimiento/:id/bitacora', requireApiRole(['read_write', 'admi
 
     const [entry] = await db.insert(pedidoBitacora).values({
       documentoTipo: 'cliente',
-      documentoId: id,
+      documentoId: existing.clienteId || id,
       documentoNumero: existing.rut || null,
       clienteNombre: existing.nombre || null,
       clienteRut: existing.rut || null,
