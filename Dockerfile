@@ -63,5 +63,6 @@ ENV NODE_ENV=production
 
 EXPOSE 8080
 
-# Run migrations on start, then serve.
-CMD ["sh", "-c", "npm run db:push && npm start"]
+# Run preflight (recover misrenames + pre-create new tables to avoid drizzle prompts),
+# then migrations, then serve.
+CMD ["sh", "-c", "node scripts/preflight-db.cjs && npm run db:push && npm start"]
