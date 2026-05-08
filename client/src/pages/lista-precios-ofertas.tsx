@@ -8,12 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag } from "lucide-react";
+import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag, Pause, Play } from "lucide-react";
 
 interface OffersItem {
   id: string;
   codigo: string;
   precio: string | null;
+  paused: boolean;
   producto: string | null;
   unidad: string | null;
   costoProduccion: string | null;
@@ -92,6 +93,20 @@ export default function ListaPreciosOfertas() {
       setIsEditOpen(false);
       setEditItem(null);
       toast({ title: "Actualizado", description: "Precio de oferta actualizado correctamente" });
+    },
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: ({ id, paused }: { id: string; paused: boolean }) =>
+      apiRequest("PATCH", `/api/price-list-offers/${id}`, { paused }),
+    onSuccess: (_data, { paused }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/price-list-offers"] });
+      toast({
+        title: paused ? "Oferta pausada" : "Oferta reactivada",
+        description: paused
+          ? "El precio de oferta no se mostrará mientras esté pausado."
+          : "El precio de oferta está activo nuevamente.",
+      });
     },
   });
 
@@ -342,14 +357,21 @@ export default function ListaPreciosOfertas() {
                     }
 
                     return (
-                      <TableRow key={item.id} className="text-xs">
+                      <TableRow key={item.id} className={`text-xs ${item.paused ? "opacity-50 bg-gray-50 dark:bg-gray-900/40" : ""}`}>
                         <TableCell className="font-mono text-xs py-2">{item.codigo}</TableCell>
                         <TableCell className="text-xs py-2 max-w-[250px] truncate">
                           {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
                         </TableCell>
                         <TableCell className="text-xs py-2">{item.unidad || "-"}</TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-red-600 dark:text-red-400">
-                          {formatCurrency(item.precio)}
+                          <div className="flex flex-col items-end gap-0.5">
+                            {formatCurrency(item.precio)}
+                            {item.paused && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5">
+                                <Pause className="h-2 w-2" />pausado
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
                           {costoNum ? (
@@ -395,8 +417,19 @@ export default function ListaPreciosOfertas() {
                               size="sm"
                               className="h-6 w-6 p-0"
                               onClick={() => { setEditItem(item); setIsEditOpen(true); }}
+                              title="Editar precio"
                             >
                               <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-6 w-6 p-0 ${item.paused ? "text-amber-500 hover:text-amber-600" : "text-gray-400 hover:text-amber-500"}`}
+                              onClick={() => pauseMutation.mutate({ id: item.id, paused: !item.paused })}
+                              disabled={pauseMutation.isPending}
+                              title={item.paused ? "Reactivar oferta" : "Pausar oferta"}
+                            >
+                              {item.paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
                             </Button>
                             <Button
                               variant="ghost"
@@ -404,6 +437,7 @@ export default function ListaPreciosOfertas() {
                               className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                               onClick={() => deleteMutation.mutate(item.id)}
                               disabled={deleteMutation.isPending}
+                              title="Eliminar"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>

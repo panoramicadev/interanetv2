@@ -7446,7 +7446,7 @@ export function registerRoutes(app: Express): Server {
               ON UPPER(cpli.codigo) = UPPER(pl.codigo)
              AND cpli.list_code = ${priceListCode}
             LEFT JOIN price_list_offers offers
-              ON UPPER(offers.codigo) = UPPER(pl.codigo)
+              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
             WHERE UPPER(pl.codigo) IN (${skuList})
           `)
         : await db.execute(sql`
@@ -7455,7 +7455,7 @@ export function registerRoutes(app: Express): Server {
                    COALESCE(offers.precio, pl.offer_price) AS offer_price
             FROM price_list pl
             LEFT JOIN price_list_offers offers
-              ON UPPER(offers.codigo) = UPPER(pl.codigo)
+              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
             WHERE UPPER(pl.codigo) IN (${skuList})
           `);
       const rows = Array.isArray(result) ? result : (result.rows || []);
@@ -14691,7 +14691,7 @@ export function registerRoutes(app: Express): Server {
       const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
       
       const items = await db.execute(sql.raw(
-        `SELECT o.id, o.codigo, o.precio, o.created_at, o.updated_at,
+        `SELECT o.id, o.codigo, o.precio, o.paused, o.created_at, o.updated_at,
                 pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
          FROM price_list_offers o 
          LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo)
@@ -15569,7 +15569,7 @@ export function registerRoutes(app: Express): Server {
       ${useCustomList 
         ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}` 
         : sql``}
-      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo)
+      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock
@@ -24008,6 +24008,15 @@ export function registerRoutes(app: Express): Server {
       }
     }
     if (period === 'all') return { startDate: null, endDate: null };
+    // month-YYYY-MM e.g. month-2026-05
+    const monthMatch = period.match(/^month-(\d{4})-(\d{2})$/);
+    if (monthMatch) {
+      const y = parseInt(monthMatch[1]);
+      const m = parseInt(monthMatch[2]) - 1;
+      const start = new Date(y, m, 1);
+      const end = new Date(y, m + 1, 0);
+      return { startDate: fmt(start), endDate: fmt(end) };
+    }
     return { startDate: null, endDate: null };
   }
 

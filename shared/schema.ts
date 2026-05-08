@@ -1970,6 +1970,7 @@ export const priceListOffers = pgTable("price_list_offers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   codigo: varchar("codigo").notNull().unique(),
   precio: numeric("precio", { precision: 15, scale: 2 }),
+  paused: boolean("paused").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

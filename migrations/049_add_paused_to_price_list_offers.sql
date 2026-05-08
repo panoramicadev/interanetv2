@@ -1,0 +1,1 @@
+ALTER TABLE price_list_offers ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT false;

@@ -423,7 +423,7 @@ export function registerB2CRoutes(app: Express) {
           SELECT UPPER(pl.codigo) AS codigo,
                  COALESCE(offers.precio, pl.offer_price) AS precio
           FROM price_list pl
-          LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo)
+          LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
           WHERE UPPER(pl.codigo) IN (${skuList})
         `);
       } else if (code === 'LP01' || code === '') {

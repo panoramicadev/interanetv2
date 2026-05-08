@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,9 +21,25 @@ import {
   Users,
   DollarSign,
   Calculator,
-  Package,
   Minus,
+  Eye,
+  Grid3x3,
+  Calendar,
 } from "lucide-react";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface YearMonthSelection {
+  years: number[];
+  period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
+  month?: number;
+  months?: number[];
+  days?: number[];
+  startDate?: Date;
+  endDate?: Date;
+  display: string;
+}
 
 interface OverviewData {
   period: { startDate: string | null; endDate: string | null };
@@ -90,21 +107,31 @@ interface MarginDashboardData {
   bySalesperson: SalespersonRow[];
 }
 
-const PERIOD_OPTIONS = [
-  { value: "current-month", label: "Mes actual" },
-  { value: "last-month", label: "Mes anterior" },
-  { value: "last-30-days", label: "Últimos 30 días" },
-  { value: "last-90-days", label: "Últimos 90 días" },
-  { value: `year-${new Date().getFullYear()}`, label: `Año ${new Date().getFullYear()}` },
-];
+// ─── Threshold fijo al 45% ───────────────────────────────────────────────────
+const FIXED_THRESHOLD = "45";
 
-const THRESHOLD_OPTIONS = [
-  { value: "0", label: "Solo negativos" },
-  { value: "10", label: "< 10%" },
-  { value: "15", label: "< 15%" },
-  { value: "20", label: "< 20%" },
-  { value: "30", label: "< 30%" },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function selectionToApiPeriod(sel: YearMonthSelection | null): string {
+  if (!sel) return "last-90-days";
+  const year = sel.years[0] ?? new Date().getFullYear();
+  if (sel.period === "full-year") return `year-${year}`;
+  if ((sel.period === "month" || sel.period === "months") && sel.months && sel.months.length > 0) {
+    const month = String(sel.months[0]).padStart(2, "0");
+    return `month-${year}-${month}`;
+  }
+  return "last-90-days";
+}
+
+function defaultSelection(): YearMonthSelection {
+  const now = new Date();
+  return {
+    years: [now.getFullYear()],
+    period: "month",
+    months: [now.getMonth() + 1],
+    display: now.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),
+  };
+}
 
 function fmtCLP(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -140,51 +167,159 @@ function DeltaIcon({ delta }: { delta: number | null }) {
   return delta > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />;
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function MarginDashboard() {
-  const [period, setPeriod] = useState<string>("last-90-days");
-  const [threshold, setThreshold] = useState<string>("15");
+  const [view, setView] = useState<"general" | "segment" | "salesperson">("general");
+  const [selectedSegment, setSelectedSegment] = useState<string>("");
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
+  const [periodSel, setPeriodSel] = useState<YearMonthSelection | null>(defaultSelection);
+
+  const period = selectionToApiPeriod(periodSel);
+  const threshold = FIXED_THRESHOLD;
+
+  // When view changes, clear sub-selections
+  const handleViewChange = (v: "general" | "segment" | "salesperson") => {
+    setView(v);
+    setSelectedSegment("");
+    setSelectedSalesperson("");
+  };
+
+  // Build filter params for API
+  const apiSegment = view === "segment" && selectedSegment ? selectedSegment : undefined;
+  const apiSalesperson = view === "salesperson" && selectedSalesperson ? selectedSalesperson : undefined;
 
   const { data, isLoading, error } = useQuery<MarginDashboardData>({
+    queryKey: [`/api/etl/costos/margin-dashboard`, { period, threshold, segment: apiSegment, salesperson: apiSalesperson }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ period, lowMarginThreshold: threshold });
+      if (apiSegment) params.set("segment", apiSegment);
+      if (apiSalesperson) params.set("salesperson", apiSalesperson);
+      const res = await apiRequest(`/api/etl/costos/margin-dashboard?${params}`);
+      return res.json();
+    },
+  });
+
+  // Load unfiltered data to populate dropdowns
+  const { data: baseData } = useQuery<MarginDashboardData>({
     queryKey: [`/api/etl/costos/margin-dashboard`, { period, threshold }],
     queryFn: async () => {
       const params = new URLSearchParams({ period, lowMarginThreshold: threshold });
       const res = await apiRequest(`/api/etl/costos/margin-dashboard?${params}`);
       return res.json();
     },
+    staleTime: 5 * 60 * 1000,
   });
+
+  const segmentOptions = useMemo(
+    () => (baseData?.bySegment ?? []).map(r => r.segment).filter(Boolean).sort(),
+    [baseData]
+  );
+  const salespersonOptions = useMemo(
+    () => (baseData?.bySalesperson ?? []).map(r => r.salesperson).filter(Boolean).sort(),
+    [baseData]
+  );
 
   const ov = data?.overview;
   const alerts = data?.lowMarginAlerts ?? [];
 
+  // ─── Min / Max / Avg margin cards when a filter is active ─────────────────
+  const filterActive =
+    (view === "segment" && !!selectedSegment) ||
+    (view === "salesperson" && !!selectedSalesperson);
+
+  const marginStats = useMemo(() => {
+    if (!filterActive || !data) return null;
+    const rows =
+      view === "segment"
+        ? data.bySalesperson.filter(r => r.marginPct != null)
+        : data.bySegment.filter(r => r.marginPct != null);
+    if (rows.length === 0) return null;
+    const values = rows.map(r => r.marginPct as number);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const minRow = rows.find(r => r.marginPct === min);
+    const maxRow = rows.find(r => r.marginPct === max);
+    return { avg, min, max, minLabel: view === "segment" ? (minRow as SalespersonRow)?.salesperson : (minRow as SegmentRow)?.segment, maxLabel: view === "segment" ? (maxRow as SalespersonRow)?.salesperson : (maxRow as SegmentRow)?.segment };
+  }, [data, filterActive, view]);
+
   return (
     <div className="space-y-6">
-      {/* Filtros */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* ── Filtros ────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 flex-wrap bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 shadow-sm">
+        {/* Vista */}
         <div className="flex items-center gap-2">
-          <label className="text-xs uppercase tracking-wide text-gray-500">Período</label>
-          <select
-            value={period}
-            onChange={e => setPeriod(e.target.value)}
-            className="text-sm border rounded-md px-2 py-1.5 h-9 bg-white"
-            data-testid="select-margin-dashboard-period"
-          >
-            {PERIOD_OPTIONS.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+          <Eye className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Vista:</span>
+          <Select value={view} onValueChange={v => handleViewChange(v as any)}>
+            <SelectTrigger className="h-9 w-44 rounded-lg border-gray-200 text-sm" data-testid="select-margin-view">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-lg">
+              <SelectItem value="general">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                  <span>General</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="segment">
+                <div className="flex items-center gap-2">
+                  <Grid3x3 className="h-3.5 w-3.5 text-green-500" />
+                  <span>Por segmento</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="salesperson">
+                <div className="flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5 text-purple-500" />
+                  <span>Por vendedor</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs uppercase tracking-wide text-gray-500">Umbral de alerta</label>
-          <select
-            value={threshold}
-            onChange={e => setThreshold(e.target.value)}
-            className="text-sm border rounded-md px-2 py-1.5 h-9 bg-white"
-            data-testid="select-margin-dashboard-threshold"
-          >
-            {THRESHOLD_OPTIONS.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
+
+        {/* Segmento selector */}
+        {view === "segment" && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Segmento:</span>
+            <Select value={selectedSegment} onValueChange={setSelectedSegment}>
+              <SelectTrigger className="h-9 w-52 rounded-lg border-gray-200 text-sm" data-testid="select-margin-segment">
+                <SelectValue placeholder="Todos los segmentos" />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg max-h-60">
+                <SelectItem value="">Todos los segmentos</SelectItem>
+                {segmentOptions.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Vendedor selector */}
+        {view === "salesperson" && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Vendedor:</span>
+            <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+              <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-margin-salesperson">
+                <SelectValue placeholder="Todos los vendedores" />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg max-h-60">
+                <SelectItem value="">Todos los vendedores</SelectItem>
+                {salespersonOptions.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Período */}
+        <div className="flex items-center gap-2 ml-auto">
+          <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Período:</span>
+          <YearMonthSelector value={periodSel} onChange={setPeriodSel} />
         </div>
       </div>
 
@@ -196,7 +331,7 @@ export function MarginDashboard() {
         </Card>
       )}
 
-      {/* KPI Cards */}
+      {/* ── KPI Cards principales ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           label="Ingresos FCV"
@@ -233,7 +368,33 @@ export function MarginDashboard() {
         />
       </div>
 
-      {/* Alertas */}
+      {/* ── Tarjetas Min / Avg / Max (solo cuando hay filtro activo) ──────── */}
+      {filterActive && (
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard
+            label="Margen Promedio"
+            value={isLoading ? null : marginStats ? fmtPct(marginStats.avg) : "—"}
+            colorClass="text-blue-700"
+            bgClass="bg-blue-50 border-blue-100"
+          />
+          <StatCard
+            label="Margen Mínimo"
+            value={isLoading ? null : marginStats ? fmtPct(marginStats.min) : "—"}
+            sublabel={marginStats?.minLabel}
+            colorClass="text-red-600"
+            bgClass="bg-red-50 border-red-100"
+          />
+          <StatCard
+            label="Margen Máximo"
+            value={isLoading ? null : marginStats ? fmtPct(marginStats.max) : "—"}
+            sublabel={marginStats?.maxLabel}
+            colorClass="text-emerald-700"
+            bgClass="bg-emerald-50 border-emerald-100"
+          />
+        </div>
+      )}
+
+      {/* ── Alertas de margen bajo ──────────────────────────────────────────── */}
       <Card className="border-red-100">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -292,13 +453,14 @@ export function MarginDashboard() {
         </CardContent>
       </Card>
 
-      {/* Comparativas */}
+      {/* ── Comparativas ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {/* Por segmento */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Layers className="h-4 w-4 text-blue-600" />
-              Margen por segmento (cliente)
+              Margen por segmento
             </CardTitle>
             <CardDescription>Comparativo con período anterior. Δpp = puntos porcentuales.</CardDescription>
           </CardHeader>
@@ -345,13 +507,14 @@ export function MarginDashboard() {
           </CardContent>
         </Card>
 
+        {/* Por vendedor */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="h-4 w-4 text-blue-600" />
               Margen por vendedor
             </CardTitle>
-            <CardDescription>Top 50 por ingresos. Segmento = del vendedor (vía supervisor).</CardDescription>
+            <CardDescription>Top 50 por ingresos. Segmento del vendedor vía supervisor.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -406,6 +569,8 @@ export function MarginDashboard() {
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function KpiCard({
   label,
   icon,
@@ -455,5 +620,35 @@ function KpiCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sublabel,
+  colorClass,
+  bgClass,
+}: {
+  label: string;
+  value: string | null;
+  sublabel?: string;
+  colorClass: string;
+  bgClass: string;
+}) {
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${bgClass}`}>
+      <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500 mb-1">{label}</div>
+      {value === null ? (
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+      ) : (
+        <>
+          <div className={`text-2xl font-bold ${colorClass}`}>{value}</div>
+          {sublabel && (
+            <div className="text-[11px] text-gray-500 mt-0.5 truncate" title={sublabel}>{sublabel}</div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
