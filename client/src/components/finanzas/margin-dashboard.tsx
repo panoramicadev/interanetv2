@@ -212,11 +212,23 @@ export function MarginDashboard() {
   });
 
   const segmentOptions = useMemo(
-    () => (baseData?.bySegment ?? []).map(r => r.segment).filter(Boolean).sort(),
+    () => Array.from(
+      new Set(
+        (baseData?.bySegment ?? [])
+          .map(r => (r.segment ?? "").trim())
+          .filter(s => s.length > 0)
+      )
+    ).sort(),
     [baseData]
   );
   const salespersonOptions = useMemo(
-    () => (baseData?.bySalesperson ?? []).map(r => r.salesperson).filter(Boolean).sort(),
+    () => Array.from(
+      new Set(
+        (baseData?.bySalesperson ?? [])
+          .map(r => (r.salesperson ?? "").trim())
+          .filter(s => s.length > 0)
+      )
+    ).sort(),
     [baseData]
   );
 
