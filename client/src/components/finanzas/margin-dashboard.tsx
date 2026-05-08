@@ -283,12 +283,12 @@ export function MarginDashboard() {
         {view === "segment" && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Segmento:</span>
-            <Select value={selectedSegment} onValueChange={setSelectedSegment}>
+            <Select value={selectedSegment || "__all__"} onValueChange={v => setSelectedSegment(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 w-52 rounded-lg border-gray-200 text-sm" data-testid="select-margin-segment">
                 <SelectValue placeholder="Todos los segmentos" />
               </SelectTrigger>
               <SelectContent className="rounded-lg max-h-60">
-                <SelectItem value="">Todos los segmentos</SelectItem>
+                <SelectItem value="__all__">Todos los segmentos</SelectItem>
                 {segmentOptions.map(s => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
@@ -301,12 +301,12 @@ export function MarginDashboard() {
         {view === "salesperson" && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Vendedor:</span>
-            <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+            <Select value={selectedSalesperson || "__all__"} onValueChange={v => setSelectedSalesperson(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-margin-salesperson">
                 <SelectValue placeholder="Todos los vendedores" />
               </SelectTrigger>
               <SelectContent className="rounded-lg max-h-60">
-                <SelectItem value="">Todos los vendedores</SelectItem>
+                <SelectItem value="__all__">Todos los vendedores</SelectItem>
                 {salespersonOptions.map(s => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
