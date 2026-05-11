@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,10 +103,28 @@ function marginBadgeClass(pct: number | null): string {
   return "bg-red-50 text-red-700 border-red-200";
 }
 
-export function CostComparisonSection({ autoRefresh = false }: { autoRefresh?: boolean }) {
-  const [period, setPeriod] = useState<string>("last-90-days");
-  const [salespersonFilter, setSalespersonFilter] = useState<string>("");
-  const [segmentFilter, setSegmentFilter] = useState<string>("");
+export function CostComparisonSection({
+  autoRefresh = false,
+  period: controlledPeriod,
+  salesperson: controlledSalesperson,
+  segment: controlledSegment,
+  hideFilters = false,
+}: {
+  autoRefresh?: boolean;
+  period?: string;
+  salesperson?: string;
+  segment?: string;
+  hideFilters?: boolean;
+}) {
+  const [internalPeriod, setInternalPeriod] = useState<string>("last-90-days");
+  const [internalSalesperson, setInternalSalesperson] = useState<string>("");
+  const [internalSegment, setInternalSegment] = useState<string>("");
+  const period = controlledPeriod ?? internalPeriod;
+  const salespersonFilter = controlledSalesperson ?? internalSalesperson;
+  const segmentFilter = controlledSegment ?? internalSegment;
+  const setPeriod = (v: string) => setInternalPeriod(v);
+  const setSalespersonFilter = (v: string) => setInternalSalesperson(v);
+  const setSegmentFilter = (v: string) => setInternalSegment(v);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(0);
@@ -163,6 +181,15 @@ export function CostComparisonSection({ autoRefresh = false }: { autoRefresh?: b
   const resetPaging = () => { setPage(0); setExpandedSku(null); };
   const hasFilters = !!(salespersonFilter || segmentFilter || search);
 
+  // Cuando los filtros controlados cambian desde el padre, volver a la primera
+  // página y colapsar el desglose abierto para evitar inconsistencias.
+  useEffect(() => {
+    if (controlledPeriod !== undefined || controlledSalesperson !== undefined || controlledSegment !== undefined) {
+      setPage(0);
+      setExpandedSku(null);
+    }
+  }, [controlledPeriod, controlledSalesperson, controlledSegment]);
+
   return (
     <Card>
       <CardHeader>
@@ -178,38 +205,42 @@ export function CostComparisonSection({ autoRefresh = false }: { autoRefresh?: b
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={period}
-              onChange={e => { setPeriod(e.target.value); resetPaging(); }}
-              className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background"
-              data-testid="select-comparison-period"
-            >
-              {COMPARISON_PERIOD_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <select
-              value={segmentFilter}
-              onChange={e => { setSegmentFilter(e.target.value); resetPaging(); }}
-              className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background max-w-[180px]"
-              data-testid="select-comparison-segment"
-            >
-              <option value="">Todos los segmentos</option>
-              {segments.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <select
-              value={salespersonFilter}
-              onChange={e => { setSalespersonFilter(e.target.value); resetPaging(); }}
-              className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background max-w-[200px]"
-              data-testid="select-comparison-salesperson"
-            >
-              <option value="">Todos los vendedores</option>
-              {salespeople.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            {!hideFilters && (
+              <>
+                <select
+                  value={period}
+                  onChange={e => { setPeriod(e.target.value); resetPaging(); }}
+                  className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background"
+                  data-testid="select-comparison-period"
+                >
+                  {COMPARISON_PERIOD_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={segmentFilter}
+                  onChange={e => { setSegmentFilter(e.target.value); resetPaging(); }}
+                  className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background max-w-[180px]"
+                  data-testid="select-comparison-segment"
+                >
+                  <option value="">Todos los segmentos</option>
+                  {segments.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select
+                  value={salespersonFilter}
+                  onChange={e => { setSalespersonFilter(e.target.value); resetPaging(); }}
+                  className="text-sm border rounded-md px-2 py-1.5 h-9 bg-background max-w-[200px]"
+                  data-testid="select-comparison-salesperson"
+                >
+                  <option value="">Todos los vendedores</option>
+                  {salespeople.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </>
+            )}
             <form
               className="flex items-center gap-2"
               onSubmit={e => {
@@ -225,7 +256,7 @@ export function CostComparisonSection({ autoRefresh = false }: { autoRefresh?: b
                 className="w-56 text-sm"
               />
               <Button type="submit" size="sm" variant="secondary">Buscar</Button>
-              {hasFilters && (
+              {(hideFilters ? !!search : hasFilters) && (
                 <Button
                   type="button"
                   size="sm"
@@ -233,8 +264,10 @@ export function CostComparisonSection({ autoRefresh = false }: { autoRefresh?: b
                   onClick={() => {
                     setSearch("");
                     setSearchInput("");
-                    setSalespersonFilter("");
-                    setSegmentFilter("");
+                    if (!hideFilters) {
+                      setSalespersonFilter("");
+                      setSegmentFilter("");
+                    }
                     resetPaging();
                   }}
                 >

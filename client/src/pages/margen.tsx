@@ -21,13 +21,11 @@ import {
   Database,
   Percent,
   LayoutDashboard,
-  Scale,
   ListChecks,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { PriceList } from "@shared/schema";
-import { CostComparisonSection } from "@/components/finanzas/cost-comparison-section";
 import { MarginDashboard } from "@/components/finanzas/margin-dashboard";
 
 interface PriceListResponse {
@@ -201,14 +199,6 @@ export default function MargenPage() {
                   Dashboard
                 </TabsTrigger>
                 <TabsTrigger
-                  value="comparativa"
-                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
-                  data-testid="tab-margen-comparativa"
-                >
-                  <Scale className="h-3.5 w-3.5 flex-shrink-0" />
-                  Costo vs Venta FCV
-                </TabsTrigger>
-                <TabsTrigger
                   value="productos"
                   className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
                   data-testid="tab-margen-productos"
@@ -235,10 +225,6 @@ export default function MargenPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="dashboard" className="mt-0">
             <MarginDashboard />
-          </TabsContent>
-
-          <TabsContent value="comparativa" className="mt-0">
-            <CostComparisonSection />
           </TabsContent>
 
           <TabsContent value="productos" className="mt-0">
