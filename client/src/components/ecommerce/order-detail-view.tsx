@@ -143,9 +143,6 @@ interface OrderDetailViewProps {
 }
 
 export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote, isClientView = false }: OrderDetailViewProps) {
-  const statusKey = order.status?.toLowerCase() || 'pending';
-  const status = statusConfig[statusKey] || statusConfig.pending;
-  const StatusIcon = status.icon;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -155,6 +152,9 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
+  const statusKey = currentOrder.status?.toLowerCase() || 'pending';
+  const status = statusConfig[statusKey] || statusConfig.pending;
+  const StatusIcon = status.icon;
   const [showIngresarDialog, setShowIngresarDialog] = useState(false);
   const [isIngresando, setIsIngresando] = useState(false);
   const [ingresadoNotes, setIngresadoNotes] = useState('');
@@ -1096,28 +1096,28 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   <div className="w-2 h-2 rounded-full bg-[#FF6E23] mt-1.5 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">Emisión documentada</p>
-                    <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+                    <p className="text-xs text-gray-500">{formatDate(currentOrder.createdAt)}</p>
                   </div>
                 </div>
-                {order.approvedAt && (
+                {currentOrder.approvedAt && (
                   <div className="flex items-start gap-3">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">Aprobación confirmada</p>
-                      <p className="text-xs text-gray-500">{formatDate(order.approvedAt)}</p>
+                      <p className="text-xs text-gray-500">{formatDate(currentOrder.approvedAt)}</p>
                     </div>
                   </div>
                 )}
-                {order.ingresadoAt && (
+                {currentOrder.ingresadoAt && (
                   <div className="flex items-start gap-3">
                     <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">Ingresado al ERP</p>
-                      <p className="text-xs text-gray-500">{formatDate(order.ingresadoAt)}</p>
-                      {order.ingresadoNotes && (
+                      <p className="text-xs text-gray-500">{formatDate(currentOrder.ingresadoAt)}</p>
+                      {currentOrder.ingresadoNotes && (
                         <div className="mt-2 p-3 rounded-xl bg-blue-50 border border-blue-100">
                           <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1">Notas de recepción</p>
-                          <p className="text-sm text-blue-900 whitespace-pre-wrap break-words">{order.ingresadoNotes}</p>
+                          <p className="text-sm text-blue-900 whitespace-pre-wrap break-words">{currentOrder.ingresadoNotes}</p>
                         </div>
                       )}
                     </div>
