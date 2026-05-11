@@ -147,7 +147,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   });
 
   // Fetch client data to get addresses, payment condition and credit info
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string; nokoen?: string; gien?: string; parentNokoen?: string }>({
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string; nokoen?: string; gien?: string; parentNokoen?: string; freeShipping?: boolean }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -554,8 +554,10 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   let originalShippingCost = shippingCost;
   
   // Apply free shipping if neto meets threshold OR a free_shipping coupon is applied
+  // OR the client has the permanent "envío gratis" benefit enabled in su ficha comercial
   const hasCouponFreeShipping = state.appliedCoupons.some(c => c.type === 'free_shipping');
-  const hasFreeShipping = hasCouponFreeShipping || (FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD);
+  const clientHasFreeShipping = !!clientData?.freeShipping;
+  const hasFreeShipping = clientHasFreeShipping || hasCouponFreeShipping || (FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD);
   if (hasFreeShipping) {
     shippingCost = 0;
   } else if (effectiveShippingDiscountPercent > 0) {
