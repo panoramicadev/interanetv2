@@ -10,6 +10,20 @@ import { startHealthMonitor } from "./etl-health-monitor";
 import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
+// Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
+// Se logea con stack para poder diagnosticar y se mantiene el server vivo.
+process.on('unhandledRejection', (reason: any, promise) => {
+  const message = reason?.message ?? String(reason);
+  const stack = reason?.stack ?? new Error().stack;
+  console.error('🛑 [unhandledRejection]', message);
+  if (stack) console.error(stack);
+});
+
+process.on('uncaughtException', (err: Error) => {
+  console.error('🛑 [uncaughtException]', err?.message ?? err);
+  if (err?.stack) console.error(err.stack);
+});
+
 const app = express();
 // Gzip compression — reduces ~6.8MB JS bundle to ~1.9MB over the wire
 app.use(compression());
