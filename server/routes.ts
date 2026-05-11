@@ -24378,12 +24378,53 @@ export function registerRoutes(app: Express): Server {
         };
       });
 
+      // 5. Top productos del período (respeta filtros segment/salesperson)
+      const topProductosRes = await db.execute(sql`
+        WITH curr AS (${buildLineas(startDate, endDate)}),
+             agg AS (
+               SELECT
+                 sku,
+                 MAX(producto) AS producto,
+                 SUM(revenue) AS revenue,
+                 SUM(qty) AS qty,
+                 SUM(unit_cost * qty) AS cost
+               FROM curr
+               GROUP BY sku
+               HAVING SUM(revenue) > 0
+             ),
+             total AS (SELECT COALESCE(SUM(revenue), 0) AS total_revenue FROM agg)
+        SELECT
+          agg.sku,
+          agg.producto,
+          agg.revenue::TEXT AS revenue,
+          agg.qty::TEXT AS qty,
+          agg.cost::TEXT AS cost,
+          (agg.revenue - agg.cost)::TEXT AS margin_amount,
+          (CASE WHEN agg.revenue > 0 THEN (agg.revenue - agg.cost) / agg.revenue * 100 ELSE NULL END)::TEXT AS margin_pct,
+          (CASE WHEN total.total_revenue > 0 THEN agg.revenue / total.total_revenue * 100 ELSE 0 END)::TEXT AS pct_of_total
+        FROM agg, total
+        ORDER BY agg.revenue DESC NULLS LAST
+        LIMIT 100
+      `);
+
+      const topProductos = ((topProductosRes as any).rows || []).map((r: any) => ({
+        sku: r.sku,
+        producto: r.producto || null,
+        revenue: Number(r.revenue || 0),
+        qty: Number(r.qty || 0),
+        cost: Number(r.cost || 0),
+        marginAmount: Number(r.margin_amount || 0),
+        marginPct: r.margin_pct != null ? Number(r.margin_pct) : null,
+        pctOfTotal: r.pct_of_total != null ? Number(r.pct_of_total) : 0,
+      }));
+
       res.json({
         overview,
         lowMarginAlerts,
         threshold,
         bySegment,
         bySalesperson,
+        topProductos,
       });
     } catch (error: any) {
       console.error('Error in margin-dashboard:', error);

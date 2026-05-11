@@ -25,7 +25,10 @@ import {
   Eye,
   Grid3x3,
   Calendar,
+  ShoppingBag,
+  ChevronDown,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -99,12 +102,24 @@ interface SalespersonRow {
   marginPctDelta: number | null;
 }
 
+interface TopProductRow {
+  sku: string;
+  producto: string | null;
+  revenue: number;
+  qty: number;
+  cost: number;
+  marginAmount: number;
+  marginPct: number | null;
+  pctOfTotal: number;
+}
+
 interface MarginDashboardData {
   overview: OverviewData;
   lowMarginAlerts: AlertRow[];
   threshold: number;
   bySegment: SegmentRow[];
   bySalesperson: SalespersonRow[];
+  topProductos: TopProductRow[];
 }
 
 // ─── Threshold fijo al 45% ───────────────────────────────────────────────────
@@ -174,6 +189,7 @@ export function MarginDashboard() {
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
   const [periodSel, setPeriodSel] = useState<YearMonthSelection | null>(defaultSelection);
+  const [topProductsLimit, setTopProductsLimit] = useState<number>(10);
 
   const period = selectionToApiPeriod(periodSel);
   const threshold = FIXED_THRESHOLD;
@@ -183,6 +199,7 @@ export function MarginDashboard() {
     setView(v);
     setSelectedSegment("");
     setSelectedSalesperson("");
+    setTopProductsLimit(10);
   };
 
   // Build filter params for API
@@ -234,6 +251,8 @@ export function MarginDashboard() {
 
   const ov = data?.overview;
   const alerts = data?.lowMarginAlerts ?? [];
+  const topProductos = data?.topProductos ?? [];
+  const visibleTopProductos = topProductos.slice(0, topProductsLimit);
 
   // ─── Min / Max / Avg margin cards when a filter is active ─────────────────
   const filterActive =
@@ -465,6 +484,64 @@ export function MarginDashboard() {
         </CardContent>
       </Card>
 
+      {/* ── Top Productos ───────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="h-4 w-4 text-blue-600" />
+              </div>
+              Top Productos
+            </CardTitle>
+            {filterActive && (
+              <span className="text-xs text-gray-500">
+                {view === "segment"
+                  ? `Segmento: ${selectedSegment}`
+                  : `Vendedor: ${selectedSalesperson}`}
+              </span>
+            )}
+          </div>
+          <CardDescription>
+            Productos vendidos {filterActive ? "filtrados por la selección actual" : "en el período"} con su margen real. Ordenados por ingresos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-4">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : topProductos.length === 0 ? (
+            <div className="py-8 text-center text-gray-500 text-sm">
+              Sin productos para mostrar
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {visibleTopProductos.map((p) => (
+                  <TopProductoCard key={p.sku} product={p} />
+                ))}
+              </div>
+              {topProductos.length > topProductsLimit && (
+                <div className="flex justify-center pt-4 mt-3 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTopProductsLimit(prev => prev + 10)}
+                    className="text-xs px-6"
+                    data-testid="button-load-more-top-productos"
+                  >
+                    Ver más ({visibleTopProductos.length} de {topProductos.length})
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── Comparativas ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Por segmento */}
@@ -632,6 +709,71 @@ function KpiCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function TopProductoCard({ product }: { product: TopProductRow }) {
+  const [open, setOpen] = useState(false);
+  const pct = Math.max(0, Math.min(100, product.pctOfTotal));
+  return (
+    <div className="rounded-lg border border-gray-200 bg-green-50/30 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-3 sm:px-4 py-3 hover:bg-green-50/60 transition-colors text-left"
+        data-testid={`top-product-${product.sku}`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm text-gray-800 font-medium line-clamp-2 sm:truncate">
+              {product.producto || product.sku}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0 tabular-nums">
+              {pct.toFixed(1)}%
+            </span>
+            <div className="flex-1 sm:flex-none sm:w-32">
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+            <Badge variant="outline" className={`${marginBadgeClass(product.marginPct)} text-[10px] px-1.5 py-0 h-5 flex-shrink-0`}>
+              {fmtPct(product.marginPct)}
+            </Badge>
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0 tabular-nums">
+              {fmtCLP(product.revenue)}
+            </span>
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
+          </div>
+        </div>
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-white border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="p-2 bg-gray-50 rounded-lg">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">SKU</p>
+            <p className="text-sm font-mono font-semibold text-gray-900 truncate" title={product.sku}>{product.sku}</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded-lg">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Unidades</p>
+            <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtInt(product.qty)}</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded-lg">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Costo total</p>
+            <p className="text-sm font-bold text-amber-700 tabular-nums">{fmtCLP(product.cost)}</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded-lg">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Margen $</p>
+            <p className={`text-sm font-bold tabular-nums ${product.marginAmount < 0 ? "text-red-600" : "text-emerald-700"}`}>
+              {fmtCLP(product.marginAmount)}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
