@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import { CostComparisonSection } from "@/components/finanzas/cost-comparison-section";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -261,10 +262,28 @@ export function MarginDashboard() {
 
   const marginStats = useMemo(() => {
     if (!filterActive || !data) return null;
-    const rows =
-      view === "segment"
-        ? data.bySalesperson.filter(r => r.marginPct != null)
-        : data.bySegment.filter(r => r.marginPct != null);
+
+    // Cuando se filtra por vendedor: distribución por PRODUCTO de ese vendedor.
+    // Cuando se filtra por segmento: distribución por vendedor dentro del segmento.
+    if (view === "salesperson") {
+      const rows = (data.topProductos ?? []).filter(p => p.marginPct != null);
+      if (rows.length === 0) return null;
+      const values = rows.map(p => p.marginPct as number);
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const minRow = rows.find(p => p.marginPct === min);
+      const maxRow = rows.find(p => p.marginPct === max);
+      return {
+        avg,
+        min,
+        max,
+        minLabel: minRow?.producto || minRow?.sku || "",
+        maxLabel: maxRow?.producto || maxRow?.sku || "",
+      };
+    }
+
+    const rows = data.bySalesperson.filter(r => r.marginPct != null);
     if (rows.length === 0) return null;
     const values = rows.map(r => r.marginPct as number);
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
@@ -272,7 +291,7 @@ export function MarginDashboard() {
     const max = Math.max(...values);
     const minRow = rows.find(r => r.marginPct === min);
     const maxRow = rows.find(r => r.marginPct === max);
-    return { avg, min, max, minLabel: view === "segment" ? (minRow as SalespersonRow)?.salesperson : (minRow as SegmentRow)?.segment, maxLabel: view === "segment" ? (maxRow as SalespersonRow)?.salesperson : (maxRow as SegmentRow)?.segment };
+    return { avg, min, max, minLabel: minRow?.salesperson, maxLabel: maxRow?.salesperson };
   }, [data, filterActive, view]);
 
   return (
@@ -654,6 +673,14 @@ export function MarginDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Costo vs Venta FCV (tabla detallada) ───────────────────────────── */}
+      <CostComparisonSection
+        period={period}
+        salesperson={apiSalesperson ?? ""}
+        segment={apiSegment ?? ""}
+        hideFilters
+      />
     </div>
   );
 }
