@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { generatePDFFromQuote } from "@/lib/quote-pdf-html";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -407,26 +408,16 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const handleDownloadPDF = async (quoteId: string, quoteNumber: string) => {
     setDownloadingId(quoteId);
     try {
-      const res = await fetch(`/api/quotes/${quoteId}/pdf?format=pdf`, {
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => res.statusText);
-        throw new Error(`${res.status}: ${text}`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Cotizacion_${quoteNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({ title: "PDF descargado", description: `Cotizacion_${quoteNumber}.pdf` });
+      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
+      const quoteData = await quoteResponse.json();
+      const items = quoteData.items || [];
+      // Mismo flujo que la creación: abre el preview con autoPrint y el usuario
+      // guarda como PDF desde el diálogo del navegador. No depende de puppeteer ni html2pdf.
+      generatePDFFromQuote(quoteData, items);
+      toast({ title: "Abriendo PDF", description: `Cotizacion_${quoteNumber}` });
     } catch (err: any) {
       toast({
-        title: "Error al descargar PDF",
+        title: "Error al generar PDF",
         description: err?.message || "No se pudo generar el PDF.",
         variant: "destructive",
       });
