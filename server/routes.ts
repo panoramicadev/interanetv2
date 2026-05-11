@@ -24447,6 +24447,52 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Margen: lista de productos con su agrupación comercial (productFamily / color / formatUnit
+  // tomados desde ecommerce_products) para filtrar el margen vs costo.
+  app.get('/api/margen/products', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, family, color, formato, limit = 50, offset = 0 } = req.query;
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
+      const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
+
+      const result = await storage.getMargenProductList({
+        search: typeof search === 'string' && search.trim() ? search.trim() : undefined,
+        family: typeof family === 'string' && family.trim() ? family.trim() : undefined,
+        color: typeof color === 'string' && color.trim() ? color.trim() : undefined,
+        formato: typeof formato === 'string' && formato.trim() ? formato.trim() : undefined,
+        limit: validatedLimit,
+        offset: validatedOffset,
+      });
+
+      res.json({
+        items: result.items,
+        totalCount: result.totalCount,
+        hasMore: result.hasMore,
+      });
+    } catch (error: any) {
+      console.error('Error fetching margen products:', error);
+      res.status(500).json({ message: 'Error al obtener productos de margen', error: error.message });
+    }
+  }));
+
+  // Margen: opciones disponibles para los selectores (agrupación / color / formato),
+  // tomadas desde ecommerce_products. Se pueden encadenar (family limita los colores
+  // y formatos visibles, etc).
+  app.get('/api/margen/agrupacion-options', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { family, color, formato } = req.query;
+      const options = await storage.getMargenAgrupacionOptions({
+        family: typeof family === 'string' && family.trim() ? family.trim() : undefined,
+        color: typeof color === 'string' && color.trim() ? color.trim() : undefined,
+        formato: typeof formato === 'string' && formato.trim() ? formato.trim() : undefined,
+      });
+      res.json(options);
+    } catch (error: any) {
+      console.error('Error fetching margen agrupación options:', error);
+      res.status(500).json({ message: 'Error al obtener opciones de agrupación', error: error.message });
+    }
+  }));
+
   app.get('/api/etl/costos/sales-by-sku', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { sku, period = 'last-90-days', salesperson, segment } = req.query;

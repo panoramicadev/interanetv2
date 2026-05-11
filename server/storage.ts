@@ -1394,6 +1394,19 @@ export interface IStorage {
     offset?: number;
   }): Promise<{ items: any[]; totalCount: number }>;
   getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number>;
+  getMargenProductList(filters: {
+    search?: string;
+    family?: string;
+    color?: string;
+    formato?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: any[]; totalCount: number; hasMore: boolean }>;
+  getMargenAgrupacionOptions(filters: {
+    family?: string;
+    color?: string;
+    formato?: string;
+  }): Promise<{ families: string[]; colors: string[]; formatos: string[] }>;
   getAvailableUnits(): Promise<string[]>;
   getProductTypes(): Promise<string[]>;
   getAllProductColors(): Promise<string[]>;
@@ -13590,6 +13603,143 @@ export class DatabaseStorage implements IStorage {
       items: resultItems,
       // Approximate: if hasMore, we know there are at least offset+limit+1 items
       totalCount: hasMore ? offset + limit + 1 : offset + resultItems.length,
+    };
+  }
+
+  /**
+   * Margen view: price list joined with ecommerce_products (agrupación comercial).
+   * Returns the price list item enriched with productFamily / color / formatUnit, and
+   * supports filtering by family, color and formato.
+   */
+  async getMargenProductList(filters: {
+    search?: string;
+    family?: string;
+    color?: string;
+    formato?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    items: Array<any>;
+    totalCount: number;
+    hasMore: boolean;
+  }> {
+    const limit = filters?.limit ?? 50;
+    const offset = filters?.offset ?? 0;
+
+    const conditions: any[] = [];
+
+    if (filters.search) {
+      const pattern = `%${filters.search.trim()}%`;
+      conditions.push(
+        sql`(${priceList.codigo} ILIKE ${pattern} OR ${priceList.producto} ILIKE ${pattern})`
+      );
+    }
+    if (filters.family) {
+      conditions.push(sql`TRIM(${ecommerceProducts.productFamily}) = ${filters.family.trim()}`);
+    }
+    if (filters.color) {
+      conditions.push(sql`TRIM(${ecommerceProducts.color}) = ${filters.color.trim()}`);
+    }
+    if (filters.formato) {
+      conditions.push(sql`TRIM(${ecommerceProducts.formatUnit}) = ${filters.formato.trim()}`);
+    }
+
+    let whereClause: any = sql`true`;
+    if (conditions.length > 0) {
+      whereClause = conditions[0];
+      for (let i = 1; i < conditions.length; i++) {
+        whereClause = sql`${whereClause} AND ${conditions[i]}`;
+      }
+    }
+
+    const rows = await db
+      .select({
+        id: priceList.id,
+        codigo: priceList.codigo,
+        producto: priceList.producto,
+        unidad: priceList.unidad,
+        lista: priceList.lista,
+        minimo: priceList.minimo,
+        costoProduccion: priceList.costoProduccion,
+        productFamily: ecommerceProducts.productFamily,
+        color: ecommerceProducts.color,
+        formatUnit: ecommerceProducts.formatUnit,
+      })
+      .from(priceList)
+      .leftJoin(ecommerceProducts, eq(ecommerceProducts.priceListId, priceList.id))
+      .where(whereClause)
+      .orderBy(
+        sql`COALESCE(${ecommerceProducts.productFamily}, 'ZZZ')`,
+        priceList.producto,
+        priceList.codigo
+      )
+      .limit(limit + 1)
+      .offset(offset);
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      totalCount: hasMore ? offset + limit + 1 : offset + items.length,
+      hasMore,
+    };
+  }
+
+  /**
+   * Margen view: distinct filter options taken from ecommerce_products (agrupación comercial),
+   * optionally narrowed by the currently selected family/color.
+   */
+  async getMargenAgrupacionOptions(filters: {
+    family?: string;
+    color?: string;
+    formato?: string;
+  }): Promise<{
+    families: string[];
+    colors: string[];
+    formatos: string[];
+  }> {
+    const familyCond = filters.family
+      ? sql`AND TRIM(${ecommerceProducts.productFamily}) = ${filters.family.trim()}`
+      : sql``;
+    const colorCond = filters.color
+      ? sql`AND TRIM(${ecommerceProducts.color}) = ${filters.color.trim()}`
+      : sql``;
+    const formatoCond = filters.formato
+      ? sql`AND TRIM(${ecommerceProducts.formatUnit}) = ${filters.formato.trim()}`
+      : sql``;
+
+    const [familiesRes, colorsRes, formatosRes] = await Promise.all([
+      db.execute(sql`
+        SELECT DISTINCT TRIM(product_family) AS value
+        FROM ecommerce_products
+        WHERE product_family IS NOT NULL AND TRIM(product_family) <> ''
+        ${colorCond}
+        ${formatoCond}
+        ORDER BY value
+      `),
+      db.execute(sql`
+        SELECT DISTINCT TRIM(color) AS value
+        FROM ecommerce_products
+        WHERE color IS NOT NULL AND TRIM(color) <> ''
+        ${familyCond}
+        ${formatoCond}
+        ORDER BY value
+      `),
+      db.execute(sql`
+        SELECT DISTINCT TRIM(format_unit) AS value
+        FROM ecommerce_products
+        WHERE format_unit IS NOT NULL AND TRIM(format_unit) <> ''
+        ${familyCond}
+        ${colorCond}
+        ORDER BY value
+      `),
+    ]);
+
+    return {
+      families: ((familiesRes as any).rows ?? []).map((r: any) => r.value).filter(Boolean),
+      colors: ((colorsRes as any).rows ?? []).map((r: any) => r.value).filter(Boolean),
+      formatos: ((formatosRes as any).rows ?? []).map((r: any) => r.value).filter(Boolean),
     };
   }
 
