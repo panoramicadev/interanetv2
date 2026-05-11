@@ -25,7 +25,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import html2pdf from "html2pdf.js";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { Button } from "@/components/ui/button";
@@ -357,9 +356,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   // Mutation to send email with PDF
   const sendEmailMutation = useMutation({
     mutationFn: async (params: { quoteId: string }) => {
-      const quoteResponse = await apiRequest(`/api/quotes/${params.quoteId}/with-items`);
-      const quoteData = await quoteResponse.json();
-      const pdfBase64 = await generatePDFAsBase64(quoteData);
+      const pdfBase64 = await fetchQuotePdfAsBase64(params.quoteId);
 
       return await apiRequest(`/api/quotes/${params.quoteId}/send-email`, {
         method: 'POST',
@@ -410,9 +407,14 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const handleDownloadPDF = async (quoteId: string, quoteNumber: string) => {
     setDownloadingId(quoteId);
     try {
-      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
-      const quoteData = await quoteResponse.json();
-      const blob = await generatePDFAsBlob(quoteData);
+      const res = await fetch(`/api/quotes/${quoteId}/pdf?format=pdf`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(`${res.status}: ${text}`);
+      }
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -433,106 +435,16 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     }
   };
 
-  // Generate PDF as Blob (used by both download button and email flow)
-  const generatePDFAsBlob = async (quoteData: any): Promise<Blob> => {
-    const quote = quoteData;
-    const items = quoteData.items || [];
-
-    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
+  // Fetch the server-rendered PDF (same template as creation) and return base64 for email.
+  const fetchQuotePdfAsBase64 = async (quoteId: string): Promise<string> => {
+    const res = await fetch(`/api/quotes/${quoteId}/pdf?format=pdf`, {
+      credentials: 'include',
     });
-
-    const subtotal = parseFloat(quote.subtotal || "0");
-    const tax = parseFloat(quote.taxAmount || "0");
-    const total = parseFloat(quote.total || "0");
-
-    const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
-
-    const escapeHtml = (text: string | null | undefined) => {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    };
-
-    const productRows = items.map((item: any) => {
-      const unitPrice = parseFloat(item.unitPrice);
-      const lineTotal = parseFloat(item.totalPrice);
-
-      return `
-        <tr>
-          <td>
-            <div style="font-weight: 600; color: #1f2937; font-size: 13px;">${escapeHtml(item.productName)}</div>
-            ${item.productCode || item.customSku ? `<div style="color: #6b7280; font-size: 11px; margin-top: 2px;">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
-          </td>
-          <td style="text-align: center;">UN</td>
-          <td style="text-align: center;">${parseFloat(item.quantity)}</td>
-          <td style="text-align: right;">${formatCurrency(unitPrice)}</td>
-          <td style="text-align: right; color: #fd6301; font-weight: 600;">${formatCurrency(lineTotal)}</td>
-        </tr>`;
-    }).join('');
-
-    const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; font-size: 14px; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
-    .header h1 { color: #fd6301; margin: 0; font-size: 24px; }
-    table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-    th { background: #fd6301; color: white; padding: 8px; text-align: left; }
-    td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
-    .totals { background: #f8fafc; padding: 15px; margin: 15px 0; }
-    .total-row { display: flex; justify-content: space-between; margin: 6px 0; }
-    .final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; color: #fd6301; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div><div style="width: 220px; height: 60px; background: #f3f4f6; display: flex; align-items: center; justify-content: center;">Logo Panorámica</div></div>
-    <div style="text-align: right;"><h1>COTIZACIÓN</h1><p>Fecha: ${quoteDate}</p><p>N°: ${escapeHtml(quote.quoteNumber)}</p></div>
-  </div>
-  <div style="background: #fff7ed; border: 1px solid #fdba74; padding: 12px; margin: 15px 0;">
-    <p><strong>Cliente:</strong> ${escapeHtml(quote.clientName)}</p>
-    ${quote.clientRut ? `<p><strong>RUT:</strong> ${escapeHtml(quote.clientRut)}</p>` : ''}
-  </div>
-  <table>
-    <thead><tr><th>Producto</th><th style="text-align: center;">Unidad</th><th style="text-align: center;">Cant.</th><th style="text-align: right;">Precio</th><th style="text-align: right;">Total</th></tr></thead>
-    <tbody>${productRows}</tbody>
-  </table>
-  <div class="totals">
-    <div class="total-row"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
-    <div class="total-row"><span>IVA (19%):</span><span>${formatCurrency(tax)}</span></div>
-    <div class="total-row final-total"><span>Total Final:</span><span>${formatCurrency(total)}</span></div>
-  </div>
-</body>
-</html>`;
-
-    const element = document.createElement('div');
-    element.innerHTML = htmlContent;
-    element.style.position = 'absolute';
-    element.style.left = '-9999px';
-    document.body.appendChild(element);
-
-    const opt = {
-      margin: 0,
-      filename: `Cotizacion_${quote.quoteNumber}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
-    document.body.removeChild(element);
-    return pdfBlob as Blob;
-  };
-
-  // Generate PDF as base64 for email
-  const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
-    const pdfBlob = await generatePDFAsBlob(quoteData);
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`${res.status}: ${text}`);
+    }
+    const blob = await res.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -540,7 +452,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
         resolve(base64);
       };
       reader.onerror = reject;
-      reader.readAsDataURL(pdfBlob);
+      reader.readAsDataURL(blob);
     });
   };
 

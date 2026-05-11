@@ -13035,10 +13035,13 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Serve printable quote PDF page
+  // ?format=pdf → PDF binario renderizado con el template compartido (mismo que el tomador)
+  // default → página HTML imprimible (usada por links del agente AI)
   app.get('/api/quotes/:id/pdf', requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
+      const format = (req.query.format as string) || 'html';
 
       const quote = await storage.getQuoteWithItems(id);
       if (!quote) {
@@ -13048,6 +13051,18 @@ export function registerRoutes(app: Express): Server {
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this quote" });
+      }
+
+      if (format === 'pdf') {
+        const { renderQuotePdf } = await import('./utils/quote-pdf-renderer');
+        const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+        const logoUrl = `${proto}://${host}/panoramica-logo.png`;
+        const items = (quote as any).items || [];
+        const pdfBuffer = await renderQuotePdf(quote, items, logoUrl);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="Cotizacion_${(quote as any).quoteNumber}.pdf"`);
+        return res.send(pdfBuffer);
       }
 
       const rawItems = (quote as any).items || [];
