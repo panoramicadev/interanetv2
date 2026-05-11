@@ -33,6 +33,22 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Aplicar bootstrap + migraciones SQL ANTES de aceptar tráfico.
+  // Si una request llega antes de que termine, una query como /api/store/products/grouped
+  // puede fallar (ej: columna agregada por migración pendiente).
+  if (!process.env.VERCEL) {
+    try {
+      await bootstrapDatabase();
+    } catch (error: any) {
+      console.error('❌ Error en bootstrap de base de datos:', error.message);
+    }
+    try {
+      await runProductionMigrations();
+    } catch (error: any) {
+      console.error('❌ Error crítico en migraciones:', error.message);
+    }
+  }
+
   const server = registerRoutes(app);
 
   // Register B2C public quotation routes (isolated from B2B)
@@ -117,22 +133,6 @@ export default app;
 // Background services initialization - runs after server is ready
 async function initializeBackgroundServices() {
   log('🚀 Starting background services initialization...');
-
-  // Bootstrap de base de datos - crea esquemas y tablas base ANTES de migraciones
-  try {
-    await bootstrapDatabase();
-  } catch (error: any) {
-    console.error('❌ Error en bootstrap de base de datos:', error.message);
-    console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
-  }
-
-  // Ejecutar migraciones de base de datos
-  try {
-    await runProductionMigrations();
-  } catch (error: any) {
-    console.error('❌ Error crítico en migraciones:', error.message);
-    console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
-  }
 
   // Migrar URLs de imágenes de productos a Object Storage
   try {
