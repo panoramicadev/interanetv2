@@ -255,7 +255,7 @@ export function MarginDashboard() {
   const topProductos = data?.topProductos ?? [];
   const visibleTopProductos = topProductos.slice(0, topProductsLimit);
 
-  // ─── Min / Max / Avg margin cards when a filter is active ─────────────────
+  // ─── Min / Max margin cards when a filter is active ────────────────────────
   const filterActive =
     (view === "segment" && !!selectedSegment) ||
     (view === "salesperson" && !!selectedSalesperson);
@@ -269,13 +269,11 @@ export function MarginDashboard() {
       const rows = (data.topProductos ?? []).filter(p => p.marginPct != null);
       if (rows.length === 0) return null;
       const values = rows.map(p => p.marginPct as number);
-      const avg = values.reduce((a, b) => a + b, 0) / values.length;
       const min = Math.min(...values);
       const max = Math.max(...values);
       const minRow = rows.find(p => p.marginPct === min);
       const maxRow = rows.find(p => p.marginPct === max);
       return {
-        avg,
         min,
         max,
         minLabel: minRow?.producto || minRow?.sku || "",
@@ -286,12 +284,11 @@ export function MarginDashboard() {
     const rows = data.bySalesperson.filter(r => r.marginPct != null);
     if (rows.length === 0) return null;
     const values = rows.map(r => r.marginPct as number);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
     const min = Math.min(...values);
     const max = Math.max(...values);
     const minRow = rows.find(r => r.marginPct === min);
     const maxRow = rows.find(r => r.marginPct === max);
-    return { avg, min, max, minLabel: minRow?.salesperson, maxLabel: maxRow?.salesperson };
+    return { min, max, minLabel: minRow?.salesperson, maxLabel: maxRow?.salesperson };
   }, [data, filterActive, view]);
 
   return (
@@ -418,15 +415,9 @@ export function MarginDashboard() {
         />
       </div>
 
-      {/* ── Tarjetas Min / Avg / Max (solo cuando hay filtro activo) ──────── */}
+      {/* ── Tarjetas Min / Max (solo cuando hay filtro activo) ────────────── */}
       {filterActive && (
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard
-            label="Margen Promedio"
-            value={isLoading ? null : marginStats ? fmtPct(marginStats.avg) : "—"}
-            colorClass="text-blue-700"
-            bgClass="bg-blue-50 border-blue-100"
-          />
+        <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Margen Mínimo"
             value={isLoading ? null : marginStats ? fmtPct(marginStats.min) : "—"}

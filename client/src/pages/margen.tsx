@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -22,17 +23,43 @@ import {
   Percent,
   LayoutDashboard,
   ListChecks,
+  Layers,
+  Palette,
+  Ruler,
+  ArrowDownAZ,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import type { PriceList } from "@shared/schema";
 import { MarginDashboard } from "@/components/finanzas/margin-dashboard";
 
-interface PriceListResponse {
-  items: PriceList[];
+interface MargenProductRow {
+  id: string;
+  codigo: string;
+  producto: string;
+  unidad: string | null;
+  lista: string | number | null;
+  minimo: string | number | null;
+  costoProduccion: string | number | null;
+  productFamily: string | null;
+  color: string | null;
+  formatUnit: string | null;
+}
+
+interface MargenProductsResponse {
+  items: MargenProductRow[];
   totalCount: number;
   hasMore: boolean;
 }
+
+interface AgrupacionOptions {
+  families: string[];
+  colors: string[];
+  formatos: string[];
+}
+
+type MargenSort = "family" | "margin-asc" | "margin-desc";
 
 interface CostosExecution {
   id: string;
@@ -79,6 +106,10 @@ export default function MargenPage() {
   const [productsSearch, setProductsSearch] = useState<string>("");
   const [productsSearchInput, setProductsSearchInput] = useState<string>("");
   const [productsPage, setProductsPage] = useState<number>(0);
+  const [selectedFamily, setSelectedFamily] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>("");
+  const [selectedFormato, setSelectedFormato] = useState<string>("");
+  const [marginSort, setMarginSort] = useState<MargenSort>("family");
   const productsPerPage = 50;
 
   const { data: costosStatus, isLoading: loadingStatus } = useQuery<CostosStatus>({
@@ -113,18 +144,73 @@ export default function MargenPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: productsData, isLoading: loadingProducts } = useQuery<PriceListResponse>({
-    queryKey: ["/api/price-list", { search: productsSearch, limit: productsPerPage, offset: productsPage * productsPerPage }],
+  const { data: productsData, isLoading: loadingProducts } = useQuery<MargenProductsResponse>({
+    queryKey: [
+      "/api/margen/products",
+      {
+        search: productsSearch,
+        family: selectedFamily,
+        color: selectedColor,
+        formato: selectedFormato,
+        limit: productsPerPage,
+        offset: productsPage * productsPerPage,
+      },
+    ],
     queryFn: async () => {
       const params = new URLSearchParams({
-        search: productsSearch,
         limit: productsPerPage.toString(),
         offset: (productsPage * productsPerPage).toString(),
       });
-      const res = await apiRequest("GET", `/api/price-list?${params}`);
+      if (productsSearch) params.set("search", productsSearch);
+      if (selectedFamily) params.set("family", selectedFamily);
+      if (selectedColor) params.set("color", selectedColor);
+      if (selectedFormato) params.set("formato", selectedFormato);
+      const res = await apiRequest("GET", `/api/margen/products?${params}`);
       return res.json();
     },
   });
+
+  const { data: agrupacionOptions } = useQuery<AgrupacionOptions>({
+    queryKey: [
+      "/api/margen/agrupacion-options",
+      { family: selectedFamily, color: selectedColor, formato: selectedFormato },
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedFamily) params.set("family", selectedFamily);
+      if (selectedColor) params.set("color", selectedColor);
+      if (selectedFormato) params.set("formato", selectedFormato);
+      const qs = params.toString();
+      const res = await apiRequest("GET", `/api/margen/agrupacion-options${qs ? `?${qs}` : ""}`);
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Apply margin sort on the current page (so the user can re-order ascending /
+  // descending margin within the slice they're viewing).
+  const sortedItems = useMemo(() => {
+    const items = productsData?.items ?? [];
+    if (marginSort === "family") return items;
+    const withMargin = items.map(item => {
+      const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+      const costoValue = griEntry?.price ?? (item.costoProduccion as any);
+      const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
+      const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
+      const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
+      return { item, margenPct };
+    });
+    withMargin.sort((a, b) => {
+      const av = a.margenPct;
+      const bv = b.margenPct;
+      // Null margins fall to the bottom regardless of direction.
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return marginSort === "margin-asc" ? av - bv : bv - av;
+    });
+    return withMargin.map(r => r.item);
+  }, [productsData?.items, griPrices, marginSort]);
 
   const lastExec = costosStatus?.lastExecution;
   const isRunning = costosStatus?.isRunning ?? false;
@@ -238,6 +324,7 @@ export default function MargenPage() {
                     </CardTitle>
                     <p className="text-sm text-gray-500 mt-1">
                       Costo desde la última GRI (Bodega 006); si no hay, se usa el costo de producción cargado.
+                      Agrupación, color y formato vienen de la <strong>agrupación comercial</strong> del catálogo.
                       {productsData ? ` ${formatInt(productsData.totalCount)} productos.` : ""}
                     </p>
                   </div>
@@ -275,15 +362,128 @@ export default function MargenPage() {
                     )}
                   </form>
                 </div>
+
+                {/* Filtros por agrupación comercial */}
+                <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5 text-teal-600" />
+                    <Select
+                      value={selectedFamily || "__all__"}
+                      onValueChange={v => {
+                        setSelectedFamily(v === "__all__" ? "" : v);
+                        setProductsPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 text-sm" data-testid="select-margen-family">
+                        <SelectValue placeholder="Todas las agrupaciones" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectItem value="__all__">Todas las agrupaciones</SelectItem>
+                        {(agrupacionOptions?.families ?? []).map(f => (
+                          <SelectItem key={f} value={f}>{f}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Palette className="h-3.5 w-3.5 text-purple-600" />
+                    <Select
+                      value={selectedColor || "__all__"}
+                      onValueChange={v => {
+                        setSelectedColor(v === "__all__" ? "" : v);
+                        setProductsPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-44 text-sm" data-testid="select-margen-color">
+                        <SelectValue placeholder="Todos los colores" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectItem value="__all__">Todos los colores</SelectItem>
+                        {(agrupacionOptions?.colors ?? []).map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Ruler className="h-3.5 w-3.5 text-amber-600" />
+                    <Select
+                      value={selectedFormato || "__all__"}
+                      onValueChange={v => {
+                        setSelectedFormato(v === "__all__" ? "" : v);
+                        setProductsPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-44 text-sm" data-testid="select-margen-formato">
+                        <SelectValue placeholder="Todos los formatos" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectItem value="__all__">Todos los formatos</SelectItem>
+                        {(agrupacionOptions?.formatos ?? []).map(f => (
+                          <SelectItem key={f} value={f}>{f}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <span className="text-xs text-gray-500">Ordenar:</span>
+                    <Select value={marginSort} onValueChange={v => setMarginSort(v as MargenSort)}>
+                      <SelectTrigger className="h-9 w-52 text-sm" data-testid="select-margen-sort">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="family">
+                          <div className="flex items-center gap-2">
+                            <ArrowDownAZ className="h-3.5 w-3.5 text-gray-500" />
+                            <span>Agrupación / nombre</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="margin-asc">
+                          <div className="flex items-center gap-2">
+                            <ArrowUp className="h-3.5 w-3.5 text-red-500" />
+                            <span>Margen ascendente</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="margin-desc">
+                          <div className="flex items-center gap-2">
+                            <ArrowDown className="h-3.5 w-3.5 text-emerald-500" />
+                            <span>Margen descendente</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(selectedFamily || selectedColor || selectedFormato) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setSelectedFamily("");
+                        setSelectedColor("");
+                        setSelectedFormato("");
+                        setProductsPage(0);
+                      }}
+                    >
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {loadingProducts ? (
                   <div className="flex items-center justify-center py-10 text-gray-500">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando productos...
                   </div>
-                ) : !productsData || productsData.items.length === 0 ? (
+                ) : !productsData || sortedItems.length === 0 ? (
                   <div className="py-10 text-center text-gray-500 text-sm">
-                    {productsSearch ? "Sin resultados para la búsqueda." : "No hay productos en la lista de precios."}
+                    {productsSearch || selectedFamily || selectedColor || selectedFormato
+                      ? "Sin resultados para los filtros aplicados."
+                      : "No hay productos en la lista de precios."}
                   </div>
                 ) : (
                   <>
@@ -292,6 +492,8 @@ export default function MargenPage() {
                         <TableRow className="bg-gray-50">
                           <TableHead className="text-xs">Código</TableHead>
                           <TableHead className="text-xs">Producto</TableHead>
+                          <TableHead className="text-xs">Agrupación</TableHead>
+                          <TableHead className="text-xs">Color</TableHead>
                           <TableHead className="text-xs">Formato</TableHead>
                           <TableHead className="text-right text-xs">Lista</TableHead>
                           <TableHead className="text-right text-xs">Mínimo</TableHead>
@@ -300,18 +502,31 @@ export default function MargenPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {productsData.items.map(item => {
+                        {sortedItems.map(item => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                          const costoValue = griEntry?.price ?? (item.costoProduccion as any);
                           const costoDate = griEntry?.date ?? null;
                           const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
                           const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
                           const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
+                          const formato = item.formatUnit || item.unidad || "-";
                           return (
                             <TableRow key={item.id} className="text-xs">
                               <TableCell className="font-mono py-2">{item.codigo}</TableCell>
-                              <TableCell className="py-2 max-w-[320px] truncate" title={item.producto}>{item.producto}</TableCell>
-                              <TableCell className="py-2">{item.unidad || "-"}</TableCell>
+                              <TableCell className="py-2 max-w-[280px] truncate" title={item.producto}>{item.producto}</TableCell>
+                              <TableCell className="py-2 max-w-[180px] truncate" title={item.productFamily || ""}>
+                                {item.productFamily ? (
+                                  <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 font-normal">
+                                    {item.productFamily}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-2">
+                                {item.color || <span className="text-gray-400">—</span>}
+                              </TableCell>
+                              <TableCell className="py-2">{formato}</TableCell>
                               <TableCell className="text-right tabular-nums py-2">
                                 {item.lista ? formatCLP(Number(item.lista)) : "-"}
                               </TableCell>
