@@ -274,6 +274,48 @@ export async function notifyNuevaOrden(orderNumber: string, clientName: string, 
   });
 }
 
+interface OrderModifiedNotifyOpts {
+  orderId: string;
+  orderNumber: string;
+  clientEmail?: string | null;
+  clientName?: string | null;
+  newTotal: number;
+  previousTotal?: number;
+  paymentCondition?: string | null;
+}
+
+export async function notifyOrderModified(opts: OrderModifiedNotifyOpts): Promise<void> {
+  if (!opts.clientEmail) {
+    console.log(`[notifyOrderModified] orden ${opts.orderNumber} sin email de cliente, saltando`);
+    return;
+  }
+  try {
+    const { buildOrderModifiedEmail } = await import('./email-templates');
+    const cond = (opts.paymentCondition || '').toUpperCase();
+    const isCredit = cond.includes('CREDITO') || cond.includes('CRÉDITO');
+    const requiresReceiptUpdate = !isCredit;
+    const base = (process.env.PUBLIC_BASE_URL || 'https://ai.pinturaspanoramica.cl').replace(/\/$/, '');
+    const orderUrl = `${base}/mis-pedidos`;
+    const built = buildOrderModifiedEmail({
+      clientName: opts.clientName || 'Cliente',
+      orderNumber: opts.orderNumber,
+      newTotal: opts.newTotal,
+      previousTotal: opts.previousTotal,
+      paymentCondition: opts.paymentCondition || undefined,
+      requiresReceiptUpdate,
+      orderUrl,
+    });
+    await sendAutoCustomerEmail({
+      notificationType: 'pedido_modificado',
+      to: opts.clientEmail,
+      subject: built.subject,
+      html: built.html,
+    });
+  } catch (err: any) {
+    console.warn(`[notifyOrderModified] error enviando email para orden ${opts.orderNumber}:`, err?.message);
+  }
+}
+
 // Notificaciones para Solicitudes de Catálogo Público
 export async function notifySolicitudCatalogo(
   visitorName: string,
