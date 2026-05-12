@@ -8034,6 +8034,14 @@ export function registerRoutes(app: Express): Server {
     const { eq } = await import('drizzle-orm');
     const { db } = await import('./db');
 
+    // Validar motivo cuando se descarta el pedido
+    if (status === 'rejected') {
+      const reason = String(req.body?.rejectedReason || '').trim();
+      if (!reason) {
+        return res.status(400).json({ message: 'Debes indicar el motivo del descarte' });
+      }
+    }
+
     const [updated] = await db.update(ecommerceOrders)
       .set({
         status,
@@ -8043,6 +8051,11 @@ export function registerRoutes(app: Express): Server {
           ingresadoAt: new Date(),
           ingresadoById: user.id,
           ...(req.body?.ingresadoNotes ? { ingresadoNotes: String(req.body.ingresadoNotes).slice(0, 2000) } : {}),
+        } : {}),
+        ...(status === 'rejected' ? {
+          rejectedAt: new Date(),
+          rejectedById: user.id,
+          rejectedReason: String(req.body?.rejectedReason || '').slice(0, 2000),
         } : {}),
         updatedAt: new Date(),
       })

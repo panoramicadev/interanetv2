@@ -3704,6 +3704,11 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   ingresadoById: varchar("ingresado_by_id"),
   ingresadoNotes: text("ingresado_notes"),
 
+  // Descarte / rechazo del pedido (motivo + auditoría)
+  rejectedAt: timestamp("rejected_at"),
+  rejectedById: varchar("rejected_by_id"),
+  rejectedReason: text("rejected_reason"),
+
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
 
