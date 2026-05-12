@@ -647,6 +647,11 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_by_id VARCHAR`);
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS ingresado_notes TEXT`);
 
+    // Migración 051: descarte de pedido con motivo (recepción/admin)
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS rejected_by_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS rejected_reason TEXT`);
+
     // Migración 045: descuento de sucursal y lista de precios usada en cada pedido eCommerce
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS branch_discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS price_list_used VARCHAR`);

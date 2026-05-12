@@ -266,6 +266,62 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
   return { subject, html };
 }
 
+interface OrderModifiedData {
+  clientName: string;
+  orderNumber: string;
+  newTotal: number;
+  previousTotal?: number;
+  paymentCondition?: string;
+  requiresReceiptUpdate: boolean;
+  orderUrl: string;
+}
+
+export function buildOrderModifiedEmail(data: OrderModifiedData): { subject: string; html: string } {
+  const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+  const totalStr = fmt(data.newTotal);
+  const prevStr = typeof data.previousTotal === 'number' && data.previousTotal !== data.newTotal ? fmt(data.previousTotal) : null;
+  const diff = prevStr ? data.newTotal - (data.previousTotal as number) : 0;
+  const diffSign = diff > 0 ? '+' : '';
+  const subject = `Tu pedido #${data.orderNumber} fue modificado - Pinturas Panorámica`;
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Tu pedido fue modificado</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, queremos avisarte que nuestro equipo ajustó tu pedido <strong>#${data.orderNumber}</strong>.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px 0;">
+      ${prevStr ? `
+      <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+        <span style="color: #555;">Total anterior:</span>
+        <span style="color: #999; margin-left: 8px; text-decoration: line-through;">${prevStr}</span>
+      </td></tr>
+      <tr><td style="height: 6px;"></td></tr>` : ''}
+      <tr><td style="padding: 12px; background-color: #fff7ed; border-left: 4px solid #fd6301; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">Nuevo total:</span>
+        <span style="color: #1a1f2e; margin-left: 8px; font-size: 17px;"><strong>${totalStr}</strong></span>
+        ${prevStr ? `<span style="color: ${diff > 0 ? '#b91c1c' : '#047857'}; margin-left: 10px; font-size: 13px;">(${diffSign}${fmt(diff)})</span>` : ''}
+      </td></tr>
+    </table>
+    ${data.requiresReceiptUpdate ? `
+    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 16px; border-radius: 4px; margin: 0 0 20px 0;">
+      <p style="color: #92400e; margin: 0 0 6px 0; font-size: 14px; font-weight: bold;">⚠️ Acción requerida: actualizá tu comprobante</p>
+      <p style="color: #78350f; margin: 0; font-size: 13px; line-height: 1.6;">
+        Como el total cambió, te pedimos que revises el monto transferido. Si corresponde, subí un comprobante actualizado desde tu portal para que podamos seguir procesando el pedido.
+      </p>
+    </div>` : ''}
+    <p style="text-align: center; margin: 24px 0;">
+      <a href="${data.orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        Ver mi pedido
+      </a>
+    </p>
+    <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
+      Si tenés dudas, escribinos a
+      <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface QuoteReceivedData {
   clientName: string;
   itemCount?: number;

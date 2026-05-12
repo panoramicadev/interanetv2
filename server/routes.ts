@@ -8022,17 +8022,13 @@ export function registerRoutes(app: Express): Server {
 
     const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived', 'ingresado'];
 
-    // Reception solo puede marcar como ingresado (y solo sobre pedidos aprobados)
-    if (user.role === 'reception' && status !== 'ingresado') {
-      return res.status(403).json({ message: 'Recepción solo puede marcar pedidos como ingresados' });
+    // Reception puede marcar como ingresado o descartar pedidos (con motivo)
+    if (user.role === 'reception' && !['ingresado', 'rejected'].includes(status)) {
+      return res.status(403).json({ message: 'Recepción solo puede marcar pedidos como ingresados o descartados' });
     }
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Estado inválido' });
     }
-
-    const { ecommerceOrders } = await import('@shared/schema');
-    const { eq } = await import('drizzle-orm');
-    const { db } = await import('./db');
 
     // Validar motivo cuando se descarta el pedido
     if (status === 'rejected') {
@@ -8041,6 +8037,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Debes indicar el motivo del descarte' });
       }
     }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [previous] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
 
     const [updated] = await db.update(ecommerceOrders)
       .set({
@@ -8064,6 +8066,19 @@ export function registerRoutes(app: Express): Server {
 
     if (!updated) {
       return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    // Notify client when the order transitions to "modified" (only on actual transition).
+    if (status === 'modified' && previous?.status !== 'modified') {
+      NotifyHelper.notifyOrderModified({
+        orderId: updated.id,
+        orderNumber: updated.id,
+        clientEmail: updated.clientEmail,
+        clientName: updated.clientName,
+        newTotal: Number(updated.total) || 0,
+        previousTotal: previous ? Number(previous.total) || 0 : undefined,
+        paymentCondition: updated.paymentCondition,
+      }).catch(err => console.warn('[order-modified-email]', err?.message));
     }
 
     // Process credit updates if the order is approved
@@ -8259,6 +8274,8 @@ export function registerRoutes(app: Express): Server {
     const tax = Math.round(subtotal * 0.19);
     const total = subtotal + tax;
 
+    const previousTotal = Number(existing.total) || 0;
+
     const [updated] = await db.update(ecommerceOrders)
       .set({
         items: normalizedItems,
@@ -8272,6 +8289,16 @@ export function registerRoutes(app: Express): Server {
       })
       .where(eq(ecommerceOrders.id, id))
       .returning();
+
+    NotifyHelper.notifyOrderModified({
+      orderId: updated.id,
+      orderNumber: updated.id,
+      clientEmail: updated.clientEmail,
+      clientName: updated.clientName,
+      newTotal: Number(updated.total) || 0,
+      previousTotal,
+      paymentCondition: updated.paymentCondition,
+    }).catch(err => console.warn('[order-modified-email]', err?.message));
 
     res.json(updated);
   }));
@@ -8323,6 +8350,8 @@ export function registerRoutes(app: Express): Server {
 
     const resolved = await resolveItemsPricing(existingItems, client);
 
+    const previousTotal = Number(existing.total) || 0;
+
     const [updated] = await db.update(ecommerceOrders)
       .set({
         items: resolved.items,
@@ -8338,6 +8367,16 @@ export function registerRoutes(app: Express): Server {
       })
       .where(eq(ecommerceOrders.id, id))
       .returning();
+
+    NotifyHelper.notifyOrderModified({
+      orderId: updated.id,
+      orderNumber: updated.id,
+      clientEmail: updated.clientEmail,
+      clientName: updated.clientName,
+      newTotal: Number(updated.total) || 0,
+      previousTotal,
+      paymentCondition: updated.paymentCondition,
+    }).catch(err => console.warn('[order-modified-email]', err?.message));
 
     res.json({
       order: updated,
@@ -18251,6 +18290,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const defaultSettings = [
         { notificationType: 'pedido_nuevo', displayName: 'Pedido Nuevo (Tienda)', description: 'Notificar cuando se crea un nuevo pedido en Panorámica Market', enabled: false },
+        { notificationType: 'pedido_modificado', displayName: 'Pedido Modificado (Tienda)', description: 'Avisar al cliente cuando el equipo modifica su pedido (precios, items o estado), incluyendo recordatorio de actualizar comprobante si paga por transferencia', enabled: true },
         { notificationType: 'solicitud_catalogo', displayName: 'Solicitud de Catálogo', description: 'Notificar cuando se recibe una solicitud de cotización desde el catálogo público', enabled: false },
         { notificationType: 'reclamo_nuevo', displayName: 'Reclamo Nuevo', description: 'Notificar cuando se registra un nuevo reclamo', enabled: false },
         { notificationType: 'cotizacion_convertida', displayName: 'Cotización Convertida', description: 'Notificar cuando una cotización se convierte en pedido', enabled: false },
@@ -18665,6 +18705,7 @@ export function registerRoutes(app: Express): Server {
       await ensure('mailing_venta', 'Mailing - Venta manual', 'Destinatarios internos en copia para correos de notificación de venta enviados desde Mailing');
       await ensure('ecommerce_sale_auto', 'Auto: Venta recibida (tienda)', 'Cuando un cliente realiza un pedido en Panorámica Market, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       await ensure('ecommerce_quote_auto', 'Auto: Cotización recibida (tienda)', 'Cuando un visitante envía una solicitud de cotización pública, se envía un correo automático de confirmación. CC: copias internas opcionales.');
+      await ensure('pedido_modificado', 'Auto: Pedido modificado (tienda)', 'Cuando el equipo modifica un pedido (precios, items o estado), se envía un correo al cliente con el nuevo total y un recordatorio para actualizar el comprobante si paga por transferencia. CC: copias internas opcionales.');
       res.json({ success: true });
     } catch (error: any) {
       console.error('❌ Error inicializando settings de mailing:', error);

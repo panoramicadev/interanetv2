@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
@@ -8,7 +8,8 @@ import {
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
   Pencil, Archive, Trash2, FileImage, Landmark,
   Upload, Download, X, Loader2, RefreshCw, Save, Inbox,
-  Plus, Minus, Search, Ban
+  AlertTriangle, RefreshCcw,
+  Plus, Minus, Search, Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +169,60 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const { user } = useAuth();
   const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
   const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+
+  const paymentConditionUpper = (currentOrder.paymentCondition || '').toUpperCase();
+  const isCreditOrder = paymentConditionUpper.includes('CREDITO') || paymentConditionUpper.includes('CRÉDITO');
+  const requiresReceipt = !!currentOrder.paymentCondition && !isCreditOrder;
+  const hasReceipt = !!currentOrder.paymentReceiptUrl;
+  const isModified = statusKey === 'modified';
+
+  const handleClientUploadReceipt = async (file: File) => {
+    setIsUploadingReceipt(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error('Error al subir archivo');
+      const uploadData = await uploadRes.json();
+      const fileUrl = uploadData.url || uploadData.fileUrl;
+
+      const patchRes = await fetch(`/api/ecommerce/orders/${currentOrder.id}/receipt`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ paymentReceiptUrl: fileUrl }),
+      });
+      if (!patchRes.ok) throw new Error('Error al asociar comprobante');
+      const updated = await patchRes.json();
+      setCurrentOrder(prev => ({ ...prev, ...updated }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
+      toast({
+        title: hasReceipt ? 'Comprobante actualizado' : 'Comprobante enviado',
+        description: 'Nuestro equipo revisará la transferencia y procesará tu pedido.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.message || 'No se pudo subir el comprobante. Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
+
+  const onReceiptFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleClientUploadReceipt(file);
+    e.target.value = '';
+  };
 
   // Price/items editing state
   const [isEditingPrices, setIsEditingPrices] = useState(false);
@@ -584,7 +639,6 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     Aprobar Pedido
                   </DropdownMenuItem>
                 )}
-
                 {['approved', 'preparacion', 'transito'].includes(statusKey) && (
                   <>
                     <DropdownMenuItem
@@ -999,6 +1053,22 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
           />
         )}
       </div>
+
+      {/* Modified banner — visible to clients when the order was edited by the team */}
+      {isClientView && isModified && (
+        <div className="mb-6 rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 flex items-start gap-3 shadow-sm">
+          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-900">Tu pedido fue modificado</p>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              Nuestro equipo ajustó este pedido. Revisá el nuevo total
+              {requiresReceipt
+                ? ' y, si pagás por transferencia, actualizá el comprobante con el monto correcto desde la sección "Comprobante de pago".'
+                : '.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Products + Payment */}
@@ -1426,7 +1496,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                       <p className="text-xs text-gray-500">{formatDate(currentOrder.rejectedAt)}</p>
                       {currentOrder.rejectedReason && (
                         <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-100">
-                          <p className="text-[10px] font-bold text-red-700 uppercase tracking-widest mb-1">Motivo</p>
+                          <p className="text-[10px] font-bold text-red-700 uppercase tracking-widest mb-1">Motivo del descarte</p>
                           <p className="text-sm text-red-900 whitespace-pre-wrap break-words">{currentOrder.rejectedReason}</p>
                         </div>
                       )}
@@ -1550,18 +1620,61 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 </div>
               )}
 
-              {order.paymentReceiptUrl && (
+              {(hasReceipt || (isClientView && requiresReceipt)) && (
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
                   <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Comprobante de pago</h5>
-                  <a
-                    href={order.paymentReceiptUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-[#FF6E23] hover:text-[#FF6E23]/80 transition-colors font-medium break-all"
-                  >
-                    <FileImage className="w-4 h-4 flex-shrink-0" />
-                    Ver comprobante enviado
-                  </a>
+
+                  {hasReceipt && (
+                    <a
+                      href={currentOrder.paymentReceiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm text-[#FF6E23] hover:text-[#FF6E23]/80 transition-colors font-medium break-all"
+                    >
+                      <FileImage className="w-4 h-4 flex-shrink-0" />
+                      Ver comprobante enviado
+                    </a>
+                  )}
+
+                  {isClientView && requiresReceipt && (
+                    <>
+                      <input
+                        type="file"
+                        ref={receiptInputRef}
+                        onChange={onReceiptFileSelected}
+                        accept="image/*,.pdf"
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={hasReceipt ? 'outline' : 'default'}
+                        className={`w-full rounded-xl mt-1 ${hasReceipt ? '' : 'bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white'}`}
+                        onClick={() => receiptInputRef.current?.click()}
+                        disabled={isUploadingReceipt}
+                      >
+                        {isUploadingReceipt ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Subiendo...
+                          </>
+                        ) : hasReceipt ? (
+                          <>
+                            <RefreshCcw className="w-4 h-4 mr-2" />
+                            Reemplazar comprobante
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Subir comprobante
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-[10px] text-gray-400">
+                        Acepta imágenes (JPG, PNG) y PDF.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
