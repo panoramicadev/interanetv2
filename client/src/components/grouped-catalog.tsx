@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from "@/hooks/use-toast";
 import {
     Search, Package, Palette, ChevronDown, ChevronRight, ChevronUp,
-    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check
+    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check, Plus, AlertTriangle
 } from "lucide-react";
 
 interface FormatVariant {
@@ -388,6 +388,118 @@ export default function GroupedCatalog() {
         },
     });
 
+    // ===== Add SKU to existing grouping =====
+    const [addSkuOpen, setAddSkuOpen] = useState(false);
+    const [addSkuTarget, setAddSkuTarget] = useState<{ genericName: string; colors: string[]; formats: string[] } | null>(null);
+    const [skuQuery, setSkuQuery] = useState("");
+    const [selectedSku, setSelectedSku] = useState<{ codigo: string; producto: string; unidad: string | null; lista: string | null } | null>(null);
+    const [addColor, setAddColor] = useState("");
+    const [addFormat, setAddFormat] = useState("");
+    const [addPrice, setAddPrice] = useState("");
+
+    const resetAddSkuForm = () => {
+        setSkuQuery("");
+        setSelectedSku(null);
+        setAddColor("");
+        setAddFormat("");
+        setAddPrice("");
+    };
+
+    const openAddSkuDialog = (product: GenericProduct) => {
+        const colorKeys = Object.keys(product.colors);
+        const formatsSet = new Set<string>();
+        colorKeys.forEach(c => product.colors[c].forEach(v => v.format && formatsSet.add(v.format)));
+        setAddSkuTarget({
+            genericName: product.genericName,
+            colors: colorKeys,
+            formats: Array.from(formatsSet),
+        });
+        resetAddSkuForm();
+        setAddSkuOpen(true);
+    };
+
+    // SKU autocomplete — debounced query against /api/price-list
+    const [debouncedSkuQuery, setDebouncedSkuQuery] = useState("");
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSkuQuery(skuQuery), 250);
+        return () => clearTimeout(t);
+    }, [skuQuery]);
+
+    const { data: skuSearchResults = [] } = useQuery<any[]>({
+        queryKey: ["/api/price-list/search-for-grouping", debouncedSkuQuery],
+        queryFn: async () => {
+            if (!debouncedSkuQuery || debouncedSkuQuery.length < 2) return [];
+            const res = await apiRequest("GET", `/api/price-list?search=${encodeURIComponent(debouncedSkuQuery)}&limit=15`);
+            const data = await res.json();
+            return data.items || [];
+        },
+        enabled: addSkuOpen && debouncedSkuQuery.length >= 2,
+    });
+
+    // Look up if a SKU is already part of another grouping using the cached catalog (no extra request)
+    const findExistingGrouping = (sku: string): { genericName: string; color: string; format: string } | null => {
+        const upper = sku.toUpperCase();
+        for (const product of catalog) {
+            for (const [color, variants] of Object.entries(product.colors)) {
+                for (const v of variants) {
+                    if (v.sku?.toUpperCase() === upper) {
+                        return { genericName: product.genericName, color, format: v.format };
+                    }
+                }
+            }
+        }
+        return null;
+    };
+
+    const addSkuMutation = useMutation({
+        mutationFn: async (payload: { sku: string; genericName: string; color: string; formatUnit: string; price: number | null }) => {
+            const res = await apiRequest("POST", "/api/products/grouped-catalog/add-sku", payload);
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+            toast({
+                title: data?.wasUpdate ? "SKU reasignado" : "SKU agregado",
+                description: `${data?.sku} → ${data?.genericName} / ${data?.color}`,
+            });
+            setAddSkuOpen(false);
+            resetAddSkuForm();
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error", description: err?.message || "No se pudo agregar el SKU." });
+        },
+    });
+
+    const submitAddSku = () => {
+        if (!addSkuTarget || !selectedSku) return;
+        const color = addColor.trim();
+        const format = addFormat.trim();
+        if (!color) {
+            toast({ variant: "destructive", title: "Color requerido", description: "Indicá el color de la variante." });
+            return;
+        }
+        if (!format) {
+            toast({ variant: "destructive", title: "Formato requerido", description: "Indicá el formato (ej: Balde 4 Galones)." });
+            return;
+        }
+        const priceNum = addPrice.trim() === "" ? null : Number(addPrice);
+        if (priceNum !== null && (Number.isNaN(priceNum) || priceNum < 0)) {
+            toast({ variant: "destructive", title: "Precio inválido", description: "Dejalo vacío o ingresá un número ≥ 0." });
+            return;
+        }
+        addSkuMutation.mutate({
+            sku: selectedSku.codigo,
+            genericName: addSkuTarget.genericName,
+            color,
+            formatUnit: format,
+            price: priceNum,
+        });
+    };
+
+    const existingForSelectedSku = selectedSku ? findExistingGrouping(selectedSku.codigo) : null;
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -648,6 +760,15 @@ export default function GroupedCatalog() {
                                     <div className="flex items-center gap-2 mb-3">
                                         <Palette className="h-4 w-4 text-muted-foreground" />
                                         <span className="text-sm font-medium text-muted-foreground">Colores y formatos disponibles:</span>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="ml-auto h-7 gap-1 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                            onClick={(e) => { e.stopPropagation(); openAddSkuDialog(product); }}
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Agregar SKU
+                                        </Button>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                         {colorKeys.map(color => {
@@ -880,6 +1001,162 @@ export default function GroupedCatalog() {
         );
     })()}
 </DialogContent>
+            </Dialog>
+
+            {/* ===== Add SKU to Grouping Dialog ===== */}
+            <Dialog open={addSkuOpen} onOpenChange={(open) => { if (!open) { setAddSkuOpen(false); resetAddSkuForm(); } }}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Plus className="h-5 w-5 text-orange-500" />
+                            Agregar SKU a {addSkuTarget?.genericName}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Asocia un SKU existente del catálogo SAP a esta agrupación comercial.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 pt-2">
+                        {/* SKU search */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Buscar SKU *</label>
+                            {selectedSku ? (
+                                <div className="flex items-center justify-between p-2 border rounded-md bg-muted/30">
+                                    <div className="min-w-0">
+                                        <div className="font-mono text-sm font-semibold">{selectedSku.codigo}</div>
+                                        <div className="text-xs text-muted-foreground truncate">{selectedSku.producto}</div>
+                                    </div>
+                                    <Button size="sm" variant="ghost" onClick={() => { setSelectedSku(null); setSkuQuery(""); }}>
+                                        Cambiar
+                                    </Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Código o nombre (mín. 2 caracteres)"
+                                            value={skuQuery}
+                                            onChange={(e) => setSkuQuery(e.target.value)}
+                                            className="pl-9 h-9"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    {skuQuery.length >= 2 && skuSearchResults.length > 0 && (
+                                        <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
+                                            {skuSearchResults.map((item: any) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedSku({
+                                                            codigo: item.codigo,
+                                                            producto: item.producto,
+                                                            unidad: item.unidad || null,
+                                                            lista: item.lista ? String(item.lista) : null,
+                                                        });
+                                                        if (item.lista && !addPrice) setAddPrice(String(item.lista));
+                                                        if (item.unidad && !addFormat) setAddFormat(item.unidad);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm"
+                                                >
+                                                    <div className="font-mono text-xs font-semibold text-orange-700">{item.codigo}</div>
+                                                    <div className="text-xs text-muted-foreground truncate">{item.producto}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {skuQuery.length >= 2 && skuSearchResults.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Sin resultados.</p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Existing grouping warning */}
+                        {existingForSelectedSku && existingForSelectedSku.genericName !== addSkuTarget?.genericName && (
+                            <div className="flex items-start gap-2 p-3 rounded-md border border-amber-300 bg-amber-50 text-amber-800">
+                                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                <div className="text-xs">
+                                    Este SKU ya está en la agrupación <strong>{existingForSelectedSku.genericName}</strong> ({existingForSelectedSku.color} / {existingForSelectedSku.format}). Si continuás, se moverá a <strong>{addSkuTarget?.genericName}</strong>.
+                                </div>
+                            </div>
+                        )}
+                        {existingForSelectedSku && existingForSelectedSku.genericName === addSkuTarget?.genericName && (
+                            <div className="flex items-start gap-2 p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800">
+                                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                <div className="text-xs">
+                                    Este SKU ya está en esta agrupación como <strong>{existingForSelectedSku.color}</strong> / <strong>{existingForSelectedSku.format}</strong>. Guardar lo actualizará.
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Color */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Color *</label>
+                            <Input
+                                list="add-sku-colors"
+                                placeholder="Ej: CAOBA, GRIS NOCHE, CASTAÑO"
+                                value={addColor}
+                                onChange={(e) => setAddColor(e.target.value)}
+                                className="h-9"
+                            />
+                            <datalist id="add-sku-colors">
+                                {(addSkuTarget?.colors || []).map(c => <option key={c} value={c} />)}
+                            </datalist>
+                            {(addSkuTarget?.colors.length ?? 0) > 0 && (
+                                <p className="text-[11px] text-muted-foreground">
+                                    Existentes: {addSkuTarget?.colors.join(", ")}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Format */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Formato *</label>
+                            <Input
+                                list="add-sku-formats"
+                                placeholder="Ej: Balde 4 Galones, Galón"
+                                value={addFormat}
+                                onChange={(e) => setAddFormat(e.target.value)}
+                                className="h-9"
+                            />
+                            <datalist id="add-sku-formats">
+                                {(addSkuTarget?.formats || []).map(f => <option key={f} value={f} />)}
+                            </datalist>
+                        </div>
+
+                        {/* Price */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Precio (opcional)</label>
+                            <Input
+                                type="number"
+                                min={0}
+                                placeholder="Dejalo vacío para conservar el precio actual"
+                                value={addPrice}
+                                onChange={(e) => setAddPrice(e.target.value)}
+                                className="h-9 text-right font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Si lo dejás vacío, no se modifica el precio guardado del SKU.
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={() => { setAddSkuOpen(false); resetAddSkuForm(); }}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                                disabled={!selectedSku || !addColor.trim() || !addFormat.trim() || addSkuMutation.isPending}
+                                onClick={submitAddSku}
+                            >
+                                {addSkuMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                {addSkuMutation.isPending ? "Guardando..." : "Agregar a la agrupación"}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
             </Dialog>
         </div>
     );

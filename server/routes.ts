@@ -7016,6 +7016,87 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // Add a single SKU to a commercial grouping. Conservative upsert: only touches
+  // grouping-related fields, never overwrites dimensions/packaging with nulls.
+  app.post('/api/products/grouped-catalog/add-sku', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden modificar la agrupación' });
+    }
+
+    const sku = String(req.body?.sku || '').trim();
+    const genericName = String(req.body?.genericName || '').trim().toUpperCase();
+    const color = String(req.body?.color || '').trim().toUpperCase();
+    const formatUnit = String(req.body?.formatUnit || '').trim() || null;
+    const priceRaw = req.body?.price;
+    const price = priceRaw === undefined || priceRaw === null || priceRaw === '' ? null : Number(priceRaw);
+
+    if (!sku) return res.status(400).json({ message: 'SKU requerido' });
+    if (!genericName) return res.status(400).json({ message: 'Nombre del grupo requerido' });
+    if (!color) return res.status(400).json({ message: 'Color requerido' });
+    if (price !== null && (Number.isNaN(price) || price < 0)) {
+      return res.status(400).json({ message: 'Precio inválido' });
+    }
+
+    // Resolve price_list row for this SKU
+    const plResult = await db.execute(sql`
+      SELECT id, producto FROM price_list WHERE UPPER(codigo) = UPPER(${sku}) LIMIT 1
+    `);
+    const plRows = Array.isArray(plResult) ? plResult : (plResult as any).rows || [];
+    if (plRows.length === 0) {
+      return res.status(404).json({ message: `SKU ${sku} no existe en el catálogo SAP` });
+    }
+    const plId = (plRows[0] as any).id;
+
+    // Detect previous grouping (informational) before upsert
+    const prevResult = await db.execute(sql`
+      SELECT variant_generic_display_name, color
+      FROM ecommerce_products
+      WHERE price_list_id = ${String(plId)}
+      LIMIT 1
+    `);
+    const prevRows = Array.isArray(prevResult) ? prevResult : (prevResult as any).rows || [];
+    const previousGroup = prevRows.length > 0
+      ? {
+          genericName: (prevRows[0] as any).variant_generic_display_name || null,
+          color: (prevRows[0] as any).color || null,
+        }
+      : null;
+
+    // Upsert. On conflict, only touch grouping fields; preserve dimensions/packaging.
+    // precio_ecommerce is only overwritten when a new price is provided.
+    await db.execute(sql`
+      INSERT INTO ecommerce_products (
+        price_list_id, activo, categoria,
+        variant_generic_display_name, color, format_unit,
+        precio_ecommerce, updated_at
+      ) VALUES (
+        ${String(plId)}, true, ${genericName},
+        ${genericName}, ${color}, ${formatUnit},
+        ${price}, NOW()
+      )
+      ON CONFLICT (price_list_id) DO UPDATE SET
+        activo = true,
+        categoria = ${genericName},
+        variant_generic_display_name = ${genericName},
+        color = ${color},
+        format_unit = COALESCE(${formatUnit}, ecommerce_products.format_unit),
+        precio_ecommerce = COALESCE(${price}, ecommerce_products.precio_ecommerce),
+        updated_at = NOW()
+    `);
+
+    const wasUpdate = prevRows.length > 0;
+    console.log(`✅ SKU ${sku} ${wasUpdate ? 'reasignado' : 'agregado'} → ${genericName} / ${color}`);
+
+    res.json({
+      ok: true,
+      wasUpdate,
+      previousGroup,
+      sku,
+      genericName,
+      color,
+    });
+  }));
+
   // Product routes
   app.get('/api/products', requireAuth, async (req: any, res) => {
     try {
