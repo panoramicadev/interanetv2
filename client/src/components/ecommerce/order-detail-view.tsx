@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
@@ -9,6 +9,7 @@ import {
   Pencil, Archive, Trash2, FileImage, Landmark,
   Upload, Download, X, Loader2, RefreshCw, Save, Inbox,
   AlertTriangle, RefreshCcw,
+  Plus, Minus, Search, Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,7 +88,7 @@ export interface EcommerceOrder {
   ingresadoNotes?: string;
   rejectedAt?: string;
   rejectedById?: string;
-  rejectedNotes?: string;
+  rejectedReason?: string;
   branchDiscountPercent?: string | number;
   priceListUsed?: string;
 }
@@ -125,7 +126,7 @@ export const statusConfig: Record<string, { label: string; color: string; bg: st
   pendiente: { label: "Pendiente", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: Clock },
   approved: { label: "Aprobado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
   modified: { label: "Modificado", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
-  rejected: { label: "Descartado", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: XCircle },
+  rejected: { label: "Rechazado", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: XCircle },
   sent: { label: "Enviado", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: Truck },
   // ERP Specific statuses mapping 
   ingresado: { label: "Ingresado ERP", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
@@ -165,13 +166,9 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showPaymentConditionDialog, setShowPaymentConditionDialog] = useState(false);
   const [paymentConditionValue, setPaymentConditionValue] = useState('');
   const [isSavingPaymentCondition, setIsSavingPaymentCondition] = useState(false);
-  const [showDescartarDialog, setShowDescartarDialog] = useState(false);
-  const [isDescartando, setIsDescartando] = useState(false);
-  const [descartarNotes, setDescartarNotes] = useState('');
   const { user } = useAuth();
   const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
   const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
-  const canDescartar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
 
@@ -227,11 +224,23 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     e.target.value = '';
   };
 
-  // Price editing state
+  // Price/items editing state
   const [isEditingPrices, setIsEditingPrices] = useState(false);
   const [editedItems, setEditedItems] = useState<OrderItem[]>([]);
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
+
+  // Product picker (add new product to the order)
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [productResults, setProductResults] = useState<any[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+
+  // Discard / reject order dialog
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const items = isEditingPrices ? editedItems : getOrderItems(currentOrder);
   const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
@@ -262,14 +271,88 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     setEditedItems(prev => prev.map((it, i) => i === index ? { ...it, unitPrice: num } : it));
   };
 
+  const updateEditedItemQuantity = (index: number, value: string | number) => {
+    const raw = typeof value === 'number' ? value : Number(String(value).replace(/[^\d]/g, '')) || 0;
+    const qty = Math.max(0, Math.floor(raw));
+    setEditedItems(prev => prev.map((it, i) => i === index ? { ...it, quantity: qty } : it));
+  };
+
+  const incrementEditedItemQuantity = (index: number, delta: number) => {
+    setEditedItems(prev => prev.map((it, i) => {
+      if (i !== index) return it;
+      const next = Math.max(0, Math.floor((Number(it.quantity) || 0) + delta));
+      return { ...it, quantity: next };
+    }));
+  };
+
+  const removeEditedItem = (index: number) => {
+    setEditedItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addProductToEditedItems = (product: any) => {
+    const unitPrice = Math.round(Number(product.lista ?? product.precio ?? 0) || 0);
+    const newItem: OrderItem = {
+      productId: product.id,
+      productName: product.producto || product.nombre || 'Producto',
+      productCode: product.codigo,
+      sku: product.codigo,
+      quantity: 1,
+      unitPrice,
+      price: unitPrice,
+      totalPrice: unitPrice,
+      subtotal: unitPrice,
+      selectedPackaging: product.unidad || undefined,
+      imageUrl: product.imageUrl || undefined,
+    };
+    setEditedItems(prev => [...prev, newItem]);
+    setShowProductPicker(false);
+    setProductSearch('');
+    setProductResults([]);
+  };
+
+  // Debounce product search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(productSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [productSearch]);
+
+  useEffect(() => {
+    if (!showProductPicker) return;
+    if (debouncedSearch.length < 2) {
+      setProductResults([]);
+      return;
+    }
+    let cancelled = false;
+    setIsSearchingProducts(true);
+    fetch(`/api/price-list?search=${encodeURIComponent(debouncedSearch)}&limit=20`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(data => { if (!cancelled) setProductResults(data.items || []); })
+      .catch(() => { if (!cancelled) setProductResults([]); })
+      .finally(() => { if (!cancelled) setIsSearchingProducts(false); });
+    return () => { cancelled = true; };
+  }, [debouncedSearch, showProductPicker]);
+
   const saveEditedPrices = async () => {
+    const cleaned = editedItems
+      .map(it => ({ ...it, quantity: Math.max(0, Math.floor(Number(it.quantity) || 0)) }))
+      .filter(it => it.quantity > 0);
+
+    if (cleaned.length === 0) {
+      toast({
+        title: 'El pedido no puede quedar vacío',
+        description: 'Si querés cancelar el pedido, usá "Descartar pedido".',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSavingPrices(true);
     try {
       const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/items`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ items: editedItems }),
+        body: JSON.stringify({ items: cleaned }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -281,11 +364,44 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       setEditedItems([]);
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
-      toast({ title: 'Precios actualizados' });
+      toast({ title: 'Pedido actualizado' });
     } catch (err: any) {
-      toast({ title: 'Error al guardar precios', description: err.message, variant: 'destructive' });
+      toast({ title: 'Error al guardar', description: err.message, variant: 'destructive' });
     } finally {
       setIsSavingPrices(false);
+    }
+  };
+
+  const handleRejectOrder = async () => {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      toast({ title: 'Indicá un motivo del descarte', variant: 'destructive' });
+      return;
+    }
+    setIsRejecting(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'rejected', rejectedReason: reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'No se pudo descartar el pedido');
+      }
+      const updated = await res.json();
+      setCurrentOrder(prev => ({ ...prev, ...updated }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders/pending-count'] });
+      toast({ title: 'Pedido descartado', description: `Motivo registrado por #${getNumericOrderId(currentOrder.id)}` });
+      setShowRejectDialog(false);
+      setRejectReason('');
+      onBack();
+    } catch (err: any) {
+      toast({ title: 'Error al descartar', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -343,40 +459,6 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       toast({ title: 'Error', description: err.message || 'No se pudo marcar como ingresado', variant: 'destructive' });
     } finally {
       setIsIngresando(false);
-    }
-  };
-
-  const handleMarkDescartado = async () => {
-    if (isDescartando) return;
-    const motivo = descartarNotes.trim();
-    if (!motivo) {
-      toast({ title: 'Motivo requerido', description: 'Indicá por qué se descarta el pedido', variant: 'destructive' });
-      return;
-    }
-    setIsDescartando(true);
-    try {
-      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'rejected', rejectedNotes: motivo }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Error' }));
-        throw new Error(err.message || 'Error al descartar el pedido');
-      }
-      const updated = await res.json();
-      setCurrentOrder(prev => ({ ...prev, ...updated }));
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders/pending-count'] });
-      toast({ title: 'Pedido descartado', description: `#${getNumericOrderId(currentOrder.id)} marcado como descartado` });
-      setShowDescartarDialog(false);
-      setDescartarNotes('');
-      onBack();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message || 'No se pudo descartar el pedido', variant: 'destructive' });
-    } finally {
-      setIsDescartando(false);
     }
   };
 
@@ -519,7 +601,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   disabled={isEditingPrices}
                 >
                   <Pencil className="w-4 h-4 mr-2" />
-                  Editar precios
+                  Editar productos y precios
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={recalculateFromClientList}
@@ -557,20 +639,6 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     Aprobar Pedido
                   </DropdownMenuItem>
                 )}
-                {canDescartar && statusKey !== 'rejected' && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setDescartarNotes('');
-                      setShowDescartarDialog(true);
-                    }}
-                    className="cursor-pointer text-red-600 focus:text-red-600"
-                    data-testid="menu-item-descartar"
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Marcar como descartada
-                  </DropdownMenuItem>
-                )}
-
                 {['approved', 'preparacion', 'transito'].includes(statusKey) && (
                   <>
                     <DropdownMenuItem
@@ -660,6 +728,18 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   >
                     <Clock className="w-4 h-4 mr-2" />
                     Marcar Pendiente
+                  </DropdownMenuItem>
+                )}
+                {statusKey !== 'rejected' && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setRejectReason(currentOrder.rejectedReason || '');
+                      setShowRejectDialog(true);
+                    }}
+                    className="cursor-pointer text-red-600 focus:text-red-600"
+                  >
+                    <Ban className="w-4 h-4 mr-2" />
+                    Descartar pedido
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -771,42 +851,6 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
           </AlertDialog>
         )}
 
-        {/* Descartar confirmation dialog */}
-        {canDescartar && (
-          <AlertDialog open={showDescartarDialog} onOpenChange={setShowDescartarDialog}>
-            <AlertDialogContent className="max-w-md">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Descartar pedido</AlertDialogTitle>
-                <AlertDialogDescription>
-                  El pedido #{getNumericOrderId(order.id)} quedará marcado como descartado. Indicá el motivo para dejar registro (lo verá tu equipo en la actividad).
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-2">
-                <Label htmlFor="descartar-notes" className="text-sm">Motivo del descarte</Label>
-                <Textarea
-                  id="descartar-notes"
-                  placeholder="Ej: Cliente canceló, stock insuficiente, datos incorrectos..."
-                  value={descartarNotes}
-                  onChange={(e) => setDescartarNotes(e.target.value)}
-                  rows={3}
-                  data-testid="textarea-descartar-notes"
-                />
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDescartando}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={(e) => { e.preventDefault(); handleMarkDescartado(); }}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                  disabled={isDescartando || !descartarNotes.trim()}
-                  data-testid="button-confirm-descartar"
-                >
-                  {isDescartando ? 'Descartando...' : 'Descartar pedido'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-
         {/* Payment condition edit dialog */}
         {canEditPaymentCondition && (
           <AlertDialog open={showPaymentConditionDialog} onOpenChange={setShowPaymentConditionDialog}>
@@ -848,6 +892,112 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   disabled={isSavingPaymentCondition}
                 >
                   {isSavingPaymentCondition ? 'Guardando...' : 'Guardar'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Product Picker Dialog (add product while editing) */}
+        {!isClientView && (
+          <AlertDialog open={showProductPicker} onOpenChange={(o) => { setShowProductPicker(o); if (!o) { setProductSearch(''); setProductResults([]); } }}>
+            <AlertDialogContent className="max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Agregar producto al pedido</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Buscá por código o nombre. El precio se carga desde la lista base — luego podés ajustarlo en la fila.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    autoFocus
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Ej: ESMALTE, PCA960..."
+                    className="pl-9"
+                    data-testid="input-product-search"
+                  />
+                </div>
+                <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
+                  {debouncedSearch.length < 2 && (
+                    <div className="p-4 text-center text-xs text-gray-400">
+                      Escribí al menos 2 caracteres para buscar
+                    </div>
+                  )}
+                  {debouncedSearch.length >= 2 && isSearchingProducts && (
+                    <div className="p-4 flex items-center justify-center gap-2 text-xs text-gray-500">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Buscando productos...
+                    </div>
+                  )}
+                  {debouncedSearch.length >= 2 && !isSearchingProducts && productResults.length === 0 && (
+                    <div className="p-4 text-center text-xs text-gray-400">
+                      Sin resultados para "{debouncedSearch}"
+                    </div>
+                  )}
+                  {productResults.map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addProductToEditedItems(p)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-orange-50/50 transition-colors flex items-center gap-3"
+                      data-testid={`product-result-${p.codigo}`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
+                        <Package className="w-4 h-4 text-gray-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{p.producto}</p>
+                        <p className="text-[11px] text-gray-500 truncate">
+                          {p.codigo}{p.unidad ? ` · ${p.unidad}` : ''}
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-gray-700 flex-shrink-0">
+                        {formatPrice(p.lista)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cerrar</AlertDialogCancel>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Discard / Reject Order Dialog */}
+        {!isClientView && (
+          <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Descartar pedido</AlertDialogTitle>
+                <AlertDialogDescription>
+                  El pedido #{getNumericOrderId(order.id)} quedará marcado como descartado. Indicá el motivo para dejar registro (lo verá tu equipo en la actividad).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="reject-reason" className="text-sm">Motivo del descarte</Label>
+                <Textarea
+                  id="reject-reason"
+                  placeholder="Ej: cliente canceló por teléfono, stock no disponible, duplicado..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={4}
+                  data-testid="textarea-reject-reason"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isRejecting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleRejectOrder(); }}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isRejecting || !rejectReason.trim()}
+                  data-testid="button-confirm-reject"
+                >
+                  {isRejecting ? 'Descartando...' : 'Descartar pedido'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -939,7 +1089,18 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 )}
               </div>
               {isEditingPrices ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowProductPicker(true)}
+                    disabled={isSavingPrices}
+                    className="rounded-xl"
+                    data-testid="button-add-product"
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Agregar producto
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1003,19 +1164,62 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                         )}
                       </div>
                       {isEditingPrices ? (
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-gray-500">Precio unit.:</span>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">Precio unit.:</span>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={itemPrice.toLocaleString('es-CL')}
+                                onChange={(e) => updateEditedItemPrice(index, e.target.value)}
+                                className="h-8 w-28 pl-5 text-sm"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">Cant.:</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg"
+                              onClick={() => incrementEditedItemQuantity(index, -1)}
+                              data-testid={`button-qty-decrement-${index}`}
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </Button>
                             <Input
                               type="text"
                               inputMode="numeric"
-                              value={itemPrice.toLocaleString('es-CL')}
-                              onChange={(e) => updateEditedItemPrice(index, e.target.value)}
-                              className="h-8 w-32 pl-5 text-sm"
+                              value={Number(item.quantity) || 0}
+                              onChange={(e) => updateEditedItemQuantity(index, e.target.value)}
+                              className="h-8 w-14 text-center text-sm"
+                              data-testid={`input-qty-${index}`}
                             />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg"
+                              onClick={() => incrementEditedItemQuantity(index, 1)}
+                              data-testid={`button-qty-increment-${index}`}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
-                          <span className="text-xs text-gray-400">× {item.quantity}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => removeEditedItem(index)}
+                            data-testid={`button-remove-item-${index}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            Quitar
+                          </Button>
                         </div>
                       ) : (
                         <div className="text-xs text-gray-400 mt-1">
@@ -1290,10 +1494,10 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">Pedido descartado</p>
                       <p className="text-xs text-gray-500">{formatDate(currentOrder.rejectedAt)}</p>
-                      {currentOrder.rejectedNotes && (
+                      {currentOrder.rejectedReason && (
                         <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-100">
                           <p className="text-[10px] font-bold text-red-700 uppercase tracking-widest mb-1">Motivo del descarte</p>
-                          <p className="text-sm text-red-900 whitespace-pre-wrap break-words">{currentOrder.rejectedNotes}</p>
+                          <p className="text-sm text-red-900 whitespace-pre-wrap break-words">{currentOrder.rejectedReason}</p>
                         </div>
                       )}
                     </div>

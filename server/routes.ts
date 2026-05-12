@@ -8030,8 +8030,12 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'Estado inválido' });
     }
 
-    if (status === 'rejected' && !String(req.body?.rejectedNotes || '').trim()) {
-      return res.status(400).json({ message: 'Debés indicar el motivo del descarte' });
+    // Validar motivo cuando se descarta el pedido
+    if (status === 'rejected') {
+      const reason = String(req.body?.rejectedReason || '').trim();
+      if (!reason) {
+        return res.status(400).json({ message: 'Debes indicar el motivo del descarte' });
+      }
     }
 
     const { ecommerceOrders } = await import('@shared/schema');
@@ -8053,7 +8057,7 @@ export function registerRoutes(app: Express): Server {
         ...(status === 'rejected' ? {
           rejectedAt: new Date(),
           rejectedById: user.id,
-          rejectedNotes: String(req.body?.rejectedNotes || '').slice(0, 2000),
+          rejectedReason: String(req.body?.rejectedReason || '').slice(0, 2000),
         } : {}),
         updatedAt: new Date(),
       })
