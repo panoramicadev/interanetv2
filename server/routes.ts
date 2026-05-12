@@ -11129,6 +11129,24 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
+      // pg `numeric` columns expect strings via drizzle. Accept number|string|null
+      // from the client and coerce to the wire format — no upper bound enforced
+      // here; the column is numeric(15,2) which already accommodates any realistic
+      // credit amount.
+      const toNumericString = (v: unknown): string | null | undefined => {
+        if (v === undefined) return undefined;
+        if (v === null || v === '') return null;
+        if (typeof v === 'number') {
+          if (!Number.isFinite(v)) return null;
+          return String(v);
+        }
+        if (typeof v === 'string') {
+          const trimmed = v.trim();
+          return trimmed === '' ? null : trimmed;
+        }
+        return null;
+      };
+
       const { clients } = await import('@shared/schema');
       const { eq } = await import('drizzle-orm');
       const { db } = await import('./db');
@@ -11138,14 +11156,19 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Cliente no encontrado" });
       }
 
+      const dccrNorm = toNumericString(dccr);
+      const crltNorm = toNumericString(crlt);
+      const crenNorm = toNumericString(cren);
+      const crsdNorm = toNumericString(crsd);
+
       await db.update(clients)
         .set({
           cpen: cpen !== undefined ? cpen : existingClient[0].cpen,
-          dccr: dccr !== undefined ? dccr : existingClient[0].dccr,
+          dccr: dccrNorm !== undefined ? dccrNorm : existingClient[0].dccr,
           pickupWarehouseId: pickupWarehouseId !== undefined ? pickupWarehouseId : existingClient[0].pickupWarehouseId,
-          crlt: crlt !== undefined ? crlt : existingClient[0].crlt,
-          cren: cren !== undefined ? cren : existingClient[0].cren,
-          crsd: crsd !== undefined ? crsd : existingClient[0].crsd,
+          crlt: crltNorm !== undefined ? crltNorm : existingClient[0].crlt,
+          cren: crenNorm !== undefined ? crenNorm : existingClient[0].cren,
+          crsd: crsdNorm !== undefined ? crsdNorm : existingClient[0].crsd,
           kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
           lcen: lcen !== undefined ? lcen : existingClient[0].lcen,
           freeShipping: freeShipping !== undefined ? !!freeShipping : existingClient[0].freeShipping,
@@ -11154,9 +11177,12 @@ export function registerRoutes(app: Express): Server {
         .where(eq(clients.id, id));
 
       res.json({ success: true, message: "Información comercial actualizada" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating commercial info:", error);
-      res.status(500).json({ message: "Error al actualizar información comercial" });
+      res.status(500).json({
+        message: "Error al actualizar información comercial",
+        detail: error?.message || String(error),
+      });
     }
   });
 
