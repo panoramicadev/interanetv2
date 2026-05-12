@@ -84,6 +84,9 @@ export interface EcommerceOrder {
   ingresadoAt?: string;
   ingresadoById?: string;
   ingresadoNotes?: string;
+  rejectedAt?: string;
+  rejectedById?: string;
+  rejectedNotes?: string;
   branchDiscountPercent?: string | number;
   priceListUsed?: string;
 }
@@ -121,7 +124,7 @@ export const statusConfig: Record<string, { label: string; color: string; bg: st
   pendiente: { label: "Pendiente", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: Clock },
   approved: { label: "Aprobado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
   modified: { label: "Modificado", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
-  rejected: { label: "Rechazado", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: XCircle },
+  rejected: { label: "Descartado", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: XCircle },
   sent: { label: "Enviado", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: Truck },
   // ERP Specific statuses mapping 
   ingresado: { label: "Ingresado ERP", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
@@ -161,9 +164,13 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showPaymentConditionDialog, setShowPaymentConditionDialog] = useState(false);
   const [paymentConditionValue, setPaymentConditionValue] = useState('');
   const [isSavingPaymentCondition, setIsSavingPaymentCondition] = useState(false);
+  const [showDescartarDialog, setShowDescartarDialog] = useState(false);
+  const [isDescartando, setIsDescartando] = useState(false);
+  const [descartarNotes, setDescartarNotes] = useState('');
   const { user } = useAuth();
   const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
   const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
+  const canDescartar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
 
   // Price editing state
   const [isEditingPrices, setIsEditingPrices] = useState(false);
@@ -281,6 +288,40 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       toast({ title: 'Error', description: err.message || 'No se pudo marcar como ingresado', variant: 'destructive' });
     } finally {
       setIsIngresando(false);
+    }
+  };
+
+  const handleMarkDescartado = async () => {
+    if (isDescartando) return;
+    const motivo = descartarNotes.trim();
+    if (!motivo) {
+      toast({ title: 'Motivo requerido', description: 'Indicá por qué se descarta el pedido', variant: 'destructive' });
+      return;
+    }
+    setIsDescartando(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${currentOrder.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'rejected', rejectedNotes: motivo }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Error' }));
+        throw new Error(err.message || 'Error al descartar el pedido');
+      }
+      const updated = await res.json();
+      setCurrentOrder(prev => ({ ...prev, ...updated }));
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders/pending-count'] });
+      toast({ title: 'Pedido descartado', description: `#${getNumericOrderId(currentOrder.id)} marcado como descartado` });
+      setShowDescartarDialog(false);
+      setDescartarNotes('');
+      onBack();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'No se pudo descartar el pedido', variant: 'destructive' });
+    } finally {
+      setIsDescartando(false);
     }
   };
 
@@ -459,6 +500,19 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Aprobar Pedido
+                  </DropdownMenuItem>
+                )}
+                {canDescartar && statusKey !== 'rejected' && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setDescartarNotes('');
+                      setShowDescartarDialog(true);
+                    }}
+                    className="cursor-pointer text-red-600 focus:text-red-600"
+                    data-testid="menu-item-descartar"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Marcar como descartada
                   </DropdownMenuItem>
                 )}
 
@@ -656,6 +710,42 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   disabled={isIngresando}
                 >
                   {isIngresando ? 'Marcando...' : 'Marcar como ingresado'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Descartar confirmation dialog */}
+        {canDescartar && (
+          <AlertDialog open={showDescartarDialog} onOpenChange={setShowDescartarDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Descartar pedido</AlertDialogTitle>
+                <AlertDialogDescription>
+                  El pedido #{getNumericOrderId(order.id)} quedará marcado como descartado. Quedará registrado con tu usuario, la fecha y el motivo indicado.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="descartar-notes" className="text-sm">Motivo del descarte</Label>
+                <Textarea
+                  id="descartar-notes"
+                  placeholder="Ej: Cliente canceló, stock insuficiente, datos incorrectos..."
+                  value={descartarNotes}
+                  onChange={(e) => setDescartarNotes(e.target.value)}
+                  rows={3}
+                  data-testid="textarea-descartar-notes"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDescartando}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleMarkDescartado(); }}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isDescartando || !descartarNotes.trim()}
+                  data-testid="button-confirm-descartar"
+                >
+                  {isDescartando ? 'Descartando...' : 'Descartar pedido'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1118,6 +1208,21 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                         <div className="mt-2 p-3 rounded-xl bg-blue-50 border border-blue-100">
                           <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1">Notas de recepción</p>
                           <p className="text-sm text-blue-900 whitespace-pre-wrap break-words">{currentOrder.ingresadoNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {currentOrder.rejectedAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">Pedido descartado</p>
+                      <p className="text-xs text-gray-500">{formatDate(currentOrder.rejectedAt)}</p>
+                      {currentOrder.rejectedNotes && (
+                        <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-100">
+                          <p className="text-[10px] font-bold text-red-700 uppercase tracking-widest mb-1">Motivo del descarte</p>
+                          <p className="text-sm text-red-900 whitespace-pre-wrap break-words">{currentOrder.rejectedNotes}</p>
                         </div>
                       )}
                     </div>

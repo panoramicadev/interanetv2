@@ -7941,12 +7941,16 @@ export function registerRoutes(app: Express): Server {
 
     const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived', 'ingresado'];
 
-    // Reception solo puede marcar como ingresado (y solo sobre pedidos aprobados)
-    if (user.role === 'reception' && status !== 'ingresado') {
-      return res.status(403).json({ message: 'Recepción solo puede marcar pedidos como ingresados' });
+    // Reception puede marcar como ingresado o descartar pedidos (con motivo)
+    if (user.role === 'reception' && !['ingresado', 'rejected'].includes(status)) {
+      return res.status(403).json({ message: 'Recepción solo puede marcar pedidos como ingresados o descartados' });
     }
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Estado inválido' });
+    }
+
+    if (status === 'rejected' && !String(req.body?.rejectedNotes || '').trim()) {
+      return res.status(400).json({ message: 'Debés indicar el motivo del descarte' });
     }
 
     const { ecommerceOrders } = await import('@shared/schema');
@@ -7962,6 +7966,11 @@ export function registerRoutes(app: Express): Server {
           ingresadoAt: new Date(),
           ingresadoById: user.id,
           ...(req.body?.ingresadoNotes ? { ingresadoNotes: String(req.body.ingresadoNotes).slice(0, 2000) } : {}),
+        } : {}),
+        ...(status === 'rejected' ? {
+          rejectedAt: new Date(),
+          rejectedById: user.id,
+          rejectedNotes: String(req.body?.rejectedNotes || '').slice(0, 2000),
         } : {}),
         updatedAt: new Date(),
       })
