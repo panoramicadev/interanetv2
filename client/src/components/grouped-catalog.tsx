@@ -498,8 +498,6 @@ export default function GroupedCatalog() {
         });
     };
 
-    const existingForSelectedSku = selectedSku ? findExistingGrouping(selectedSku.codigo) : null;
-
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -519,6 +517,9 @@ export default function GroupedCatalog() {
 
     const catalog = data?.catalog || [];
     const availableGroups = data?.availableGroups || [];
+
+    // Computed after `catalog` is in scope — findExistingGrouping reads it.
+    const existingForSelectedSku = selectedSku ? findExistingGrouping(selectedSku.codigo) : null;
 
     const toggleProduct = (name: string) => {
         setExpandedProducts(prev => {
