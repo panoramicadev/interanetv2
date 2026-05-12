@@ -10840,8 +10840,9 @@ export function registerRoutes(app: Express): Server {
         // Fallback: select only essential columns if SELECT * fails
         try {
           const clientsResult = await db.execute(sql`
-            SELECT id, koen, nokoen, rten, foen, dien, cmen, cpen, crlt, cren, crsd, crto, 
-                   kofuen, email, user_id, lcen, diprve, fevecren, gien, sien, ruen
+            SELECT id, koen, nokoen, rten, foen, dien, cmen, cpen, crlt, cren, crsd, crto,
+                   kofuen, email, user_id, lcen, diprve, fevecren, gien, sien, ruen,
+                   pickup_warehouse_id, parent_client_id, branch_label, free_shipping
             FROM clients
           `);
           allClients = Array.isArray(clientsResult) ? clientsResult : (clientsResult as any).rows || [];
@@ -10922,13 +10923,14 @@ export function registerRoutes(app: Express): Server {
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
-          pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
+          pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
           lcen: clientRecord?.lcen || null,
-          parentClientId: clientRecord?.parentClientId || null,
-          branchLabel: clientRecord?.branchLabel || null,
+          parentClientId: clientRecord?.parentClientId || clientRecord?.parent_client_id || null,
+          branchLabel: clientRecord?.branchLabel || clientRecord?.branch_label || null,
+          freeShipping: !!(clientRecord?.freeShipping ?? clientRecord?.free_shipping),
         });
       }
-      
+
       // Process legacy users table client records (if not already found)
       for (const u of legacyClientUsers) {
         if (seenIds.has(u.id)) continue;
@@ -10956,10 +10958,11 @@ export function registerRoutes(app: Express): Server {
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
-          pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
+          pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
           lcen: clientRecord?.lcen || null,
-          parentClientId: clientRecord?.parentClientId || null,
-          branchLabel: clientRecord?.branchLabel || null,
+          parentClientId: clientRecord?.parentClientId || clientRecord?.parent_client_id || null,
+          branchLabel: clientRecord?.branchLabel || clientRecord?.branch_label || null,
+          freeShipping: !!(clientRecord?.freeShipping ?? clientRecord?.free_shipping),
         });
       }
 
@@ -11114,11 +11117,11 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen: rawLcen } = req.body;
-      // lcen handling: undefined = not sent (preserve existing), null = explicit reset, 
+      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen: rawLcen, freeShipping } = req.body;
+      // lcen handling: undefined = not sent (preserve existing), null = explicit reset,
       // empty string = treat as null, valid string ('LP01','LP02') = set
-      const lcen = rawLcen === undefined ? undefined 
-        : (rawLcen && typeof rawLcen === 'string' && rawLcen.trim() !== '') ? rawLcen.trim() 
+      const lcen = rawLcen === undefined ? undefined
+        : (rawLcen && typeof rawLcen === 'string' && rawLcen.trim() !== '') ? rawLcen.trim()
         : null;
       const user = req.user;
 
@@ -11145,6 +11148,7 @@ export function registerRoutes(app: Express): Server {
           crsd: crsd !== undefined ? crsd : existingClient[0].crsd,
           kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
           lcen: lcen !== undefined ? lcen : existingClient[0].lcen,
+          freeShipping: freeShipping !== undefined ? !!freeShipping : existingClient[0].freeShipping,
           updatedAt: new Date(),
         })
         .where(eq(clients.id, id));

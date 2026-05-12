@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package, Truck, Store } from "lucide-react";
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 
@@ -140,13 +141,25 @@ function ModernCartItem({ item }: { item: any }) {
 // The cart content (shared between mobile and desktop)
 function CartContent({ state, onClose }: { state: any; onClose: () => void }) {
   const isEmpty = state.items.length === 0;
+  const { user } = useAuth();
   const { data: thresholdData } = useQuery<{ threshold: number }>({
     queryKey: ['/api/ecommerce/free-shipping-threshold'],
     retry: false,
   });
+  const { data: clientData } = useQuery<{ freeShipping?: boolean }>({
+    queryKey: ['/api/clients/by-user', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const res = await fetch(`/api/clients/by-user/${user.id}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user?.id && user?.role === 'client',
+  });
+  const clientHasFreeShipping = !!clientData?.freeShipping;
   const FREE_SHIPPING_THRESHOLD = thresholdData?.threshold ?? 250000;
-  const progress = Math.min(100, (state.subtotal / FREE_SHIPPING_THRESHOLD) * 100);
-  const remaining = FREE_SHIPPING_THRESHOLD - state.subtotal;
+  const progress = clientHasFreeShipping ? 100 : Math.min(100, (state.subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const remaining = clientHasFreeShipping ? 0 : FREE_SHIPPING_THRESHOLD - state.subtotal;
 
   // Read delivery method from localStorage (set by BillingSummary)
   const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {

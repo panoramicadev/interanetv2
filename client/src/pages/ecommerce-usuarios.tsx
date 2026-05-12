@@ -53,6 +53,7 @@ interface ClientUser {
   lcen: string | null;
   parentClientId: string | null;
   branchLabel: string | null;
+  freeShipping: boolean;
   // SAP sales metrics
   sapTotalSales: number | null;
   sapTotalTransactions: number | null;
@@ -110,7 +111,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     creditLimit: client.creditLimit?.toString() || "",
     creditAvailable: client.creditAvailable?.toString() || "",
     creditUsed: client.creditUsed?.toString() || "",
-    lcen: client.lcen || ""
+    lcen: client.lcen || "",
+    freeShipping: !!client.freeShipping
   });
     const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -137,7 +139,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       creditLimit: client.creditLimit?.toString() || "",
       creditAvailable: client.creditAvailable?.toString() || "",
       creditUsed: client.creditUsed?.toString() || "",
-      lcen: client.lcen || ""
+      lcen: client.lcen || "",
+      freeShipping: !!client.freeShipping
     });
   }, [client]);
 
@@ -235,6 +238,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         creditUsed: variables.crsd != null ? variables.crsd : client.creditUsed,
         pickupWarehouseId: variables.pickupWarehouseId ?? client.pickupWarehouseId,
         lcen: variables.lcen || client.lcen,
+        freeShipping: variables.freeShipping !== undefined ? !!variables.freeShipping : !!client.freeShipping,
       });
     },
     onError: () => {
@@ -1091,6 +1095,17 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                       </Select>
                     </div>
 
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-100 bg-emerald-50/40 px-3 py-2">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-medium text-emerald-900">Envío Gratis</Label>
+                        <p className="text-[11px] text-emerald-700/80 leading-tight">El cliente no paga costo de envío en la tienda.</p>
+                      </div>
+                      <Switch
+                        checked={commercialForm.freeShipping}
+                        onCheckedChange={(val) => setCommercialForm(p => ({ ...p, freeShipping: val }))}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-end gap-2 pt-2">
                        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setIsEditingCommercial(false)}>Cancelar</Button>
                        <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => {
@@ -1102,13 +1117,14 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                              dccr = days;
                           }
                           updateCommercialInfo.mutate({
-                             cpen, dccr, 
+                             cpen, dccr,
                              pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId,
                              kofuen: commercialForm.salesRepCode || null,
                              crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
                              cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
                              crsd: commercialForm.creditUsed ? parseFloat(commercialForm.creditUsed) : null,
-                             lcen: commercialForm.lcen ? commercialForm.lcen : null
+                             lcen: commercialForm.lcen ? commercialForm.lcen : null,
+                             freeShipping: commercialForm.freeShipping
                           });
                        }}
                        disabled={updateCommercialInfo.isPending}>
@@ -1135,6 +1151,14 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         <span className="text-sm font-medium">{value || "—"}</span>
                       </div>
                     ))}
+                    <div className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0 hover:bg-muted/10">
+                      <span className="text-sm text-muted-foreground">Envío Gratis</span>
+                      {client.freeShipping ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200">Activo</Badge>
+                      ) : (
+                        <span className="text-sm font-medium">—</span>
+                      )}
+                    </div>
                   </>
                 )}
               </CardContent>
