@@ -9591,6 +9591,73 @@ export function registerRoutes(app: Express): Server {
     res.json(requests[index]);
   }));
 
+  // ===================== Panorámica Market Landing API =====================
+
+  const DEFAULT_MARKET_LANDING = {
+    heroBadge: 'Plataforma mayorista para profesionales',
+    heroTitulo: 'Compra materiales a precio mayorista en Panorámica Market',
+    heroSubtitulo: 'Registra tu empresa y accede a precios exclusivos, despacho a obra y atención personalizada.',
+    ctaPrimario: 'Activar mi cuenta',
+    videoYoutubeUrl: '',
+    videoTitulo: 'Conoce Panorámica Market',
+    beneficios: [
+      { icono: 'Tag', titulo: 'Precios mayoristas', descripcion: 'Tarifas exclusivas para empresas y profesionales del rubro.' },
+      { icono: 'Truck', titulo: 'Despacho a obra', descripcion: 'Coordinamos la entrega directamente en tu faena.' },
+      { icono: 'CreditCard', titulo: 'Crédito y facturación', descripcion: 'Condiciones de pago adaptadas a tu negocio.' },
+      { icono: 'Headphones', titulo: 'Asesor dedicado', descripcion: 'Un ejecutivo comercial te acompaña en cada compra.' },
+    ],
+    formularioTitulo: 'Solicita la activación de tu cuenta',
+    formularioSubtitulo: 'Completa tus datos y nuestro equipo te contactará para habilitar tu acceso.',
+    contactoTelefono: '',
+    contactoEmail: '',
+  };
+
+  // Get landing content (public, no auth)
+  app.get('/api/panoramica-market/landing', asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const result = await db.execute(sql`SELECT value FROM app_config WHERE key = 'panoramica_market_landing'`);
+    let config = DEFAULT_MARKET_LANDING;
+    if (result.rows?.length > 0) {
+      const raw = result.rows[0].value;
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === 'object') {
+          config = { ...DEFAULT_MARKET_LANDING, ...parsed };
+        }
+      } catch {}
+    }
+    res.json(config);
+  }));
+
+  // Update landing content (admin/supervisor only)
+  app.put('/api/panoramica-market/landing', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    const body = req.body || {};
+    const config = {
+      ...DEFAULT_MARKET_LANDING,
+      ...body,
+      beneficios: Array.isArray(body.beneficios)
+        ? body.beneficios.map((b: any) => ({
+            icono: String(b?.icono || 'Star'),
+            titulo: String(b?.titulo || ''),
+            descripcion: String(b?.descripcion || ''),
+          }))
+        : DEFAULT_MARKET_LANDING.beneficios,
+    };
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('panoramica_market_landing', ${JSON.stringify(config)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(config)}::jsonb, updated_at = NOW()
+    `);
+    res.json(config);
+  }));
+
   // ===================== eCommerce Admin API Routes (Simple) =====================
 
   // Get products for eCommerce admin panel (imports from priceList)
