@@ -105,6 +105,7 @@ import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import MailingPage from "@/pages/mailing";
 import DondeComprar from "@/pages/donde-comprar";
 import RetailLocationsAdmin from "@/pages/retail-locations-admin";
+import Registro from "@/pages/registro";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -135,6 +136,9 @@ function Router() {
 
       {/* Dónde comprar — mapa público con sucursales y ferreterías */}
       <Route path="/donde-comprar">{() => <DondeComprar />}</Route>
+
+      {/* Landing pública de registro — Panorámica Market */}
+      <Route path="/registro">{() => <Registro />}</Route>
 
       {/* Catálogo público de vendedores */}
       <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>

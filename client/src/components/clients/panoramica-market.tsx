@@ -31,6 +31,10 @@ import {
   Crown,
   Star,
   Award,
+  Megaphone,
+  ExternalLink,
+  Save,
+  X,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -71,6 +75,31 @@ interface TierClient {
   tierName: string;
 }
 
+interface LandingBeneficio {
+  icono: string;
+  titulo: string;
+  descripcion: string;
+}
+
+interface LandingConfig {
+  heroBadge: string;
+  heroTitulo: string;
+  heroSubtitulo: string;
+  ctaPrimario: string;
+  videoYoutubeUrl: string;
+  videoTitulo: string;
+  beneficios: LandingBeneficio[];
+  formularioTitulo: string;
+  formularioSubtitulo: string;
+  contactoTelefono: string;
+  contactoEmail: string;
+}
+
+const LANDING_ICON_OPTIONS = [
+  "Tag", "Truck", "CreditCard", "Headphones", "Star",
+  "ShieldCheck", "Clock", "Package", "Percent", "Zap", "Award", "Users",
+];
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
@@ -97,6 +126,8 @@ export default function PanoramicaMarket() {
   const [isAddBenefitOpen, setIsAddBenefitOpen] = useState(false);
   const [editingBenefit, setEditingBenefit] = useState<LoyaltyBenefit | null>(null);
   const [clientSearch, setClientSearch] = useState("");
+  const [isLandingOpen, setIsLandingOpen] = useState(false);
+  const [landingForm, setLandingForm] = useState<LandingConfig | null>(null);
 
   const [tierForm, setTierForm] = useState({
     nombre: "",
@@ -215,6 +246,66 @@ export default function PanoramicaMarket() {
     },
   });
 
+  const { data: landingConfig } = useQuery<LandingConfig>({
+    queryKey: ['/api/panoramica-market/landing'],
+  });
+
+  const updateLandingMutation = useMutation({
+    mutationFn: async (data: LandingConfig) => {
+      const res = await apiRequest('/api/panoramica-market/landing', {
+        method: 'PUT',
+        data,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/panoramica-market/landing'] });
+      setIsLandingOpen(false);
+      toast({ title: "Landing actualizada correctamente" });
+    },
+    onError: () => {
+      toast({ title: "Error al guardar la landing", variant: "destructive" });
+    },
+  });
+
+  const handleOpenLanding = () => {
+    if (landingConfig) {
+      setLandingForm(JSON.parse(JSON.stringify(landingConfig)));
+      setIsLandingOpen(true);
+    }
+  };
+
+  const handleSaveLanding = () => {
+    if (landingForm) updateLandingMutation.mutate(landingForm);
+  };
+
+  const updateLandingField = (field: keyof LandingConfig, value: any) => {
+    setLandingForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const updateBeneficio = (index: number, field: keyof LandingBeneficio, value: string) => {
+    setLandingForm((prev) => {
+      if (!prev) return prev;
+      const beneficios = [...prev.beneficios];
+      beneficios[index] = { ...beneficios[index], [field]: value };
+      return { ...prev, beneficios };
+    });
+  };
+
+  const addBeneficio = () => {
+    setLandingForm((prev) =>
+      prev
+        ? { ...prev, beneficios: [...prev.beneficios, { icono: "Star", titulo: "", descripcion: "" }] }
+        : prev
+    );
+  };
+
+  const removeBeneficio = (index: number) => {
+    setLandingForm((prev) =>
+      prev ? { ...prev, beneficios: prev.beneficios.filter((_, i) => i !== index) } : prev
+    );
+  };
+
   const handleEditTier = (tier: LoyaltyTier) => {
     setTierForm({
       nombre: tier.nombre,
@@ -277,15 +368,40 @@ export default function PanoramicaMarket() {
     <div className="space-y-6" data-testid="panoramica-market">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
-            <Gift className="h-5 w-5" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <Gift className="h-5 w-5" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight">Panorámica Market</h2>
+            </div>
+            <p className="text-slate-400 text-sm">
+              Programa de incentivos y categorías de clientes basado en compras
+            </p>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Panorámica Market</h2>
+          <div className="flex items-center gap-2">
+            <a
+              href="/registro"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+              data-testid="link-ver-landing"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Ver landing
+            </a>
+            <Button
+              onClick={handleOpenLanding}
+              disabled={!landingConfig}
+              className="bg-white text-slate-900 hover:bg-slate-100"
+              data-testid="button-editar-landing"
+            >
+              <Megaphone className="h-4 w-4 mr-1.5" />
+              Editar landing
+            </Button>
+          </div>
         </div>
-        <p className="text-slate-400 text-sm">
-          Programa de incentivos y categorías de clientes basado en compras
-        </p>
       </div>
 
       {/* Global KPIs */}
@@ -827,6 +943,218 @@ export default function PanoramicaMarket() {
             >
               {updateBenefitMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Guardar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Edit Landing */}
+      <Dialog open={isLandingOpen} onOpenChange={setIsLandingOpen}>
+        <DialogContent className="sm:max-w-[640px] p-0 gap-0 rounded-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="h-10 w-10 rounded-xl bg-orange-500 flex items-center justify-center">
+              <Megaphone className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold">Editar Landing de Registro</DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Contenido de la página pública <span className="font-mono">/registro</span>
+              </DialogDescription>
+            </div>
+          </div>
+          {landingForm && (
+            <div className="px-6 py-5 space-y-6 overflow-y-auto">
+              {/* Hero */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Encabezado</p>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Badge</Label>
+                  <Input
+                    value={landingForm.heroBadge}
+                    onChange={(e) => updateLandingField("heroBadge", e.target.value)}
+                    className="rounded-xl mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título principal</Label>
+                  <Textarea
+                    value={landingForm.heroTitulo}
+                    onChange={(e) => updateLandingField("heroTitulo", e.target.value)}
+                    className="rounded-xl mt-1"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subtítulo</Label>
+                  <Textarea
+                    value={landingForm.heroSubtitulo}
+                    onChange={(e) => updateLandingField("heroSubtitulo", e.target.value)}
+                    className="rounded-xl mt-1"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Texto del botón (CTA)</Label>
+                  <Input
+                    value={landingForm.ctaPrimario}
+                    onChange={(e) => updateLandingField("ctaPrimario", e.target.value)}
+                    className="rounded-xl mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Video */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Video de YouTube</p>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título del video</Label>
+                  <Input
+                    value={landingForm.videoTitulo}
+                    onChange={(e) => updateLandingField("videoTitulo", e.target.value)}
+                    className="rounded-xl mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">URL de YouTube</Label>
+                  <Input
+                    value={landingForm.videoYoutubeUrl}
+                    onChange={(e) => updateLandingField("videoYoutubeUrl", e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="rounded-xl mt-1"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    Déjalo vacío para mostrar un marcador de posición.
+                  </p>
+                </div>
+              </div>
+
+              {/* Beneficios */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Beneficios</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addBeneficio}
+                    className="rounded-lg h-7 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Agregar
+                  </Button>
+                </div>
+                {landingForm.beneficios.map((b, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2 relative">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeBeneficio(i)}
+                      className="absolute top-2 right-2 h-6 w-6 text-slate-400 hover:text-red-500"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                    <div className="grid grid-cols-[140px_1fr] gap-2">
+                      <div>
+                        <Label className="text-[10px] font-semibold text-slate-500 uppercase">Ícono</Label>
+                        <Select value={b.icono} onValueChange={(v) => updateBeneficio(i, "icono", v)}>
+                          <SelectTrigger className="rounded-lg mt-1 h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LANDING_ICON_OPTIONS.map((ic) => (
+                              <SelectItem key={ic} value={ic}>{ic}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-semibold text-slate-500 uppercase">Título</Label>
+                        <Input
+                          value={b.titulo}
+                          onChange={(e) => updateBeneficio(i, "titulo", e.target.value)}
+                          className="rounded-lg mt-1 h-9"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] font-semibold text-slate-500 uppercase">Descripción</Label>
+                      <Textarea
+                        value={b.descripcion}
+                        onChange={(e) => updateBeneficio(i, "descripcion", e.target.value)}
+                        className="rounded-lg mt-1"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {landingForm.beneficios.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-3">Sin beneficios. Agrega al menos uno.</p>
+                )}
+              </div>
+
+              {/* Formulario */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sección de formulario</p>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título</Label>
+                  <Input
+                    value={landingForm.formularioTitulo}
+                    onChange={(e) => updateLandingField("formularioTitulo", e.target.value)}
+                    className="rounded-xl mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subtítulo</Label>
+                  <Textarea
+                    value={landingForm.formularioSubtitulo}
+                    onChange={(e) => updateLandingField("formularioSubtitulo", e.target.value)}
+                    className="rounded-xl mt-1"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              {/* Contacto */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contacto (pie de página)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Teléfono</Label>
+                    <Input
+                      value={landingForm.contactoTelefono}
+                      onChange={(e) => updateLandingField("contactoTelefono", e.target.value)}
+                      className="rounded-xl mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</Label>
+                    <Input
+                      value={landingForm.contactoEmail}
+                      onChange={(e) => updateLandingField("contactoEmail", e.target.value)}
+                      className="rounded-xl mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50">
+            <Button variant="outline" onClick={() => setIsLandingOpen(false)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveLanding}
+              disabled={updateLandingMutation.isPending}
+              className="rounded-xl bg-orange-500 hover:bg-orange-600"
+              data-testid="button-save-landing"
+            >
+              {updateLandingMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Guardar cambios
             </Button>
           </div>
         </DialogContent>
