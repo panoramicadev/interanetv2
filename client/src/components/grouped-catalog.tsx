@@ -498,6 +498,114 @@ export default function GroupedCatalog() {
         });
     };
 
+    // ===== Publish new SAP products into a commercial grouping =====
+    interface UnpublishedItem {
+        id: string;
+        codigo: string;
+        producto: string;
+        unidad: string | null;
+        lista: string | null;
+    }
+    type PublishForm = { genericName: string; color: string; format: string };
+
+    const [publishOpen, setPublishOpen] = useState(false);
+    const [publishSearch, setPublishSearch] = useState("");
+    const [debouncedPublishSearch, setDebouncedPublishSearch] = useState("");
+    const [publishForms, setPublishForms] = useState<Record<string, PublishForm>>({});
+    const [publishingSku, setPublishingSku] = useState<string | null>(null);
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedPublishSearch(publishSearch), 250);
+        return () => clearTimeout(t);
+    }, [publishSearch]);
+
+    const { data: unpublishedData, isLoading: unpublishedLoading } = useQuery<{ items: UnpublishedItem[]; total: number }>({
+        queryKey: ["/api/products/grouped-catalog/unpublished", debouncedPublishSearch],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (debouncedPublishSearch) params.set("search", debouncedPublishSearch);
+            const res = await apiRequest("GET", `/api/products/grouped-catalog/unpublished?${params}`);
+            return res.json();
+        },
+        enabled: publishOpen,
+    });
+    const unpublished = unpublishedData?.items || [];
+
+    const defaultPublishForm = (item: UnpublishedItem): PublishForm => ({
+        genericName: (item.producto || "").trim().toUpperCase(),
+        color: "ÚNICO",
+        format: item.unidad || "",
+    });
+
+    // Seed editable form state with defaults for any newly-listed SKU.
+    useEffect(() => {
+        if (!unpublishedData?.items?.length) return;
+        setPublishForms(prev => {
+            const next = { ...prev };
+            let changed = false;
+            for (const item of unpublishedData.items) {
+                if (!next[item.codigo]) {
+                    next[item.codigo] = defaultPublishForm(item);
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [unpublishedData]);
+
+    const updatePublishForm = (codigo: string, patch: Partial<PublishForm>) => {
+        setPublishForms(prev => ({
+            ...prev,
+            [codigo]: { ...(prev[codigo] || { genericName: "", color: "ÚNICO", format: "" }), ...patch },
+        }));
+    };
+
+    const publishMutation = useMutation({
+        mutationFn: async (payload: { sku: string; genericName: string; color: string; formatUnit: string; price: number | null }) => {
+            const res = await apiRequest("POST", "/api/products/grouped-catalog/add-sku", payload);
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog/unpublished"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+            toast({ title: "Producto publicado", description: `${data?.sku} → ${data?.genericName} / ${data?.color}` });
+            setPublishingSku(null);
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error", description: err?.message || "No se pudo publicar el producto." });
+            setPublishingSku(null);
+        },
+    });
+
+    const submitPublish = (item: UnpublishedItem) => {
+        const form = publishForms[item.codigo] || defaultPublishForm(item);
+        const genericName = form.genericName.trim();
+        const color = form.color.trim();
+        const format = form.format.trim();
+        if (!genericName) {
+            toast({ variant: "destructive", title: "Agrupación requerida", description: "Indicá el nombre de la agrupación." });
+            return;
+        }
+        if (!color) {
+            toast({ variant: "destructive", title: "Color requerido", description: "Indicá un color (ej: ÚNICO)." });
+            return;
+        }
+        if (!format) {
+            toast({ variant: "destructive", title: "Formato requerido", description: "Indicá el formato (ej: Galón)." });
+            return;
+        }
+        setPublishingSku(item.codigo);
+        publishMutation.mutate({
+            sku: item.codigo,
+            genericName,
+            color,
+            formatUnit: format,
+            price: item.lista ? Number(item.lista) : null,
+        });
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -595,6 +703,14 @@ export default function GroupedCatalog() {
                             >
                                 {importMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importMutation.isPending ? "Importando..." : "Importar CSV"}
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={() => setPublishOpen(true)}
+                                className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Publicar productos
                             </Button>
                         </div>
                     </div>
@@ -1156,6 +1272,114 @@ export default function GroupedCatalog() {
                                 {addSkuMutation.isPending ? "Guardando..." : "Agregar a la agrupación"}
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ===== Publish New Products Dialog ===== */}
+            <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Plus className="h-5 w-5 text-orange-500" />
+                            Publicar productos nuevos
+                        </DialogTitle>
+                        <DialogDescription>
+                            Productos del catálogo SAP que todavía no están en ninguna agrupación comercial. Asigná nombre, color y formato para publicarlos en la tienda.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 pt-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por código o nombre..."
+                                value={publishSearch}
+                                onChange={(e) => setPublishSearch(e.target.value)}
+                                className="pl-9 h-9"
+                            />
+                        </div>
+
+                        <datalist id="publish-generic-names">
+                            {catalog.map(p => <option key={p.genericName} value={p.genericName} />)}
+                        </datalist>
+                        <datalist id="publish-colors">
+                            {Array.from(new Set(catalog.flatMap(p => Object.keys(p.colors)))).map(c => <option key={c} value={c} />)}
+                        </datalist>
+
+                        {unpublishedLoading && (
+                            <div className="flex items-center justify-center py-10">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                <span className="ml-2 text-sm text-muted-foreground">Cargando catálogo SAP...</span>
+                            </div>
+                        )}
+
+                        {!unpublishedLoading && unpublished.length === 0 && (
+                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+                                <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground">
+                                    {debouncedPublishSearch
+                                        ? "Sin resultados para la búsqueda."
+                                        : "No hay productos sin publicar. Todo el catálogo SAP está en una agrupación."}
+                                </p>
+                            </div>
+                        )}
+
+                        {!unpublishedLoading && unpublished.map((item) => {
+                            const form = publishForms[item.codigo] || defaultPublishForm(item);
+                            const isPublishing = publishingSku === item.codigo;
+                            return (
+                                <div key={item.codigo} className="border rounded-lg p-3 space-y-2">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="font-mono text-xs font-semibold text-orange-700">{item.codigo}</div>
+                                            <div className="text-sm truncate">{item.producto}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {item.unidad || "Sin unidad"}{item.lista ? ` · $${item.lista}` : ""}
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5 flex-shrink-0"
+                                            disabled={isPublishing}
+                                            onClick={() => submitPublish(item)}
+                                        >
+                                            {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                            {isPublishing ? "Publicando..." : "Publicar"}
+                                        </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-semibold text-muted-foreground">Agrupación *</label>
+                                            <Input
+                                                list="publish-generic-names"
+                                                value={form.genericName}
+                                                onChange={(e) => updatePublishForm(item.codigo, { genericName: e.target.value })}
+                                                className="h-8 text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-semibold text-muted-foreground">Color *</label>
+                                            <Input
+                                                list="publish-colors"
+                                                value={form.color}
+                                                onChange={(e) => updatePublishForm(item.codigo, { color: e.target.value })}
+                                                className="h-8 text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-semibold text-muted-foreground">Formato *</label>
+                                            <Input
+                                                value={form.format}
+                                                onChange={(e) => updatePublishForm(item.codigo, { format: e.target.value })}
+                                                className="h-8 text-sm"
+                                                placeholder="Ej: Galón"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </DialogContent>
             </Dialog>

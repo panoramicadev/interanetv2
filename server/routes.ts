@@ -7097,6 +7097,37 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // List SAP catalog products that are not yet in any commercial grouping (ecommerce_products).
+  // Used by the "Publicar productos nuevos" dialog in Agrupación Comercial.
+  app.get('/api/products/grouped-catalog/unpublished', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const search = String(req.query?.search || '').trim();
+    const searchPattern = `%${search}%`;
+
+    const result = await db.execute(sql`
+      SELECT pl.id, pl.codigo, pl.producto, pl.unidad, pl.lista
+      FROM price_list pl
+      LEFT JOIN ecommerce_products ep ON ep.price_list_id = pl.id
+      WHERE ep.id IS NULL
+        ${search
+          ? sql`AND (pl.codigo ILIKE ${searchPattern} OR pl.producto ILIKE ${searchPattern})`
+          : sql``}
+      ORDER BY pl.producto
+      LIMIT 200
+    `);
+
+    const rows = Array.isArray(result) ? result : (result as any).rows || [];
+    res.json({
+      items: (rows as any[]).map((r: any) => ({
+        id: r.id,
+        codigo: r.codigo,
+        producto: r.producto,
+        unidad: r.unidad || null,
+        lista: r.lista != null ? String(r.lista) : null,
+      })),
+      total: (rows as any[]).length,
+    });
+  }));
+
   // Product routes
   app.get('/api/products', requireAuth, async (req: any, res) => {
     try {
