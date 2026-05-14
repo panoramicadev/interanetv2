@@ -1232,8 +1232,8 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
     {/* Confirmation Dialog */}
     <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-      <AlertDialogContent className="max-w-md">
-        <AlertDialogHeader>
+      <AlertDialogContent className="max-w-md max-h-[90vh] grid-rows-[minmax(0,1fr)_auto]">
+        <AlertDialogHeader className="overflow-y-auto min-h-0">
           <div className="flex justify-center mb-3">
             <div className="w-14 h-14 bg-[#FF6E23]/10 rounded-full flex items-center justify-center">
               <ShoppingBag className="h-7 w-7 text-[#FF6E23]" />
