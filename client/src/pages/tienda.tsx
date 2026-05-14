@@ -58,7 +58,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
-import ProductCardExpandable, { displayProductName, isTempRebrandedName, TempBadges } from "@/components/shared/ProductCardExpandable";
+import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
 import CustomColorButton from "@/components/shared/CustomColorButton";
 import { getFormatQuantityRules } from "@shared/format-utils";
 import {
@@ -576,10 +576,8 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
-                            {isTempRebrandedName(genericName) && <TempBadges className="mb-0.5" />}
                             <h4 className="text-sm font-bold text-gray-900 leading-tight truncate">
-                              {displayProductName(genericName)}
+                              {genericName}
                             </h4>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
                               <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isExactMatch ? 'bg-[#FF6E23]/10 text-[#FF6E23]' : 'bg-gray-100 text-gray-600'}`}>
@@ -2268,13 +2266,9 @@ export default function TiendaPage() {
             return (
               <>
                 <DialogHeader className="p-6 pb-0">
-                  {/* TEMPORAL: rebranding Stain → Nuevo Eco Stain */}
-                  <div className="flex flex-col gap-1.5">
-                    {isTempRebrandedName(gp.genericName) && <TempBadges className="self-start" />}
-                    <DialogTitle className="text-2xl font-black text-gray-900">
-                      {displayProductName(gp.genericName)}
-                    </DialogTitle>
-                  </div>
+                  <DialogTitle className="text-2xl font-black text-gray-900">
+                    {gp.genericName}
+                  </DialogTitle>
                   {gp.groupName && (
                     <Badge className="w-fit mt-1 bg-[#FF6E23]/10 text-[#FF6E23] border-[#FF6E23]/20 font-semibold text-xs">{gp.groupName}</Badge>
                   )}
