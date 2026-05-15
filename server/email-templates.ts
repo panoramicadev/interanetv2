@@ -352,6 +352,76 @@ export function buildQuoteReceivedEmail(data: QuoteReceivedData): { subject: str
   return { subject, html };
 }
 
+interface SuggestedOrderData {
+  clientName: string;
+  orderNumber: string;
+  total: number;
+  items: Array<{ name: string; quantity: number; price?: number }>;
+  suggestedByName?: string;
+  notes?: string | null;
+  orderUrl: string;
+}
+
+export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: string; html: string } {
+  const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+  const totalStr = fmt(data.total);
+  const subject = `Tienes un pedido sugerido #${data.orderNumber} - Pinturas Panorámica`;
+
+  const itemsRows = (data.items || []).slice(0, 50).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+      ${typeof it.price === 'number' ? `<td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: right;">${fmt(it.price)}</td>` : ''}
+    </tr>`).join('');
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Te enviamos un pedido sugerido</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, ${data.suggestedByName ? `<strong>${data.suggestedByName}</strong> del equipo de Pinturas Panorámica` : 'nuestro equipo'} preparó un pedido sugerido para vos.
+    </p>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Podés <strong>aceptarlo</strong> tal cual está, <strong>modificarlo</strong> antes de confirmar, o <strong>rechazarlo</strong> desde tu portal. No se procesa ningún cobro hasta que lo confirmes.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+      <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">N° Sugerido:</span>
+        <span style="color: #333; margin-left: 8px;">${data.orderNumber}</span>
+      </td></tr>
+      <tr><td style="height: 6px;"></td></tr>
+      <tr><td style="padding: 12px; background-color: #fff7ed; border-left: 4px solid #fd6301; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">Total estimado:</span>
+        <span style="color: #1a1f2e; margin-left: 8px; font-size: 17px;"><strong>${totalStr}</strong></span>
+      </td></tr>
+    </table>
+    ${itemsRows ? `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+          ${(data.items || []).some(i => typeof i.price === 'number') ? '<th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRECIO</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>` : ''}
+    ${data.notes ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 0 0 20px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Nota del equipo:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.notes}</p>
+    </div>` : ''}
+    <p style="text-align: center; margin: 24px 0;">
+      <a href="${data.orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        Revisar y responder el sugerido
+      </a>
+    </p>
+    <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
+      Si tenés dudas, escribinos a
+      <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
+    </p>
+  `);
+  return { subject, html };
+}
+
 export function wrapEmailContent(bodyContent: string): string {
   return `
     <!DOCTYPE html>

@@ -9309,7 +9309,9 @@ export class DatabaseStorage implements IStorage {
       .from(ecommerceOrders)
       .where(and(
         gte(ecommerceOrders.createdAt, startOfMonth),
-        lte(ecommerceOrders.createdAt, endOfMonth)
+        lte(ecommerceOrders.createdAt, endOfMonth),
+        // Excluimos sugeridos pendientes: aún no son ventas confirmadas por el cliente.
+        ne(ecommerceOrders.status, 'suggested_pending')
       ));
 
     return {
@@ -16737,6 +16739,10 @@ export class DatabaseStorage implements IStorage {
       if (orderData.modifiedAt) cleanData.modifiedAt = orderData.modifiedAt;
       if (orderData.modifiedById) cleanData.modifiedById = orderData.modifiedById;
 
+      if (orderData.isSuggested) cleanData.isSuggested = true;
+      if (orderData.suggestedById) cleanData.suggestedById = orderData.suggestedById;
+      if (orderData.suggestedByName) cleanData.suggestedByName = orderData.suggestedByName;
+      if (orderData.suggestedAt) cleanData.suggestedAt = orderData.suggestedAt;
 
       const [newOrder] = await db
         .insert(ecommerceOrders)
@@ -16755,6 +16761,7 @@ export class DatabaseStorage implements IStorage {
     clientId?: string;
     salespersonId?: string;
     status?: string;
+    includeSuggestedPending?: boolean;
   }) {
     const conditions = [];
 
@@ -16768,6 +16775,11 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.status) {
       conditions.push(eq(ecommerceOrders.status, filters.status));
+    } else if (!filters?.includeSuggestedPending) {
+      // Por defecto excluimos los "suggested_pending": son pedidos pre-armados por
+      // admin/supervisor que aún no fueron aceptados por el cliente. No deben aparecer
+      // en panel del tomador de pedidos, contadores ni listados generales.
+      conditions.push(ne(ecommerceOrders.status, 'suggested_pending'));
     }
 
     let query = db

@@ -3709,6 +3709,13 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   rejectedById: varchar("rejected_by_id"),
   rejectedReason: text("rejected_reason"),
 
+  // Pedido sugerido: admin/supervisor envía pre-armado al cliente; cliente acepta/modifica/rechaza
+  isSuggested: boolean("is_suggested").notNull().default(false),
+  suggestedById: varchar("suggested_by_id"),
+  suggestedByName: varchar("suggested_by_name"),
+  suggestedAt: timestamp("suggested_at"),
+  suggestedResponseAt: timestamp("suggested_response_at"),
+
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
 

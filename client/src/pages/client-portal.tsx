@@ -259,7 +259,8 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
   const validOrders = useMemo(() => {
     return webOrders.filter((o: any) => {
       const s = (o.status || '').toLowerCase();
-      return s !== 'rejected' && s !== 'archived';
+      // Excluimos sugeridos pendientes: aún no son pedidos confirmados por el cliente.
+      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending';
     });
   }, [webOrders]);
 
@@ -588,8 +589,352 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 // ==========================================
 import React from 'react';
 import { OrderDetailView, EcommerceOrder, getOrderItems, statusConfig } from "@/components/ecommerce/order-detail-view";
-import { ChevronDown, ChevronUp, Repeat } from "lucide-react";
+import { ChevronDown, ChevronUp, Repeat, Sparkles, Check, X as XIcon, Pencil, Minus, Plus } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
+import { useQueryClient } from "@tanstack/react-query";
+import { Textarea } from "@/components/ui/textarea";
+
+// ==========================================
+// Suggested Orders Panel — sugeridos pendientes
+// ==========================================
+
+function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [rejecting, setRejecting] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const acceptMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await fetch(`/api/ecommerce/orders/${orderId}/suggested-accept`, {
+        method: "POST", credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "No se pudo aceptar");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sugerido aceptado", description: "Tu pedido pasa a revisión del equipo." });
+      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const res = await fetch(`/api/ecommerce/orders/${id}/suggested-reject`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "No se pudo rechazar");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sugerido rechazado", description: "Le avisamos al equipo." });
+      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+      setRejecting(null);
+      setRejectReason("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  if (!orders || orders.length === 0) return null;
+
+  return (
+    <>
+      <div className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-sm">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="h-10 w-10 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-orange-900">
+              Tienes {orders.length} pedido{orders.length !== 1 ? "s" : ""} sugerido{orders.length !== 1 ? "s" : ""}
+            </h3>
+            <p className="text-xs text-orange-700 mt-0.5">
+              Nuestro equipo te preparó este pedido. Podés aceptarlo, modificarlo o rechazarlo.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {orders.map((o) => {
+            const items = getOrderItems(o);
+            return (
+              <div key={o.id} className="rounded-xl bg-white border border-orange-100 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                        #{getNumericOrderId(o.id)}
+                      </span>
+                      <span className="text-xs text-slate-500">{formatDate(o.createdAt)}</span>
+                    </div>
+                    {o.suggestedByName && (
+                      <p className="text-xs text-slate-600">
+                        Enviado por <strong>{o.suggestedByName}</strong>
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-lg font-black text-orange-600">{formatCurrency(Number(o.total))}</p>
+                    <p className="text-[10px] text-slate-500">
+                      {items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0)} unidades
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 max-h-[180px] overflow-y-auto border-t border-slate-100 pt-3">
+                  {items.slice(0, 8).map((it: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="text-slate-700 truncate flex-1 mr-2">
+                        {it.productName}
+                        {(it.selectedColor || it.selectedPackaging) && (
+                          <span className="text-slate-400 ml-1">
+                            ({[it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")})
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-slate-500 flex-shrink-0">
+                        {it.quantity} × {formatCurrency(Number(it.unitPrice || 0))}
+                      </span>
+                    </div>
+                  ))}
+                  {items.length > 8 && (
+                    <p className="text-[10px] text-slate-400 text-center pt-1">
+                      + {items.length - 8} producto{items.length - 8 !== 1 ? "s" : ""} más
+                    </p>
+                  )}
+                </div>
+
+                {o.notes && (
+                  <div className="mt-3 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                      Nota del equipo
+                    </p>
+                    <p className="text-xs text-amber-900 whitespace-pre-wrap">{o.notes}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
+                  <Button
+                    onClick={() => acceptMutation.mutate(o.id)}
+                    disabled={acceptMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 rounded-lg flex-1 min-w-[140px]"
+                  >
+                    {acceptMutation.isPending && acceptMutation.variables === o.id ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Aceptar
+                  </Button>
+                  <Button
+                    onClick={() => setEditing(o)}
+                    variant="outline"
+                    className="text-xs h-8 rounded-lg flex-1 min-w-[140px] border-blue-200 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    Modificar
+                  </Button>
+                  <Button
+                    onClick={() => setRejecting(o)}
+                    variant="outline"
+                    className="text-xs h-8 rounded-lg flex-1 min-w-[140px] border-red-200 text-red-700 hover:bg-red-50"
+                  >
+                    <XIcon className="h-3.5 w-3.5 mr-1.5" />
+                    Rechazar
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Dialog: rechazar */}
+      <Dialog open={!!rejecting} onOpenChange={(o) => { if (!o) { setRejecting(null); setRejectReason(""); } }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Rechazar sugerido</DialogTitle>
+            <DialogDescription>
+              Contanos brevemente por qué. El equipo podrá ajustar la próxima propuesta.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Motivo</Label>
+            <Textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ej: ya tengo stock, los precios no me cierran, etc."
+              className="mt-1 rounded-xl"
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRejecting(null); setRejectReason(""); }} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => rejecting && rejectMutation.mutate({ id: rejecting.id, reason: rejectReason.trim() })}
+              disabled={rejectReason.trim().length < 3 || rejectMutation.isPending}
+              className="rounded-xl bg-red-600 hover:bg-red-700"
+            >
+              {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Rechazar sugerido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: modificar items */}
+      {editing && (
+        <ModifySuggestedDialog
+          order={editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function ModifySuggestedDialog({ order, onClose }: { order: any; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const initialItems = getOrderItems(order);
+  const [items, setItems] = useState<any[]>(initialItems.map((it: any) => ({ ...it })));
+  const [notes, setNotes] = useState<string>(order.notes || "");
+
+  const updateQty = (idx: number, qty: number) => {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, quantity: Math.max(0, qty) } : it)));
+  };
+
+  const filteredItems = items.filter((it) => Number(it.quantity || 0) > 0);
+  const refSubtotal = filteredItems.reduce((s, it) => s + (Number(it.unitPrice || 0) * Number(it.quantity || 0)), 0);
+
+  const modifyMutation = useMutation({
+    mutationFn: async () => {
+      if (filteredItems.length === 0) throw new Error("Dejá al menos un producto");
+      const res = await fetch(`/api/ecommerce/orders/${order.id}/suggested-modify`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: filteredItems.map((it) => ({
+            productName: it.productName,
+            sku: it.sku || it.productCode,
+            quantity: it.quantity,
+            unitPrice: Number(it.unitPrice || 0),
+            totalPrice: Number(it.unitPrice || 0) * Number(it.quantity || 0),
+            selectedColor: it.selectedColor,
+            selectedPackaging: it.selectedPackaging,
+          })),
+          notes: notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "No se pudo modificar");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sugerido modificado", description: "Tu pedido modificado quedó en revisión del equipo." });
+      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+      onClose();
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Modificar pedido sugerido</DialogTitle>
+          <DialogDescription>
+            Ajustá cantidades o eliminá productos. El equipo revisará tu pedido modificado antes de confirmarlo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto py-2 space-y-2">
+          {items.map((it, idx) => (
+            <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">{it.productName}</p>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {[it.sku || it.productCode, it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Precio ref.: {formatCurrency(Number(it.unitPrice || 0))}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button" size="icon" variant="outline"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => updateQty(idx, Number(it.quantity || 0) - 1)}
+                  disabled={Number(it.quantity || 0) <= 0}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Input
+                  type="number"
+                  min={0}
+                  value={it.quantity || ""}
+                  onChange={(e) => updateQty(idx, parseInt(e.target.value) || 0)}
+                  className="h-7 w-14 text-center text-sm font-bold rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <Button
+                  type="button" size="icon" variant="outline"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => updateQty(idx, Number(it.quantity || 0) + 1)}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          <div className="mt-3">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Nota para el equipo (opcional)
+            </Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ej: necesito que llegue antes del viernes"
+              className="mt-1 rounded-xl"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100 mt-3">
+            <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">Subtotal ref.</span>
+            <span className="text-base font-black text-orange-600">{formatCurrency(refSubtotal)}</span>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Cancelar</Button>
+          <Button
+            onClick={() => modifyMutation.mutate()}
+            disabled={filteredItems.length === 0 || modifyMutation.isPending}
+            className="rounded-xl bg-orange-600 hover:bg-orange-700"
+          >
+            {modifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Enviar pedido modificado
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function PedidosTab({ salesperson }: { salesperson: string }) {
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
@@ -681,11 +1026,16 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   const gdvOrders = groupErpOrders(erpData?.gdv || [], 'numeroGuia', 'despacho');
   const txOrders = groupErpOrders(erpData?.transactions || [], 'documentNumber', 'facturado');
 
-  const unifiedWebOrders: EcommerceOrder[] = webOrders.map((o: any) => ({
-    ...o,
-    status: o.status === 'pending' || o.status === 'pendiente' ? 'pendiente' : (o.status === 'approved' ? 'approved' : o.status),
-    items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
-  }));
+  // Sugeridos pendientes se muestran en panel aparte arriba de la tabla principal
+  const suggestedPendingOrders = webOrders.filter((o: any) => o.status === 'suggested_pending');
+
+  const unifiedWebOrders: EcommerceOrder[] = webOrders
+    .filter((o: any) => o.status !== 'suggested_pending')
+    .map((o: any) => ({
+      ...o,
+      status: o.status === 'pending' || o.status === 'pendiente' ? 'pendiente' : (o.status === 'approved' ? 'approved' : o.status),
+      items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
+    }));
 
   const allOrders = [...unifiedWebOrders, ...nvvOrders, ...gdvOrders, ...txOrders].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -703,6 +1053,9 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
 
   return (
     <div className="space-y-4">
+      {/* Sugeridos pendientes (admin/supervisor envía pre-armado al cliente) */}
+      <SuggestedOrdersPanel orders={suggestedPendingOrders} />
+
       <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
         <Table>
           <TableHeader>

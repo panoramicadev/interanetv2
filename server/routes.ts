@@ -7894,6 +7894,343 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al crear el pedido', detail: error?.message || 'Unknown error' });
     }
   }));
+
+  // ==================================================================================
+  // PEDIDOS SUGERIDOS — admin/supervisor envía un pedido pre-armado al cliente.
+  // El cliente recibe correo y puede aceptar / modificar / rechazar desde su portal.
+  // ==================================================================================
+
+  // Admin/Supervisor crea un sugerido para un cliente.
+  app.post('/api/ecommerce/orders/suggested', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const suggestedBy = req.user;
+      const schema = z.object({
+        // Identificadores del cliente — al menos uno debe permitir resolver al usuario
+        clientUserId: z.string().optional().nullable(),
+        clientCode: z.string().optional().nullable(),
+        clientName: z.string().optional().nullable(),
+        items: z.array(z.object({
+          productId: z.string().optional(),
+          productName: z.string(),
+          sku: z.string().optional(),
+          quantity: z.number().positive(),
+          unitPrice: z.number().nonnegative().optional(),
+          totalPrice: z.number().nonnegative().optional(),
+        }).passthrough()).min(1, 'Debes agregar al menos un producto'),
+        notes: z.string().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      }
+      const { clientUserId, clientCode, clientName, items, notes } = parsed.data;
+
+      if (!clientUserId && !clientCode && !clientName) {
+        return res.status(400).json({ message: 'Debes indicar el cliente destino (userId, código o nombre).' });
+      }
+
+      // Resolver registro de cliente + usuario para obtener email/lcen/userId
+      const { clients: clientsTbl, users: usersTbl } = await import('@shared/schema');
+      const { eq: eqOp, and: andOp, or: orOp, isNotNull: isNotNullOp } = await import('drizzle-orm');
+
+      let clientRecord: any = null;
+
+      if (clientUserId) {
+        const [byUser] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.userId, clientUserId)).limit(1);
+        if (byUser) clientRecord = byUser;
+      }
+      if (!clientRecord && clientCode) {
+        const [byCode] = await db.select().from(clientsTbl)
+          .where(andOp(eqOp(clientsTbl.koen, clientCode), isNotNullOp(clientsTbl.userId)))
+          .limit(1);
+        if (byCode) clientRecord = byCode;
+        if (!clientRecord) {
+          const [anyCode] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.koen, clientCode)).limit(1);
+          if (anyCode) clientRecord = anyCode;
+        }
+      }
+      if (!clientRecord && clientName) {
+        const [byName] = await db.select().from(clientsTbl)
+          .where(andOp(eqOp(clientsTbl.nokoen, clientName), isNotNullOp(clientsTbl.userId)))
+          .limit(1);
+        if (byName) clientRecord = byName;
+        if (!clientRecord) {
+          const [anyName] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.nokoen, clientName)).limit(1);
+          if (anyName) clientRecord = anyName;
+        }
+      }
+
+      if (!clientRecord) {
+        return res.status(404).json({ message: 'No se encontró el cliente en la base de datos.' });
+      }
+
+      // Necesitamos un userId para que el cliente pueda ver el sugerido en su portal.
+      if (!clientRecord.userId) {
+        return res.status(400).json({
+          message: 'Este cliente aún no tiene cuenta de usuario en el portal. Pídele que se registre antes de enviar un sugerido.',
+        });
+      }
+
+      // Email destino: priorizamos el del registro del cliente, fallback al del usuario.
+      let destEmail: string | null = clientRecord.foen || null;
+      if (!destEmail) {
+        try {
+          const [u] = await db.select().from(usersTbl).where(eqOp(usersTbl.id, clientRecord.userId)).limit(1);
+          if (u?.email) destEmail = u.email;
+        } catch (_) { /* noop */ }
+      }
+      if (!destEmail) {
+        return res.status(400).json({ message: 'El cliente no tiene email registrado para recibir el sugerido.' });
+      }
+
+      // Resolver precios con la lista del cliente destino
+      const resolved = await resolveItemsPricing(items, clientRecord);
+      if (resolved.warnings.length) {
+        console.warn(`[orders/suggested] price resolution warnings:`, resolved.warnings);
+      }
+
+      const suggestedByName = (suggestedBy.salespersonName
+        || `${suggestedBy.firstName || ''} ${suggestedBy.lastName || ''}`.trim()
+        || suggestedBy.email
+        || 'Equipo Panorámica').trim();
+
+      const order = await storage.createEcommerceOrder({
+        items: resolved.items,
+        subtotal: String(resolved.subtotal),
+        tax: String(resolved.tax),
+        total: String(resolved.total),
+        branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+        priceListUsed: resolved.priceListUsed,
+        clientId: clientRecord.userId,
+        clientName: clientRecord.nokoen || clientRecord.gien || 'Cliente',
+        clientEmail: destEmail,
+        assignedSalespersonId: clientRecord.assignedSalespersonUserId || null,
+        status: 'suggested_pending',
+        notes: notes || null,
+        isSuggested: true,
+        suggestedById: suggestedBy.id,
+        suggestedByName,
+        suggestedAt: new Date(),
+      });
+
+      // Notificación interna al vendedor asignado (no bloquea)
+      try {
+        if (clientRecord.assignedSalespersonUserId) {
+          await storage.createNotification({
+            userId: clientRecord.assignedSalespersonUserId,
+            type: 'ecommerce_order',
+            title: 'Sugerido enviado a cliente',
+            message: `${suggestedByName} envió un pedido sugerido a ${order.clientName} por $${Number(resolved.total).toFixed(0)}`,
+            relatedOrderId: order.id,
+            read: false,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Warning: notification for suggested order failed:', notifErr);
+      }
+
+      // Email al cliente con detalle del sugerido y link al portal
+      try {
+        const { buildSuggestedOrderEmail } = await import('./email-templates');
+        const baseUrl = (process.env.PUBLIC_APP_URL || process.env.APP_URL || '').replace(/\/+$/, '');
+        const orderUrl = `${baseUrl || ''}/mis-pedidos`;
+        const built = buildSuggestedOrderEmail({
+          clientName: order.clientName || 'Cliente',
+          orderNumber: order.id,
+          total: Number(resolved.total) || 0,
+          items: (resolved.items || []).map((it: any) => ({
+            name: it.productName || it.name || it.sku || 'Producto',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
+          })),
+          suggestedByName,
+          notes: notes || null,
+          orderUrl,
+        });
+        const { emailService } = await import('./services/email');
+        await emailService.sendEmail({ to: destEmail, subject: built.subject, html: built.html });
+      } catch (emailErr) {
+        console.warn('Warning: suggested order email failed:', emailErr);
+      }
+
+      res.status(201).json(order);
+    } catch (error: any) {
+      console.error('Error creating suggested order:', error);
+      res.status(500).json({ message: 'Error al crear el sugerido', detail: error?.message || 'Unknown error' });
+    }
+  }));
+
+  // Cliente acepta el sugerido tal cual → pasa a flujo normal (pending) para revisión admin
+  app.post('/api/ecommerce/orders/:id/suggested-accept', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const orderId = req.params.id;
+      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
+      if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+      if (order.clientId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+      if (!order.isSuggested || order.status !== 'suggested_pending') {
+        return res.status(400).json({ message: 'Este pedido no está en estado de sugerido pendiente.' });
+      }
+
+      const [updated] = await db.update(ecommerceOrders)
+        .set({
+          status: 'pending',
+          suggestedResponseAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(ecommerceOrders.id, orderId))
+        .returning();
+
+      // Notificar al vendedor asignado / supervisor / admin
+      try {
+        const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
+        if (notifyTo) {
+          await storage.createNotification({
+            userId: notifyTo,
+            type: 'ecommerce_order',
+            title: 'Sugerido aceptado por cliente',
+            message: `${order.clientName} aceptó el sugerido por $${Number(order.total).toFixed(0)}`,
+            relatedOrderId: order.id,
+            read: false,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Warning: notify on suggested-accept failed:', notifErr);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error accepting suggested order:', error);
+      res.status(500).json({ message: 'Error al aceptar el sugerido', detail: error?.message });
+    }
+  }));
+
+  // Cliente rechaza el sugerido con motivo
+  app.post('/api/ecommerce/orders/:id/suggested-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const orderId = req.params.id;
+      const schema = z.object({ reason: z.string().min(3, 'Indicá un motivo breve') });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+
+      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
+      if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+      if (order.clientId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+      if (!order.isSuggested || order.status !== 'suggested_pending') {
+        return res.status(400).json({ message: 'Este pedido no está en estado de sugerido pendiente.' });
+      }
+
+      const now = new Date();
+      const [updated] = await db.update(ecommerceOrders)
+        .set({
+          status: 'rejected',
+          rejectedAt: now,
+          rejectedById: user.id,
+          rejectedReason: parsed.data.reason,
+          suggestedResponseAt: now,
+          updatedAt: now,
+        })
+        .where(eq(ecommerceOrders.id, orderId))
+        .returning();
+
+      try {
+        const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
+        if (notifyTo) {
+          await storage.createNotification({
+            userId: notifyTo,
+            type: 'ecommerce_order',
+            title: 'Sugerido rechazado por cliente',
+            message: `${order.clientName} rechazó el sugerido: ${parsed.data.reason}`,
+            relatedOrderId: order.id,
+            read: false,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Warning: notify on suggested-reject failed:', notifErr);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error rejecting suggested order:', error);
+      res.status(500).json({ message: 'Error al rechazar el sugerido', detail: error?.message });
+    }
+  }));
+
+  // Cliente modifica items del sugerido y confirma → pasa a pending normal con items nuevos
+  app.patch('/api/ecommerce/orders/:id/suggested-modify', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const orderId = req.params.id;
+      const schema = z.object({
+        items: z.array(z.object({
+          productId: z.string().optional(),
+          productName: z.string(),
+          sku: z.string().optional(),
+          quantity: z.number().positive(),
+          unitPrice: z.number().nonnegative().optional(),
+          totalPrice: z.number().nonnegative().optional(),
+        }).passthrough()).min(1),
+        notes: z.string().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+
+      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
+      if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+      if (order.clientId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+      if (!order.isSuggested || order.status !== 'suggested_pending') {
+        return res.status(400).json({ message: 'Este pedido no está en estado de sugerido pendiente.' });
+      }
+
+      // Recalcular precios usando la lista del cliente destino
+      const { clients: clientsTbl } = await import('@shared/schema');
+      const { eq: eqOp } = await import('drizzle-orm');
+      const [clientRecord] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.userId, user.id)).limit(1);
+      const resolved = await resolveItemsPricing(parsed.data.items, clientRecord || null);
+
+      const now = new Date();
+      const [updated] = await db.update(ecommerceOrders)
+        .set({
+          items: resolved.items,
+          subtotal: String(resolved.subtotal),
+          tax: String(resolved.tax),
+          total: String(resolved.total),
+          branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+          priceListUsed: resolved.priceListUsed,
+          notes: parsed.data.notes ?? order.notes,
+          status: 'pending',
+          modifiedAt: now,
+          modifiedById: user.id,
+          suggestedResponseAt: now,
+          updatedAt: now,
+        })
+        .where(eq(ecommerceOrders.id, orderId))
+        .returning();
+
+      try {
+        const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
+        if (notifyTo) {
+          await storage.createNotification({
+            userId: notifyTo,
+            type: 'ecommerce_order',
+            title: 'Sugerido modificado por cliente',
+            message: `${order.clientName} modificó el sugerido. Nuevo total: $${Number(resolved.total).toFixed(0)}`,
+            relatedOrderId: order.id,
+            read: false,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Warning: notify on suggested-modify failed:', notifErr);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error modifying suggested order:', error);
+      res.status(500).json({ message: 'Error al modificar el sugerido', detail: error?.message });
+    }
+  }));
+
   app.get('/api/ecommerce/client/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -8020,7 +8357,7 @@ export function registerRoutes(app: Express): Server {
         const rows = await db
           .select({ id: ecommerceOrders.id })
           .from(ecommerceOrders)
-          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived']));
+          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived', 'suggested_pending']));
         return res.json({ count: rows.length });
       }
 
@@ -8074,6 +8411,14 @@ export function registerRoutes(app: Express): Server {
     const { db } = await import('./db');
 
     const [previous] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+
+    // Bloqueamos transiciones manuales sobre sugeridos aún pendientes de respuesta del
+    // cliente: el cliente es quien debe aceptarlo/modificarlo/rechazarlo desde su portal.
+    if (previous && previous.status === 'suggested_pending') {
+      return res.status(409).json({
+        message: 'Este pedido es un sugerido pendiente de respuesta del cliente. El cliente debe aceptarlo, modificarlo o rechazarlo desde su portal antes de cambiar su estado.',
+      });
+    }
 
     const [updated] = await db.update(ecommerceOrders)
       .set({
@@ -8284,6 +8629,14 @@ export function registerRoutes(app: Express): Server {
     const [existing] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
     if (!existing) {
       return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    // Bloqueamos edición admin sobre sugeridos aún pendientes: es el cliente quien debe
+    // modificarlos desde su portal usando el endpoint /suggested-modify.
+    if (existing.status === 'suggested_pending') {
+      return res.status(409).json({
+        message: 'No se puede editar un sugerido pendiente desde acá. El cliente debe responderlo primero desde su portal.',
+      });
     }
 
     const normalizedItems = parsed.data.items.map((it: any) => {
