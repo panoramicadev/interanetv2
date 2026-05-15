@@ -827,13 +827,14 @@ function ModifySuggestedDialog({ order, onClose }: { order: any; onClose: () => 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: filteredItems.map((it) => ({
+            // Preservamos el shape que armó el vendedor (type, priceTier, custom*, etc.)
+            // para que el backend siga respetando el tier elegido y no re-cotice todo.
+            ...it,
             productName: it.productName,
             sku: it.sku || it.productCode,
             quantity: it.quantity,
             unitPrice: Number(it.unitPrice || 0),
             totalPrice: Number(it.unitPrice || 0) * Number(it.quantity || 0),
-            selectedColor: it.selectedColor,
-            selectedPackaging: it.selectedPackaging,
           })),
           notes: notes.trim() || null,
         }),

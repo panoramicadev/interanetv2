@@ -7532,13 +7532,22 @@ export function registerRoutes(app: Express): Server {
   // Resolve authoritative prices for order items based on customer's assigned price list (lcen).
   // Overwrites frontend-supplied unitPrice to prevent price-list mismatches.
   // Items without a resolvable SKU keep their original unitPrice and are flagged.
+  //
+  // Special cases (used by "pedido sugerido" flow):
+  //   - Items with `type: 'custom'` are passed through with their `unitPrice` (no lookup).
+  //   - Items with an explicit `priceTier` use that tier's price from price_list / mix / offers
+  //     instead of the client's lcen, and convenio discount is NOT applied (the salesperson
+  //     already chose the final tier).
   async function resolveItemsPricing(items: any[], client: any | null) {
     const priceListCode = (client?.lcen && typeof client.lcen === 'string' && client.lcen.trim()) ? client.lcen.trim().toUpperCase() : 'LP01';
     const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
     const useCustomList = priceListCode !== 'LP01';
 
+    const VALID_TIERS = new Set(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'mix', 'oferta']);
+
     const skus = Array.from(new Set(
       items
+        .filter((it: any) => it?.type !== 'custom')
         .map((it: any) => (it.sku || it.productCode || '').toString().trim().toUpperCase())
         .filter(Boolean)
     ));
@@ -7546,6 +7555,19 @@ export function registerRoutes(app: Express): Server {
     // Maps keyed by uppercased SKU
     const listPriceMap = new Map<string, number>();
     const offerPriceMap = new Map<string, number>();
+    // Full per-tier maps (only populated when at least one item asks for a specific tier).
+    const tierPriceMaps: Record<string, Map<string, number>> = {
+      lista: new Map(),
+      desc10: new Map(),
+      desc10_5: new Map(),
+      desc10_5_3: new Map(),
+      minimo: new Map(),
+      canalDigital: new Map(),
+      mix: new Map(),
+      oferta: new Map(),
+    };
+    const needsTierLookup = items.some((it: any) => it?.priceTier && VALID_TIERS.has(it.priceTier));
+
     if (skus.length > 0) {
       const skuList = sql.join(skus.map(s => sql`${s}`), sql`, `);
       const result: any = useCustomList
@@ -7578,13 +7600,94 @@ export function registerRoutes(app: Express): Server {
           offerPriceMap.set(row.codigo, parseFloat(row.offer_price));
         }
       }
+
+      if (needsTierLookup) {
+        const tierRes: any = await db.execute(sql`
+          SELECT UPPER(pl.codigo) AS codigo,
+                 pl.lista, pl.desc10, pl.desc10_5, pl.desc10_5_3, pl.minimo, pl.canal_digital,
+                 pl.offer_price,
+                 mix.precio AS mix_precio,
+                 offers.precio AS offer_precio
+          FROM price_list pl
+          LEFT JOIN price_list_mix mix
+            ON UPPER(mix.codigo) = UPPER(pl.codigo)
+          LEFT JOIN price_list_offers offers
+            ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
+          WHERE UPPER(pl.codigo) IN (${skuList})
+        `);
+        const tierRows = Array.isArray(tierRes) ? tierRes : (tierRes.rows || []);
+        for (const row of tierRows as any[]) {
+          if (!row.codigo) continue;
+          const setIfPositive = (map: Map<string, number>, v: any) => {
+            const n = parseFloat(v?.toString() || '0');
+            if (n > 0) map.set(row.codigo, n);
+          };
+          // lista fallback: si viene 0/null pero hay desc10, derivamos lista = desc10 / 0.9
+          let listaVal = parseFloat(row.lista?.toString() || '0');
+          if (!(listaVal > 0)) {
+            const d10 = parseFloat(row.desc10?.toString() || '0');
+            if (d10 > 0) listaVal = Math.round(d10 / 0.9);
+          }
+          if (listaVal > 0) tierPriceMaps.lista.set(row.codigo, listaVal);
+          setIfPositive(tierPriceMaps.desc10, row.desc10);
+          setIfPositive(tierPriceMaps.desc10_5, row.desc10_5);
+          setIfPositive(tierPriceMaps.desc10_5_3, row.desc10_5_3);
+          setIfPositive(tierPriceMaps.minimo, row.minimo);
+          setIfPositive(tierPriceMaps.canalDigital, row.canal_digital);
+          setIfPositive(tierPriceMaps.mix, row.mix_precio);
+          const offerVal = parseFloat(row.offer_precio?.toString() || row.offer_price?.toString() || '0');
+          if (offerVal > 0) tierPriceMaps.oferta.set(row.codigo, offerVal);
+        }
+      }
     }
 
     const warnings: string[] = [];
     const discountFactor = branchDiscountPct > 0 && branchDiscountPct <= 100 ? 1 - branchDiscountPct / 100 : 1;
 
     const resolvedItems = items.map((it: any) => {
+      // ── Producto personalizado: pass-through, sin lookup ────────────────
+      if (it?.type === 'custom') {
+        const customUnit = Math.max(0, Math.round(Number(it.unitPrice ?? it.price ?? 0) || 0));
+        const qty = Number(it.quantity) || 0;
+        const total = Math.round(customUnit * qty);
+        return {
+          ...it,
+          type: 'custom',
+          unitPrice: customUnit,
+          totalPrice: total,
+          discountAmount: 0,
+          unitPriceAfterDiscount: customUnit,
+          totalPriceAfterDiscount: total,
+          priceSource: 'custom',
+          isOffer: false,
+        };
+      }
+
       const sku = (it.sku || it.productCode || '').toString().trim().toUpperCase();
+
+      // ── Tier explícito elegido por el vendedor (sugerido) ────────────────
+      if (it?.priceTier && VALID_TIERS.has(it.priceTier)) {
+        const tier = it.priceTier as keyof typeof tierPriceMaps;
+        const tierPrice = sku ? tierPriceMaps[tier]?.get(sku) : undefined;
+        if (tierPrice != null && tierPrice > 0) {
+          const unitPrice = Math.max(0, Math.round(tierPrice));
+          const qty = Number(it.quantity) || 0;
+          const totalPrice = Math.round(unitPrice * qty);
+          return {
+            ...it,
+            unitPrice,
+            totalPrice,
+            discountAmount: 0,
+            unitPriceAfterDiscount: unitPrice,
+            totalPriceAfterDiscount: totalPrice,
+            priceSource: `tier:${tier}`,
+            isOffer: tier === 'oferta',
+          };
+        }
+        warnings.push(`Tier ${tier} no disponible para SKU ${sku || '(sin SKU)'}: usando lista del cliente`);
+      }
+
+      // ── Comportamiento default: lista del cliente + offers + convenio ────
       const listPrice = sku ? listPriceMap.get(sku) : undefined;
       const offerPrice = sku ? offerPriceMap.get(sku) : undefined;
 
@@ -7910,12 +8013,20 @@ export function registerRoutes(app: Express): Server {
         clientCode: z.string().optional().nullable(),
         clientName: z.string().optional().nullable(),
         items: z.array(z.object({
+          type: z.enum(['standard', 'custom']).optional(),
           productId: z.string().optional(),
           productName: z.string(),
           sku: z.string().optional(),
+          customSku: z.string().optional(),
           quantity: z.number().positive(),
           unitPrice: z.number().nonnegative().optional(),
           totalPrice: z.number().nonnegative().optional(),
+          priceTier: z.enum(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'mix', 'oferta']).optional(),
+          productUnit: z.string().optional(),
+          productColor: z.string().optional(),
+          costOfProduction: z.number().nonnegative().optional(),
+          profitMargin: z.number().optional(),
+          pricingMode: z.enum(['calculated', 'direct']).optional(),
         }).passthrough()).min(1, 'Debes agregar al menos un producto'),
         notes: z.string().optional().nullable(),
       });
@@ -8164,12 +8275,20 @@ export function registerRoutes(app: Express): Server {
       const orderId = req.params.id;
       const schema = z.object({
         items: z.array(z.object({
+          type: z.enum(['standard', 'custom']).optional(),
           productId: z.string().optional(),
           productName: z.string(),
           sku: z.string().optional(),
+          customSku: z.string().optional(),
           quantity: z.number().positive(),
           unitPrice: z.number().nonnegative().optional(),
           totalPrice: z.number().nonnegative().optional(),
+          priceTier: z.enum(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'mix', 'oferta']).optional(),
+          productUnit: z.string().optional(),
+          productColor: z.string().optional(),
+          costOfProduction: z.number().nonnegative().optional(),
+          profitMargin: z.number().optional(),
+          pricingMode: z.enum(['calculated', 'direct']).optional(),
         }).passthrough()).min(1),
         notes: z.string().optional().nullable(),
       });

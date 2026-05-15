@@ -14,7 +14,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Users,
@@ -36,10 +35,8 @@ import {
   ExternalLink,
   Save,
   X,
-  Send,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import SuggestedOrderModal, { type SuggestedOrderTargetClient } from "@/components/panoramica-market/suggested-order-modal";
 
 interface LoyaltyTier {
   id: string;
@@ -124,8 +121,6 @@ function getTierIcon(codigo: string, className: string = "h-6 w-6") {
 export default function PanoramicaMarket() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const canSendSuggested = user?.role === "admin" || user?.role === "supervisor";
   const [selectedTier, setSelectedTier] = useState<LoyaltyTier | null>(null);
   const [isEditTierOpen, setIsEditTierOpen] = useState(false);
   const [isAddBenefitOpen, setIsAddBenefitOpen] = useState(false);
@@ -133,7 +128,6 @@ export default function PanoramicaMarket() {
   const [clientSearch, setClientSearch] = useState("");
   const [isLandingOpen, setIsLandingOpen] = useState(false);
   const [landingForm, setLandingForm] = useState<LandingConfig | null>(null);
-  const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
 
   const [tierForm, setTierForm] = useState({
     nombre: "",
@@ -599,9 +593,6 @@ export default function PanoramicaMarket() {
                             <TableHead className="font-semibold">Código</TableHead>
                             <TableHead className="text-right font-semibold">Ventas (90d)</TableHead>
                             <TableHead className="text-right font-semibold">Transacciones</TableHead>
-                            {canSendSuggested && (
-                              <TableHead className="text-right font-semibold">Acciones</TableHead>
-                            )}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -615,20 +606,6 @@ export default function PanoramicaMarket() {
                               <TableCell className="text-right">
                                 <Badge variant="secondary" className="rounded-full">{client.transactionCount}</Badge>
                               </TableCell>
-                              {canSendSuggested && (
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setSuggestedTarget({ clientName: client.clientName, clientCode: client.clientCode })}
-                                    className="h-8 rounded-lg border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
-                                    data-testid={`button-send-suggested-${idx}`}
-                                  >
-                                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                                    Enviar sugerido
-                                  </Button>
-                                </TableCell>
-                              )}
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1183,14 +1160,6 @@ export default function PanoramicaMarket() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Enviar sugerido */}
-      {canSendSuggested && suggestedTarget && (
-        <SuggestedOrderModal
-          open={!!suggestedTarget}
-          client={suggestedTarget}
-          onClose={() => setSuggestedTarget(null)}
-        />
-      )}
     </div>
   );
 }
