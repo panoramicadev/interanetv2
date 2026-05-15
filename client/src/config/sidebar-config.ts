@@ -70,6 +70,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
+          href: "/sugeridos",
+          label: "Sugeridos",
+          icon: Sparkles,
+        },
+        {
           href: "/cotizaciones-b2c",
           label: "Cotizaciones",
           icon: FileText,
@@ -409,6 +414,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
+          href: "/sugeridos",
+          label: "Sugeridos",
+          icon: Sparkles,
+        },
+        {
           href: "/cotizaciones-b2c",
           label: "Cotizaciones",
           icon: FileText,
@@ -638,6 +648,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+    },
+    {
+      href: "/sugeridos",
+      label: "Sugeridos",
+      icon: Sparkles,
     },
     {
       href: "/mis-pedidos",

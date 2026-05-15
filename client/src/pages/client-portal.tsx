@@ -588,6 +588,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 // ==========================================
 import React from 'react';
 import { OrderDetailView, EcommerceOrder, getOrderItems, statusConfig } from "@/components/ecommerce/order-detail-view";
+import { ClientSuggestedOrders } from "@/components/ecommerce/suggested-order-view";
 import { ChevronDown, ChevronUp, Repeat } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
@@ -806,8 +807,10 @@ export default function ClientPortal() {
 
   const getInitialTab = () => {
     if (location === '/mis-pedidos') return 'pedidos';
+    if (location === '/sugeridos') return 'sugeridos';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
     if (tab === 'pedidos') return 'pedidos';
+    if (tab === 'sugeridos') return 'sugeridos';
     return 'dashboard';
   };
   const activeTab = getInitialTab();
@@ -821,6 +824,9 @@ export default function ClientPortal() {
         )}
         {activeTab === "pedidos" && (
           <PedidosTab salesperson={salespersonName} />
+        )}
+        {activeTab === "sugeridos" && (
+          <ClientSuggestedOrders />
         )}
       </div>
     </div>
