@@ -3709,6 +3709,13 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   rejectedById: varchar("rejected_by_id"),
   rejectedReason: text("rejected_reason"),
 
+  // Pedido sugerido: admin/supervisor envía pre-armado al cliente; cliente acepta/modifica/rechaza
+  isSuggested: boolean("is_suggested").notNull().default(false),
+  suggestedById: varchar("suggested_by_id"),
+  suggestedByName: varchar("suggested_by_name"),
+  suggestedAt: timestamp("suggested_at"),
+  suggestedResponseAt: timestamp("suggested_response_at"),
+
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
 
@@ -3732,63 +3739,6 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   salespersonIdIdx: index("IDX_ecommerce_orders_salesperson_id").on(table.assignedSalespersonId),
   statusIdx: index("IDX_ecommerce_orders_status").on(table.status),
 }));
-
-// Pedidos sugeridos - Carros que vendedores/administradores envían a un cliente de la tienda.
-// El cliente los ve en su panel y puede aceptarlos (se convierten en un pedido eCommerce),
-// modificarlos (vuelven al vendedor para revisión) o rechazarlos.
-export const suggestedOrders = pgTable("suggested_orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-
-  // Cliente destinatario
-  clientId: varchar("client_id"), // FK a clients.id (registro del cliente, opcional)
-  clientUserId: varchar("client_user_id").notNull(), // FK a users.id (usuario de tienda que lo ve)
-  clientName: text("client_name").notNull(),
-  clientEmail: varchar("client_email"),
-
-  // Quién lo creó (vendedor o administrador)
-  createdById: varchar("created_by_id").notNull(), // FK a users.id
-  createdByName: varchar("created_by_name"),
-  createdByRole: varchar("created_by_role"),
-
-  // Contenido del sugerido
-  title: varchar("title"), // Título opcional (ej: "Sugerido reposición mayo")
-  items: jsonb("items").notNull(), // Array de {productId, productName, sku, quantity, unitPrice, totalPrice}
-  subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull(),
-  tax: numeric("tax", { precision: 15, scale: 2 }).notNull(),
-  total: numeric("total", { precision: 15, scale: 2 }).notNull(),
-  priceListUsed: varchar("price_list_used"),
-  branchDiscountPercent: numeric("branch_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
-
-  // Flujo: sent (enviado al cliente) -> accepted | modified | rejected.
-  // 'modified' vuelve al vendedor, que puede re-editar y reenviar (status vuelve a 'sent').
-  // 'accepted' marca convertedOrderId con el pedido eCommerce generado.
-  status: varchar("status").notNull().default("sent"), // sent, modified, accepted, rejected
-
-  sellerNotes: text("seller_notes"), // Mensaje del vendedor al cliente
-  clientNotes: text("client_notes"), // Mensaje del cliente al modificar/rechazar
-
-  // Auditoría del flujo
-  acceptedAt: timestamp("accepted_at"),
-  modifiedAt: timestamp("modified_at"),
-  rejectedAt: timestamp("rejected_at"),
-  resentAt: timestamp("resent_at"),
-  convertedOrderId: varchar("converted_order_id"), // FK a ecommerce_orders.id
-
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => ({
-  clientUserIdIdx: index("IDX_suggested_orders_client_user_id").on(table.clientUserId),
-  createdByIdx: index("IDX_suggested_orders_created_by_id").on(table.createdById),
-  statusIdx: index("IDX_suggested_orders_status").on(table.status),
-}));
-
-export type SuggestedOrder = typeof suggestedOrders.$inferSelect;
-export type InsertSuggestedOrder = typeof suggestedOrders.$inferInsert;
-export const insertSuggestedOrderSchema = createInsertSchema(suggestedOrders).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
 
 // Notificaciones - Sistema robusto de notificaciones internas
 export const notifications = pgTable("notifications", {

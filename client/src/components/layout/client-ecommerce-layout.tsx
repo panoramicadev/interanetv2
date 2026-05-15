@@ -10,8 +10,7 @@ import {
   Menu,
   X,
   ChevronRight,
-  Gift,
-  Sparkles
+  Gift
 } from "lucide-react";
 
 interface StoreConfig {
@@ -23,7 +22,6 @@ interface StoreConfig {
 const navItems = [
   { label: "Mi Panel", href: "/mi-cuenta", icon: LayoutDashboard },
   { label: "Mis Pedidos", href: "/mis-pedidos", icon: ClipboardList },
-  { label: "Sugeridos", href: "/sugeridos", icon: Sparkles },
 ];
 
 export default function ClientEcommerceLayout({ children }: { children: ReactNode }) {
