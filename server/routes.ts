@@ -6840,6 +6840,138 @@ export function registerRoutes(app: Express): Server {
     res.json({ productFamily, tags: currentTags });
   }));
 
+  // Rename agrupación (variant_generic_display_name) for a product family
+  app.patch('/api/products/grouped-catalog/rename', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const oldName = String(req.body?.oldName || '').trim();
+    const newNameRaw = String(req.body?.newName || '').trim();
+    if (!oldName || !newNameRaw) {
+      return res.status(400).json({ message: 'oldName y newName son requeridos' });
+    }
+    const newName = newNameRaw.toUpperCase();
+    if (newName === oldName) {
+      return res.json({ success: true, oldName, newName, unchanged: true });
+    }
+
+    // Reject if target name already exists in the catalog
+    const collision = await db.execute(
+      sql`SELECT 1 FROM ecommerce_products WHERE variant_generic_display_name = ${newName} LIMIT 1`
+    );
+    const collisionRows = Array.isArray(collision) ? collision : (collision as any).rows || [];
+    if (collisionRows.length > 0) {
+      return res.status(409).json({ message: `Ya existe una agrupación con el nombre "${newName}".` });
+    }
+
+    // Rename in ecommerce_products
+    await db.execute(sql`
+      UPDATE ecommerce_products
+      SET variant_generic_display_name = ${newName}
+      WHERE variant_generic_display_name = ${oldName}
+    `);
+
+    // Migrate references stored in app_config keyed/listed by genericName
+    const renameInJsonArray = async (key: string) => {
+      const result = await db.execute(sql`SELECT value FROM app_config WHERE key = ${key}`);
+      const row = (result as any).rows?.[0];
+      const arr: unknown = row?.value;
+      if (!Array.isArray(arr)) return;
+      let changed = false;
+      const next = arr.map((n: unknown) => {
+        if (n === oldName) { changed = true; return newName; }
+        return n;
+      });
+      if (!changed) return;
+      await db.execute(sql`
+        INSERT INTO app_config (key, value, updated_at)
+        VALUES (${key}, ${JSON.stringify(next)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+      `);
+    };
+
+    const renameJsonKey = async (key: string) => {
+      const result = await db.execute(sql`SELECT value FROM app_config WHERE key = ${key}`);
+      const row = (result as any).rows?.[0];
+      const obj: Record<string, unknown> | undefined = row?.value;
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+      if (!(oldName in obj)) return;
+      const next = { ...obj, [newName]: obj[oldName] };
+      delete next[oldName];
+      await db.execute(sql`
+        INSERT INTO app_config (key, value, updated_at)
+        VALUES (${key}, ${JSON.stringify(next)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+      `);
+    };
+
+    await renameInJsonArray('ecommerce_product_order');
+    await renameJsonKey('ecommerce_product_group_images');
+    await renameJsonKey('product_category_assignments');
+
+    invalidateStoreCache();
+    console.log(`✏️  Agrupación renombrada: "${oldName}" → "${newName}"`);
+    res.json({ success: true, oldName, newName });
+  }));
+
+  // Delete an entire agrupación: removes all ecommerce_products rows for the family
+  // and cleans up references in app_config. The SAP price_list entries remain intact
+  // and the SKUs will reappear in the "Publicar productos" list.
+  app.delete('/api/products/grouped-catalog/family', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const genericName = String(req.body?.genericName || req.query?.genericName || '').trim();
+    if (!genericName) {
+      return res.status(400).json({ message: 'genericName es requerido' });
+    }
+
+    const deleteResult = await db.execute(sql`
+      DELETE FROM ecommerce_products WHERE variant_generic_display_name = ${genericName}
+    `);
+    const deleted = (deleteResult as any).rowCount ?? 0;
+
+    // Clean up references in app_config
+    const removeFromJsonArray = async (key: string) => {
+      const result = await db.execute(sql`SELECT value FROM app_config WHERE key = ${key}`);
+      const row = (result as any).rows?.[0];
+      const arr: unknown = row?.value;
+      if (!Array.isArray(arr)) return;
+      const next = arr.filter((n: unknown) => n !== genericName);
+      if (next.length === arr.length) return;
+      await db.execute(sql`
+        INSERT INTO app_config (key, value, updated_at)
+        VALUES (${key}, ${JSON.stringify(next)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+      `);
+    };
+
+    const removeJsonKey = async (key: string) => {
+      const result = await db.execute(sql`SELECT value FROM app_config WHERE key = ${key}`);
+      const row = (result as any).rows?.[0];
+      const obj: Record<string, unknown> | undefined = row?.value;
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+      if (!(genericName in obj)) return;
+      const next = { ...obj };
+      delete next[genericName];
+      await db.execute(sql`
+        INSERT INTO app_config (key, value, updated_at)
+        VALUES (${key}, ${JSON.stringify(next)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+      `);
+    };
+
+    await removeFromJsonArray('ecommerce_product_order');
+    await removeJsonKey('ecommerce_product_group_images');
+    await removeJsonKey('product_category_assignments');
+
+    invalidateStoreCache();
+    console.log(`🗑️  Agrupación eliminada: "${genericName}" (${deleted} SKUs despublicados)`);
+    res.json({ success: true, genericName, deleted });
+  }));
+
   // Clean ecommerce_products table (admin only)
   app.delete('/api/products/grouped-catalog', requireAuth, asyncHandler(async (req: any, res: any) => {
     if (req.user?.role !== 'admin') {
