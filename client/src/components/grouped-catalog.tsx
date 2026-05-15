@@ -7,11 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import {
     Search, Package, Palette, ChevronDown, ChevronRight, ChevronUp,
-    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check, Plus, AlertTriangle
+    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check, Plus, AlertTriangle,
+    MoreVertical, Pencil,
 } from "lucide-react";
 
 interface FormatVariant {
@@ -230,6 +234,63 @@ export default function GroupedCatalog() {
     // State for editing position number
     const [editingPosition, setEditingPosition] = useState<string | null>(null);
     const [editingPositionValue, setEditingPositionValue] = useState("");
+
+    // State for editing the agrupación (genericName)
+    const [editingName, setEditingName] = useState<string | null>(null);
+    const [editingNameValue, setEditingNameValue] = useState("");
+
+    const renameMutation = useMutation({
+        mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
+            const res = await apiRequest("PATCH", "/api/products/grouped-catalog/rename", { oldName, newName });
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/product-group-images"] });
+            setEditingName(null);
+            if (!data?.unchanged) {
+                toast({ title: "Agrupación renombrada", description: `${data?.oldName} → ${data?.newName}` });
+            }
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error al renombrar", description: err?.message || "No se pudo renombrar la agrupación." });
+        },
+    });
+
+    const commitRename = (oldName: string) => {
+        const newName = editingNameValue.trim();
+        if (!newName || newName.toUpperCase() === oldName.toUpperCase()) {
+            setEditingName(null);
+            return;
+        }
+        renameMutation.mutate({ oldName, newName });
+    };
+
+    // Delete agrupación (deletes all SKUs from ecommerce_products; SAP entries remain)
+    const [deleteTarget, setDeleteTarget] = useState<GenericProduct | null>(null);
+    const deleteFamilyMutation = useMutation({
+        mutationFn: async (genericName: string) => {
+            const res = await apiRequest("DELETE", "/api/products/grouped-catalog/family", { genericName });
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog/unpublished"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/product-group-images"] });
+            toast({
+                title: "Agrupación eliminada",
+                description: `${data?.genericName} — ${data?.deleted} SKU${data?.deleted === 1 ? '' : 's'} despublicado${data?.deleted === 1 ? '' : 's'}`,
+            });
+            setDeleteTarget(null);
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error al eliminar", description: err?.message || "No se pudo eliminar la agrupación." });
+        },
+    });
 
     // Dynamic tags from API
     const TAG_COLOR_MAP: Record<string, { active: string; inactive: string }> = {
@@ -819,7 +880,38 @@ export default function GroupedCatalog() {
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-lg">{product.genericName}</h3>
+                                {editingName === product.genericName ? (
+                                    <input
+                                        type="text"
+                                        value={editingNameValue}
+                                        onChange={e => setEditingNameValue(e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        onBlur={() => commitRename(product.genericName)}
+                                        onKeyDown={e => {
+                                            e.stopPropagation();
+                                            if (e.key === 'Enter') {
+                                                commitRename(product.genericName);
+                                            } else if (e.key === 'Escape') {
+                                                setEditingName(null);
+                                            }
+                                        }}
+                                        disabled={renameMutation.isPending}
+                                        autoFocus
+                                        className="font-semibold text-lg w-full bg-white border-2 border-orange-400 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-orange-300 uppercase"
+                                    />
+                                ) : (
+                                    <h3
+                                        className="font-semibold text-lg cursor-pointer hover:text-orange-600 transition-colors inline-block"
+                                        title="Clic para renombrar la agrupación"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingName(product.genericName);
+                                            setEditingNameValue(product.genericName);
+                                        }}
+                                    >
+                                        {product.genericName}
+                                    </h3>
+                                )}
                                 {product.breveResena && (
                                     <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{product.breveResena}</p>
                                 )}
@@ -841,6 +933,43 @@ export default function GroupedCatalog() {
                                     </Badge>
                                 );
                             })}
+                            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                            title="Acciones de la agrupación"
+                                        >
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem
+                                            onSelect={(e) => {
+                                                e.preventDefault();
+                                                setEditingName(product.genericName);
+                                                setEditingNameValue(product.genericName);
+                                            }}
+                                        >
+                                            <Pencil className="h-4 w-4 mr-2" />
+                                            Renombrar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                            onSelect={(e) => {
+                                                e.preventDefault();
+                                                setDeleteTarget(product);
+                                            }}
+                                        >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Eliminar agrupación
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
 
                         {/* Colors section */}
@@ -1381,6 +1510,44 @@ export default function GroupedCatalog() {
                             );
                         })}
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete agrupación confirmation */}
+            <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Eliminar agrupación
+                        </DialogTitle>
+                        <DialogDescription className="pt-2">
+                            ¿Seguro que querés eliminar la agrupación <strong>{deleteTarget?.genericName}</strong>?
+                        </DialogDescription>
+                    </DialogHeader>
+                    {deleteTarget && (
+                        <div className="text-sm text-muted-foreground space-y-2">
+                            <p>
+                                Se despublicarán {Object.values(deleteTarget.colors).reduce((acc, vs) => acc + vs.length, 0)} SKU(s)
+                                en {Object.keys(deleteTarget.colors).length} color(es). Los productos quedarán fuera del e-commerce
+                                pero seguirán disponibles en el catálogo SAP y podrás volver a publicarlos desde "Publicar productos".
+                            </p>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteFamilyMutation.isPending}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => deleteTarget && deleteFamilyMutation.mutate(deleteTarget.genericName)}
+                            disabled={deleteFamilyMutation.isPending}
+                            className="gap-1.5"
+                        >
+                            {deleteFamilyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            {deleteFamilyMutation.isPending ? "Eliminando..." : "Eliminar"}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
