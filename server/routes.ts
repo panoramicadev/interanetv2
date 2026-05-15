@@ -8417,6 +8417,371 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // ==================== PEDIDOS SUGERIDOS ====================
+  // Vendedores/administradores envían carros sugeridos a un cliente de la tienda.
+  // El cliente los acepta (genera un pedido eCommerce), modifica (vuelve al vendedor) o rechaza.
+  const SUGGESTED_STAFF_ROLES = ['admin', 'supervisor', 'salesperson'];
+
+  // Búsqueda de productos para el constructor de sugeridos (staff)
+  app.get('/api/suggested-orders/product-search', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!SUGGESTED_STAFF_ROLES.includes(user.role)) return res.status(403).json({ message: 'No autorizado' });
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const like = `%${q}%`;
+    const result: any = await db.execute(sql`
+      SELECT pl.codigo AS sku, pl.producto AS "productName", pl.unidad AS unit,
+             pl.lista AS "listPrice", ep.imagen_url AS "imageUrl"
+      FROM ecommerce_products ep
+      INNER JOIN price_list pl ON ep.price_list_id = pl.id
+      WHERE ep.activo = true
+        AND (pl.producto ILIKE ${like} OR pl.codigo ILIKE ${like})
+      ORDER BY pl.producto
+      LIMIT 30
+    `);
+    const rows = Array.isArray(result) ? result : (result.rows || []);
+    res.json(rows);
+  }));
+
+  // Listar sugeridos del cliente autenticado (debe ir antes de /:id)
+  app.get('/api/suggested-orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { suggestedOrders } = await import('@shared/schema');
+    const rows = await db
+      .select()
+      .from(suggestedOrders)
+      .where(eq(suggestedOrders.clientUserId, user.id))
+      .orderBy(desc(suggestedOrders.updatedAt));
+    res.json(rows);
+  }));
+
+  // Listar sugeridos (staff). Salesperson sólo ve los que creó.
+  app.get('/api/suggested-orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!SUGGESTED_STAFF_ROLES.includes(user.role)) return res.status(403).json({ message: 'No autorizado' });
+    const { suggestedOrders } = await import('@shared/schema');
+    const conditions: any[] = [];
+    if (user.role === 'salesperson') conditions.push(eq(suggestedOrders.createdById, user.id));
+    if (req.query.status) conditions.push(eq(suggestedOrders.status, String(req.query.status)));
+    let query = db.select().from(suggestedOrders).orderBy(desc(suggestedOrders.updatedAt));
+    if (conditions.length > 0) query = query.where(and(...conditions)) as typeof query;
+    const rows = await query;
+    res.json(rows);
+  }));
+
+  // Crear sugerido (staff)
+  app.post('/api/suggested-orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!SUGGESTED_STAFF_ROLES.includes(user.role)) return res.status(403).json({ message: 'No autorizado' });
+    const { suggestedOrders } = await import('@shared/schema');
+
+    const bodySchema = z.object({
+      clientId: z.string().min(1),
+      title: z.string().max(160).optional().nullable(),
+      sellerNotes: z.string().max(2000).optional().nullable(),
+      items: z.array(z.object({
+        sku: z.string().min(1),
+        productName: z.string().min(1),
+        quantity: z.number().positive(),
+        imageUrl: z.string().optional().nullable(),
+        unit: z.string().optional().nullable(),
+      })).min(1),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Error de validación', errors: parsed.error.errors });
+    const data = parsed.data;
+
+    const [client] = await db.select().from(clients).where(eq(clients.id, data.clientId)).limit(1);
+    if (!client) return res.status(404).json({ message: 'Cliente no encontrado' });
+    if (!client.userId) {
+      return res.status(400).json({ message: 'El cliente no tiene un usuario de tienda asociado. Asígnale acceso a la tienda antes de enviarle un sugerido.' });
+    }
+
+    const resolved = await resolveItemsPricing(
+      data.items.map((it) => ({ sku: it.sku, productCode: it.sku, productName: it.productName, quantity: it.quantity, imageUrl: it.imageUrl, unit: it.unit })),
+      client,
+    );
+
+    const createdByName = user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+    const [created] = await db.insert(suggestedOrders).values({
+      clientId: client.id,
+      clientUserId: client.userId,
+      clientName: client.nokoen || 'Cliente',
+      clientEmail: client.email || null,
+      createdById: user.id,
+      createdByName,
+      createdByRole: user.role,
+      title: data.title || null,
+      items: resolved.items,
+      subtotal: String(resolved.subtotal),
+      tax: String(resolved.tax),
+      total: String(resolved.total),
+      priceListUsed: resolved.priceListUsed,
+      branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+      status: 'sent',
+      sellerNotes: data.sellerNotes || null,
+    }).returning();
+
+    try {
+      await storage.createNotification({
+        userId: client.userId,
+        type: 'suggested_order',
+        title: 'Nuevo pedido sugerido',
+        message: `${createdByName || 'Tu vendedor'} te envió un pedido sugerido por $${Number(resolved.total).toLocaleString('es-CL')}`,
+        priority: 'media',
+        actionUrl: '/sugeridos',
+        read: false,
+      });
+    } catch (e: any) {
+      console.warn('[suggested-orders] notify client failed:', e?.message);
+    }
+
+    res.status(201).json(created);
+  }));
+
+  // Detalle de un sugerido (cliente dueño o staff)
+  app.get('/api/suggested-orders/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    const isOwnerClient = row.clientUserId === user.id;
+    const isStaff = SUGGESTED_STAFF_ROLES.includes(user.role);
+    const isCreator = row.createdById === user.id;
+    if (!isOwnerClient && !(isStaff && (user.role !== 'salesperson' || isCreator))) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    res.json(row);
+  }));
+
+  // Editar y reenviar sugerido (staff). Vuelve a estado 'sent'.
+  app.patch('/api/suggested-orders/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!SUGGESTED_STAFF_ROLES.includes(user.role)) return res.status(403).json({ message: 'No autorizado' });
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    if (user.role === 'salesperson' && row.createdById !== user.id) return res.status(403).json({ message: 'No autorizado' });
+    if (row.status === 'accepted') return res.status(400).json({ message: 'Este sugerido ya fue aceptado y convertido en pedido.' });
+
+    const bodySchema = z.object({
+      title: z.string().max(160).optional().nullable(),
+      sellerNotes: z.string().max(2000).optional().nullable(),
+      items: z.array(z.object({
+        sku: z.string().min(1),
+        productName: z.string().min(1),
+        quantity: z.number().positive(),
+        imageUrl: z.string().optional().nullable(),
+        unit: z.string().optional().nullable(),
+      })).min(1),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Error de validación', errors: parsed.error.errors });
+    const data = parsed.data;
+
+    const client = row.clientId
+      ? (await db.select().from(clients).where(eq(clients.id, row.clientId)).limit(1))[0]
+      : null;
+    const resolved = await resolveItemsPricing(
+      data.items.map((it) => ({ sku: it.sku, productCode: it.sku, productName: it.productName, quantity: it.quantity, imageUrl: it.imageUrl, unit: it.unit })),
+      client,
+    );
+
+    const [updated] = await db.update(suggestedOrders).set({
+      title: data.title ?? row.title,
+      sellerNotes: data.sellerNotes ?? row.sellerNotes,
+      items: resolved.items,
+      subtotal: String(resolved.subtotal),
+      tax: String(resolved.tax),
+      total: String(resolved.total),
+      priceListUsed: resolved.priceListUsed,
+      branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+      status: 'sent',
+      resentAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(suggestedOrders.id, row.id)).returning();
+
+    try {
+      await storage.createNotification({
+        userId: row.clientUserId,
+        type: 'suggested_order',
+        title: 'Pedido sugerido actualizado',
+        message: `${updated.createdByName || 'Tu vendedor'} actualizó un pedido sugerido para ti.`,
+        priority: 'media',
+        actionUrl: '/sugeridos',
+        read: false,
+      });
+    } catch (e: any) {
+      console.warn('[suggested-orders] notify client failed:', e?.message);
+    }
+
+    res.json(updated);
+  }));
+
+  // Eliminar sugerido (staff)
+  app.delete('/api/suggested-orders/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!SUGGESTED_STAFF_ROLES.includes(user.role)) return res.status(403).json({ message: 'No autorizado' });
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    if (user.role === 'salesperson' && row.createdById !== user.id) return res.status(403).json({ message: 'No autorizado' });
+    await db.delete(suggestedOrders).where(eq(suggestedOrders.id, row.id));
+    res.json({ ok: true });
+  }));
+
+  // Cliente acepta el sugerido -> genera un pedido eCommerce
+  app.patch('/api/suggested-orders/:id/accept', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    if (row.clientUserId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+    if (row.status === 'accepted') return res.status(400).json({ message: 'Este sugerido ya fue aceptado.' });
+
+    const client = row.clientId
+      ? (await db.select().from(clients).where(eq(clients.id, row.clientId)).limit(1))[0]
+      : await storage.getClientByUserId(user.id);
+    const items = Array.isArray(row.items)
+      ? row.items as any[]
+      : (typeof row.items === 'string' ? JSON.parse(row.items) : []);
+    const resolved = await resolveItemsPricing(items, client);
+
+    const order = await storage.createEcommerceOrder({
+      clientId: user.id,
+      clientName: client?.nokoen || row.clientName,
+      clientEmail: row.clientEmail || user.email,
+      assignedSalespersonId: client?.assignedSalespersonUserId || (row.createdByRole === 'salesperson' ? row.createdById : null),
+      items: resolved.items,
+      subtotal: String(resolved.subtotal),
+      tax: String(resolved.tax),
+      total: String(resolved.total),
+      branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+      priceListUsed: resolved.priceListUsed,
+      status: 'pending',
+      notes: `Generado desde pedido sugerido${row.title ? `: ${row.title}` : ''}`,
+    });
+
+    const [updated] = await db.update(suggestedOrders).set({
+      status: 'accepted',
+      acceptedAt: new Date(),
+      convertedOrderId: order.id,
+      updatedAt: new Date(),
+    }).where(eq(suggestedOrders.id, row.id)).returning();
+
+    try {
+      await storage.createNotification({
+        userId: row.createdById,
+        type: 'suggested_order',
+        title: 'Sugerido aceptado',
+        message: `${row.clientName} aceptó tu pedido sugerido. Se generó un nuevo pedido para revisión.`,
+        relatedOrderId: order.id,
+        priority: 'media',
+        actionUrl: '/ecommerce-pedidos',
+        read: false,
+      });
+    } catch (e: any) {
+      console.warn('[suggested-orders] notify creator failed:', e?.message);
+    }
+
+    res.json({ suggested: updated, order });
+  }));
+
+  // Cliente modifica el sugerido -> vuelve al vendedor (estado 'modified')
+  app.patch('/api/suggested-orders/:id/modify', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    if (row.clientUserId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+    if (row.status === 'accepted') return res.status(400).json({ message: 'Este sugerido ya fue aceptado.' });
+
+    const bodySchema = z.object({
+      clientNotes: z.string().max(2000).optional().nullable(),
+      items: z.array(z.object({
+        sku: z.string().min(1),
+        productName: z.string().min(1),
+        quantity: z.number().positive(),
+        imageUrl: z.string().optional().nullable(),
+        unit: z.string().optional().nullable(),
+      })).min(1),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Error de validación', errors: parsed.error.errors });
+    const data = parsed.data;
+
+    const client = row.clientId
+      ? (await db.select().from(clients).where(eq(clients.id, row.clientId)).limit(1))[0]
+      : await storage.getClientByUserId(user.id);
+    const resolved = await resolveItemsPricing(
+      data.items.map((it) => ({ sku: it.sku, productCode: it.sku, productName: it.productName, quantity: it.quantity, imageUrl: it.imageUrl, unit: it.unit })),
+      client,
+    );
+
+    const [updated] = await db.update(suggestedOrders).set({
+      items: resolved.items,
+      subtotal: String(resolved.subtotal),
+      tax: String(resolved.tax),
+      total: String(resolved.total),
+      priceListUsed: resolved.priceListUsed,
+      branchDiscountPercent: String(resolved.branchDiscountPct || 0),
+      status: 'modified',
+      clientNotes: data.clientNotes || null,
+      modifiedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(suggestedOrders.id, row.id)).returning();
+
+    try {
+      await storage.createNotification({
+        userId: row.createdById,
+        type: 'suggested_order',
+        title: 'Sugerido modificado por el cliente',
+        message: `${row.clientName} modificó tu pedido sugerido. Revísalo y vuelve a enviarlo.`,
+        priority: 'alta',
+        actionUrl: '/sugeridos',
+        read: false,
+      });
+    } catch (e: any) {
+      console.warn('[suggested-orders] notify creator failed:', e?.message);
+    }
+
+    res.json(updated);
+  }));
+
+  // Cliente rechaza el sugerido
+  app.patch('/api/suggested-orders/:id/reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { suggestedOrders } = await import('@shared/schema');
+    const [row] = await db.select().from(suggestedOrders).where(eq(suggestedOrders.id, req.params.id)).limit(1);
+    if (!row) return res.status(404).json({ message: 'Sugerido no encontrado' });
+    if (row.clientUserId !== user.id) return res.status(403).json({ message: 'No autorizado' });
+    if (row.status === 'accepted') return res.status(400).json({ message: 'Este sugerido ya fue aceptado.' });
+
+    const [updated] = await db.update(suggestedOrders).set({
+      status: 'rejected',
+      clientNotes: req.body?.clientNotes ? String(req.body.clientNotes).slice(0, 2000) : row.clientNotes,
+      rejectedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(suggestedOrders.id, row.id)).returning();
+
+    try {
+      await storage.createNotification({
+        userId: row.createdById,
+        type: 'suggested_order',
+        title: 'Sugerido rechazado',
+        message: `${row.clientName} rechazó tu pedido sugerido.`,
+        priority: 'media',
+        actionUrl: '/sugeridos',
+        read: false,
+      });
+    } catch (e: any) {
+      console.warn('[suggested-orders] notify creator failed:', e?.message);
+    }
+
+    res.json(updated);
+  }));
+
   // Auto-generate quote from ecommerce order, linked to the main branch (sucursal principal)
   // matched by the ordering user's RUT. Returns the created quote + items for PDF generation.
   app.post('/api/ecommerce/orders/:id/generate-quote', requireAuth, asyncHandler(async (req: any, res: any) => {

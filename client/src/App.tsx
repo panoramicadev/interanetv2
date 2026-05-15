@@ -99,6 +99,7 @@ import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import SeguimientoClienteDetalle from "@/pages/seguimiento-cliente-detalle";
 import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
+import SugeridosPage from "@/pages/sugeridos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
@@ -162,6 +163,7 @@ function Router() {
           <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/client-portal">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          <Route path="/sugeridos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route component={() => { window.location.replace('/tienda'); return null; }} />
         </>
       ) : (
@@ -222,6 +224,13 @@ function Router() {
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
+            <Route path="/sugeridos" component={() => {
+              if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <SugeridosPage />;
+            }} />
             <Route path="/ecommerce-usuarios" component={EcommerceUsuarios} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/mailing" component={MailingPage} />
