@@ -25,8 +25,10 @@ import {
   CreditCard, FileText, TrendingUp, DollarSign, Package,
   Clock, Eye, Edit2, Save, X, Plus, Trash2, Home, Check, UserPlus,
   Link, LinkIcon, Unlink, AlertTriangle, SearchIcon, FilePlus,
-  GitBranch, Building, Network
+  GitBranch, Building, Network, Send
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import SuggestedOrderModal, { type SuggestedOrderTargetClient } from "@/components/panoramica-market/suggested-order-modal";
 
 interface ClientUser {
   id: string;
@@ -97,6 +99,9 @@ interface Warehouse {
 
 // ─── Client Profile Detail Panel ─────────────────────────
 function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser; onBack: () => void; onClientUpdated: (updated: ClientUser) => void }) {
+  const { user } = useAuth();
+  const canSendSuggested = user?.role === "admin" || user?.role === "supervisor";
+  const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditingCommercial, setIsEditingCommercial] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState("");
@@ -685,34 +690,46 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
-              <KeyRound className="h-3 w-3 mr-1" />
-              Acceso activo
-            </Badge>
-            {client.clientId ? (
-              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 px-3 py-1">
-                <LinkIcon className="h-3 w-3 mr-1" />
-                Vinculado
-              </Badge>
-            ) : (
-              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 px-3 py-1">
-                <Unlink className="h-3 w-3 mr-1" />
-                Sin vincular
-              </Badge>
+          <div className="flex flex-col items-end gap-3">
+            {canSendSuggested && (
+              <Button
+                onClick={() => setSuggestedTarget({ clientName: client.clientName, clientCode: client.clientCode })}
+                className="bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-lg shadow-orange-500/20 h-9 px-4 text-sm font-semibold"
+                data-testid="button-send-suggested-detail"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Enviar sugerido
+              </Button>
             )}
-            {isBranch && (
-              <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 px-3 py-1">
-                <GitBranch className="h-3 w-3 mr-1" />
-                Sucursal: {client.branchLabel}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
+                <KeyRound className="h-3 w-3 mr-1" />
+                Acceso activo
               </Badge>
-            )}
-            {hasBranches && (
-              <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 px-3 py-1">
-                <Network className="h-3 w-3 mr-1" />
-                Grupo: {branchGroup!.groupTotals.branchCount} sucursales
-              </Badge>
-            )}
+              {client.clientId ? (
+                <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 px-3 py-1">
+                  <LinkIcon className="h-3 w-3 mr-1" />
+                  Vinculado
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 px-3 py-1">
+                  <Unlink className="h-3 w-3 mr-1" />
+                  Sin vincular
+                </Badge>
+              )}
+              {isBranch && (
+                <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 px-3 py-1">
+                  <GitBranch className="h-3 w-3 mr-1" />
+                  Sucursal: {client.branchLabel}
+                </Badge>
+              )}
+              {hasBranches && (
+                <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 px-3 py-1">
+                  <Network className="h-3 w-3 mr-1" />
+                  Grupo: {branchGroup!.groupTotals.branchCount} sucursales
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2326,7 +2343,14 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         </DialogContent>
       </Dialog>
 
-      
+      {/* Modal: Enviar sugerido */}
+      {canSendSuggested && suggestedTarget && (
+        <SuggestedOrderModal
+          open={!!suggestedTarget}
+          client={suggestedTarget}
+          onClose={() => setSuggestedTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2338,6 +2362,9 @@ export default function EcommerceUsuarios() {
   const [isCreateClientDialogOpen, setIsCreateClientDialogOpen] = useState(false);
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [createRutSearch, setCreateRutSearch] = useState('');
+  const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
+  const { user } = useAuth();
+  const canSendSuggested = user?.role === "admin" || user?.role === "supervisor";
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -2609,7 +2636,22 @@ export default function EcommerceUsuarios() {
               {/* Date + Action */}
               <div className="col-span-2 flex items-center justify-end gap-3">
                 <span className="text-xs text-gray-400 hidden lg:block">{formatDate(client.createdAt)}</span>
-                <div className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                  {canSendSuggested && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSuggestedTarget({ clientName: client.clientName, clientCode: client.clientCode });
+                      }}
+                      className="h-7 px-2.5 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg"
+                      data-testid={`button-send-suggested-${client.id}`}
+                    >
+                      <Send className="h-3.5 w-3.5 mr-1" />
+                      Sugerido
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -3062,6 +3104,15 @@ export default function EcommerceUsuarios() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal: Enviar sugerido */}
+      {canSendSuggested && suggestedTarget && (
+        <SuggestedOrderModal
+          open={!!suggestedTarget}
+          client={suggestedTarget}
+          onClose={() => setSuggestedTarget(null)}
+        />
+      )}
     </div>
   );
 }

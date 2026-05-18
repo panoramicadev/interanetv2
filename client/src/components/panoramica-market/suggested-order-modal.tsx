@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Barcode, Loader2, Package, Plus, Minus, X, Zap,
   Check, Send, MessageSquare, ArrowRight, Image as ImageIcon,
+  Sparkles, Wrench, AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getFormatQuantityRules } from "@shared/format-utils";
@@ -33,15 +34,106 @@ interface StoreCatalogResponse {
   totalProducts: number;
 }
 
+// ───────────────────────────────────────────────────────────────
+// Tiers de precio (mismos del tomador). El backend respeta el
+// priceTier que mandamos; si el tier no está disponible para ese
+// SKU, cae a la lista del cliente y genera una warning.
+// ───────────────────────────────────────────────────────────────
+type PriceTier =
+  | "lista"
+  | "desc10"
+  | "desc10_5"
+  | "desc10_5_3"
+  | "minimo"
+  | "canalDigital"
+  | "mix"
+  | "oferta";
+
+interface PriceTierOption {
+  key: PriceTier;
+  label: string;
+  price: number;
+}
+
+const TIER_LABELS: Record<PriceTier, string> = {
+  lista: "Lista",
+  desc10: "10%",
+  desc10_5: "10%+5%",
+  desc10_5_3: "10%+5%+3%",
+  minimo: "Mínimo",
+  canalDigital: "Digital",
+  mix: "Mix",
+  oferta: "Oferta",
+};
+
+interface PriceListRow {
+  codigo: string;
+  producto?: string;
+  unidad?: string | null;
+  lista?: string | number | null;
+  desc10?: string | number | null;
+  desc10_5?: string | number | null;
+  desc10_5_3?: string | number | null;
+  minimo?: string | number | null;
+  canalDigital?: string | number | null;
+  offerPrice?: string | number | null;
+}
+
+const parsePrice = (v: string | number | null | undefined): number => {
+  if (v == null) return 0;
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  return isNaN(n) ? 0 : n;
+};
+
+const buildTiersFromPriceList = (
+  row: PriceListRow,
+  mixPrice: number | undefined,
+): PriceTierOption[] => {
+  const out: PriceTierOption[] = [];
+  let lista = parsePrice(row.lista);
+  if (!(lista > 0)) {
+    const d10 = parsePrice(row.desc10);
+    if (d10 > 0) lista = Math.round(d10 / 0.9);
+  }
+  const candidates: Array<[PriceTier, number]> = [
+    ["lista", lista],
+    ["desc10", parsePrice(row.desc10)],
+    ["desc10_5", parsePrice(row.desc10_5)],
+    ["desc10_5_3", parsePrice(row.desc10_5_3)],
+    ["minimo", parsePrice(row.minimo)],
+    ["canalDigital", parsePrice(row.canalDigital)],
+    ["mix", mixPrice && mixPrice > 0 ? mixPrice : 0],
+    ["oferta", parsePrice(row.offerPrice)],
+  ];
+  for (const [key, price] of candidates) {
+    if (price > 0) out.push({ key, label: TIER_LABELS[key], price });
+  }
+  return out;
+};
+
 interface SuggestedItem {
-  sku: string;
+  id: string;
+  type: "standard" | "custom";
   productName: string;
-  selectedColor: string;
-  selectedPackaging: string;
+  // Standard fields
+  sku?: string;
+  selectedColor?: string;
+  selectedPackaging?: string;
+  imageUrl?: string | null;
+  // Tier control
+  priceTier?: PriceTier;
+  tierPrices?: PriceTierOption[];
+  // Quantities & pricing
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  imageUrl?: string | null;
+  // Custom-only
+  customSku?: string;
+  productUnit?: string;
+  productColor?: string;
+  costOfProduction?: number;
+  profitMargin?: number;
+  pricingMode?: "calculated" | "direct";
 }
 
 export interface SuggestedOrderTargetClient {
@@ -54,6 +146,30 @@ interface Props {
   client: SuggestedOrderTargetClient;
   onClose: () => void;
 }
+
+interface CustomProductForm {
+  productName: string;
+  sku: string;
+  pricingMode: "calculated" | "direct";
+  costOfProduction: number;
+  profitMargin: number;
+  directPrice: number;
+  quantity: number;
+  unit: string;
+  color: string;
+}
+
+const INITIAL_CUSTOM: CustomProductForm = {
+  productName: "",
+  sku: "",
+  pricingMode: "direct",
+  costOfProduction: 0,
+  profitMargin: 55,
+  directPrice: 0,
+  quantity: 1,
+  unit: "Unidad",
+  color: "",
+};
 
 const formatPrice = (price: number | string | null | undefined): string => {
   if (!price || price === 0 || price === "0") return "";
@@ -73,8 +189,12 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
   const [items, setItems] = useState<SuggestedItem[]>([]);
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
+  const [resolvingSku, setResolvingSku] = useState<string | null>(null);
 
-  // Resetear al abrir/cerrar para que cada apertura sea limpia
+  // Producto personalizado
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customForm, setCustomForm] = useState<CustomProductForm>(INITIAL_CUSTOM);
+
   useEffect(() => {
     if (open) {
       setSkuSearch("");
@@ -83,6 +203,8 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
       setItems([]);
       setNotes("");
       setShowNotes(false);
+      setShowCustomModal(false);
+      setCustomForm(INITIAL_CUSTOM);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
@@ -92,6 +214,7 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
     return () => clearTimeout(t);
   }, [skuSearch]);
 
+  // Búsqueda de catálogo (igual que antes — UI rica con color/format/stock)
   const { data: searchResults, isLoading } = useQuery<StoreCatalogResponse>({
     queryKey: ["/api/store/products/grouped", debouncedSku, "suggested-modal"],
     queryFn: async () => {
@@ -136,38 +259,162 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
       .slice(0, 10);
   }, [searchResults, debouncedSku]);
 
-  const handleAddVariant = (variant: StoreFormatVariant, genericName: string) => {
-    const qty = skuQuantities[variant.sku] || variant.minUnit || 1;
-    const basePrice = variant.price || 0;
-    const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
+  // Resuelve los tiers reales de un SKU consultando price_list + price_list_mix.
+  // Cachea en queryClient para no re-pedir el mismo código.
+  // `extraOfferPrice` viene del catálogo de tienda y se usa para sembrar el tier
+  // 'oferta' cuando la oferta vive solo en price_list_offers (no en price_list.offer_price).
+  const fetchTiersForSku = async (sku: string, extraOfferPrice?: number): Promise<PriceTierOption[]> => {
+    const cached = qc.getQueryData<PriceTierOption[]>(["price-list-tiers", sku]);
+    if (cached && !extraOfferPrice) return cached;
 
-    if (effectivePrice === 0) {
+    const [plRes, mixRes] = await Promise.all([
+      fetch(`/api/price-list?search=${encodeURIComponent(sku)}&limit=10`, { credentials: "include" }),
+      fetch(`/api/price-list-mix?search=${encodeURIComponent(sku)}&limit=10`, { credentials: "include" }),
+    ]);
+
+    let tiers: PriceTierOption[] = [];
+    if (plRes.ok) {
+      const data = await plRes.json();
+      const product: PriceListRow | undefined = (data.items || []).find(
+        (p: PriceListRow) => (p.codigo || "").toUpperCase() === sku.toUpperCase(),
+      );
+      let mixPrice = 0;
+      if (mixRes.ok) {
+        const mixData = await mixRes.json();
+        const mixRow = (mixData.items || mixData || []).find(
+          (m: any) => (m.codigo || "").toUpperCase() === sku.toUpperCase(),
+        );
+        if (mixRow) mixPrice = parsePrice(mixRow.precio);
+      }
+      if (product) {
+        tiers = buildTiersFromPriceList(product, mixPrice);
+      }
+    }
+
+    // Sembrar 'oferta' desde el catálogo de tienda (price_list_offers) si no vino en price_list.
+    if (extraOfferPrice && extraOfferPrice > 0 && !tiers.find((t) => t.key === "oferta")) {
+      tiers.push({ key: "oferta", label: TIER_LABELS.oferta, price: extraOfferPrice });
+    }
+
+    qc.setQueryData(["price-list-tiers", sku], tiers);
+    return tiers;
+  };
+
+  const handleAddVariant = async (variant: StoreFormatVariant, genericName: string) => {
+    const qty = skuQuantities[variant.sku] || variant.minUnit || 1;
+
+    // Precio inicial: oferta del catálogo si la hay, sino lista.
+    const basePrice = variant.price || 0;
+    const initialPrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
+
+    if (initialPrice === 0) {
       toast({ title: "Sin precio", description: "Este producto no tiene precio disponible.", variant: "destructive" });
       return;
     }
 
+    // Pre-carga: agregamos con tier "lista" + el precio que ya teníamos del catálogo,
+    // y en paralelo buscamos los tiers reales para enriquecer el selector.
+    const initialTier: PriceTier = (variant.offerPrice && variant.offerPrice > 0) ? "oferta" : "lista";
+    const placeholderTiers: PriceTierOption[] = [{ key: initialTier, label: TIER_LABELS[initialTier], price: initialPrice }];
+
     setItems((prev) => {
-      // Reemplazar si ya existía (mismo SKU)
-      const filtered = prev.filter((p) => p.sku !== variant.sku);
+      const filtered = prev.filter((p) => !(p.type === "standard" && p.sku === variant.sku));
       return [
         ...filtered,
         {
-          sku: variant.sku,
+          id: `std-${variant.sku}-${Date.now()}`,
+          type: "standard",
           productName: genericName,
+          sku: variant.sku,
           selectedColor: variant.color,
           selectedPackaging: variant.format,
           quantity: qty,
-          unitPrice: effectivePrice,
-          totalPrice: effectivePrice * qty,
+          unitPrice: initialPrice,
+          totalPrice: initialPrice * qty,
           imageUrl: variant.imageUrl || null,
+          priceTier: initialTier,
+          tierPrices: placeholderTiers,
         },
       ];
     });
     setSkuQuantities({});
     setTimeout(() => inputRef.current?.focus(), 50);
+
+    // Enriquecer tiers en background
+    try {
+      setResolvingSku(variant.sku);
+      const tiers = await fetchTiersForSku(variant.sku, variant.offerPrice || undefined);
+      if (tiers.length > 0) {
+        setItems((prev) => prev.map((p) => {
+          if (p.type !== "standard" || p.sku !== variant.sku) return p;
+          // Mantenemos el tier elegido si todavía existe; sino caemos al primero disponible.
+          const stillExists = tiers.find((t) => t.key === p.priceTier);
+          const chosen = stillExists || tiers[0];
+          const newUnit = chosen.price;
+          return { ...p, tierPrices: tiers, priceTier: chosen.key, unitPrice: newUnit, totalPrice: newUnit * p.quantity };
+        }));
+      }
+    } catch (_) {
+      // sin tiers extra, el ítem queda con lista del catálogo
+    } finally {
+      setResolvingSku(null);
+    }
   };
 
-  const removeItem = (sku: string) => setItems((prev) => prev.filter((p) => p.sku !== sku));
+  const removeItem = (id: string) => setItems((prev) => prev.filter((p) => p.id !== id));
+
+  const updateItemTier = (id: string, tier: PriceTier) => {
+    setItems((prev) => prev.map((p) => {
+      if (p.id !== id || p.type !== "standard" || !p.tierPrices) return p;
+      const opt = p.tierPrices.find((t) => t.key === tier);
+      if (!opt) return p;
+      return { ...p, priceTier: tier, unitPrice: opt.price, totalPrice: opt.price * p.quantity };
+    }));
+  };
+
+  const updateItemQty = (id: string, qty: number) => {
+    if (qty <= 0) return removeItem(id);
+    setItems((prev) => prev.map((p) => p.id === id ? { ...p, quantity: qty, totalPrice: p.unitPrice * qty } : p));
+  };
+
+  // ── Custom product ───────────────────────────────────────────
+  const computedCustomUnitPrice = useMemo(() => {
+    if (customForm.pricingMode !== "calculated") return customForm.directPrice;
+    if (customForm.profitMargin <= 0 || customForm.profitMargin >= 100) return 0;
+    return Math.round(customForm.costOfProduction / (1 - customForm.profitMargin / 100));
+  }, [customForm]);
+
+  const addCustomToCart = () => {
+    if (!customForm.productName.trim() || customForm.quantity <= 0) {
+      toast({ title: "Datos incompletos", description: "Completa nombre y cantidad", variant: "destructive" });
+      return;
+    }
+    if (computedCustomUnitPrice <= 0) {
+      toast({ title: "Precio inválido", description: "Revisa el precio o el margen", variant: "destructive" });
+      return;
+    }
+    const unit = computedCustomUnitPrice;
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `custom-${Date.now()}`,
+        type: "custom",
+        productName: customForm.productName.trim(),
+        customSku: customForm.sku.trim() || undefined,
+        productUnit: customForm.unit || "UN",
+        productColor: customForm.color.trim() || undefined,
+        quantity: customForm.quantity,
+        unitPrice: unit,
+        totalPrice: unit * customForm.quantity,
+        costOfProduction: customForm.pricingMode === "calculated" ? customForm.costOfProduction : undefined,
+        profitMargin: customForm.pricingMode === "calculated" ? customForm.profitMargin : undefined,
+        pricingMode: customForm.pricingMode,
+      },
+    ]);
+    setShowCustomModal(false);
+    setCustomForm(INITIAL_CUSTOM);
+    toast({ title: "Producto personalizado agregado" });
+  };
 
   const subtotal = items.reduce((s, it) => s + it.totalPrice, 0);
 
@@ -177,16 +424,35 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
         clientCode: client.clientCode || undefined,
         clientName: client.clientName,
         notes: notes.trim() || undefined,
-        items: items.map((it) => ({
-          productName: it.productName,
-          sku: it.sku,
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-          totalPrice: it.totalPrice,
-          selectedColor: it.selectedColor,
-          selectedPackaging: it.selectedPackaging,
-          imageUrl: it.imageUrl,
-        })),
+        items: items.map((it) => {
+          if (it.type === "custom") {
+            return {
+              type: "custom" as const,
+              productName: it.productName,
+              customSku: it.customSku,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              totalPrice: it.totalPrice,
+              productUnit: it.productUnit,
+              productColor: it.productColor,
+              costOfProduction: it.costOfProduction,
+              profitMargin: it.profitMargin,
+              pricingMode: it.pricingMode,
+            };
+          }
+          return {
+            type: "standard" as const,
+            productName: it.productName,
+            sku: it.sku,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            totalPrice: it.totalPrice,
+            selectedColor: it.selectedColor,
+            selectedPackaging: it.selectedPackaging,
+            imageUrl: it.imageUrl,
+            priceTier: it.priceTier,
+          };
+        }),
       };
       const res = await fetch("/api/ecommerce/orders/suggested", {
         method: "POST",
@@ -217,7 +483,7 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 mt-[5vh] md:mt-[8vh] max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300"
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 mt-[5vh] md:mt-[8vh] max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -241,32 +507,42 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search + acción custom */}
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
-          <div className="relative">
-            {skuSearch !== debouncedSku && debouncedSku ? (
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            )}
-            <input
-              ref={inputRef}
-              type="text"
-              value={skuSearch}
-              onChange={(e) => setSkuSearch(e.target.value.toUpperCase())}
-              placeholder="Buscá por código SKU (ej: EP-001-BL-GL)"
-              className="w-full pl-12 pr-24 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {skuSearch && (
-              <button
-                onClick={() => { setSkuSearch(""); setSkuQuantities({}); inputRef.current?.focus(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors text-[11px] font-semibold"
-              >
-                <X className="h-3 w-3" /> Limpiar
-              </button>
-            )}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              {skuSearch !== debouncedSku && debouncedSku ? (
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              )}
+              <input
+                ref={inputRef}
+                type="text"
+                value={skuSearch}
+                onChange={(e) => setSkuSearch(e.target.value.toUpperCase())}
+                placeholder="Buscá por código SKU (ej: EP-001-BL-GL)"
+                className="w-full pl-12 pr-24 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {skuSearch && (
+                <button
+                  onClick={() => { setSkuSearch(""); setSkuQuantities({}); inputRef.current?.focus(); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors text-[11px] font-semibold"
+                >
+                  <X className="h-3 w-3" /> Limpiar
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowCustomModal(true)}
+              className="h-[52px] px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow"
+              title="Agregar producto personalizado"
+            >
+              <Wrench className="h-4 w-4" />
+              <span className="hidden md:inline">Personalizado</span>
+            </button>
           </div>
           {debouncedSku && matchedVariants.length > 0 && (
             <p className="text-xs text-gray-400 mt-2 pl-1">
@@ -276,8 +552,9 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
               )}
             </p>
           )}
-          <p className="text-[11px] text-gray-400 mt-2 pl-1">
-            Los precios mostrados son referenciales. El sistema recalcula con la lista del cliente al enviar.
+          <p className="text-[11px] text-gray-400 mt-2 pl-1 flex items-start gap-1">
+            <Sparkles className="h-3 w-3 mt-0.5 text-amber-500 flex-shrink-0" />
+            Podés elegir la lista de precio (Lista, 10%, Mínimo, Mix, Oferta…) en cada producto agregado.
           </p>
         </div>
 
@@ -290,7 +567,7 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
               </div>
               <h3 className="text-base font-bold text-gray-800 mb-1">Buscá productos por SKU</h3>
               <p className="text-sm text-gray-500 max-w-xs">
-                Agregá los productos que querés sugerirle al cliente. Cuando termines, hacé clic en "Enviar sugerido".
+                Agregá los productos que querés sugerirle al cliente, o sumá un producto personalizado.
               </p>
               <div className="flex items-center gap-2 mt-5 text-xs text-gray-400">
                 <span className="bg-gray-100 px-2.5 py-1 rounded-lg font-mono font-bold">SKU</span>
@@ -429,30 +706,98 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
                 </span>
                 <span className="text-xs font-bold text-gray-700">Subtotal ref.: {formatPrice(subtotal)}</span>
               </div>
-              <div className="space-y-1.5 max-h-[220px] overflow-y-auto">
-                {items.map((it) => (
-                  <div key={it.sku} className="flex items-center justify-between py-1.5 px-2.5 bg-emerald-50/50 rounded-lg border border-emerald-100/50 group">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Check className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-gray-800 truncate block">{it.productName}</span>
-                        <span className="text-[10px] text-gray-500">
-                          {it.sku} · {it.selectedColor} · {it.selectedPackaging} · x{it.quantity}
-                        </span>
+              <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                {items.map((it) => {
+                  const isCustom = it.type === "custom";
+                  const isLoadingTiers = !isCustom && resolvingSku && it.sku === resolvingSku;
+                  const tierOptions = it.tierPrices || [];
+                  return (
+                    <div
+                      key={it.id}
+                      className={`flex flex-col gap-1.5 py-2 px-2.5 rounded-lg border group ${isCustom ? "bg-violet-50/40 border-violet-100" : "bg-emerald-50/50 border-emerald-100/50"}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isCustom ? (
+                            <Wrench className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-gray-800 truncate block">
+                              {it.productName}
+                              {isCustom && <span className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 text-violet-700">PERSONALIZADO</span>}
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              {isCustom
+                                ? `${it.customSku ? it.customSku + " · " : ""}${it.productUnit || "UN"}${it.productColor ? " · " + it.productColor : ""}`
+                                : `${it.sku} · ${it.selectedColor} · ${it.selectedPackaging}`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs font-bold ${isCustom ? "text-violet-700" : "text-emerald-700"}`}>
+                            {formatPrice(it.totalPrice)}
+                          </span>
+                          <button
+                            onClick={() => removeItem(it.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-500"
+                            title="Quitar"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Tier selector (solo standard) */}
+                        {!isCustom && (
+                          <div className="flex items-center gap-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Lista:</label>
+                            {isLoadingTiers ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
+                            ) : tierOptions.length > 1 ? (
+                              <select
+                                value={it.priceTier || "lista"}
+                                onChange={(e) => updateItemTier(it.id, e.target.value as PriceTier)}
+                                className="text-[11px] font-semibold rounded border border-gray-200 px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF6E23]"
+                              >
+                                {tierOptions.map((t) => (
+                                  <option key={t.key} value={t.key}>
+                                    {t.label} ({formatPrice(t.price)})
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                {tierOptions[0]?.label || "Lista"}
+                                {tierOptions.length === 0 && (
+                                  <span title="No se encontraron tiers para este SKU" className="text-amber-500">
+                                    <AlertCircle className="h-3 w-3" />
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* Quantity */}
+                        <div className="ml-auto flex items-center gap-1">
+                          <span className="text-[10px] text-gray-400">Cant:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={it.quantity}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value);
+                              if (!isNaN(v)) updateItemQty(it.id, v);
+                            }}
+                            className="w-14 h-6 text-center text-xs font-semibold rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-[10px] text-gray-400 ml-1">x {formatPrice(it.unitPrice)}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs font-bold text-emerald-700">{formatPrice(it.totalPrice)}</span>
-                      <button
-                        onClick={() => removeItem(it.sku)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-500"
-                        title="Quitar"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Nota opcional */}
@@ -503,6 +848,173 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Sub-modal: Producto personalizado */}
+      {showCustomModal && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center"
+          onClick={(e) => {
+            // Frenar la propagación para que el click no llegue al backdrop del modal padre y lo cierre también.
+            e.stopPropagation();
+            setShowCustomModal(false);
+          }}
+        >
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[88vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-violet-600 to-violet-700 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white">
+                <Wrench className="h-5 w-5" />
+                <h3 className="font-bold">Producto personalizado</h3>
+              </div>
+              <button onClick={() => setShowCustomModal(false)} className="text-white hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Nombre del producto *</label>
+                <input
+                  type="text"
+                  value={customForm.productName}
+                  onChange={(e) => setCustomForm({ ...customForm, productName: e.target.value })}
+                  placeholder="Ej: Pintura premium especial fachada"
+                  className="mt-1 w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">SKU (opcional)</label>
+                  <input
+                    type="text"
+                    value={customForm.sku}
+                    onChange={(e) => setCustomForm({ ...customForm, sku: e.target.value })}
+                    placeholder="Ej: CUSTOM-001"
+                    className="mt-1 w-full text-sm font-mono rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Unidad</label>
+                  <input
+                    type="text"
+                    value={customForm.unit}
+                    onChange={(e) => setCustomForm({ ...customForm, unit: e.target.value })}
+                    placeholder="Ej: UN, GL, KG…"
+                    className="mt-1 w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Color (opcional)</label>
+                <input
+                  type="text"
+                  value={customForm.color}
+                  onChange={(e) => setCustomForm({ ...customForm, color: e.target.value })}
+                  placeholder="Ej: Blanco, Rojo, RAL 9010…"
+                  className="mt-1 w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                />
+              </div>
+
+              {/* Modo de precio */}
+              <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50">
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">Cómo definir el precio</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCustomForm({ ...customForm, pricingMode: "direct" })}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${customForm.pricingMode === "direct" ? "bg-violet-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200"}`}
+                  >
+                    Precio directo
+                  </button>
+                  <button
+                    onClick={() => setCustomForm({ ...customForm, pricingMode: "calculated" })}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${customForm.pricingMode === "calculated" ? "bg-violet-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200"}`}
+                  >
+                    Costo + margen
+                  </button>
+                </div>
+
+                {customForm.pricingMode === "direct" ? (
+                  <div className="mt-3">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Precio unitario *</label>
+                    <div className="relative mt-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={customForm.directPrice || ""}
+                        onChange={(e) => setCustomForm({ ...customForm, directPrice: parseInt(e.target.value) || 0 })}
+                        className="w-full text-sm pl-7 pr-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Costo</label>
+                      <div className="relative mt-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={customForm.costOfProduction || ""}
+                          onChange={(e) => setCustomForm({ ...customForm, costOfProduction: parseInt(e.target.value) || 0 })}
+                          className="w-full text-sm pl-7 pr-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Margen %</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={customForm.profitMargin || ""}
+                        onChange={(e) => setCustomForm({ ...customForm, profitMargin: parseInt(e.target.value) || 0 })}
+                        className="mt-1 w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                      />
+                    </div>
+                    <div className="col-span-2 text-xs text-gray-500 flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-violet-100">
+                      <span>Precio calculado:</span>
+                      <span className="font-bold text-violet-700">{formatPrice(computedCustomUnitPrice) || "—"}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Cantidad *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={customForm.quantity || ""}
+                  onChange={(e) => setCustomForm({ ...customForm, quantity: parseInt(e.target.value) || 0 })}
+                  className="mt-1 w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-end gap-2 bg-gray-50">
+              <button
+                onClick={() => setShowCustomModal(false)}
+                className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={addCustomToCart}
+                disabled={!customForm.productName.trim() || customForm.quantity <= 0 || computedCustomUnitPrice <= 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar al sugerido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
