@@ -70,7 +70,7 @@ ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
 
 # Instalar deps con cache de npm (BuildKit) para que los rebuilds reusen el tarball cache.
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,id=npm,target=/root/.npm \
     npm install --no-audit --no-fund --prefer-offline
 
 # Resto del código y build.
