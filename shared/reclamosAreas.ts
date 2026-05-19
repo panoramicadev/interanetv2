@@ -146,5 +146,5 @@ export function getAreaLabel(area: ReclamoArea | string | null | undefined): str
  */
 export function canViewAllReclamos(userRole: string | undefined | null): boolean {
   if (!userRole) return false;
-  return ['admin', 'supervisor', 'jefe_planta'].includes(userRole);
+  return ['admin', 'supervisor', 'encargado_area', 'jefe_planta'].includes(userRole);
 }

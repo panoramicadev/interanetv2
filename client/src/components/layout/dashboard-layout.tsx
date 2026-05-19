@@ -80,7 +80,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: pendingOrdersCountData } = useQuery<{count: number}>({
     queryKey: ["/api/ecommerce/orders/pending-count"],
     refetchInterval: 30000,
-    enabled: !!user && ['admin', 'supervisor', 'salesperson'].includes(user.role || ''),
+    enabled: !!user && ['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role || ''),
   });
   const pendingOrdersCount = pendingOrdersCountData?.count || 0;
 

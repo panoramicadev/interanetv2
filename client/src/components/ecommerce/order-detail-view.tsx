@@ -168,8 +168,8 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [paymentConditionValue, setPaymentConditionValue] = useState('');
   const [isSavingPaymentCondition, setIsSavingPaymentCondition] = useState(false);
   const { user } = useAuth();
-  const canIngresar = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
-  const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor'].includes((user as any).role);
+  const canIngresar = !!user && ['reception', 'admin', 'supervisor', 'encargado_area'].includes((user as any).role);
+  const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor', 'encargado_area'].includes((user as any).role);
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
 

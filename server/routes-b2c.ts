@@ -21,7 +21,7 @@ import { db } from './db';
 import { eq, sql } from 'drizzle-orm';
 import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
 
-const requireAdminSupervisorOrReception = requireRoles(['admin', 'supervisor', 'reception']);
+const requireAdminSupervisorOrReception = requireRoles(['admin', 'supervisor', 'encargado_area', 'reception']);
 
 export function registerB2CRoutes(app: Express) {
   // ═══════════════════════════════════════════════

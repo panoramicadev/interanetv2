@@ -1454,10 +1454,10 @@ export default function EcommerceAdmin() {
   };
 
   const filteredSalespeople = salespeople.filter(sp => {
-    if (!catalogSearchTerm) return sp.role === 'salesperson' || sp.role === 'supervisor';
+    if (!catalogSearchTerm) return sp.role === 'salesperson' || (sp.role === 'supervisor' || sp.role === 'encargado_area');
     const search = catalogSearchTerm.toLowerCase();
     return (
-      (sp.role === 'salesperson' || sp.role === 'supervisor') &&
+      (sp.role === 'salesperson' || (sp.role === 'supervisor' || sp.role === 'encargado_area')) &&
       (sp.salespersonName.toLowerCase().includes(search) ||
         sp.email?.toLowerCase().includes(search) ||
         sp.publicSlug?.toLowerCase().includes(search))

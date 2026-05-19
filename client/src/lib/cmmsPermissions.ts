@@ -3,15 +3,16 @@
  * Funciones para verificar permisos de usuario en módulos CMMS
  */
 
-export type UserRole = 
-  | 'admin' 
-  | 'jefe_planta' 
-  | 'mantencion' 
-  | 'supervisor' 
-  | 'laboratorio' 
-  | 'bodega_materias_primas' 
-  | 'logistica_bodega' 
-  | 'produccion' 
+export type UserRole =
+  | 'admin'
+  | 'jefe_planta'
+  | 'mantencion'
+  | 'supervisor'
+  | 'encargado_area'
+  | 'laboratorio'
+  | 'bodega_materias_primas'
+  | 'logistica_bodega'
+  | 'produccion'
   | 'planificacion'
   | string;
 
@@ -44,6 +45,7 @@ export const canViewCMMS = (role?: string | null): boolean => {
     'jefe_planta',
     'mantencion',
     'supervisor',
+    'encargado_area',
     'laboratorio',
     'bodega_materias_primas',
     'logistica_bodega',
@@ -59,7 +61,7 @@ export const canViewCMMS = (role?: string | null): boolean => {
  */
 export const canViewCMMSDashboard = (role?: string | null): boolean => {
   if (!role) return false;
-  return ['admin', 'jefe_planta', 'mantencion', 'supervisor'].includes(role);
+  return ['admin', 'jefe_planta', 'mantencion', 'supervisor', 'encargado_area'].includes(role);
 };
 
 /**

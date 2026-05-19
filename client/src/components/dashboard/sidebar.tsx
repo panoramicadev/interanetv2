@@ -180,7 +180,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   </Button>
                 </Link>
 
-                {['admin', 'supervisor'].includes(user?.role || '') && (
+                {['admin', 'supervisor', 'encargado_area'].includes(user?.role || '') && (
                   <Link href="/dashboard-productos">
                     <Button
                       variant="ghost"
@@ -206,7 +206,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   </Button>
                 </Link>
 
-                {['admin', 'supervisor', 'salesperson'].includes(user?.role || '') && (
+                {['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user?.role || '') && (
                   <Link href="/promesas-compra">
                     <Button
                       variant="ghost"
@@ -261,7 +261,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   </Button>
                 </Link>
 
-                {['admin', 'supervisor', 'salesperson', 'marketing'].includes(user?.role || '') && (
+                {['admin', 'supervisor', 'encargado_area', 'salesperson', 'marketing'].includes(user?.role || '') && (
                   <Link href="/marketing">
                     <Button
                       variant="ghost"
@@ -420,6 +420,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   <p className="text-xs text-slate-400 truncate">
                     {user?.role === 'admin' ? 'Administrador' :
                       user?.role === 'supervisor' ? 'Supervisor' :
+                      user?.role === 'encargado_area' ? 'Encargado de Área' :
                         user?.role === 'salesperson' ? 'Vendedor' :
                           user?.role === 'tecnico_obra' ? 'Técnico de Obra' :
                             user?.role === 'laboratorio' ? 'Laboratorio' :

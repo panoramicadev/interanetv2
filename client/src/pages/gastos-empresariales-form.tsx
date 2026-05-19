@@ -86,7 +86,7 @@ export default function GastosEmpresarialesForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Determinar si el usuario puede seleccionar otros colaboradores
-  const canSelectOthers = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
+  const canSelectOthers = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'recursos_humanos';
 
   // Fetch salespeople
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<any[]>({

@@ -346,10 +346,11 @@ export default function ReclamosGeneralesPage() {
       // Técnico de obra, laboratorio, admin, supervisor, jefe_planta y roles organizacionales ven todos los reclamos
       // Roles de área también ven todos para poder filtrar por su área
       const rolesQueVenTodos = [
-        'tecnico_obra', 
-        'laboratorio', 
-        'admin', 
+        'tecnico_obra',
+        'laboratorio',
+        'admin',
         'supervisor',
+        'encargado_area',
         'jefe_planta',
         'produccion',
         'logistica_bodega',
@@ -372,7 +373,7 @@ export default function ReclamosGeneralesPage() {
     enabled: !!user && (
       user.role === 'salesperson' || 
       user.role === 'admin' || 
-      user.role === 'supervisor' || 
+      (user.role === 'supervisor' || user.role === 'encargado_area') || 
       user.role === 'tecnico_obra' || 
       user.role === 'laboratorio' || 
       user.role === 'jefe_planta' ||
@@ -1290,7 +1291,7 @@ export default function ReclamosGeneralesPage() {
   const hasAccess = user && (
     user.role === 'salesperson' || 
     user.role === 'admin' || 
-    user.role === 'supervisor' || 
+    (user.role === 'supervisor' || user.role === 'encargado_area') || 
     user.role === 'tecnico_obra' || 
     user.role === 'laboratorio' ||
     user.role === 'jefe_planta' ||
@@ -1319,7 +1320,7 @@ export default function ReclamosGeneralesPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">Reclamos de Clientes</h1>
           <p className="text-muted-foreground">Gestión de reclamos y seguimiento</p>
         </div>
-        {(user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra') && (
+        {(user?.role === 'salesperson' || user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra') && (
           <Button 
             onClick={() => setShowNewReclamoModal(true)}
             data-testid="button-create-reclamo"

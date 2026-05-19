@@ -479,7 +479,7 @@ export async function tool_getMyQuotes(args: {
         };
         if (args.status) filters.status = args.status;
         // Non-admin users see only their own quotes
-        if (userContext.role !== "admin" && userContext.role !== "supervisor") {
+        if (userContext.role !== "admin" && (userContext.role !== "supervisor" && userContext.role !== "encargado_area")) {
             filters.createdBy = userContext.userId;
         }
 

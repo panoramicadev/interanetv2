@@ -24,7 +24,7 @@ export default function NVVPage() {
   });
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson")) {
+  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega" && user.role !== "salesperson")) {
     setLocation("/dashboard");
     return null;
   }
@@ -33,7 +33,7 @@ export default function NVVPage() {
   const salespersonFilter = user.role === 'salesperson' ? (user as any).salespersonName : undefined;
   
   // Determine if user can see segment filter (admin and supervisor only)
-  const canFilterBySegment = user.role === 'admin' || user.role === 'supervisor';
+  const canFilterBySegment = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
   return (
     <div className="space-y-6">

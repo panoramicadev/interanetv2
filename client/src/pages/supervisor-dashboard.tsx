@@ -35,7 +35,7 @@ export default function SupervisorDashboard() {
   // Obtener vendedores bajo supervisión
   const { data: salespeople = [], isLoading: loadingSalespeople } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/salespeople`],
-    enabled: !!user?.id && user?.role === 'supervisor',
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
@@ -44,33 +44,33 @@ export default function SupervisorDashboard() {
   // Obtener vendedores disponibles para reclamar
   const { data: availableVendors = [], isLoading: loadingVendors } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/available-vendors`],
-    enabled: !!user?.id && user?.role === 'supervisor' && showAddMemberModal,
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area') && showAddMemberModal,
     staleTime: 30000, // Cache por 30 segundos
   });
 
   // Obtener metas del supervisor
   const { data: supervisorGoals = [], isLoading: loadingGoals } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/goals`],
-    enabled: !!user?.id && user?.role === 'supervisor',
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Obtener alertas del supervisor
   const { data: supervisorAlerts = [], isLoading: loadingAlerts } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/alerts`],
-    enabled: !!user?.id && user?.role === 'supervisor',
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Obtener productos más vendidos por el equipo
   const { data: teamProducts = [], isLoading: loadingTeamProducts } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/team-products`],
-    enabled: !!user?.id && user?.role === 'supervisor',
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
     staleTime: 300000, // Cache por 5 minutos
   });
 
   // Obtener métricas consolidadas del equipo
   const { data: teamMetricsData, isLoading: loadingTeamMetrics } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/team-metrics`],
-    enabled: !!user?.id && user?.role === 'supervisor',
+    enabled: !!user?.id && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
     staleTime: 300000, // Cache por 5 minutos
   });
 

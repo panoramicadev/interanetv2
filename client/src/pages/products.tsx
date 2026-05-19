@@ -1772,7 +1772,7 @@ export default function ProductsPage() {
 
   // Redirect to dashboard if not authenticated or not admin/supervisor
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor'))) {
+    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && (user?.role !== 'supervisor' && user?.role !== 'encargado_area')))) {
       toast({
         title: "Acceso denegado",
         description: "Solo los administradores y supervisores pueden acceder a esta página.",

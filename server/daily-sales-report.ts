@@ -49,7 +49,7 @@ async function getSupervisorsAndAdmins(): Promise<string[]> {
     .where(
       and(
         eq(users.isActive, true),
-        inArray(users.role, ['admin', 'supervisor'])
+        inArray(users.role, ['admin', 'supervisor', 'encargado_area'])
       )
     );
     

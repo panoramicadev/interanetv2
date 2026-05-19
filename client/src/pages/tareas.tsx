@@ -347,14 +347,14 @@ export default function TareasPage() {
   // Query for available users (for assignments)
   const { data: availableUsers } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.salespeople as any,
   });
 
   // Query for available supervisors (for assignments)
   const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople/supervisors"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.supervisors as any,
   });
 
@@ -365,7 +365,7 @@ export default function TareasPage() {
       const response = await apiRequest(`/api/supervisor/${user?.id}/salespeople`);
       return response.json();
     },
-    enabled: !!user && user?.role === 'supervisor',
+    enabled: !!user && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Queries para Promesas de Compra
@@ -377,7 +377,7 @@ export default function TareasPage() {
       return true;
     }
     // Si es supervisor, verificar los segmentos de sus vendedores
-    if (user?.role === 'supervisor' && supervisorSalespeople && supervisorSalespeople.length > 0) {
+    if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
       return supervisorSalespeople.some(sp =>
         sp.assignedSegment?.toLowerCase()?.includes('construcc')
       );
@@ -691,7 +691,7 @@ export default function TareasPage() {
     createTaskMutation.mutate(data);
   };
 
-  const canCreateTasks = user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra';
+  const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
 
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
@@ -1166,7 +1166,7 @@ export default function TareasPage() {
                 {filtersExpanded && (
                   <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
                     {/* View Mode Toggle */}
-                    {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
+                    {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium text-muted-foreground">Vista:</Label>
                         <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
@@ -1238,7 +1238,7 @@ export default function TareasPage() {
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                   <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     {/* View Mode Toggle */}
-                    {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
+                    {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
                       <div className="flex items-center gap-3">
                         <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
                         <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
@@ -1420,11 +1420,11 @@ export default function TareasPage() {
                   (a.assigneeType === "user" && a.assigneeId === user.id)
                 );
                 const targetAssignment = myAssignment || (
-                  (user.role === 'admin' || user.role === 'supervisor') ? task.assignments[0] : null
+                  (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area')) ? task.assignments[0] : null
                 );
                 const isCompleted = task.status === 'completada' || (targetAssignment?.status === 'completed');
                 const canComplete = targetAssignment &&
-                  (user.role === 'admin' || user.role === 'supervisor' || (myAssignment && myAssignment.assigneeId === user.id));
+                  (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || (myAssignment && myAssignment.assigneeId === user.id));
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
 
                 return (
@@ -1546,7 +1546,7 @@ export default function TareasPage() {
                         (a.assigneeType === "user" && a.assigneeId === user.id)
                       );
                       const targetAssign = myAssign || (
-                        (user.role === 'admin' || user.role === 'supervisor') ? t.assignments[0] : null
+                        (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area')) ? t.assignments[0] : null
                       );
                       return targetAssign?.status === 'completed';
                     }).length;
@@ -1777,7 +1777,7 @@ function EstimacionSemanalTab({
   // Query para obtener lista de vendedores (para filtro)
   const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
     queryKey: ['/api/users/salespeople'],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Filtrar promesas válidas y por vendedor
@@ -1944,7 +1944,7 @@ function EstimacionSemanalTab({
               <CardDescription className="text-xs sm:text-sm mt-0.5">Comparación de compromisos vs. ventas reales</CardDescription>
             </div>
             {/* Filtro por vendedor (solo para admin/supervisor) */}
-            {(user?.role === 'admin' || user?.role === 'supervisor') && salespeople.length > 0 && (
+            {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Label className="text-xs sm:text-sm whitespace-nowrap">Vendedor:</Label>
                 <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
@@ -1986,7 +1986,7 @@ function EstimacionSemanalTab({
                 <table className="w-full">
                   <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
                     <tr>
-                      {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                      {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                         <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendedor</th>
                       )}
                       <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cliente</th>
@@ -2008,7 +2008,7 @@ function EstimacionSemanalTab({
                           setEditPromesaDialogOpen(true);
                         }}
                       >
-                        {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                        {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                           <td className="py-3 px-4 text-sm">{getVendedorNombre(item.promesa.vendedorId)}</td>
                         )}
                         <td className="py-3 px-4 font-medium">{item.promesa.clienteNombre}</td>
@@ -2082,7 +2082,7 @@ function EstimacionSemanalTab({
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm truncate">{item.promesa.clienteNombre}</p>
-                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                            {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                               <p className="text-[10px] text-muted-foreground">
                                 Vendedor: {getVendedorNombre(item.promesa.vendedorId)}
                               </p>
@@ -2207,13 +2207,13 @@ function CreatePromesaDialog({
 
   // Query para obtener lista de vendedores (solo admin/supervisor)
   // Supervisores solo ven vendedores de su segmento, admin ve todos
-  const salespeopleEndpoint = user?.role === 'supervisor'
+  const salespeopleEndpoint = (user?.role === 'supervisor' || user?.role === 'encargado_area')
     ? `/api/supervisor/${user.id}/salespeople`
     : '/api/users/salespeople';
 
   const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
     queryKey: [salespeopleEndpoint],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Actualizar dialogWeek cuando cambia selectedWeek externamente
@@ -2738,7 +2738,7 @@ function EditPromesaDialog({
 
   const handleSubmit = () => {
     // Solo admin y supervisor pueden editar
-    if (!['admin', 'supervisor'].includes(user?.role || '')) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user?.role || '')) {
       toast({
         title: "No autorizado",
         description: "Solo administradores y supervisores pueden editar promesas",
@@ -2753,7 +2753,7 @@ function EditPromesaDialog({
     });
   };
 
-  const canEdit = ['admin', 'supervisor'].includes(user?.role || '');
+  const canEdit = ['admin', 'supervisor', 'encargado_area'].includes(user?.role || '');
 
   // Calcular cumplimiento y estado con los datos actuales del formulario
   const montoPrometido = parseFloat(promesa.promesa.montoPrometido);
@@ -3110,8 +3110,8 @@ function TaskDetailDialog({
       assignment.assigneeId;
   };
 
-  const canDeleteTask = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
-  const canUpdateStatus = user.role === 'admin' || user.role === 'supervisor';
+  const canDeleteTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
+  const canUpdateStatus = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
   const isCompleted = task.status === 'completada';
 
   return (
@@ -3173,7 +3173,7 @@ function TaskDetailDialog({
         </div>
 
         {/* Department Change Bar */}
-        {(user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id) && (
+        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id) && (
           <div className="flex items-center gap-2 px-6 py-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 overflow-x-auto">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5" />
@@ -3222,7 +3222,7 @@ function TaskDetailDialog({
             <div className="grid grid-cols-2 gap-3">
               {/* Due Date - Editable */}
               {(() => {
-                const canEditDate = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+                const canEditDate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
                 const [isEditingDate, setIsEditingDate] = useState(false);
                 const [dateValue, setDateValue] = useState(
                   task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : ''
@@ -3335,7 +3335,7 @@ function TaskDetailDialog({
 
             {/* Group Assignment */}
             {(() => {
-              const canAssignGroup = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+              const canAssignGroup = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
               if (!canAssignGroup) return null;
               // Show groups matching task segmento, or all groups if task has no segmento
               const availableGroups = (task as any).segmento
@@ -3476,7 +3476,7 @@ function TaskDetailDialog({
                             Acusar Recibo
                           </Button>
                         )}
-                        {(user.role === 'admin' || user.role === 'supervisor' || myAssignment) && (
+                        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || myAssignment) && (
                           <Button
                             size="sm"
                             variant={assignment.status === 'completada' ? "default" : "outline"}

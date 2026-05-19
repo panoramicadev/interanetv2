@@ -87,8 +87,8 @@ export default function NotificacionesPage() {
   }, []);
 
   // Authorized roles - must match server-side constants
-  const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
-  const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor'];
+  const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'encargado_area', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
+  const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor', 'encargado_area'];
   
   // Check if user can create notifications
   const canCreateNotifications = user && user.role && NOTIFICATION_CREATOR_ROLES.includes(user.role);

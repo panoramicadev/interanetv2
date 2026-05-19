@@ -308,7 +308,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [emailAttachment, setEmailAttachment] = useState<{ name: string; mime: string; base64: string } | null>(null);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
 
-  const isAdminOrSupervisor = user?.role === 'admin' || user?.role === 'supervisor';
+  const isAdminOrSupervisor = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area');
   const { data: salespeople = [] } = useQuery<Array<{ id: string; salespersonName?: string; email?: string }>>({
     queryKey: ["/api/users/salespeople"],
     enabled: !!emailDialog && isAdminOrSupervisor,
@@ -571,7 +571,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           </Select>
 
           {/* Creator Filter - Only for admin/supervisor */}
-          {(user?.role === 'admin' || user?.role === 'supervisor') && creators && creators.length > 0 && (
+          {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && creators && creators.length > 0 && (
             <Select value={creatorFilter} onValueChange={(value) => { setCreatorFilter(value); handleFilterChange(); }}>
               <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[200px]'}`} data-testid="select-creator-filter">
                 <User className="w-3.5 h-3.5 mr-1.5" />
@@ -694,7 +694,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 <Copy className="w-4 h-4 mr-2" /> Duplicar
                               </DropdownMenuItem>
                             )}
-                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                            {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                               <DropdownMenuItem onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)} disabled={deleteQuoteMutation.isPending} className="text-red-600 focus:text-red-600 focus:bg-red-50">
                                 <Trash2 className="w-4 h-4 mr-2" /> Eliminar
                               </DropdownMenuItem>
@@ -706,7 +706,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                      {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                      {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                         <span className="flex items-center gap-1">
                           <User className="w-3 h-3" />
                           {quote.creatorName || 'Desconocido'}
@@ -741,7 +741,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   <TableHead className="text-left hidden md:table-cell text-[11px] uppercase tracking-wider font-semibold text-slate-500">Cotización</TableHead>
                   <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Cliente</TableHead>
                   <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Estado</TableHead>
-                  {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                  {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                     <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Creado por</TableHead>
                   )}
                   <TableHead className="text-left text-[11px] uppercase tracking-wider font-semibold text-slate-500">Creada</TableHead>
@@ -804,7 +804,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         )}
                       </TableCell>
 
-                      {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                      {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                         <TableCell className="py-4">
                           <div className="flex items-center gap-2">
                             <User className="w-3.5 h-3.5 text-gray-400" />
@@ -951,7 +951,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 </DropdownMenuItem>
                               )}
 
-                              {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                              {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                                 <DropdownMenuItem
                                   data-testid={`button-delete-quote-${quote.id}`}
                                   onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)}

@@ -230,7 +230,7 @@ export default function SeguimientoPedidos() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const salespersonName = (user as any)?.salespersonName || "";
-  const isAdmin = user?.role === "admin" || user?.role === "supervisor";
+  const isAdmin = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
   const [activeStage, setActiveStage] = useState<string>("catalogo");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");

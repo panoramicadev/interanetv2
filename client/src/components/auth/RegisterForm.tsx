@@ -15,7 +15,7 @@ const registerSchema = z.object({
   firstName: z.string().min(2, "Nombre debe tener al menos 2 caracteres"),
   lastName: z.string().min(2, "Apellido debe tener al menos 2 caracteres"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  role: z.enum(["admin", "supervisor", "vendedor", "cliente"], {
+  role: z.enum(["admin", "supervisor", "encargado_area", "vendedor", "cliente"], {
     required_error: "Selecciona un rol",
   }),
 });
