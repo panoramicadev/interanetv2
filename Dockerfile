@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # Build + runtime image for Panorámica intranet.
 # Multi-stage: el builder compila `canvas` desde fuente y hace el build de Vite/esbuild;
 # el runtime se queda solo con las libs runtime de Chromium (sin toolchain de C).
@@ -68,10 +67,9 @@ WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
 
-# Instalar deps con cache de npm (BuildKit) para que los rebuilds reusen el tarball cache.
+# Instalar deps.
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,id=npm,target=/root/.npm \
-    npm install --no-audit --no-fund --prefer-offline
+RUN npm install --no-audit --no-fund --prefer-offline
 
 # Resto del código y build.
 COPY . .
