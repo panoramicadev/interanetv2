@@ -389,7 +389,7 @@ export default function PresupuestoVentas() {
         }));
     }, [parsedData]);
 
-    const isAdmin = user?.role === "admin" || user?.role === "supervisor";
+    const isAdmin = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
     return (
         <div className="min-h-screen bg-background">

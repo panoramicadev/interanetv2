@@ -142,7 +142,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
   const [editFechaTermino, setEditFechaTermino] = useState("");
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
-  const isSupervisor = user?.role === 'supervisor';
+  const isSupervisor = (user?.role === 'supervisor' || user?.role === 'encargado_area');
   const isRRHH = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
   // Fetch fund allocations

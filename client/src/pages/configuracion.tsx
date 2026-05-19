@@ -17,7 +17,7 @@ export default function ConfiguracionPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("usuarios");
 
-  if (!user || (user.role !== "admin" && user.role !== "supervisor")) {
+  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area"))) {
     setLocation("/dashboard");
     return null;
   }

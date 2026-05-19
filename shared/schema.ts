@@ -64,7 +64,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").default("user"), // admin, supervisor, salesperson, client, tecnico_obra, reception, jefe_planta, mantencion
+  role: varchar("role").default("user"), // admin, supervisor, encargado_area, salesperson, client, tecnico_obra, reception, jefe_planta, mantencion
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1243,7 +1243,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   email: varchar("email").unique(),
   password: varchar("password"), // Hash de la contraseña
   isActive: boolean("is_active").default(true),
-  role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
+  role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "encargado_area" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
   clientRut: varchar("client_rut"), // RUT del cliente asociado (solo para role="client")
@@ -1299,7 +1299,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   username: z.string().min(2, "Usuario debe tener al menos 2 caracteres").optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
-  role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception", "laboratorio", "area_materia_prima", "area_colores", "area_aplicacion", "area_envase", "area_etiqueta", "area_produccion", "area_logistica", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas", "prevencion_riesgos", "jefe_planta", "mantencion", "recursos_humanos", "marketing"]).default("salesperson"),
+  role: z.enum(["admin", "supervisor", "encargado_area", "salesperson", "tecnico_obra", "client", "reception", "laboratorio", "area_materia_prima", "area_colores", "area_aplicacion", "area_envase", "area_etiqueta", "area_produccion", "area_logistica", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas", "prevencion_riesgos", "jefe_planta", "mantencion", "recursos_humanos", "marketing"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
   clientRut: z.string().optional().nullable(),

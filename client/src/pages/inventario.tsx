@@ -32,7 +32,7 @@ import { es } from "date-fns/locale";
 
 // Helper function to determine if user has inventory access with prices (all authenticated users)
 function hasInventoryAccess(role: string): boolean {
-  const allowedRoles = ['admin', 'supervisor', 'salesperson', 'tecnico_obra', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'tecnico_obra', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
   return allowedRoles.includes(role);
 }
 
@@ -92,7 +92,7 @@ export function InventarioContent() {
   return (
     <div className="space-y-4">
       {/* Sync button */}
-      {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
+      {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
         <div className="flex justify-end">
           <SyncCatalogButton />
         </div>
@@ -200,7 +200,7 @@ export default function Inventario() {
   }
 
   // All authenticated users with plant/commercial roles can access inventory
-  const allowedRoles = ['admin', 'supervisor', 'salesperson', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
   if (!user.role || !allowedRoles.includes(user.role)) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -225,7 +225,7 @@ export default function Inventario() {
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
           <p className="text-muted-foreground">Gestión de stock y disponibilidad de productos</p>
         </div>
-        {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
+        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
           <SyncCatalogButton />
         )}
       </div>

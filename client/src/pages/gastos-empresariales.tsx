@@ -505,7 +505,7 @@ export default function GastosEmpresariales() {
     }).format(num);
   };
 
-  const canApproveReject = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
+  const canApproveReject = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'recursos_humanos';
   const canDelete = (gasto: GastoEmpresarial) => {
     return gasto.userId === user?.id && gasto.estado === 'pendiente' || user?.role === 'admin';
   };

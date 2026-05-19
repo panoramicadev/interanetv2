@@ -195,7 +195,7 @@ const OPENAPI_SPEC = {
         summary: 'Lista usuarios y vendedores (salespeople_users)',
         description: 'Para descubrir nombres válidos de salespersonName usar source=salespeople',
         parameters: [
-          { name: 'role', in: 'query', schema: { type: 'string', enum: ['admin', 'supervisor', 'salesperson', 'client', 'tecnico_obra', 'reception', 'jefe_planta', 'mantencion'] } },
+          { name: 'role', in: 'query', schema: { type: 'string', enum: ['admin', 'supervisor', 'encargado_area', 'salesperson', 'client', 'tecnico_obra', 'reception', 'jefe_planta', 'mantencion'] } },
           { name: 'source', in: 'query', schema: { type: 'string', enum: ['users', 'salespeople', 'all'], default: 'all' } },
           { $ref: '#/components/parameters/limit' },
         ],

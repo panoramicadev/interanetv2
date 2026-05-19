@@ -1009,7 +1009,7 @@ export default function TomadorPedidos() {
 
   // Salesperson assignment for admin/supervisor
   const [selectedCreatorId, setSelectedCreatorId] = useState<string>("");
-  const isAdminOrSupervisor = user?.role === 'admin' || user?.role === 'supervisor';
+  const isAdminOrSupervisor = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area');
 
   // Fetch users list for salesperson assignment dropdown (admin/supervisor only)
   const { data: allUsers } = useQuery<any[]>({
@@ -3730,7 +3730,7 @@ export default function TomadorPedidos() {
                                 <SelectItem value="self">Yo mismo (administrador)</SelectItem>
                                 {allUsers.filter((u: any) => u.isActive !== false).map((u: any) => (
                                   <SelectItem key={u.id} value={u.id}>
-                                    {u.salespersonName || u.email} {u.role === 'supervisor' ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
+                                    {u.salespersonName || u.email} {(u.role === 'supervisor' || u.role === 'encargado_area') ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -4553,7 +4553,7 @@ export default function TomadorPedidos() {
                                     <SelectItem value="self">Yo mismo (administrador)</SelectItem>
                                     {allUsers.filter((u: any) => u.isActive !== false).map((u: any) => (
                                       <SelectItem key={u.id} value={u.id}>
-                                        {u.salespersonName || u.email} {u.role === 'supervisor' ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
+                                        {u.salespersonName || u.email} {(u.role === 'supervisor' || u.role === 'encargado_area') ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>

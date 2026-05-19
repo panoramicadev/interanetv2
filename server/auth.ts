@@ -33,7 +33,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
-  role: z.enum(["admin", "supervisor", "salesperson", "client", "tecnico_obra", "jefe_planta", "mantencion", "laboratorio", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas"]).default("client"),
+  role: z.enum(["admin", "supervisor", "encargado_area", "salesperson", "client", "tecnico_obra", "jefe_planta", "mantencion", "laboratorio", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas"]).default("client"),
 });
 
 const loginSchema = z.object({
@@ -407,16 +407,17 @@ export const requireRoles = (roles: string[]) => {
 };
 
 // Convenience middleware for admin/supervisor only
-export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
-export const requireMailingAccess = requireRoles(['admin', 'supervisor', 'reception']);
+export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor', 'encargado_area']);
+export const requireMailingAccess = requireRoles(['admin', 'supervisor', 'encargado_area', 'reception']);
 
 // Commercial Module Role-Based Access Control
 // Access to commercial modules (CRM, Metas, Usuarios, Sales Analytics Dashboard, Clientes, Pedidos, Marketing, Gastos, ETL, API Keys)
-// Allows: admin, supervisor, salesperson, tecnico_obra, jefe_planta, logistica_bodega (dashboard and invoices viewing)
+// Allows: admin, supervisor, encargado_area, salesperson, tecnico_obra, jefe_planta, logistica_bodega (dashboard and invoices viewing)
 // Excludes: mantencion, laboratorio, produccion, planificacion, bodega_materias_primas, client, and all area_* roles
 export const requireCommercialAccess = requireRoles([
   'admin',
   'supervisor',
+  'encargado_area',
   'salesperson',
   'tecnico_obra',
   'jefe_planta',
@@ -426,11 +427,12 @@ export const requireCommercialAccess = requireRoles([
 
 // Plant Operations Access Control
 // Access to plant operational functions like inventory sync, CMMS, etc.
-// Allows: admin, supervisor, jefe_planta, mantencion, and all plant departmental roles
+// Allows: admin, supervisor, encargado_area, jefe_planta, mantencion, and all plant departmental roles
 // Excludes: salesperson, tecnico_obra, client
 export const requirePlantOperationsAccess = requireRoles([
   'admin',
   'supervisor',
+  'encargado_area',
   'jefe_planta',
   'mantencion',
   'laboratorio',
@@ -453,6 +455,7 @@ export const requireCMMSPlantStaff = requireRoles([
   'jefe_planta',
   'mantencion',
   'supervisor',
+  'encargado_area',
   'laboratorio',
   'bodega_materias_primas',
   'logistica_bodega',

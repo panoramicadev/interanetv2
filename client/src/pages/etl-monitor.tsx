@@ -377,7 +377,7 @@ export default function ETLMonitor() {
     );
   }
 
-  if (user.role !== 'admin' && user.role !== 'supervisor') {
+  if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>

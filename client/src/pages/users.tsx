@@ -38,7 +38,7 @@ export default function UsersPage() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (user && user.role !== 'admin' && user.role !== 'supervisor') {
+    if (user && user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
       toast({
         title: "Acceso denegado",
         description: "Solo los administradores y supervisores pueden acceder a esta página.",
@@ -53,7 +53,7 @@ export default function UsersPage() {
   // Query para obtener usuarios
   const { data: salespeopleUsers = [], isLoading } = useQuery<SalespersonUser[]>({
     queryKey: ["/api/users/salespeople"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Filtrar usuarios según el filtro seleccionado
@@ -84,31 +84,31 @@ export default function UsersPage() {
   // Query para obtener vendedores disponibles
   const { data: availableSalespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Query para obtener supervisores disponibles
   const { data: availableSupervisors = [] } = useQuery<SalespersonUser[]>({
     queryKey: ["/api/users/salespeople/supervisors"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Query para obtener clientes disponibles
   const { data: availableClients = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/clients"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Query para obtener segmentos únicos (para asignación de usuarios)
   const { data: availableSegments = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
   const { data: segmentsData = [] } = useQuery<Array<{ segment: string; totalSales: number; percentage: number }>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // RUT search queries
@@ -328,7 +328,7 @@ export default function UsersPage() {
       email: user.email ?? "",
       password: "",
       isActive: user.isActive ?? true,
-      role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client",
+      role: (user.role ?? "salesperson") as "admin" | "supervisor" | "encargado_area" | "salesperson" | "tecnico_obra" | "client",
       supervisorId: user.supervisorId ?? "none",
       assignedSegment: user.assignedSegment ?? "none",
       clientRut: (user as any).clientRut ?? "",
@@ -343,7 +343,7 @@ export default function UsersPage() {
     }
   };
 
-  if (user?.role !== 'admin' && user?.role !== 'supervisor') {
+  if (user?.role !== 'admin' && (user?.role !== 'supervisor' && user?.role !== 'encargado_area')) {
     return null; // No renderizar nada si no es admin o supervisor
   }
 
@@ -397,6 +397,7 @@ export default function UsersPage() {
                               <SelectContent>
                                 <SelectItem value="admin">Administrador</SelectItem>
                                 <SelectItem value="supervisor">Supervisor</SelectItem>
+                                <SelectItem value="encargado_area">Encargado de Área</SelectItem>
                                 <SelectItem value="salesperson">Vendedor</SelectItem>
                                 <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                                 <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
@@ -782,6 +783,7 @@ export default function UsersPage() {
                         <SelectContent>
                           <SelectItem value="admin">Administrador</SelectItem>
                           <SelectItem value="supervisor">Supervisor</SelectItem>
+                          <SelectItem value="encargado_area">Encargado de Área</SelectItem>
                           <SelectItem value="salesperson">Vendedor</SelectItem>
                           <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                           <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
@@ -965,6 +967,9 @@ export default function UsersPage() {
                         <SelectItem value="supervisor">
                           Supervisores ({salespeopleUsers.filter(u => u.role === 'supervisor').length})
                         </SelectItem>
+                        <SelectItem value="encargado_area">
+                          Encargados de Área ({salespeopleUsers.filter(u => u.role === 'encargado_area').length})
+                        </SelectItem>
                         <SelectItem value="salesperson">
                           Vendedores ({salespeopleUsers.filter(u => u.role === 'salesperson').length})
                         </SelectItem>
@@ -1084,9 +1089,10 @@ export default function UsersPage() {
                           <TableCell className="text-muted-foreground">{user.username || "Sin usuario"}</TableCell>
                           <TableCell className="text-muted-foreground">{user.email || "Sin email"}</TableCell>
                           <TableCell>
-                            <Badge variant={user.role === 'admin' ? 'default' : user.role === 'supervisor' ? 'default' : 'secondary'} className={user.role === 'admin' || user.role === 'supervisor' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
+                            <Badge variant={user.role === 'admin' ? 'default' : (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
                               {user.role === 'admin' ? 'Administrador' :
                                 user.role === 'supervisor' ? 'Supervisor' :
+                                user.role === 'encargado_area' ? 'Encargado de Área' :
                                   user.role === 'tecnico_obra' ? 'Técnico de Obra' :
                                     user.role === 'jefe_planta' ? 'Jefe de Planta' :
                                       user.role === 'mantencion' ? 'Mantención' :
@@ -1180,9 +1186,10 @@ export default function UsersPage() {
                             <div>
                               <span className="text-muted-foreground">Rol:</span>
                               <div className="mt-1">
-                                <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'} className="text-xs">
+                                <Badge variant={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className="text-xs">
                                   {user.role === 'admin' ? 'Admin' :
                                     user.role === 'supervisor' ? 'Supervisor' :
+                                    user.role === 'encargado_area' ? 'Enc. Área' :
                                       user.role === 'tecnico_obra' ? 'Técnico' :
                                         user.role === 'jefe_planta' ? 'Jefe Planta' :
                                           user.role === 'mantencion' ? 'Mantención' :

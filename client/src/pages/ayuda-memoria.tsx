@@ -85,7 +85,7 @@ export default function AyudaMemoriaPage() {
   const [viewingFicha, setViewingFicha] = useState<AyudaMemoria | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
+  const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
   // ─── Queries ─────────────────────────────────────────────────────
   const { data: fichas = [], isLoading } = useQuery<AyudaMemoria[]>({

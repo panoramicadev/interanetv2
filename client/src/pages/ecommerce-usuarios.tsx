@@ -100,7 +100,7 @@ interface Warehouse {
 // ─── Client Profile Detail Panel ─────────────────────────
 function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser; onBack: () => void; onClientUpdated: (updated: ClientUser) => void }) {
   const { user } = useAuth();
-  const canSendSuggested = user?.role === "admin" || user?.role === "supervisor";
+  const canSendSuggested = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
   const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditingCommercial, setIsEditingCommercial] = useState(false);
@@ -2364,7 +2364,7 @@ export default function EcommerceUsuarios() {
   const [createRutSearch, setCreateRutSearch] = useState('');
   const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
   const { user } = useAuth();
-  const canSendSuggested = user?.role === "admin" || user?.role === "supervisor";
+  const canSendSuggested = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

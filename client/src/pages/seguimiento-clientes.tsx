@@ -140,7 +140,7 @@ export default function SeguimientoClientes() {
   const [pinProblemas, setPinProblemas] = useState<boolean>(true);
   const [soloDestacados, setSoloDestacados] = useState<boolean>(false);
 
-  const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
+  const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
   // ─── Queries ─────────────────────────────────────────────────────
   const { data: clientes = [], isLoading } = useQuery({

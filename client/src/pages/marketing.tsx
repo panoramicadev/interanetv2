@@ -145,7 +145,7 @@ export default function Marketing() {
   }
 
   // Only admin, supervisor and salesperson can access marketing module
-  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson') {
+  if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'salesperson') {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>
@@ -163,7 +163,7 @@ export default function Marketing() {
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
   ];
 
-  const isAdmin = user.role === 'admin' || user.role === 'supervisor';
+  const isAdmin = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20">
@@ -602,7 +602,7 @@ function PasosChecklist({
   });
 
   const handleToggle = (index: number) => {
-    if (userRole === 'admin' || userRole === 'supervisor') {
+    if (userRole === 'admin' || (userRole === 'supervisor' || userRole === 'encargado_area')) {
       togglePasoMutation.mutate({ index });
     }
   };
@@ -619,7 +619,7 @@ function PasosChecklist({
             type="checkbox"
             checked={paso.completado}
             onChange={() => handleToggle(index)}
-            disabled={userRole !== 'admin' && userRole !== 'supervisor'}
+            disabled={userRole !== 'admin' && (userRole !== 'supervisor' && userRole !== 'encargado_area')}
             className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
             data-testid={`checkbox-paso-${index}`}
           />
@@ -1199,7 +1199,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     };
     // Auto-assign to creator
     const autoAssignments = [{
-      assigneeType: (user?.role === 'supervisor' || user?.role === 'admin' ? 'supervisor' : 'salesperson') as 'supervisor' | 'salesperson',
+      assigneeType: ((user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'admin' ? 'supervisor' : 'salesperson') as 'supervisor' | 'salesperson',
       assigneeId: user?.id || '',
     }];
     createMutation.mutate({ ...data, assignments: autoAssignments, payload, segmento: "marketing" });
@@ -2256,7 +2256,7 @@ function TareasMarketing({
           </Select>
         </div>
 
-        {(userRole === 'admin' || userRole === 'supervisor') && (
+        {(userRole === 'admin' || (userRole === 'supervisor' || userRole === 'encargado_area')) && (
           <Button onClick={() => { setSelectedTarea(null); setTareaDialogOpen(true); }} data-testid="button-nueva-tarea">
             <Plus className="h-4 w-4 mr-2" />
             Nueva Tarea
@@ -4367,7 +4367,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                                   )}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {(userRole === 'admin' || userRole === 'supervisor') && (
+                                  {(userRole === 'admin' || (userRole === 'supervisor' || userRole === 'encargado_area')) && (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button

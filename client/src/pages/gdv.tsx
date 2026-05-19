@@ -106,12 +106,12 @@ export default function GDVPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega")) {
+  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega")) {
     setLocation("/dashboard");
     return null;
   }
 
-  const canSync = user.role === "admin" || user.role === "supervisor";
+  const canSync = user.role === "admin" || (user.role === "supervisor" || user.role === "encargado_area");
 
   const { data: syncHistory, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery<GdvSyncLog[]>({
     queryKey: ['/api/etl/sync-gdv/history'],

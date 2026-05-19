@@ -172,6 +172,7 @@ function Router() {
               switch (user.role) {
                 case 'admin':
                 case 'supervisor':
+                case 'encargado_area':
                 case 'logistica_bodega':
                   return <Dashboard />;
                 case 'salesperson':
@@ -243,7 +244,7 @@ function Router() {
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra
-              if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+              if (!user?.role || !['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
                 window.location.replace('/');
                 return null;
               }

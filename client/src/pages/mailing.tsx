@@ -5,7 +5,7 @@ import { Mail, Sparkles } from "lucide-react";
 
 export default function MailingPage() {
   const { user } = useAuth();
-  const canAccess = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'reception';
+  const canAccess = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'reception';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">

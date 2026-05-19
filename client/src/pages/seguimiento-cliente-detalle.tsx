@@ -74,7 +74,7 @@ export default function SeguimientoClienteDetalle() {
   const [, params] = useRoute("/seguimiento-clientes/:id");
   const clientId = params?.id;
 
-  const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
+  const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
   // State
   const [isEditing, setIsEditing] = useState(false);

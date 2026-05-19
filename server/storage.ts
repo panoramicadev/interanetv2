@@ -2371,7 +2371,7 @@ export class DatabaseStorage implements IStorage {
       if (salesperson) {
         // IMPORTANT: Preserve admin/supervisor role from the users table.
         // Only use the salesperson role if the users table role is not a privileged role.
-        const privilegedRoles = ['admin', 'supervisor'];
+        const privilegedRoles = ['admin', 'supervisor', 'encargado_area'];
         const effectiveRole = privilegedRoles.includes(user.role) ? user.role : salesperson.role;
         return {
           ...user,
@@ -2426,7 +2426,7 @@ export class DatabaseStorage implements IStorage {
       if (salesperson) {
         // IMPORTANT: Preserve admin/supervisor role from the users table.
         // Only use the salesperson role if the users table role is not a privileged role.
-        const privilegedRoles = ['admin', 'supervisor'];
+        const privilegedRoles = ['admin', 'supervisor', 'encargado_area'];
         const effectiveRole = privilegedRoles.includes(user.role) ? user.role : salesperson.role;
         return {
           ...user,
@@ -12552,7 +12552,8 @@ export class DatabaseStorage implements IStorage {
           // Admin gets all tasks - no additional filtering
           break;
         case 'supervisor':
-          // Supervisor gets: tasks they created + tasks assigned to their team
+        case 'encargado_area':
+          // Supervisor / Encargado de Área gets: tasks they created + tasks assigned to their team
           // This requires additional filtering which we'll implement
           break;
         case 'salesperson':
@@ -12645,7 +12646,8 @@ export class DatabaseStorage implements IStorage {
           // Admin sees all tasks - no additional filtering
           break;
         case 'supervisor':
-          // Supervisor sees: tasks they created OR tasks assigned to their team
+        case 'encargado_area':
+          // Supervisor / Encargado de Área sees: tasks they created OR tasks assigned to their team
           const supervisorConditions = [
             eq(tasks.createdByUserId, userId), // Tasks they created
           ];
@@ -13280,8 +13282,9 @@ export class DatabaseStorage implements IStorage {
       switch (userRole) {
         case 'admin':
         case 'supervisor':
+        case 'encargado_area':
         case 'logistica_bodega':
-          // Admin, supervisor, and logistics can see all orders
+          // Admin, supervisor, encargado_area, and logistics can see all orders
           break;
         case 'salesperson':
           // Salesperson can only see orders they created
@@ -18248,7 +18251,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Validar permisos - incluir jefe_planta y mantencion que tienen acceso completo al módulo CMMS
-    const rolesAutorizados = ['admin', 'supervisor', 'produccion', 'jefe_planta', 'mantencion'];
+    const rolesAutorizados = ['admin', 'supervisor', 'encargado_area', 'produccion', 'jefe_planta', 'mantencion'];
     const esTecnicoAsignado = mantencion.tecnicoAsignadoId === userId;
 
     if (!rolesAutorizados.includes(userRole) && !esTecnicoAsignado) {
@@ -20066,7 +20069,7 @@ export class DatabaseStorage implements IStorage {
     role: string;
   }>> {
     // Get users with roles: admin, supervisor, salesperson
-    const allowedRoles = ['admin', 'supervisor', 'salesperson'];
+    const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'salesperson'];
 
     const results = await db
       .select({
@@ -24115,7 +24118,7 @@ export class DatabaseStorage implements IStorage {
         if (filters.role === 'salesperson') {
           // Vendedor solo ve sus clientes
           conditions.push(eq(clientesInactivos.salespersonId, filters.userId));
-        } else if (filters.role === 'supervisor') {
+        } else if (filters.role === 'supervisor' || filters.role === 'encargado_area') {
           // Supervisor ve clientes de su segmento
           conditions.push(eq(clientesInactivos.supervisorId, filters.userId));
         }
@@ -24259,7 +24262,7 @@ export class DatabaseStorage implements IStorage {
       // Filtrado por rol
       if (role === 'salesperson') {
         conditions.push(eq(crmLeads.salespersonId, userId));
-      } else if (role === 'supervisor') {
+      } else if ((role === 'supervisor' || role === 'encargado_area')) {
         conditions.push(eq(crmLeads.supervisorId, userId));
       }
       // Admin ve todos
@@ -24431,7 +24434,7 @@ export class DatabaseStorage implements IStorage {
       if (role === 'salesperson' && salespersonName) {
         // Salespeople only see clients from their sales (using case-insensitive match)
         conditions.push(sql`UPPER(${factVentas.nokofu}) = UPPER(${salespersonName})`);
-      } else if (role === 'supervisor') {
+      } else if ((role === 'supervisor' || role === 'encargado_area')) {
         // Supervisors see clients from their salespeople + their own if applicable
         const supervisedSalespeople = await db
           .select({ salespersonName: salespeopleUsers.salespersonName })

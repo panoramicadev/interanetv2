@@ -418,7 +418,7 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   }
 
   // Allow admins, supervisors, and jefe_planta to access all data
-  if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'jefe_planta') {
+  if (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'jefe_planta') {
     return next();
   }
 
@@ -2568,7 +2568,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Solo admin y supervisor pueden asignar credenciales
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado para asignar credenciales" });
       }
 
@@ -2604,7 +2604,7 @@ export function registerRoutes(app: Express): Server {
         if (!salesperson) {
           return res.status(400).json({ message: "El vendedor especificado no existe" });
         }
-        if (!['salesperson', 'admin', 'supervisor'].includes(salesperson.role || '')) {
+        if (!['salesperson', 'admin', 'supervisor', 'encargado_area'].includes(salesperson.role || '')) {
           return res.status(400).json({ message: "El usuario especificado no es un vendedor válido" });
         }
       }
@@ -4041,7 +4041,7 @@ export function registerRoutes(app: Express): Server {
 
       // Get supervisor's assigned segment
       const supervisor = await storage.getSalespersonUser(supervisorId);
-      if (!supervisor || supervisor.role !== 'supervisor') {
+      if (!supervisor || (supervisor.role !== 'supervisor' && supervisor.role !== 'encargado_area')) {
         return res.status(403).json({ message: "No autorizado como supervisor" });
       }
 
@@ -4066,7 +4066,7 @@ export function registerRoutes(app: Express): Server {
 
       // Validate supervisor
       const supervisor = await storage.getSalespersonUser(supervisorId);
-      if (!supervisor || supervisor.role !== 'supervisor') {
+      if (!supervisor || (supervisor.role !== 'supervisor' && supervisor.role !== 'encargado_area')) {
         return res.status(403).json({ message: "No autorizado como supervisor" });
       }
 
@@ -4417,7 +4417,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/api-keys', requireCommercialAccess, async (req: any, res) => {
     try {
       // Only admin and supervisor can view API keys
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -5314,7 +5314,7 @@ export function registerRoutes(app: Express): Server {
       console.log('[DEBUG] userRecord:', userRecord);
       console.log('[DEBUG] userRecord.role:', userRecord?.role);
 
-      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
+      if (userRecord?.role !== 'admin' && (userRecord?.role !== 'supervisor' && userRecord?.role !== 'encargado_area')) {
         console.log('[DEBUG] Access denied - role is not admin or supervisor');
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden actualizar usuarios.' });
       }
@@ -5389,7 +5389,7 @@ export function registerRoutes(app: Express): Server {
       userId = req.user.id;
       userRecord = req.user;
 
-      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
+      if (userRecord?.role !== 'admin' && (userRecord?.role !== 'supervisor' && userRecord?.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden eliminar usuarios.' });
       }
 
@@ -5416,7 +5416,7 @@ export function registerRoutes(app: Express): Server {
       userId = req.user.id;
       userRecord = req.user;
 
-      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor' && userRecord?.role !== 'tecnico_obra') {
+      if (userRecord?.role !== 'admin' && (userRecord?.role !== 'supervisor' && userRecord?.role !== 'encargado_area') && userRecord?.role !== 'tecnico_obra') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores, supervisores y técnicos pueden acceder a la gestión de usuarios.' });
       }
 
@@ -5577,7 +5577,7 @@ export function registerRoutes(app: Express): Server {
       const { supervisorId } = req.params;
 
       // Verificar que el usuario logueado es el supervisor
-      if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
+      if (userRecord?.id !== supervisorId || (userRecord?.role !== 'supervisor' && userRecord?.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo el supervisor puede crear metas para sus vendedores' });
       }
 
@@ -5626,7 +5626,7 @@ export function registerRoutes(app: Express): Server {
       const { supervisorId, goalId } = req.params;
 
       // Verificar que el usuario logueado es el supervisor
-      if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
+      if (userRecord?.id !== supervisorId || (userRecord?.role !== 'supervisor' && userRecord?.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo el supervisor puede editar metas de sus vendedores' });
       }
 
@@ -6842,7 +6842,7 @@ export function registerRoutes(app: Express): Server {
 
   // Rename agrupación (variant_generic_display_name) for a product family
   app.patch('/api/products/grouped-catalog/rename', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -6919,7 +6919,7 @@ export function registerRoutes(app: Express): Server {
   // and cleans up references in app_config. The SAP price_list entries remain intact
   // and the SKUs will reappear in the "Publicar productos" list.
   app.delete('/api/products/grouped-catalog/family', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -8564,7 +8564,7 @@ export function registerRoutes(app: Express): Server {
         const order = result[0];
         if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
         // Allow owner or admin/supervisor
-        if (order.clientId !== user.id && !['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
+        if (order.clientId !== user.id && !['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
           return res.status(403).json({ message: 'No autorizado' });
         }
         return res.json(order);
@@ -8575,7 +8575,7 @@ export function registerRoutes(app: Express): Server {
       if (user.role === 'salesperson') {
         // Salesperson sees only their assigned orders
         filters.salespersonId = user.id;
-      } else if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception') {
+      } else if (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'reception') {
         // Admin/supervisor see all orders
         // Optionally filter by status if provided
         if (req.query.status && req.query.status !== 'all') {
@@ -8615,7 +8615,7 @@ export function registerRoutes(app: Express): Server {
       const filters: any = { status: 'pending' };
       if (user.role === 'salesperson') {
         filters.salespersonId = user.id;
-      } else if (user.role === 'admin' || user.role === 'supervisor') {
+      } else if (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Admin/supervisor ven todos los pendientes
       } else {
         return res.json({ count: 0 }); // Other roles don't see this badge
@@ -8635,7 +8635,7 @@ export function registerRoutes(app: Express): Server {
     const { status } = req.body;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -8766,7 +8766,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'reception'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -8853,7 +8853,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -8944,7 +8944,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9027,7 +9027,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor', 'salesperson', 'reception'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado para generar cotizaciones' });
     }
 
@@ -9268,7 +9268,7 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
-    if (order.clientId !== user.id && !['admin', 'supervisor'].includes(user.role)) {
+    if (order.clientId !== user.id && !['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado para modificar este pedido' });
     }
 
@@ -9288,7 +9288,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'Solo admin o supervisor pueden eliminar pedidos' });
     }
 
@@ -9312,7 +9312,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const user = req.user;
 
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'Solo admin o supervisor pueden adjuntar facturas' });
     }
 
@@ -9389,7 +9389,7 @@ export function registerRoutes(app: Express): Server {
     const user = req.user;
     const invoiceIndex = parseInt(index);
 
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'Solo admin o supervisor pueden eliminar facturas' });
     }
 
@@ -9449,7 +9449,7 @@ export function registerRoutes(app: Express): Server {
   // Update shipping rates
   app.put('/api/ecommerce/shipping-rates', requireAuth, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9499,7 +9499,7 @@ export function registerRoutes(app: Express): Server {
   // Update free shipping threshold
   app.put('/api/ecommerce/free-shipping-threshold', requireAuth, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9551,7 +9551,7 @@ export function registerRoutes(app: Express): Server {
   // Update topbar config (admin only)
   app.put('/api/ecommerce/topbar-config', requireAuth, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
-    if (!['admin', 'supervisor'].includes(user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9605,7 +9605,7 @@ export function registerRoutes(app: Express): Server {
 
   // Create a new custom category
   app.post('/api/ecommerce/categories-config', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9650,7 +9650,7 @@ export function registerRoutes(app: Express): Server {
 
   // Delete a custom category
   app.delete('/api/ecommerce/categories-config/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9686,7 +9686,7 @@ export function registerRoutes(app: Express): Server {
 
   // Rename a custom category
   app.patch('/api/ecommerce/categories-config/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9743,7 +9743,7 @@ export function registerRoutes(app: Express): Server {
 
   // Reorder categories (swap two categories)
   app.put('/api/ecommerce/categories-config/reorder', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9785,7 +9785,7 @@ export function registerRoutes(app: Express): Server {
 
   // Assign a product family to a category (update group_name)
   app.patch('/api/ecommerce/product-category', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9864,7 +9864,7 @@ export function registerRoutes(app: Express): Server {
 
   // Save product display order (array of generic product names in desired order)
   app.put('/api/ecommerce/product-order', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9888,7 +9888,7 @@ export function registerRoutes(app: Express): Server {
 
   // Swap product position up/down (arrow-based reordering like categories)
   app.put('/api/ecommerce/product-order/swap', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -9969,7 +9969,7 @@ export function registerRoutes(app: Express): Server {
 
   // Save tags (full replace) — also cascade-remove deleted tags from products
   app.put('/api/ecommerce/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -10047,7 +10047,7 @@ export function registerRoutes(app: Express): Server {
 
   // Save product group image (single product)
   app.put('/api/ecommerce/product-group-images', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
@@ -10128,7 +10128,7 @@ export function registerRoutes(app: Express): Server {
 
   // Get account requests (admin only)
   app.get('/api/ecommerce/account-requests', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
     const { db } = await import('./db');
@@ -10146,7 +10146,7 @@ export function registerRoutes(app: Express): Server {
 
   // Update account request status (admin only)
   app.patch('/api/ecommerce/account-requests/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
     const { id } = req.params;
@@ -10267,7 +10267,7 @@ export function registerRoutes(app: Express): Server {
 
   // Update landing content (admin/supervisor only)
   app.put('/api/panoramica-market/landing', requireAuth, asyncHandler(async (req: any, res: any) => {
-    if (!['admin', 'supervisor'].includes(req.user.role)) {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
     }
     const body = req.body || {};
@@ -11147,7 +11147,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Check if user has access to this task
-      const canAccess = user.role === 'admin' || user.role === 'supervisor' ||
+      const canAccess = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ||
         task.createdByUserId === user.id ||
         task.assignments.some(assignment =>
           (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
@@ -11170,7 +11170,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Admin, supervisor and tecnico_obra can create tasks
-      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'tecnico_obra') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'tecnico_obra') {
         return res.status(403).json({ message: "Only administrators, supervisors and technical staff can create tasks" });
       }
 
@@ -11264,7 +11264,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Only admin, supervisor, or task creator can update task
-      const canUpdate = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+      const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
@@ -11347,7 +11347,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Only admin, supervisor, or task creator can delete task
-      const canDelete = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+      const canDelete = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this task" });
       }
@@ -11397,7 +11397,7 @@ export function registerRoutes(app: Express): Server {
       const isAssignee = 
         ((assignment.assigneeType === "user" || assignment.assigneeType === "supervisor" || assignment.assigneeType === "salesperson") && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
-      const isAdminOrSupervisor = user.role === 'admin' || user.role === 'supervisor';
+      const isAdminOrSupervisor = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!isAssignee && !isAdminOrSupervisor) {
         return res.status(403).json({ message: "Not authorized to update this assignment" });
@@ -11611,7 +11611,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, and salesperson can view users list
-      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -11627,7 +11627,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/users/clients', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -11909,7 +11909,7 @@ export function registerRoutes(app: Express): Server {
       const { q } = req.query;
 
       // Only admin, supervisor, and salesperson can view client list
-      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -11960,7 +11960,7 @@ export function registerRoutes(app: Express): Server {
         : null;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12028,7 +12028,7 @@ export function registerRoutes(app: Express): Server {
       const { clientId } = req.body;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12076,7 +12076,7 @@ export function registerRoutes(app: Express): Server {
       const { userId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12126,7 +12126,7 @@ export function registerRoutes(app: Express): Server {
       const { userId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12265,7 +12265,7 @@ export function registerRoutes(app: Express): Server {
       const { branchId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12404,7 +12404,7 @@ export function registerRoutes(app: Express): Server {
       const { clientId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12470,7 +12470,7 @@ export function registerRoutes(app: Express): Server {
       const { clientId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12583,7 +12583,7 @@ export function registerRoutes(app: Express): Server {
       const { clientId } = req.params;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12659,7 +12659,7 @@ export function registerRoutes(app: Express): Server {
       const { branchClientId } = req.body;
       const user = req.user;
 
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
 
@@ -12730,10 +12730,10 @@ export function registerRoutes(app: Express): Server {
 
   // ==================== NOTIFICATIONS SYSTEM ====================
   // Authorized roles for creating notifications
-  const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
+  const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'encargado_area', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
 
   // Authorized roles for archiving notifications
-  const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor'];
+  const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor', 'encargado_area'];
 
   // Get unread notification count for current user
   app.get('/api/notifications/unread-count', requireAuth, async (req: any, res) => {
@@ -12922,7 +12922,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can create orders
-      if (!['admin', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: "Not authorized to create orders" });
       }
 
@@ -12965,7 +12965,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can update orders
-      const canUpdate = user.role === 'admin' || user.role === 'supervisor';
+      const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this order" });
@@ -13009,7 +13009,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can delete orders
-      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      const canDelete = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this order" });
@@ -13058,7 +13058,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can add order items
-      const canAddItems = user.role === 'admin' || user.role === 'supervisor';
+      const canAddItems = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canAddItems) {
         return res.status(403).json({ message: "Not authorized to add items to this order" });
@@ -13138,14 +13138,14 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Role-based access control - only admin, supervisor and salesperson can create quotes
-      const canCreate = ['admin', 'supervisor', 'salesperson'].includes(user.role);
+      const canCreate = ['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role);
 
       if (!canCreate) {
         return res.status(403).json({ message: "Not authorized to create quotes" });
       }
 
       // Allow admin/supervisor to assign the quote to a different user (salesperson)
-      const effectiveCreatedBy = (['admin', 'supervisor'].includes(user.role) && req.body.createdBy)
+      const effectiveCreatedBy = (['admin', 'supervisor', 'encargado_area'].includes(user.role) && req.body.createdBy)
         ? req.body.createdBy
         : user.id;
 
@@ -13241,7 +13241,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      if (!['admin', 'supervisor', 'reception'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       const { entered, notes } = req.body || {};
@@ -13427,7 +13427,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can delete quotes
-      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      const canDelete = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this quote" });
@@ -13648,7 +13648,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin, supervisor and quote creator can convert
-      const canConvert = user.role === 'admin' || user.role === 'supervisor' || quote.createdBy === user.id;
+      const canConvert = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || quote.createdBy === user.id;
 
       if (!canConvert) {
         return res.status(403).json({ message: "Not authorized to convert this quote" });
@@ -13760,7 +13760,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - admin, supervisor, and quote creator can duplicate
-      const canDuplicate = user.role === 'admin' || user.role === 'supervisor' || originalQuote.createdBy === user.id;
+      const canDuplicate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || originalQuote.createdBy === user.id;
 
       if (!canDuplicate) {
         return res.status(403).json({ message: "Not authorized to duplicate this quote" });
@@ -13791,7 +13791,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control
-      const canView = user.role === 'admin' || user.role === 'supervisor' || order.createdBy === user.id;
+      const canView = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || order.createdBy === user.id;
 
       if (!canView) {
         return res.status(403).json({ message: "Access denied to this order" });
@@ -13822,7 +13822,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can update order items
-      const canUpdate = user.role === 'admin' || user.role === 'supervisor';
+      const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this order item" });
@@ -13862,7 +13862,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control - only admin and supervisor can delete order items
-      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      const canDelete = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this order item" });
@@ -14107,7 +14107,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Role-based access control
-      const canSend = user.role === 'admin' || user.role === 'supervisor' || user.role === 'reception' || quote.createdBy === user.id;
+      const canSend = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'reception' || quote.createdBy === user.id;
       if (!canSend) {
         return res.status(403).json({ message: "Not authorized to send this quote" });
       }
@@ -14117,7 +14117,7 @@ export function registerRoutes(app: Express): Server {
 
       // Resolve assigned salesperson (admin/supervisor can send on behalf of any salesperson)
       let assignedSalesperson: { name: string; email?: string } | null = null;
-      const isAdmin = user.role === 'admin' || user.role === 'supervisor';
+      const isAdmin = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
       const targetId = (isAdmin && salespersonId) ? salespersonId : (quote.createdBy || user.id);
       try {
         const { salespeopleUsers } = await import('@shared/schema');
@@ -14392,7 +14392,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -14466,7 +14466,7 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/price-list/bulk-offer-price', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "No autorizado para modificar precios de oferta" });
       }
 
@@ -14566,7 +14566,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can create price list items
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized to create price list items" });
       }
 
@@ -14597,7 +14597,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can update price list items
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized to update price list items" });
       }
 
@@ -14633,7 +14633,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can delete price list items
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
 
@@ -14656,7 +14656,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can delete all price list items
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
 
@@ -14674,7 +14674,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can import price list
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized to import price list" });
       }
 
@@ -14929,7 +14929,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-mix', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix, insertPriceListMixSchema } = await import('@shared/schema');
@@ -14947,7 +14947,7 @@ export function registerRoutes(app: Express): Server {
 
   app.patch('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -14965,7 +14965,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -14979,7 +14979,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-mix', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -14995,7 +14995,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-mix/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -15036,7 +15036,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-mix/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       if (!req.file) {
@@ -15192,7 +15192,7 @@ export function registerRoutes(app: Express): Server {
   // Create a new custom price list
   app.post('/api/custom-price-lists', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { name } = req.body;
@@ -15221,7 +15221,7 @@ export function registerRoutes(app: Express): Server {
   // Update a custom price list
   app.patch('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -15246,7 +15246,7 @@ export function registerRoutes(app: Express): Server {
   // Delete a custom price list and all its items
   app.delete('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -15353,7 +15353,7 @@ export function registerRoutes(app: Express): Server {
   // Add item to a custom price list
   app.post('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -15376,7 +15376,7 @@ export function registerRoutes(app: Express): Server {
   // Update item in a custom price list
   app.patch('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { customPriceListItems } = await import('@shared/schema');
@@ -15395,7 +15395,7 @@ export function registerRoutes(app: Express): Server {
   // Delete single item from a custom price list
   app.delete('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { customPriceListItems } = await import('@shared/schema');
@@ -15410,7 +15410,7 @@ export function registerRoutes(app: Express): Server {
   // Delete all items from a custom price list
   app.delete('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -15426,7 +15426,7 @@ export function registerRoutes(app: Express): Server {
   // Bulk price adjustment for a specific custom price list
   app.post('/api/custom-price-lists/:code/items/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -15465,7 +15465,7 @@ export function registerRoutes(app: Express): Server {
   // Import CSV for a specific custom price list
   app.post('/api/custom-price-lists/:code/items/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor'].includes(req.user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       if (!req.file) {
@@ -15639,7 +15639,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-offers', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers, insertPriceListOffersSchema } = await import('@shared/schema');
@@ -15657,7 +15657,7 @@ export function registerRoutes(app: Express): Server {
 
   app.patch('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers } = await import('@shared/schema');
@@ -15675,7 +15675,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers } = await import('@shared/schema');
@@ -15689,7 +15689,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-offers', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers } = await import('@shared/schema');
@@ -15705,7 +15705,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-offers/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -15757,7 +15757,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-offers/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -19727,7 +19727,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // 2. Verificar autorización: solo el técnico asignado, vendedor, admin o supervisor pueden editar
-      const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
+      const rolesPermitidos = ['admin', 'supervisor', 'encargado_area', 'gerente'];
       const esTecnicoAsignado = visitaExistente.tecnicoId === userId;
       const esVendedorAsignado = visitaExistente.vendedorId === userId;
       const tieneRolPermitido = rolesPermitidos.includes(userRole);
@@ -20024,7 +20024,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Verificar permisos: admin, supervisor, gerente, o el técnico/vendedor asignado a la visita
-      const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
+      const rolesPermitidos = ['admin', 'supervisor', 'encargado_area', 'gerente'];
       let tienePermiso = rolesPermitidos.includes(userRole);
 
       if (!tienePermiso && evidencia.visitaId) {
@@ -20548,7 +20548,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only salesperson, admin, supervisor, and tecnico_obra can create reclamos
-      const allowedRoles = ['salesperson', 'admin', 'supervisor', 'tecnico_obra'];
+      const allowedRoles = ['salesperson', 'admin', 'supervisor', 'encargado_area', 'tecnico_obra'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({
           message: 'No tiene permisos para crear reclamos. Solo vendedores, administradores, supervisores y técnicos pueden crear reclamos.'
@@ -21024,7 +21024,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -21051,7 +21051,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -21075,7 +21075,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -21099,7 +21099,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only specific roles can create mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para crear solicitudes de mantención' });
       }
@@ -21189,7 +21189,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can update
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para actualizar solicitudes de mantención' });
       }
@@ -21257,7 +21257,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only specific roles can upload photos
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir fotos' });
       }
@@ -21319,7 +21319,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can assign técnico
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para asignar técnicos' });
       }
@@ -21362,7 +21362,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can change estado
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para cambiar estado' });
       }
@@ -21407,7 +21407,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can submit resolucion
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No tiene permisos para enviar resoluciones' });
       }
@@ -21515,7 +21515,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can close
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para cerrar solicitudes' });
       }
@@ -21539,7 +21539,7 @@ export function registerRoutes(app: Express): Server {
   // ===== NUEVAS FUNCIONALIDADES AVANZADAS OT =====
 
   // Pausar OT (solo admin, supervisor, produccion)
-  app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -21574,7 +21574,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Reanudar OT (solo admin, supervisor, produccion)
-  app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -21646,7 +21646,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can add gastos
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para agregar gastos' });
       }
@@ -21707,7 +21707,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can update asignacion
-      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
+      const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para actualizar asignación' });
       }
@@ -23038,7 +23038,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/presupuesto-items', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       const item = await storage.createPresupuestoMarketingItem(req.body);
@@ -23051,7 +23051,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/presupuesto-items/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       const item = await storage.updatePresupuestoMarketingItem(req.params.id, req.body);
@@ -23143,7 +23143,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/gastos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden registrar gastos' });
       }
       const gasto = await storage.createGastoMarketing({
@@ -23159,7 +23159,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden editar gastos' });
       }
       const gasto = await storage.updateGastoMarketing(req.params.id, req.body);
@@ -23172,7 +23172,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden eliminar gastos' });
       }
       await storage.deleteGastoMarketing(req.params.id);
@@ -23223,7 +23223,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/creatividades/:id/aprobar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden aprobar ideas' });
       }
       const result = await storage.updateCreatividadMarketing(req.params.id, {
@@ -23240,7 +23240,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/creatividades/:id/rechazar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden rechazar ideas' });
       }
       const { motivoRechazo } = req.body;
@@ -23296,7 +23296,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden crear proveedores' });
       }
       const proveedor = await storage.createProveedorMarketing(req.body);
@@ -23309,7 +23309,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden editar proveedores' });
       }
       const proveedor = await storage.updateProveedorMarketing(req.params.id, req.body);
@@ -23322,7 +23322,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden eliminar proveedores' });
       }
       await storage.deleteProveedorMarketing(req.params.id);
@@ -23338,7 +23338,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Admin, supervisor and salesperson can create solicitudes
-      if (user.role !== 'supervisor' && user.role !== 'admin' && user.role !== 'salesperson') {
+      if ((user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'admin' && user.role !== 'salesperson') {
         return res.status(403).json({ message: 'Solo administradores, supervisores y vendedores pueden crear solicitudes' });
       }
 
@@ -23353,13 +23353,13 @@ export function registerRoutes(app: Express): Server {
         }
 
         // Only allow admin, supervisor or salesperson roles
-        if (!['admin', 'supervisor', 'salesperson'].includes(solicitante.role)) {
+        if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(solicitante.role)) {
           return res.status(400).json({ message: 'El usuario seleccionado debe ser administrador, supervisor o vendedor' });
         }
 
         solicitanteId = solicitante.id;
         solicitanteName = `${solicitante.firstName} ${solicitante.lastName}`;
-      } else if ((user.role === 'supervisor' || user.role === 'salesperson') && req.body.solicitanteId) {
+      } else if (((user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'salesperson') && req.body.solicitanteId) {
         // Supervisors and salespersons can only create for themselves
         if (parseInt(req.body.solicitanteId) !== user.id) {
           return res.status(403).json({ message: 'Solo puedes crear solicitudes a tu nombre' });
@@ -23432,7 +23432,7 @@ export function registerRoutes(app: Express): Server {
       if (estado) filters.estado = estado as string;
 
       // Supervisors can only see their own solicitudes
-      if (user.role === 'supervisor') {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         filters.supervisorId = user.id;
       }
 
@@ -23471,7 +23471,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
       }
 
-      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -23549,11 +23549,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Supervisor can update their own solicitudes, admin can update all
-      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -23581,11 +23581,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Supervisor can update their own solicitudes, admin can update all
-      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -23616,11 +23616,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Supervisor can update their own solicitudes, admin can update all
-      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -23644,11 +23644,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Supervisor can upload to their own solicitudes, admin can upload to all
-      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -23849,7 +23849,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can create hitos
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para crear hitos' });
       }
 
@@ -23874,7 +23874,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can update hitos
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para editar hitos' });
       }
 
@@ -23920,7 +23920,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/competidores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para crear competidores' });
       }
       const competidor = await storage.createCompetidor(req.body);
@@ -23934,7 +23934,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/competidores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para editar competidores' });
       }
       const competidor = await storage.updateCompetidor(req.params.id, req.body);
@@ -24009,7 +24009,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/productos-monitoreo', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para crear productos de monitoreo' });
       }
       const productoData = {
@@ -24032,7 +24032,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para editar productos de monitoreo' });
       }
       const producto = await storage.updateProductoMonitoreo(req.params.id, req.body);
@@ -24128,7 +24128,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para eliminar precios' });
       }
       await storage.deletePrecioCompetencia(req.params.id);
@@ -24182,7 +24182,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin and supervisor can create tareas
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
       }
 
@@ -24234,7 +24234,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Admin and supervisor can toggle any tarea, assigned users can toggle their own
-      if (user.role !== 'admin' && user.role !== 'supervisor' && tarea.asignadoAId !== user.id) {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && tarea.asignadoAId !== user.id) {
         return res.status(403).json({ message: 'No autorizado para modificar el estado de esta tarea' });
       }
 
@@ -24273,7 +24273,7 @@ export function registerRoutes(app: Express): Server {
       const { mes, anio, estado, tipo, asignadoAId } = req.query;
 
       // Solo admin, supervisor y salesperson pueden acceder
-      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: 'No tienes permisos para acceder a las tareas' });
       }
 
@@ -24287,7 +24287,7 @@ export function registerRoutes(app: Express): Server {
       if (user.role === 'salesperson') {
         // Vendedor solo ve sus propias tareas asignadas
         filters.asignadoAId = user.id;
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisor ve sus tareas y las de sus vendedores
         if (asignadoAId) {
           filters.asignadoAId = asignadoAId;
@@ -24314,7 +24314,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'No tienes permisos para ver usuarios asignables' });
       }
 
@@ -24323,8 +24323,8 @@ export function registerRoutes(app: Express): Server {
       if (user.role === 'admin') {
         // Admin puede asignar a cualquier usuario con rol comercial
         const allUsers = await storage.getAllUsers();
-        usuarios = allUsers.filter((u: any) => ['admin', 'supervisor', 'salesperson'].includes(u.role));
-      } else if (user.role === 'supervisor') {
+        usuarios = allUsers.filter((u: any) => ['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(u.role));
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisor puede asignar a sí mismo y a sus vendedores
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const currentUser = await storage.getUserById(user.id);
@@ -24357,7 +24357,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No tienes permisos para ver esta tarea' });
       }
 
-      if (user.role === 'supervisor') {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
         vendedorIds.push(user.id);
@@ -24378,14 +24378,14 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Solo admin y supervisor pueden crear tareas
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
         return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
       }
 
       const { asignadoAId, tipo = 'general' } = req.body;
 
       // Validar que supervisor solo puede asignar a sus vendedores
-      if (user.role === 'supervisor' && asignadoAId && asignadoAId !== user.id) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && asignadoAId && asignadoAId !== user.id) {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
         if (!vendedorIds.includes(asignadoAId)) {
@@ -24446,7 +24446,7 @@ export function registerRoutes(app: Express): Server {
         return res.json(updated);
       }
 
-      if (user.role === 'supervisor') {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
         vendedorIds.push(user.id);
@@ -24492,7 +24492,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
       }
 
-      if (user.role === 'supervisor') {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
         vendedorIds.push(user.id);
@@ -25550,7 +25550,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Sync sales from ERP to PostgreSQL
-  app.post('/api/etl/sync-sales', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/etl/sync-sales', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!user || !user.id || !user.email) {
@@ -25636,7 +25636,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get sales sync history
-  app.get('/api/etl/sync-sales/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/sync-sales/history', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
       const history = await storage.getSalesSyncHistory(limit);
@@ -25647,7 +25647,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get last sales watermark (for incremental sync)
-  app.get('/api/etl/sync-sales/watermark', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/sync-sales/watermark', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const watermark = await storage.getLastSalesWatermark();
       res.json({ watermark });
@@ -25661,7 +25661,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Sync GDV from ERP to PostgreSQL
-  app.post('/api/etl/sync-gdv', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/etl/sync-gdv', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!user || !user.id || !user.email) {
@@ -25694,7 +25694,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV sync history
-  app.get('/api/etl/sync-gdv/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/sync-gdv/history', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Validate and clamp limit/offset
       let limit = 20;
@@ -25724,7 +25724,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV summary (totales por estado)
-  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize sucursales: handle both comma-delimited strings and repeated query params
       let sucursales: string[] | undefined = undefined;
@@ -25749,7 +25749,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV by vendedor
-  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const filters = {
         startDate: req.query.startDate as string | undefined,
@@ -25764,7 +25764,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV pending records (all individual records)
-  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'logistica_bodega']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'encargado_area', 'logistica_bodega']), asyncHandler(async (req: any, res: any) => {
     try {
       const limit = parseInt(req.query.limit as string) || 500;
       const records = await storage.getGdvPendingRecords(limit);
@@ -25807,7 +25807,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Sync NVV from ERP to PostgreSQL
-  app.post('/api/etl/sync-nvv', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/etl/sync-nvv', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!user || !user.id || !user.email) {
@@ -25837,7 +25837,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV sync history
-  app.get('/api/etl/sync-nvv/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/sync-nvv/history', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Validate and clamp limit/offset
       let limit = 20;
@@ -25867,7 +25867,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV summary (totales por estado)
-  app.get('/api/etl/nvv/summary', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/summary', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -25897,7 +25897,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV by sucursal
-  app.get('/api/etl/nvv/by-sucursal', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/by-sucursal', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -25927,7 +25927,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV by vendedor
-  app.get('/api/etl/nvv/by-vendedor', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -25957,7 +25957,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV by bodega
-  app.get('/api/etl/nvv/by-bodega', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/by-bodega', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -25987,7 +25987,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV by segmento cliente
-  app.get('/api/etl/nvv/by-segmento-cliente', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/by-segmento-cliente', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -26017,7 +26017,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV documents (paginated list)
-  app.get('/api/etl/nvv/documents', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/documents', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize array query params
       const normalizeArray = (raw: any): string[] | undefined => {
@@ -26067,7 +26067,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV state changes (document-level change tracking)
-  app.get('/api/etl/nvv/state-changes', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/nvv/state-changes', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
     try {
       const executionId = req.query.executionId as string | undefined;
       let limit = 50;
@@ -26107,7 +26107,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only salesperson, supervisor, admin and recursos_humanos can upload evidence
-      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir evidencia' });
       }
 
@@ -26353,7 +26353,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -26460,14 +26460,14 @@ Instrucciones extra:
       const user = req.user;
 
       // Only salesperson, supervisor, admin and recursos_humanos can create expenses
-      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
 
       // Admin and supervisor can create expenses on behalf of other users
       // Salesperson can only create their own expenses
       let targetUserId = user.id;
-      if (['admin', 'supervisor'].includes(user.role) && req.body.userId) {
+      if (['admin', 'supervisor', 'encargado_area'].includes(user.role) && req.body.userId) {
         targetUserId = req.body.userId;
       }
 
@@ -26643,7 +26643,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden aprobar gastos' });
       }
 
@@ -26659,7 +26659,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden rechazar gastos' });
       }
 
@@ -26759,7 +26759,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -26791,7 +26791,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores pueden aprobar en esta etapa' });
       }
 
@@ -26834,7 +26834,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores pueden rechazar en esta etapa' });
       }
 
@@ -27106,7 +27106,7 @@ Instrucciones extra:
       const user = req.user;
 
       // Only admin, recursos_humanos and supervisor can see all users
-      if (!['admin', 'recursos_humanos', 'supervisor'].includes(user.role)) {
+      if (!['admin', 'recursos_humanos', 'supervisor', 'encargado_area'].includes(user.role)) {
         // For other roles, just return their own user info
         return res.json([{ userId: user.id, userName: user.fullName || user.username }]);
       }
@@ -27130,7 +27130,7 @@ Instrucciones extra:
       // Supervisor, recursos_humanos and admin can see all
       if (user.role === 'salesperson') {
         filters.userId = user.id;
-      } else if (!['admin', 'recursos_humanos', 'supervisor'].includes(user.role)) {
+      } else if (!['admin', 'recursos_humanos', 'supervisor', 'encargado_area'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       } else if (userId) {
         // Admin/HR/Supervisor can filter by specific user
@@ -27455,7 +27455,7 @@ Instrucciones extra:
       const { all } = req.query;
 
       // Salesperson and supervisor can only see their own
-      if ((user.role === 'salesperson' || user.role === 'supervisor') && user.id !== targetUserId) {
+      if ((user.role === 'salesperson' || (user.role === 'supervisor' || user.role === 'encargado_area')) && user.id !== targetUserId) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -27477,7 +27477,7 @@ Instrucciones extra:
       let targetUserId: string | undefined;
 
       // Salesperson and supervisor can only see their own fund summary
-      if (user.role === 'salesperson' || user.role === 'supervisor') {
+      if (user.role === 'salesperson' || (user.role === 'supervisor' || user.role === 'encargado_area')) {
         targetUserId = user.id;
       } else if (userId) {
         targetUserId = userId as string;
@@ -27614,7 +27614,7 @@ Instrucciones extra:
   app.get('/api/fund-allocations/pending/supervisor', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -27644,7 +27644,7 @@ Instrucciones extra:
   app.post('/api/fund-allocations/:id/supervisor-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -27686,7 +27686,7 @@ Instrucciones extra:
   app.post('/api/fund-allocations/:id/supervisor-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -27951,7 +27951,7 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+      if (!['salesperson', 'supervisor', 'encargado_area', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -28049,7 +28049,7 @@ Instrucciones extra:
       // Salesperson can only see their own data
       if (user.role === 'salesperson') {
         filters.vendedorId = user.id;
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisor can only see data from salespeople under their supervision
         // Uses the same method as the salespeople dropdown for consistency
         const salespeopleUnderSupervisor = await storage.getSalespeopleUnderSupervisor(user.id);
@@ -28097,7 +28097,7 @@ Instrucciones extra:
           } else if (user.role === 'salesperson') {
             // Salesperson can delete their own promesas
             canDelete = item.promesa.vendedorId === user.id;
-          } else if (user.role === 'supervisor') {
+          } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
             // Supervisor can delete promesas of salespeople under their supervision
             const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
             canDelete = salespersonUser?.supervisorId === user.id;
@@ -28177,7 +28177,7 @@ Instrucciones extra:
         if (promesa.vendedorId !== user.id) {
           return res.status(403).json({ message: 'No autorizado para eliminar esta promesa' });
         }
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisor puede eliminar promesas de vendedores bajo su supervisión
         const salespersonUser = await storage.getSalespersonUserById(promesa.vendedorId);
 
@@ -30018,7 +30018,7 @@ Instrucciones extra:
           });
         }
         filters.salespersonCode = userSalespersonCode;
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisors can only see data from their segment
         if (!user.assignedSegment) {
           return res.status(403).json({
@@ -30063,7 +30063,7 @@ Instrucciones extra:
       let salespeople = await storage.getSalespeopleList();
 
       // Filter salespeople by segment for supervisors
-      if (user.role === 'supervisor' && user.assignedSegment) {
+      if ((user.role === 'supervisor' || user.role === 'encargado_area') && user.assignedSegment) {
         // Get salespeople who have sales in the supervisor's segment
         const salespeopleInSegment = await storage.getSalespeopleBySegment(user.assignedSegment);
         const validCodes = new Set(salespeopleInSegment.map((s: any) => s.code));
@@ -30117,7 +30117,7 @@ Instrucciones extra:
           });
         }
         filters.salespersonCode = userSalespersonCode;
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisors can only see projections from their segment
         if (!user.assignedSegment) {
           return res.status(403).json({
@@ -30173,7 +30173,7 @@ Instrucciones extra:
             message: "No tienes permiso para crear proyecciones para otros vendedores"
           });
         }
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisors can only create/edit projections for their segment
         if (validated.segment && validated.segment !== user.assignedSegment) {
           return res.status(403).json({
@@ -30228,7 +30228,7 @@ Instrucciones extra:
             message: "No tienes permiso para eliminar proyecciones de otros vendedores"
           });
         }
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisors can only delete projections from their segment
         if (projection.segment !== user.assignedSegment) {
           return res.status(403).json({
@@ -30273,7 +30273,7 @@ Instrucciones extra:
           });
         }
         filters.salespersonCode = userSalespersonCode;
-      } else if (user.role === 'supervisor') {
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         if (!user.assignedSegment) {
           return res.status(403).json({
             message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador."
@@ -31919,7 +31919,7 @@ Instrucciones extra:
       } else {
         return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
       }
-    } else if (vendedorFilter && (user.role === 'admin' || user.role === 'supervisor')) {
+    } else if (vendedorFilter && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
     }
 
@@ -31966,7 +31966,7 @@ Instrucciones extra:
       } else {
         return res.json([]);
       }
-    } else if (vendedor && (user.role === 'admin' || user.role === 'supervisor')) {
+    } else if (vendedor && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
     }
 
@@ -32202,7 +32202,7 @@ Instrucciones extra:
       }
       vendedorId = spUser[0].id;
       vendedorNombre = spUser[0].salespersonName;
-    } else if (req.body.vendedorId && (user.role === 'admin' || user.role === 'supervisor')) {
+    } else if (req.body.vendedorId && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       // Admin/supervisor can assign to a specific salesperson
       const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
       if (spUser.length === 0) {
@@ -32313,7 +32313,7 @@ Instrucciones extra:
     }
 
     // Handle vendedor reassignment (admin/supervisor only)
-    if (req.body.vendedorId && (user.role === 'admin' || user.role === 'supervisor')) {
+    if (req.body.vendedorId && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       const [newVendedor] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
       if (newVendedor) {
         updateData.vendedorId = newVendedor.id;
@@ -32683,7 +32683,7 @@ Instrucciones extra:
     // Role-based filtering: salespeople only see their own fichas
     if (user.role === 'salesperson') {
       conditions.push(eq(crmAyudaMemoria.creadoPor, user.id));
-    } else if (vendedor && (user.role === 'admin' || user.role === 'supervisor')) {
+    } else if (vendedor && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       conditions.push(eq(crmAyudaMemoria.creadoPor, vendedor as string));
     }
 

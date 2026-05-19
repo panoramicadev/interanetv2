@@ -32,7 +32,7 @@ export default function MisVendedoresPage() {
   // Only fetch if user is a supervisor
   const { data: salespeople, isLoading } = useQuery<SalespersonData[]>({
     queryKey: [`/api/supervisor/${user?.id}/salespeople`],
-    enabled: !!user && user.role === 'supervisor',
+    enabled: !!user && (user.role === 'supervisor' || user.role === 'encargado_area'),
   });
 
   const formatCurrency = (amount: number) => {
@@ -68,7 +68,7 @@ export default function MisVendedoresPage() {
     );
   }
 
-  if (!isAuthenticated || user?.role !== 'supervisor') {
+  if (!isAuthenticated || (user?.role !== 'supervisor' && user?.role !== 'encargado_area')) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

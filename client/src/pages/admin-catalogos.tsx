@@ -160,7 +160,7 @@ export default function AdminCatalogos() {
     );
   });
 
-  const salespeopleOnly = filteredUsers.filter(u => u.role === 'salesperson' || u.role === 'supervisor');
+  const salespeopleOnly = filteredUsers.filter(u => u.role === 'salesperson' || (u.role === 'supervisor' || u.role === 'encargado_area'));
 
   if (isLoading) {
     return (
