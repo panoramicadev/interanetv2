@@ -6811,8 +6811,12 @@ export function registerRoutes(app: Express): Server {
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
   }));
 
-  // Toggle tags on product family (admin only)
+  // Toggle tags on product family
   app.patch('/api/products/grouped-catalog/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
     const { productFamily, tag, action } = req.body; // action: 'add' | 'remove'
     if (!productFamily || !tag) {
       return res.status(400).json({ message: 'productFamily y tag son requeridos' });

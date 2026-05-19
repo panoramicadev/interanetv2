@@ -2415,7 +2415,7 @@ export default function ProductsPage() {
     );
   }
 
-  if (!isAuthenticated || user?.role !== 'admin') {
+  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area')) {
     return null;
   }
 
