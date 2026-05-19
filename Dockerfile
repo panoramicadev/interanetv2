@@ -1,11 +1,88 @@
+# syntax=docker/dockerfile:1.7
 # Build + runtime image for Panorámica intranet.
-# Includes Chromium dependencies so @sparticuz/chromium / puppeteer-core can render PDFs.
-# Railway picks Dockerfile over nixpacks.toml automatically when present.
+# Multi-stage: el builder compila `canvas` desde fuente y hace el build de Vite/esbuild;
+# el runtime se queda solo con las libs runtime de Chromium (sin toolchain de C).
+# Railway elige Dockerfile sobre nixpacks.toml cuando está presente.
 
-FROM node:20-bookworm-slim AS base
+# ---------------------------------------------------------------------------
+# Stage 1: builder
+# ---------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS builder
 
-# Chrome/Chromium runtime libraries (everything @sparticuz/chromium binary needs).
-# Source: https://pptr.dev/troubleshooting#running-puppeteer-on-aws-lambda
+# Runtime libs de Chromium + toolchain para compilar `canvas` (node-gyp).
+# Combinado en una sola RUN para evitar capas extra y reusar el apt-get update.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    # Chromium runtime libs (@sparticuz/chromium / puppeteer-core)
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libc6 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libexpat1 \
+    libfontconfig1 \
+    libgbm1 \
+    libgcc1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libstdc++6 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxshmfence1 \
+    libxss1 \
+    libxtst6 \
+    lsb-release \
+    wget \
+    xdg-utils \
+    # Build toolchain para el módulo nativo `canvas`
+    build-essential \
+    pkg-config \
+    python3 \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# No descargar Chromium del paquete `puppeteer` (usamos @sparticuz/chromium).
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+
+# Instalar deps con cache de npm (BuildKit) para que los rebuilds reusen el tarball cache.
+COPY package.json package-lock.json* ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-audit --no-fund --prefer-offline
+
+# Resto del código y build.
+COPY . .
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 2: runtime
+# ---------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS runtime
+
+# Solo las libs runtime de Chromium (sin -dev, sin build-essential, sin python3).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
@@ -47,32 +124,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Build toolchain + headers required to compile the native `canvas` module
-# (node-gyp) from source. Source: https://github.com/Automattic/node-canvas/wiki
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    pkg-config \
-    python3 \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Install dependencies (with legacy peer deps as in nixpacks).
-COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
-
-# Copy the rest and build.
-COPY . .
-RUN npm run build
-
-# Skip Puppeteer Chromium download (we use @sparticuz/chromium).
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV NODE_ENV=production
+
+# Copiar solo lo necesario del builder. node_modules incluye devDeps porque
+# `db:push` (drizzle-kit) corre en startup y está en devDependencies.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/migrations ./migrations
+# CSV de regiones que el server lee en runtime (comunaRegionService.ts).
+COPY --from=builder /app/attached_assets ./attached_assets
 
 EXPOSE 8080
 
