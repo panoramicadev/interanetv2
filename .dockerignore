@@ -29,10 +29,16 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+*_session.txt
+*_cookies.txt
+cookies.txt
+admin_cookies.txt
 
 # Logs
 logs
 *.log
+server.log
+build-error.log
 
 # Tests / coverage
 coverage
@@ -41,15 +47,56 @@ coverage
 *.spec.ts
 __tests__
 
-# Claude / agents
+# Claude / agents / Replit
 .claude
 .cursor
 .copilot
+.replit
+replit.md
 
 # Docs / scratch
 *.md
 !README.md
 docs
+info-extra
+documentos*.txt
+respaldo-*.txt
+"Sin título"*.txt
+j.txt
+db-migration-responses.txt
+
+# Standalone scripts / tools no usados en runtime
+check-*.ts
+check_*.ts
+test-*.ts
+test_*.ts
+test-*.js
+test_*.js
+test_image.png
+test-curl.json
+query_*.ts
+etl-diagnose.ts
+add_creatividades_routes.js
+fix_*.js
+update_sidebar.js
+production-etl-setup.sql
+
+# Scripts del server que no entran al bundle de esbuild
+server/compare-ventas.ts
+server/analyze-excel-*.ts
+
+# attached_assets: 416 MB de screenshots/CSVs no usados.
+# Solo se permiten los archivos importados desde client/src y server/.
+attached_assets/*
+!attached_assets/loading-icon.png
+!attached_assets/logo_1757532115858.png
+!attached_assets/logo_1757523053833.png
+!attached_assets/logo-inicio_1757596790120.png
+!attached_assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp
+!attached_assets/Desktop Banner 01_1758047466193.png
+!attached_assets/Desktop Banner 02_1758045959229.png
+!attached_assets/Desktop Banner 03 (1)_1758047457407.png
+!attached_assets/regiones por comunas - Hoja 2_1758560241633.csv
 
 # Misc
 .eslintcache
