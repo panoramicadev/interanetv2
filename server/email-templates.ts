@@ -380,7 +380,7 @@ export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: s
       Hola <strong>${data.clientName}</strong>, ${data.suggestedByName ? `<strong>${data.suggestedByName}</strong> del equipo de Pinturas Panorámica` : 'nuestro equipo'} preparó un pedido sugerido para vos.
     </p>
     <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-      Podés <strong>aceptarlo</strong> tal cual está, <strong>modificarlo</strong> antes de confirmar, o <strong>rechazarlo</strong> desde tu portal. No se procesa ningún cobro hasta que lo confirmes.
+      Podés <strong>aceptarlo</strong> tal cual está, <strong>modificarlo</strong> antes de confirmar, o <strong>rechazarlo</strong> desde tu portal. No se procesa ningún cobro hasta que lo confirmes. Adjuntamos el detalle completo en PDF.
     </p>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
       <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
@@ -418,6 +418,78 @@ export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: s
       Si tenés dudas, escribinos a
       <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
     </p>
+  `);
+  return { subject, html };
+}
+
+interface SuggestedTeamCopyData {
+  clientName: string;
+  clientEmail?: string | null;
+  orderNumber: string;
+  total: number;
+  items: Array<{ name: string; quantity: number; price?: number }>;
+  suggestedByName?: string;
+  notes?: string | null;
+  teamMessage?: string | null;
+}
+
+// Copia interna para el equipo cuando se envía un sugerido a un cliente.
+// Mantiene la misma estética que el correo de "nuevo pedido" y lleva el PDF adjunto.
+export function buildSuggestedTeamCopyEmail(data: SuggestedTeamCopyData): { subject: string; html: string } {
+  const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+  const totalStr = fmt(data.total);
+  const subject = `Pedido sugerido enviado #${data.orderNumber} - ${data.clientName}`;
+
+  const itemsRows = (data.items || []).slice(0, 50).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+      ${typeof it.price === 'number' ? `<td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: right;">${fmt(it.price)}</td>` : ''}
+    </tr>`).join('');
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 8px 0; font-family: Arial, sans-serif;">Pedido sugerido enviado</h2>
+    <p style="color: #6b7280; font-size: 13px; margin: 0 0 24px 0;">${data.clientName}${data.clientEmail ? ` · ${data.clientEmail}` : ''}</p>
+
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Estimado equipo,
+    </p>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      ${data.suggestedByName ? `<strong>${data.suggestedByName}</strong>` : 'Se'} envió un pedido sugerido a <strong>${data.clientName}</strong>. El cliente puede aceptarlo, modificarlo o rechazarlo desde su portal. Se adjunta el PDF del sugerido.
+    </p>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+      <tr><td style="padding: 11px 14px; background-color: #f8f9fa; border-radius: 6px;">
+        <span style="font-weight: 600; color: #fd6301; font-size: 13px;">N° Sugerido:</span>
+        <span style="color: #1a1f2e; margin-left: 8px; font-size: 14px;">${data.orderNumber}</span>
+      </td></tr>
+      <tr><td style="height: 6px;"></td></tr>
+      <tr><td style="padding: 11px 14px; background-color: #fff7ed; border-left: 3px solid #fd6301; border-radius: 6px;">
+        <span style="font-weight: 600; color: #fd6301; font-size: 13px;">Total estimado:</span>
+        <span style="color: #1a1f2e; margin-left: 8px; font-size: 15px;"><strong>${totalStr}</strong></span>
+      </td></tr>
+    </table>
+    ${itemsRows ? `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+          ${(data.items || []).some(i => typeof i.price === 'number') ? '<th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRECIO</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>` : ''}
+    ${data.teamMessage ? `
+    <div style="background-color: #f8f9fa; border-left: 4px solid #1a1f2e; padding: 14px 16px; border-radius: 4px; margin: 0 0 20px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Comentario interno:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.teamMessage}</p>
+    </div>` : ''}
+    ${data.notes ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 0 0 20px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Nota para el cliente:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.notes}</p>
+    </div>` : ''}
   `);
   return { subject, html };
 }

@@ -12,6 +12,10 @@ export interface QuotePdfOptions {
   logoUrl?: string | null;
   /** Whether to include auto-print JS (browser-only). */
   autoPrint?: boolean;
+  /** Big label in the top-right corner. Default 'COTIZACIÓN'. */
+  documentLabel?: string;
+  /** Label preceding the document number. Default 'Cotización N°'. */
+  documentNumberLabel?: string;
 }
 
 /** HTML-escape that works in both browser and Node. */
@@ -49,7 +53,12 @@ export function renderQuoteHtml(
   items: any[],
   options: QuotePdfOptions = {}
 ): string {
-  const { logoUrl = null, autoPrint = false } = options;
+  const {
+    logoUrl = null,
+    autoPrint = false,
+    documentLabel = 'COTIZACIÓN',
+    documentNumberLabel = 'Cotización N°',
+  } = options;
 
   const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', {
     day: '2-digit',
@@ -131,7 +140,7 @@ export function renderQuoteHtml(
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Cotización ${escapeHtml(quote.quoteNumber)}</title>
+  <title>${escapeHtml(documentLabel)} ${escapeHtml(quote.quoteNumber)}</title>
   <style>
     @page { size: A4; margin: 15mm; }
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #333; font-size: 14px; line-height: 1.4; }
@@ -202,10 +211,10 @@ export function renderQuoteHtml(
         ${logoBlock}
       </div>
       <div class="header-right">
-        <h1>COTIZACIÓN</h1>
+        <h1>${escapeHtml(documentLabel)}</h1>
         <div class="header-info">
           <p><strong>Fecha:</strong> ${quoteDate}</p>
-          <p><strong>Cotización N°:</strong> ${escapeHtml(quote.quoteNumber)}</p>
+          <p><strong>${escapeHtml(documentNumberLabel)}:</strong> ${escapeHtml(quote.quoteNumber)}</p>
         </div>
       </div>
     </div>

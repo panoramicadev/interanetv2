@@ -9,7 +9,7 @@
 import puppeteer, { Browser } from 'puppeteer-core';
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { renderQuoteHtml } from '@shared/quote-pdf-template';
+import { renderQuoteHtml, type QuotePdfOptions } from '@shared/quote-pdf-template';
 
 let browserPromise: Promise<Browser> | null = null;
 
@@ -86,8 +86,13 @@ async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
-export async function renderQuotePdf(quote: any, items: any[], logoUrl?: string | null): Promise<Buffer> {
-  const html = renderQuoteHtml(quote, items, { logoUrl: logoUrl ?? null, autoPrint: false });
+export async function renderQuotePdf(
+  quote: any,
+  items: any[],
+  logoUrl?: string | null,
+  pdfOptions?: Omit<QuotePdfOptions, 'logoUrl' | 'autoPrint'>,
+): Promise<Buffer> {
+  const html = renderQuoteHtml(quote, items, { logoUrl: logoUrl ?? null, autoPrint: false, ...pdfOptions });
 
   const browser = await getBrowser();
   const page = await browser.newPage();
