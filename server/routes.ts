@@ -7871,6 +7871,66 @@ export function registerRoutes(app: Express): Server {
     return { items: resolvedItems, subtotal, tax, total, priceListUsed: priceListCode, branchDiscountPct, warnings };
   }
 
+  // Resuelve el registro de cliente (tabla clients) + email destino a partir de
+  // cualquiera de los identificadores. Usado por la creación y la preview de sugeridos.
+  async function resolveSuggestedClient(opts: { clientUserId?: string | null; clientCode?: string | null; clientName?: string | null }): Promise<
+    { ok: true; clientRecord: any; destEmail: string } | { ok: false; status: number; message: string }
+  > {
+    const { clientUserId, clientCode, clientName } = opts;
+    if (!clientUserId && !clientCode && !clientName) {
+      return { ok: false, status: 400, message: 'Debes indicar el cliente destino (userId, código o nombre).' };
+    }
+
+    const { clients: clientsTbl, users: usersTbl } = await import('@shared/schema');
+    const { eq: eqOp, and: andOp, isNotNull: isNotNullOp } = await import('drizzle-orm');
+
+    let clientRecord: any = null;
+    if (clientUserId) {
+      const [byUser] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.userId, clientUserId)).limit(1);
+      if (byUser) clientRecord = byUser;
+    }
+    if (!clientRecord && clientCode) {
+      const [byCode] = await db.select().from(clientsTbl)
+        .where(andOp(eqOp(clientsTbl.koen, clientCode), isNotNullOp(clientsTbl.userId)))
+        .limit(1);
+      if (byCode) clientRecord = byCode;
+      if (!clientRecord) {
+        const [anyCode] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.koen, clientCode)).limit(1);
+        if (anyCode) clientRecord = anyCode;
+      }
+    }
+    if (!clientRecord && clientName) {
+      const [byName] = await db.select().from(clientsTbl)
+        .where(andOp(eqOp(clientsTbl.nokoen, clientName), isNotNullOp(clientsTbl.userId)))
+        .limit(1);
+      if (byName) clientRecord = byName;
+      if (!clientRecord) {
+        const [anyName] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.nokoen, clientName)).limit(1);
+        if (anyName) clientRecord = anyName;
+      }
+    }
+
+    if (!clientRecord) {
+      return { ok: false, status: 404, message: 'No se encontró el cliente en la base de datos.' };
+    }
+    if (!clientRecord.userId) {
+      return { ok: false, status: 400, message: 'Este cliente aún no tiene cuenta de usuario en el portal. Pídele que se registre antes de enviar un sugerido.' };
+    }
+
+    let destEmail: string | null = clientRecord.foen || null;
+    if (!destEmail) {
+      try {
+        const [u] = await db.select().from(usersTbl).where(eqOp(usersTbl.id, clientRecord.userId)).limit(1);
+        if (u?.email) destEmail = u.email;
+      } catch (_) { /* noop */ }
+    }
+    if (!destEmail) {
+      return { ok: false, status: 400, message: 'El cliente no tiene email registrado para recibir el sugerido.' };
+    }
+
+    return { ok: true, clientRecord, destEmail };
+  }
+
   // Create order from client (authenticated clients only)
   app.post('/api/ecommerce/orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
     // Validate user is authenticated
@@ -8165,70 +8225,22 @@ export function registerRoutes(app: Express): Server {
           pricingMode: z.enum(['calculated', 'direct']).optional(),
         }).passthrough()).min(1, 'Debes agregar al menos un producto'),
         notes: z.string().optional().nullable(),
+        sendEmail: z.boolean().optional(),
+        teamRecipient: z.string().optional().nullable(),
+        teamCc: z.string().optional().nullable(),
+        teamMessage: z.string().optional().nullable(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
       }
-      const { clientUserId, clientCode, clientName, items, notes } = parsed.data;
+      const { clientUserId, clientCode, clientName, items, notes, sendEmail: shouldSendEmail = true, teamRecipient, teamCc, teamMessage } = parsed.data;
 
-      if (!clientUserId && !clientCode && !clientName) {
-        return res.status(400).json({ message: 'Debes indicar el cliente destino (userId, código o nombre).' });
+      const clientResolution = await resolveSuggestedClient({ clientUserId, clientCode, clientName });
+      if (!clientResolution.ok) {
+        return res.status(clientResolution.status).json({ message: clientResolution.message });
       }
-
-      // Resolver registro de cliente + usuario para obtener email/lcen/userId
-      const { clients: clientsTbl, users: usersTbl } = await import('@shared/schema');
-      const { eq: eqOp, and: andOp, or: orOp, isNotNull: isNotNullOp } = await import('drizzle-orm');
-
-      let clientRecord: any = null;
-
-      if (clientUserId) {
-        const [byUser] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.userId, clientUserId)).limit(1);
-        if (byUser) clientRecord = byUser;
-      }
-      if (!clientRecord && clientCode) {
-        const [byCode] = await db.select().from(clientsTbl)
-          .where(andOp(eqOp(clientsTbl.koen, clientCode), isNotNullOp(clientsTbl.userId)))
-          .limit(1);
-        if (byCode) clientRecord = byCode;
-        if (!clientRecord) {
-          const [anyCode] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.koen, clientCode)).limit(1);
-          if (anyCode) clientRecord = anyCode;
-        }
-      }
-      if (!clientRecord && clientName) {
-        const [byName] = await db.select().from(clientsTbl)
-          .where(andOp(eqOp(clientsTbl.nokoen, clientName), isNotNullOp(clientsTbl.userId)))
-          .limit(1);
-        if (byName) clientRecord = byName;
-        if (!clientRecord) {
-          const [anyName] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.nokoen, clientName)).limit(1);
-          if (anyName) clientRecord = anyName;
-        }
-      }
-
-      if (!clientRecord) {
-        return res.status(404).json({ message: 'No se encontró el cliente en la base de datos.' });
-      }
-
-      // Necesitamos un userId para que el cliente pueda ver el sugerido en su portal.
-      if (!clientRecord.userId) {
-        return res.status(400).json({
-          message: 'Este cliente aún no tiene cuenta de usuario en el portal. Pídele que se registre antes de enviar un sugerido.',
-        });
-      }
-
-      // Email destino: priorizamos el del registro del cliente, fallback al del usuario.
-      let destEmail: string | null = clientRecord.foen || null;
-      if (!destEmail) {
-        try {
-          const [u] = await db.select().from(usersTbl).where(eqOp(usersTbl.id, clientRecord.userId)).limit(1);
-          if (u?.email) destEmail = u.email;
-        } catch (_) { /* noop */ }
-      }
-      if (!destEmail) {
-        return res.status(400).json({ message: 'El cliente no tiene email registrado para recibir el sugerido.' });
-      }
+      const { clientRecord, destEmail } = clientResolution;
 
       // Resolver precios con la lista del cliente destino
       const resolved = await resolveItemsPricing(items, clientRecord);
@@ -8276,34 +8288,240 @@ export function registerRoutes(app: Express): Server {
         console.warn('Warning: notification for suggested order failed:', notifErr);
       }
 
-      // Email al cliente con detalle del sugerido y link al portal
-      try {
-        const { buildSuggestedOrderEmail } = await import('./email-templates');
-        const baseUrl = (process.env.PUBLIC_APP_URL || process.env.APP_URL || '').replace(/\/+$/, '');
-        const orderUrl = `${baseUrl || ''}/mis-pedidos`;
+      // Envío de correos (no bloquea la creación del sugerido). Registramos el
+      // resultado en emailLogs y lo devolvemos al frontend para que avise.
+      const TAG_EMAIL = '[orders/suggested:email]';
+      let emailDelivered = false;
+      let emailError: string | null = null;
+      // baseUrl: PUBLIC_APP_URL > APP_URL > Origin del request (fallback para que el link del email no quede roto)
+      const originHeader = (req.headers?.origin as string | undefined) || '';
+      const refererHeader = (req.headers?.referer as string | undefined) || '';
+      const refererOrigin = (() => { try { return refererHeader ? new URL(refererHeader).origin : ''; } catch { return ''; } })();
+      const baseUrl = (
+        process.env.PUBLIC_APP_URL || process.env.APP_URL || originHeader || refererOrigin || ''
+      ).replace(/\/+$/, '');
+      const orderUrl = `${baseUrl || ''}/mis-pedidos`;
+
+      if (shouldSendEmail) {
+        let logId: string | undefined;
+        const { buildSuggestedOrderEmail, buildSuggestedTeamCopyEmail } = await import('./email-templates');
+        const { renderSuggestedOrderPdf } = await import('./utils/suggested-pdf');
+        const { emailService } = await import('./services/email');
+
+        const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+        const logoUrl = `${proto}://${host}/panoramica-logo.png`;
+
+        const emailItems = (resolved.items || []).map((it: any) => ({
+          name: it.productName || it.name || it.sku || 'Producto',
+          quantity: Number(it.quantity) || 1,
+          price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
+        }));
+
+        // PDF del sugerido — mismo documento que el tomador, rotulado "PEDIDO SUGERIDO".
+        let pdfBuffer: Buffer | null = null;
+        try {
+          pdfBuffer = await renderSuggestedOrderPdf({
+            orderNumber: order.id,
+            clientName: order.clientName || 'Cliente',
+            clientRut: clientRecord.rten || null,
+            clientEmail: destEmail,
+            clientPhone: clientRecord.cnen || null,
+            clientAddress: clientRecord.dien || order.shippingAddress || null,
+            notes: notes || null,
+            createdAt: order.suggestedAt || order.createdAt || new Date(),
+            items: resolved.items,
+            logoUrl,
+          });
+        } catch (pdfErr: any) {
+          console.warn(`${TAG_EMAIL} ⚠️ no se pudo generar PDF del sugerido:`, pdfErr?.message);
+        }
+        const attachments = pdfBuffer
+          ? [{ filename: `Sugerido_${order.id.slice(0, 8)}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+          : undefined;
+
+        // 1) Correo al cliente (estética + PDF adjunto + botón aceptar/responder)
         const built = buildSuggestedOrderEmail({
           clientName: order.clientName || 'Cliente',
           orderNumber: order.id,
           total: Number(resolved.total) || 0,
-          items: (resolved.items || []).map((it: any) => ({
-            name: it.productName || it.name || it.sku || 'Producto',
-            quantity: Number(it.quantity) || 1,
-            price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
-          })),
+          items: emailItems,
           suggestedByName,
           notes: notes || null,
           orderUrl,
         });
-        const { emailService } = await import('./services/email');
-        await emailService.sendEmail({ to: destEmail, subject: built.subject, html: built.html });
-      } catch (emailErr) {
-        console.warn('Warning: suggested order email failed:', emailErr);
+        try {
+          const logEntry = await db.insert(emailLogs).values({
+            recipient: destEmail,
+            subject: built.subject,
+            notificationType: 'ecommerce_suggested_order',
+            status: 'pending',
+          }).returning({ id: emailLogs.id });
+          logId = logEntry[0]?.id;
+        } catch (logErr: any) {
+          console.warn(`${TAG_EMAIL} no se pudo insertar en emailLogs:`, logErr?.message);
+        }
+        try {
+          console.log(`${TAG_EMAIL} 📤 enviando a cliente ${destEmail} (orderId=${order.id})`);
+          await emailService.sendEmail({ to: destEmail, subject: built.subject, html: built.html, attachments });
+          emailDelivered = true;
+          if (logId) {
+            await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
+          }
+        } catch (emailErr: any) {
+          emailError = emailErr?.message || 'Error desconocido al enviar el correo';
+          console.error(`${TAG_EMAIL} ❌ Error enviando sugerido al cliente:`, { message: emailErr?.message, code: emailErr?.code });
+          if (logId) {
+            try { await db.update(emailLogs).set({ status: 'failed', errorMessage: emailError }).where(eq(emailLogs.id, logId)); } catch (_) { /* noop */ }
+          }
+        }
+
+        // 2) Copia interna al equipo (mismo formato que "nuevo pedido", con PDF).
+        //    Por defecto va al correo del usuario que arma el sugerido.
+        const teamTo = (teamRecipient && teamRecipient.trim()) || suggestedBy.email || '';
+        if (teamTo) {
+          try {
+            const teamBuilt = buildSuggestedTeamCopyEmail({
+              clientName: order.clientName || 'Cliente',
+              clientEmail: destEmail,
+              orderNumber: order.id,
+              total: Number(resolved.total) || 0,
+              items: emailItems,
+              suggestedByName,
+              notes: notes || null,
+              teamMessage: teamMessage || null,
+            });
+            await emailService.sendEmail({
+              to: teamTo,
+              cc: (teamCc && teamCc.trim()) || undefined,
+              subject: teamBuilt.subject,
+              html: teamBuilt.html,
+              attachments,
+            });
+          } catch (teamErr: any) {
+            console.warn(`${TAG_EMAIL} ⚠️ no se pudo enviar copia al equipo:`, teamErr?.message);
+          }
+        }
       }
 
-      res.status(201).json(order);
+      res.status(201).json({ ...order, emailDelivered, emailError, emailTo: shouldSendEmail ? destEmail : null });
     } catch (error: any) {
       console.error('Error creating suggested order:', error);
       res.status(500).json({ message: 'Error al crear el sugerido', detail: error?.message || 'Unknown error' });
+    }
+  }));
+
+  // Preview del PDF del sugerido SIN persistir — para que el admin lo revise antes de enviar.
+  app.post('/api/ecommerce/orders/suggested/preview', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const schema = z.object({
+        clientUserId: z.string().optional().nullable(),
+        clientCode: z.string().optional().nullable(),
+        clientName: z.string().optional().nullable(),
+        items: z.array(z.object({
+          type: z.enum(['standard', 'custom']).optional(),
+          productName: z.string(),
+          sku: z.string().optional(),
+          customSku: z.string().optional(),
+          quantity: z.number().positive(),
+          unitPrice: z.number().nonnegative().optional(),
+          totalPrice: z.number().nonnegative().optional(),
+          priceTier: z.enum(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'mix', 'oferta']).optional(),
+          productUnit: z.string().optional(),
+          productColor: z.string().optional(),
+          selectedPackaging: z.string().optional(),
+          costOfProduction: z.number().nonnegative().optional(),
+          profitMargin: z.number().optional(),
+          pricingMode: z.enum(['calculated', 'direct']).optional(),
+        }).passthrough()).min(1, 'Debes agregar al menos un producto'),
+        notes: z.string().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      }
+      const { clientUserId, clientCode, clientName, items, notes } = parsed.data;
+
+      const clientResolution = await resolveSuggestedClient({ clientUserId, clientCode, clientName });
+      if (!clientResolution.ok) {
+        return res.status(clientResolution.status).json({ message: clientResolution.message });
+      }
+      const { clientRecord, destEmail } = clientResolution;
+
+      const resolved = await resolveItemsPricing(items, clientRecord);
+
+      const { renderSuggestedOrderPdf } = await import('./utils/suggested-pdf');
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+      const logoUrl = `${proto}://${host}/panoramica-logo.png`;
+
+      const pdfBuffer = await renderSuggestedOrderPdf({
+        orderNumber: 'BORRADOR',
+        clientName: clientRecord.nokoen || clientRecord.gien || 'Cliente',
+        clientRut: clientRecord.rten || null,
+        clientEmail: destEmail,
+        clientPhone: clientRecord.cnen || null,
+        clientAddress: clientRecord.dien || null,
+        notes: notes || null,
+        createdAt: new Date(),
+        items: resolved.items,
+        logoUrl,
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="Sugerido_preview.pdf"');
+      return res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error('Error generating suggested preview PDF:', error);
+      res.status(500).json({ message: 'Error al generar la vista previa', detail: error?.message || 'Unknown error' });
+    }
+  }));
+
+  // PDF de un sugerido ya creado (para reenvío / descarga desde el panel).
+  app.get('/api/ecommerce/orders/:id/pdf', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const orderId = req.params.id;
+      const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
+      if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+
+      const isAdmin = user.role === 'admin' || user.role === 'supervisor';
+      if (!isAdmin && order.clientId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      // Datos del cliente (RUT/dirección) desde la tabla clients vía userId.
+      let clientRecord: any = null;
+      try {
+        const { clients: clientsTbl } = await import('@shared/schema');
+        const [c] = await db.select().from(clientsTbl).where(eq(clientsTbl.userId, order.clientId)).limit(1);
+        if (c) clientRecord = c;
+      } catch (_) { /* noop */ }
+
+      const { renderSuggestedOrderPdf } = await import('./utils/suggested-pdf');
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'ai.pinturaspanoramica.cl';
+      const logoUrl = `${proto}://${host}/panoramica-logo.png`;
+
+      const pdfBuffer = await renderSuggestedOrderPdf({
+        orderNumber: order.id,
+        clientName: order.clientName || clientRecord?.nokoen || 'Cliente',
+        clientRut: clientRecord?.rten || null,
+        clientEmail: order.clientEmail || null,
+        clientPhone: clientRecord?.cnen || order.clientPhone || null,
+        clientAddress: clientRecord?.dien || order.shippingAddress || null,
+        notes: order.notes || null,
+        createdAt: order.suggestedAt || order.createdAt || new Date(),
+        items: Array.isArray(order.items) ? order.items : [],
+        logoUrl,
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Sugerido_${order.id.slice(0, 8)}.pdf"`);
+      return res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error('Error generating suggested order PDF:', error);
+      res.status(500).json({ message: 'Error al generar el PDF', detail: error?.message || 'Unknown error' });
     }
   }));
 
