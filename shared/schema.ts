@@ -3732,12 +3732,18 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   branchDiscountPercent: numeric("branch_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
   priceListUsed: varchar("price_list_used"), // lcen aplicado (ej: LP01, LP02)
 
+  // Seguimiento público (sin login): código opaco que el cliente usa para rastrear su pedido.
+  trackingCode: varchar("tracking_code"),
+  // Puente al ERP/TMS: se completa cuando el pedido se ingresa al ERP (idmaeedo = idErp del TMS).
+  erpIdmaeedo: numeric("erp_idmaeedo", { precision: 20, scale: 0 }),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   clientIdIdx: index("IDX_ecommerce_orders_client_id").on(table.clientId),
   salespersonIdIdx: index("IDX_ecommerce_orders_salesperson_id").on(table.assignedSalespersonId),
   statusIdx: index("IDX_ecommerce_orders_status").on(table.status),
+  trackingCodeIdx: uniqueIndex("UQ_ecommerce_orders_tracking_code").on(table.trackingCode),
 }));
 
 // Notificaciones - Sistema robusto de notificaciones internas

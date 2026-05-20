@@ -400,6 +400,9 @@ import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
+import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
+import { fetchTmsShipping, isTmsConfigured } from "./utils/tms-logistica";
+import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import crypto from "crypto";
 
@@ -612,6 +615,103 @@ export function registerRoutes(app: Express): Server {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: 'Failed to render PDF', detail: msg });
     }
+  }));
+
+  // ==========================================================================
+  // Seguimiento público de pedidos (SIN login) — solo con el identificador.
+  // GET /api/public/seguimiento/:code  → acepta el tracking_code o el UUID del pedido.
+  // Respuesta saneada (sin datos sensibles); el envío real viene del TMS si está configurado.
+  // ==========================================================================
+  const seguimientoLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
+
+  const maskName = (name?: string | null): string => {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'Cliente';
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[1].charAt(0).toUpperCase()}.`;
+  };
+
+  const sanitizeItems = (items: any): Array<{ nombre: string; cantidad: number | null }> => {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 50).map((it: any) => ({
+      nombre: it?.productName || it?.name || it?.nombre || 'Producto',
+      cantidad: it?.quantity ?? it?.cantidad ?? null,
+    }));
+  };
+
+  const buildEtapas = (order: any) => {
+    const status = String(order?.status || 'pending');
+    if (order?.rejectedAt || status === 'rejected') {
+      return [
+        { key: 'recibido', label: 'Pedido recibido', fecha: order?.createdAt ?? null, done: true },
+        { key: 'rechazado', label: 'Pedido rechazado', fecha: order?.rejectedAt ?? null, done: true },
+      ];
+    }
+    const aprobado = !!order?.approvedAt || !!order?.ingresadoAt || ['approved', 'modified', 'sent'].includes(status);
+    const ingresado = !!order?.ingresadoAt;
+    const despachado = status === 'sent';
+    return [
+      { key: 'recibido', label: 'Pedido recibido', fecha: order?.createdAt ?? null, done: true },
+      { key: 'aprobado', label: 'Pedido aprobado', fecha: order?.approvedAt ?? null, done: aprobado },
+      { key: 'preparacion', label: 'En preparación (bodega)', fecha: order?.ingresadoAt ?? null, done: ingresado },
+      { key: 'despacho', label: 'En despacho', fecha: null, done: despachado },
+    ];
+  };
+
+  const estadoLabel = (order: any, envio: any): string => {
+    if (envio?.envio?.estadoEntrega === 'Entregado') return 'Entregado';
+    if (envio?.envio?.estadoEntrega === 'No Entregado') return 'Entrega fallida';
+    if (envio?.retiroEnBodega) return 'Listo para retiro en bodega';
+    const etapas = buildEtapas(order);
+    const ultima = [...etapas].reverse().find((e) => e.done);
+    return ultima?.label || 'Pedido recibido';
+  };
+
+  app.get('/api/public/seguimiento/:code', asyncHandler(async (req: any, res: any) => {
+    const ipKey = (req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown').trim();
+    if (!seguimientoLimiter(ipKey)) {
+      return res.status(429).json({ found: false, message: 'Demasiadas consultas. Intenta nuevamente en un momento.' });
+    }
+
+    const raw = String(req.params.code || '');
+    const code = normalizeTrackingCode(raw);
+    if (!code) return res.status(400).json({ found: false, message: 'Falta el código de seguimiento.' });
+
+    const whereClause = looksLikeUuid(raw)
+      ? or(eq(ecommerceOrders.trackingCode, code), eq(ecommerceOrders.id, raw.trim()))
+      : eq(ecommerceOrders.trackingCode, code);
+
+    const [order] = await db.select().from(ecommerceOrders).where(whereClause).limit(1);
+    if (!order) {
+      return res.status(404).json({ found: false, message: 'No encontramos un pedido con ese código.' });
+    }
+
+    // Estado de envío real (TMS) solo si el pedido ya tiene idmaeedo y el TMS está configurado.
+    let envio: any = null;
+    if (order.erpIdmaeedo && isTmsConfigured()) {
+      envio = await fetchTmsShipping(order.erpIdmaeedo as any);
+    }
+
+    const mensajeEnvio = envio
+      ? null
+      : order.erpIdmaeedo
+        ? 'Estamos actualizando el estado de tu envío.'
+        : 'Tu pedido aún no ha sido despachado. Te avisaremos cuando esté en camino.';
+
+    res.json({
+      found: true,
+      codigo: order.trackingCode,
+      estado: estadoLabel(order, envio),
+      etapas: buildEtapas(order),
+      fecha: order.createdAt,
+      cliente: maskName(order.clientName),
+      itemsCount: Array.isArray(order.items) ? (order.items as any[]).length : 0,
+      items: sanitizeItems(order.items),
+      total: order.total,
+      envioDisponible: !!envio,
+      envio,
+      mensajeEnvio,
+    });
   }));
 
   // Mount external API routes (with API key auth)

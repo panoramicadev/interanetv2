@@ -100,6 +100,7 @@ import SeguimientoClienteDetalle from "@/pages/seguimiento-cliente-detalle";
 import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
+import SeguimientoPublico from "@/pages/seguimiento-publico";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import MailingPage from "@/pages/mailing";
@@ -133,6 +134,10 @@ function Router() {
       <Route path="/shop">{() => <Shop />}</Route>
       <Route path="/carrito">{() => <Carrito />}</Route>
       <Route path="/pedido-confirmado">{() => <PedidoConfirmado />}</Route>
+
+      {/* Seguimiento público de pedido — sin login, solo con el código */}
+      <Route path="/seguimiento/:code">{() => <SeguimientoPublico />}</Route>
+      <Route path="/seguimiento">{() => <SeguimientoPublico />}</Route>
 
       {/* Dónde comprar — mapa público con sucursales y ferreterías */}
       <Route path="/donde-comprar">{() => <DondeComprar />}</Route>
