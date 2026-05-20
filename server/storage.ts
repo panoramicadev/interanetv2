@@ -354,6 +354,7 @@ import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
+import { generateTrackingCode } from "./utils/tracking-code";
 import mssql from 'mssql';
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -16735,6 +16736,7 @@ export class DatabaseStorage implements IStorage {
         quoteId: orderData.quoteId || null,
         branchDiscountPercent: String(orderData.branchDiscountPercent ?? 0),
         priceListUsed: orderData.priceListUsed || null,
+        trackingCode: orderData.trackingCode || generateTrackingCode(),
       };
 
       if (orderData.approvedAt) cleanData.approvedAt = orderData.approvedAt;
@@ -16987,6 +16989,7 @@ export class DatabaseStorage implements IStorage {
         assignedSalespersonId: salesperson.id,
         assignedSalespersonName: salesperson.salespersonName,
         status: 'pending',
+        trackingCode: generateTrackingCode(),
         items: quoteData.items,
         subtotal: subtotal.toString(),
         tax: '0',

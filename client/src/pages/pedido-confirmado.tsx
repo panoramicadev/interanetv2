@@ -21,6 +21,7 @@ import {
   Copy,
   Loader2,
   FileImage,
+  Truck,
 } from "lucide-react";
 
 const formatPrice = (price: number): string => {
@@ -292,7 +293,7 @@ export default function PedidoConfirmado() {
               </>
             )}
 
-            {/* Order ID */}
+            {/* Código de seguimiento + acceso público */}
             {orderId && (
               <>
                 <Separator />
@@ -302,11 +303,29 @@ export default function PedidoConfirmado() {
                     <span>{requiresReceipt && !hasReceipt ? 'Pedido Pendiente de Pago' : 'Estamos Procesando tu Pedido'}</span>
                   </div>
                   <div className="text-2xl font-mono font-bold text-[#FF6E23] tracking-wider">
-                    #{getNumericOrderId(orderId)}
+                    {orderData?.trackingCode || `#${getNumericOrderId(orderId)}`}
                   </div>
                   <p className="text-xs text-gray-400">
-                    Guarda este número de pedido como respaldo de tu solicitud
+                    Guarda este código para seguir tu pedido sin iniciar sesión.
                   </p>
+                  {orderData?.trackingCode && (
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                      <Link href={`/seguimiento/${orderData.trackingCode}`} className="flex-1">
+                        <Button variant="outline" className="w-full gap-2">
+                          <Truck className="h-4 w-4" />
+                          Ver seguimiento
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={() => copyToClipboard(`${window.location.origin}/seguimiento/${orderData.trackingCode}`)}
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copiar link
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
