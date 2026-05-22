@@ -337,23 +337,40 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
     }> = [];
 
     searchResults.catalog.forEach((product) => {
-      Object.values(product.colors).flat().forEach((variant) => {
+      const variants = Object.values(product.colors).flat();
+      // Variantes cuyo código SKU coincide con lo buscado.
+      const skuMatches = variants.filter((variant) => {
         const skuUpper = (variant.sku || "").toUpperCase();
-        const isExact = skuUpper === searchUpper;
-        const isPartial = skuUpper.includes(searchUpper) || searchUpper.includes(skuUpper);
-        if (isExact || isPartial) {
+        return skuUpper === searchUpper || skuUpper.includes(searchUpper) || searchUpper.includes(skuUpper);
+      });
+
+      if (skuMatches.length > 0) {
+        // Búsqueda por código: mostramos solo las variantes cuyo SKU coincide.
+        skuMatches.forEach((variant) => {
           results.push({
             genericName: product.genericName,
             variant,
             imageUrl: product.imageUrl,
-            isExactMatch: isExact,
+            isExactMatch: (variant.sku || "").toUpperCase() === searchUpper,
           });
-        }
-      });
+        });
+      } else {
+        // El backend ya filtró por nombre/categoría/descripción/tags: si el producto
+        // llegó hasta acá pero ningún SKU coincide, fue una coincidencia por texto →
+        // mostramos todas sus variantes para que el usuario pueda elegir.
+        variants.forEach((variant) => {
+          results.push({
+            genericName: product.genericName,
+            variant,
+            imageUrl: product.imageUrl,
+            isExactMatch: false,
+          });
+        });
+      }
     });
     return results
       .sort((a, b) => (a.isExactMatch === b.isExactMatch ? 0 : a.isExactMatch ? -1 : 1))
-      .slice(0, 10);
+      .slice(0, 40);
   }, [searchResults, debouncedSku]);
 
   // Resuelve los tiers reales de un SKU consultando price_list + price_list_mix.
@@ -719,7 +736,7 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                     type="text"
                     value={skuSearch}
                     onChange={(e) => setSkuSearch(e.target.value.toUpperCase())}
-                    placeholder="Buscá por código SKU (ej: EP-001-BL-GL)"
+                    placeholder="Buscá por nombre o código SKU (ej: LATEX, EP-001-BL-GL)"
                     className="w-full pl-12 pr-24 py-3.5 text-base font-mono rounded-xl border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50 hover:bg-white transition-all outline-none placeholder:text-gray-400 placeholder:font-sans"
                     autoComplete="off"
                     spellCheck={false}
@@ -763,7 +780,7 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                   <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-4">
                     <Barcode className="h-8 w-8 text-[#FF6E23]/50" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-800 mb-1">Buscá productos por SKU</h3>
+                  <h3 className="text-base font-bold text-gray-800 mb-1">Buscá productos por nombre o SKU</h3>
                   <p className="text-sm text-gray-500 max-w-xs">
                     Agregá los productos al carrito a la derecha, o sumá un producto personalizado.
                   </p>
@@ -780,7 +797,7 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
               {isLoading && debouncedSku && (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-[#FF6E23] mr-2" />
-                  <span className="text-sm text-gray-500">Buscando SKU...</span>
+                  <span className="text-sm text-gray-500">Buscando...</span>
                 </div>
               )}
 
@@ -788,7 +805,7 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                 <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
                   <Package className="h-10 w-10 text-gray-300 mb-3" />
                   <h3 className="text-sm font-bold text-gray-700 mb-1">Sin resultados para "{debouncedSku}"</h3>
-                  <p className="text-xs text-gray-500">Verificá el código SKU e intentá de nuevo.</p>
+                  <p className="text-xs text-gray-500">Probá con otro nombre o código SKU.</p>
                 </div>
               )}
 
