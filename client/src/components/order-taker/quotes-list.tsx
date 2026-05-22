@@ -305,14 +305,23 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [emailScope, setEmailScope] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
   const [emailSalespersonId, setEmailSalespersonId] = useState<string>("");
-  const [emailAttachment, setEmailAttachment] = useState<{ name: string; mime: string; base64: string } | null>(null);
+  const [emailAttachments, setEmailAttachments] = useState<Array<{ name: string; mime: string; base64: string }>>([]);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+  // Email del supervisor que se agregó automáticamente al CC, para poder reemplazarlo si cambia el vendedor
+  const [autoSupervisorEmail, setAutoSupervisorEmail] = useState<string>("");
 
   const isAdminOrSupervisor = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area');
-  const { data: salespeople = [] } = useQuery<Array<{ id: string; salespersonName?: string; email?: string }>>({
+  const { data: salespeople = [] } = useQuery<Array<{ id: string; salespersonName?: string; email?: string; role?: string; supervisorId?: string | null }>>({
     queryKey: ["/api/users/salespeople"],
-    enabled: !!emailDialog && isAdminOrSupervisor,
+    enabled: !!emailDialog,
   });
+
+  // Supervisores y encargados de área (selección rápida en "Para" y "CC").
+  // Si no hay ninguno cargado, se usa la lista predefinida como respaldo.
+  const supervisorContacts = salespeople
+    .filter((u) => (u.role === "supervisor" || u.role === "encargado_area") && !!u.email)
+    .map((u) => ({ name: u.salespersonName || u.email!, email: u.email! }));
+  const quickContacts = supervisorContacts.length > 0 ? supervisorContacts : presetEmailContacts;
 
   const resetEmailForm = () => {
     setEmailRecipient("fparra@pinturaspanoramica.cl");
@@ -323,33 +332,70 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     setEmailScope("");
     setEmailMessage("");
     setEmailSalespersonId("");
-    setEmailAttachment(null);
+    setEmailAttachments([]);
+    setAutoSupervisorEmail("");
+  };
+
+  // Al elegir un vendedor asignado, se agrega automáticamente su supervisor al CC
+  // (reemplazando al supervisor agregado por una selección previa).
+  const handleSalespersonChange = (spId: string) => {
+    setEmailSalespersonId(spId);
+    const sp = salespeople.find((u) => u.id === spId);
+    const supervisor = sp?.supervisorId ? salespeople.find((u) => u.id === sp.supervisorId) : undefined;
+    const newSupervisorEmail = supervisor?.email || "";
+    setEmailCc((prev) => {
+      let items = prev.split(",").map((s) => s.trim()).filter(Boolean);
+      if (autoSupervisorEmail) {
+        items = items.filter((it) => it.toLowerCase() !== autoSupervisorEmail.toLowerCase());
+      }
+      if (newSupervisorEmail && !items.some((it) => it.toLowerCase() === newSupervisorEmail.toLowerCase())) {
+        items.push(newSupervisorEmail);
+      }
+      return items.join(", ");
+    });
+    setAutoSupervisorEmail(newSupervisorEmail);
   };
 
   const handleAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Archivo muy grande", description: "El archivo no puede superar los 10 MB.", variant: "destructive" });
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const MAX_FILE = 10 * 1024 * 1024;
+    const MAX_TOTAL = 20 * 1024 * 1024;
+    const oversized = files.find((f) => f.size > MAX_FILE);
+    if (oversized) {
+      toast({ title: "Archivo muy grande", description: `"${oversized.name}" supera los 10 MB.`, variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    const currentTotal = emailAttachments.reduce((sum, a) => sum + Math.ceil((a.base64.length * 3) / 4), 0);
+    const incomingTotal = files.reduce((sum, f) => sum + f.size, 0);
+    if (currentTotal + incomingTotal > MAX_TOTAL) {
+      toast({ title: "Adjuntos muy pesados", description: "El total de adjuntos no puede superar los 20 MB.", variant: "destructive" });
       e.target.value = "";
       return;
     }
     setAttachmentLoading(true);
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1] || "");
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      setEmailAttachment({ name: file.name, mime: file.type || "application/octet-stream", base64 });
+      const read = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<{ name: string; mime: string; base64: string }>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                resolve({ name: file.name, mime: file.type || "application/octet-stream", base64: result.split(",")[1] || "" });
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            }),
+        ),
+      );
+      setEmailAttachments((prev) => [...prev, ...read]);
     } catch {
       toast({ title: "Error", description: "No se pudo leer el archivo.", variant: "destructive" });
     } finally {
       setAttachmentLoading(false);
+      e.target.value = "";
     }
   };
 
@@ -370,9 +416,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           scope: emailScope.trim() || undefined,
           additionalMessage: emailMessage.trim() || undefined,
           salespersonId: emailSalespersonId || undefined,
-          attachmentBase64: emailAttachment?.base64,
-          attachmentName: emailAttachment?.name,
-          attachmentMime: emailAttachment?.mime,
+          attachments: emailAttachments.map((a) => ({ base64: a.base64, name: a.name, mime: a.mime })),
         },
       });
     },
@@ -1060,7 +1104,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       placeholder="fparra@pinturaspanoramica.cl"
                     />
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {presetEmailContacts.map((c) => {
+                      {quickContacts.map((c) => {
                         const active = emailRecipient.trim().toLowerCase() === c.email.toLowerCase();
                         return (
                           <button
@@ -1089,7 +1133,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       placeholder="copia@dom.cl, otro@dom.cl"
                     />
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {presetEmailContacts.map((c) => {
+                      {quickContacts.map((c) => {
                         const ccItems = emailCc.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
                         const active = ccItems.includes(c.email.toLowerCase());
                         const toggle = () => {
@@ -1123,7 +1167,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         <User className="h-3.5 w-3.5 text-orange-500" />
                         Vendedor asignado
                       </Label>
-                      <Select value={emailSalespersonId} onValueChange={setEmailSalespersonId}>
+                      <Select value={emailSalespersonId} onValueChange={handleSalespersonChange}>
                         <SelectTrigger className="mt-1.5 bg-slate-50 border-slate-200">
                           <SelectValue placeholder="Seleccionar vendedor" />
                         </SelectTrigger>
@@ -1137,7 +1181,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </Select>
                       <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
                         <span className="inline-block w-1 h-1 rounded-full bg-slate-400" />
-                        El correo se firma a nombre de este vendedor y se envía con copia automática a su email.
+                        El correo se firma a nombre de este vendedor y se envía con copia automática a su email y al de su supervisor.
                       </p>
                     </div>
                   )}
@@ -1220,96 +1264,100 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   <div>
                     <Label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
                       <Paperclip className="h-3.5 w-3.5 text-slate-500" />
-                      Archivo adjunto <span className="text-slate-400 font-normal">(OC, captura de pago, etc.)</span>
+                      Archivos adjuntos <span className="text-slate-400 font-normal">(OC, captura de pago, etc.)</span>
                     </Label>
-                    {emailAttachment ? (
-                      <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-4 py-3">
-                        <div className="text-sm truncate flex items-center gap-2 min-w-0">
-                          <div className="h-8 w-8 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
-                            <Paperclip className="h-4 w-4" />
+                    {emailAttachments.length > 0 && (
+                      <div className="mt-1.5 space-y-2">
+                        {emailAttachments.map((att, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-4 py-3">
+                            <div className="text-sm truncate flex items-center gap-2 min-w-0">
+                              <div className="h-8 w-8 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Paperclip className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium text-slate-900 truncate">{att.name}</div>
+                                <div className="text-[11px] text-slate-500">Listo para enviar</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  try {
+                                    const byteChars = atob(att.base64);
+                                    const byteNumbers = new Array(byteChars.length);
+                                    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+                                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: att.mime || 'application/octet-stream' });
+                                    const url = URL.createObjectURL(blob);
+                                    window.open(url, '_blank', 'noopener,noreferrer');
+                                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                                  } catch {
+                                    toast({ title: 'Error', description: 'No se pudo abrir el archivo.', variant: 'destructive' });
+                                  }
+                                }}
+                                className="text-slate-500 hover:text-orange-600"
+                                title="Ver archivo"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  try {
+                                    const byteChars = atob(att.base64);
+                                    const byteNumbers = new Array(byteChars.length);
+                                    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+                                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: att.mime || 'application/octet-stream' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = att.name;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                                  } catch {
+                                    toast({ title: 'Error', description: 'No se pudo descargar el archivo.', variant: 'destructive' });
+                                  }
+                                }}
+                                className="text-slate-500 hover:text-emerald-600"
+                                title="Descargar archivo"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachments((prev) => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-red-600" title="Quitar archivo">
+                                <XIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-slate-900 truncate">{emailAttachment.name}</div>
-                            <div className="text-[11px] text-slate-500">Listo para enviar</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              try {
-                                const byteChars = atob(emailAttachment.base64);
-                                const byteNumbers = new Array(byteChars.length);
-                                for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-                                const blob = new Blob([new Uint8Array(byteNumbers)], { type: emailAttachment.mime || 'application/octet-stream' });
-                                const url = URL.createObjectURL(blob);
-                                window.open(url, '_blank', 'noopener,noreferrer');
-                                setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                              } catch {
-                                toast({ title: 'Error', description: 'No se pudo abrir el archivo.', variant: 'destructive' });
-                              }
-                            }}
-                            className="text-slate-500 hover:text-orange-600"
-                            title="Ver archivo"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              try {
-                                const byteChars = atob(emailAttachment.base64);
-                                const byteNumbers = new Array(byteChars.length);
-                                for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-                                const blob = new Blob([new Uint8Array(byteNumbers)], { type: emailAttachment.mime || 'application/octet-stream' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = emailAttachment.name;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                              } catch {
-                                toast({ title: 'Error', description: 'No se pudo descargar el archivo.', variant: 'destructive' });
-                              }
-                            }}
-                            className="text-slate-500 hover:text-emerald-600"
-                            title="Descargar archivo"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setEmailAttachment(null)} className="text-slate-500 hover:text-red-600" title="Quitar archivo">
-                            <XIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        ))}
                       </div>
-                    ) : (
-                      <label className="mt-1.5 block rounded-lg border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/30 transition-colors cursor-pointer p-5 text-center">
-                        <input
-                          type="file"
-                          onChange={handleAttachmentChange}
-                          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
-                          className="hidden"
-                          disabled={attachmentLoading}
-                        />
-                        {attachmentLoading ? (
-                          <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
-                          </div>
-                        ) : (
-                          <>
-                            <Paperclip className="h-6 w-6 text-slate-400 mx-auto mb-2" />
-                            <div className="text-sm font-medium text-slate-700">Click para subir archivo</div>
-                            <div className="text-xs text-slate-500 mt-0.5">PDF, imagen o documento · Máx 10 MB</div>
-                          </>
-                        )}
-                      </label>
                     )}
+                    <label className="mt-1.5 block rounded-lg border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/30 transition-colors cursor-pointer p-5 text-center">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleAttachmentChange}
+                        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                        className="hidden"
+                        disabled={attachmentLoading}
+                      />
+                      {attachmentLoading ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+                        </div>
+                      ) : (
+                        <>
+                          <Paperclip className="h-6 w-6 text-slate-400 mx-auto mb-2" />
+                          <div className="text-sm font-medium text-slate-700">{emailAttachments.length > 0 ? 'Agregar otro archivo' : 'Click para subir archivo'}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">PDF, imagen o documento · Máx 10 MB c/u</div>
+                        </>
+                      )}
+                    </label>
                   </div>
                   <div>
                     <Label className="text-xs font-medium text-slate-700">Mensaje adicional <span className="text-slate-400 font-normal">(opcional)</span></Label>
