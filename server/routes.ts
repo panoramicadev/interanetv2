@@ -8000,7 +8000,7 @@ export function registerRoutes(app: Express): Server {
       return { ok: false, status: 400, message: 'Debes indicar el cliente destino (userId, código o nombre).' };
     }
 
-    const { clients: clientsTbl, users: usersTbl } = await import('@shared/schema');
+    const { clients: clientsTbl, users: usersTbl, salespeopleUsers: spUsersTbl } = await import('@shared/schema');
     const { eq: eqOp, and: andOp, isNotNull: isNotNullOp } = await import('drizzle-orm');
 
     let clientRecord: any = null;
@@ -8046,13 +8046,31 @@ export function registerRoutes(app: Express): Server {
       return null;
     };
 
-    let destEmail: string | null = pickEmail(clientRecord.email, clientRecord.emailcomer);
+    // El correo "principal" es el de la cuenta de portal (salespeople_users): es el que la
+    // ficha muestra y edita (PATCH .../contact-info escribe ahí primero y lo espeja a
+    // clients.email). Por eso lo resolvemos primero, con los mismos vínculos que GET
+    // /api/users/clients, para enviar siempre a la dirección que ve el usuario.
+    let destEmail: string | null = null;
+    const tryDestFrom = async (cond: any) => {
+      if (destEmail) return;
+      try {
+        const [sp] = await db.select().from(spUsersTbl).where(cond).limit(1);
+        destEmail = pickEmail(sp?.email, sp?.publicEmail);
+      } catch (_) { /* noop */ }
+    };
+    await tryDestFrom(eqOp(spUsersTbl.clientId, clientRecord.id));
+    if (clientRecord.userId) await tryDestFrom(eqOp(spUsersTbl.id, clientRecord.userId));
+    if (clientRecord.rten) await tryDestFrom(eqOp(spUsersTbl.clientRut, clientRecord.rten));
+
+    // Respaldos: cuenta legacy (tabla users) y, por último, el correo espejado en la ficha SAP.
     if (!destEmail) {
       try {
         const [u] = await db.select().from(usersTbl).where(eqOp(usersTbl.id, clientRecord.userId)).limit(1);
         destEmail = pickEmail(u?.email);
       } catch (_) { /* noop */ }
     }
+    if (!destEmail) destEmail = pickEmail(clientRecord.email, clientRecord.emailcomer);
+
     if (!destEmail) {
       return { ok: false, status: 400, message: 'El cliente no tiene un email válido registrado para recibir el sugerido.' };
     }
