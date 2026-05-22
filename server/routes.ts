@@ -8155,7 +8155,15 @@ export function registerRoutes(app: Express): Server {
 
       // Authoritative server-side price resolution based on customer's assigned lcen price list.
       // Overrides frontend-supplied unitPrice to eliminate price-list mismatches.
-      const resolved = await resolveItemsPricing(orderData.items, client);
+      // Candado de precios: el cliente NO puede elegir lista (priceTier) ni colar
+      // productos "custom" (precio libre). Eso lo hace sólo el equipo comercial.
+      // Limpiamos esos campos para que cada línea se resuelva con la lista de
+      // contrato del cliente (lcen) + ofertas + descuento por sucursal.
+      const sanitizedItems = (orderData.items as any[]).map((it: any) => {
+        const { priceTier, type, ...rest } = it;
+        return rest;
+      });
+      const resolved = await resolveItemsPricing(sanitizedItems, client);
       if (resolved.warnings.length) {
         console.warn(`[orders/client] Price resolution warnings for user ${clientId}:`, resolved.warnings);
       }
@@ -8779,7 +8787,55 @@ export function registerRoutes(app: Express): Server {
       const { clients: clientsTbl } = await import('@shared/schema');
       const { eq: eqOp } = await import('drizzle-orm');
       const [clientRecord] = await db.select().from(clientsTbl).where(eqOp(clientsTbl.userId, user.id)).limit(1);
-      const resolved = await resolveItemsPricing(parsed.data.items, clientRecord || null);
+
+      // ── Candado de precios ────────────────────────────────────────────────
+      // El cliente sólo puede ajustar cantidades, agregar/quitar SKUs y notas.
+      // NO puede cambiar la lista de precio (priceTier) ni inyectar unitPrice:
+      // cada línea conserva el tier que fijó el equipo comercial en el sugerido
+      // original (match por SKU); las líneas nuevas caen a la lista de contrato
+      // del cliente. Los productos personalizados (precio libre) sólo los crea
+      // el equipo comercial, así que aquí no se aceptan nuevos.
+      const originalItems: any[] = Array.isArray(order.items)
+        ? (order.items as any[])
+        : (typeof order.items === 'string' ? (() => { try { return JSON.parse(order.items as string); } catch { return []; } })() : []);
+      const origStdByKey = new Map<string, any>();
+      const origCustomByKey = new Map<string, any>();
+      for (const oi of originalItems) {
+        if (oi?.type === 'custom') {
+          origCustomByKey.set(String(oi.customSku || oi.productName || '').trim().toUpperCase(), oi);
+        } else {
+          const k = String(oi?.sku || oi?.productCode || '').trim().toUpperCase();
+          if (k) origStdByKey.set(k, oi);
+        }
+      }
+
+      const lockedItems: any[] = [];
+      for (const it of parsed.data.items) {
+        if (it?.type === 'custom') {
+          const key = String(it.customSku || it.productName || '').trim().toUpperCase();
+          const orig = origCustomByKey.get(key);
+          if (!orig) {
+            return res.status(403).json({ message: 'No podés agregar productos personalizados ni modificar precios. Esa acción la realiza el equipo comercial.' });
+          }
+          lockedItems.push({
+            ...it,
+            unitPrice: Number(orig.unitPrice) || 0,
+            totalPrice: undefined,
+            costOfProduction: orig.costOfProduction,
+            profitMargin: orig.profitMargin,
+            pricingMode: orig.pricingMode,
+          });
+        } else {
+          const key = String(it.sku || it.productCode || '').trim().toUpperCase();
+          const orig = origStdByKey.get(key);
+          const { unitPrice, totalPrice, priceTier, ...rest } = it as any;
+          // tier del original (fijado por el equipo); si es SKU nuevo queda sin tier
+          // → resolveItemsPricing usa la lista de contrato del cliente + convenio.
+          lockedItems.push(orig?.priceTier ? { ...rest, priceTier: orig.priceTier } : rest);
+        }
+      }
+
+      const resolved = await resolveItemsPricing(lockedItems, clientRecord || null);
 
       const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
