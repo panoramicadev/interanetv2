@@ -8036,15 +8036,25 @@ export function registerRoutes(app: Express): Server {
       return { ok: false, status: 400, message: 'Este cliente aún no tiene cuenta de usuario en el portal. Pídele que se registre antes de enviar un sugerido.' };
     }
 
-    let destEmail: string | null = clientRecord.foen || null;
+    // `foen` es el teléfono, no el email: tomamos el primer email VÁLIDO de las fuentes reales y caemos a la cuenta del portal.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const pickEmail = (...vals: Array<string | null | undefined>): string | null => {
+      for (const v of vals) {
+        const e = (v || '').trim();
+        if (EMAIL_RE.test(e)) return e;
+      }
+      return null;
+    };
+
+    let destEmail: string | null = pickEmail(clientRecord.email, clientRecord.emailcomer);
     if (!destEmail) {
       try {
         const [u] = await db.select().from(usersTbl).where(eqOp(usersTbl.id, clientRecord.userId)).limit(1);
-        if (u?.email) destEmail = u.email;
+        destEmail = pickEmail(u?.email);
       } catch (_) { /* noop */ }
     }
     if (!destEmail) {
-      return { ok: false, status: 400, message: 'El cliente no tiene email registrado para recibir el sugerido.' };
+      return { ok: false, status: 400, message: 'El cliente no tiene un email válido registrado para recibir el sugerido.' };
     }
 
     return { ok: true, clientRecord, destEmail };
