@@ -34,8 +34,6 @@ import {
   PackageSearch,
   UserCheck,
   BookOpen,
-  MapPin,
-  Mail
 } from "lucide-react";
 
 interface SidebarItem {
@@ -68,41 +66,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/productos",
           label: "Productos",
           icon: Package,
-        },
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Clientes",
-          icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
-        },
-        {
-          href: "/donde-comprar-admin",
-          label: "Dónde Comprar",
-          icon: MapPin,
-        },
-        {
-          href: "/mailing",
-          label: "Mailing",
-          icon: Mail,
-        },
-        {
-          href: "/ecommerce",
-          label: "Configuración",
-          icon: ShoppingCart,
         },
       ],
       separator: true,
@@ -138,18 +101,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
-      children: [
-        {
-          href: "/clientes",
-          label: "Listado Clientes",
-          icon: Users,
-        },
-        {
-          href: "/ayuda-memoria",
-          label: "Ayuda Memoria",
-          icon: BookOpen,
-        },
-      ],
     },
     {
       href: "/facturas",
@@ -413,41 +364,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Productos",
           icon: Package,
         },
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Clientes",
-          icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
-        },
-        {
-          href: "/donde-comprar-admin",
-          label: "Dónde Comprar",
-          icon: MapPin,
-        },
-        {
-          href: "/mailing",
-          label: "Mailing",
-          icon: Mail,
-        },
-        {
-          href: "/ecommerce",
-          label: "Configuración",
-          icon: ShoppingCart,
-        },
       ],
       separator: true,
     },
@@ -460,18 +376,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
-      children: [
-        {
-          href: "/clientes",
-          label: "Listado Clientes",
-          icon: Users,
-        },
-        {
-          href: "/ayuda-memoria",
-          label: "Ayuda Memoria",
-          icon: BookOpen,
-        },
-      ],
     },
     {
       href: "/facturas",
@@ -612,41 +516,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/productos",
           label: "Productos",
           icon: Package,
-        },
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Clientes",
-          icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
-        },
-        {
-          href: "/donde-comprar-admin",
-          label: "Dónde Comprar",
-          icon: MapPin,
-        },
-        {
-          href: "/mailing",
-          label: "Mailing",
-          icon: Mail,
-        },
-        {
-          href: "/ecommerce",
-          label: "Configuración",
-          icon: ShoppingCart,
         },
       ],
       separator: true,
@@ -828,36 +697,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/productos",
           label: "Productos",
           icon: Package,
-        },
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Clientes",
-          icon: Users,
-        },
-        {
-          href: "/donde-comprar-admin",
-          label: "Dónde Comprar",
-          icon: MapPin,
-        },
-        {
-          href: "/mailing",
-          label: "Mailing",
-          icon: Mail,
-        },
-        {
-          href: "/ecommerce",
-          label: "Configuración",
-          icon: ShoppingCart,
         },
       ],
       separator: true,
