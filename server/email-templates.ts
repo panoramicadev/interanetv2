@@ -259,7 +259,7 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
     </table>` : ''}
     ${getPaymentInfoBlock()}
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
-      Si necesitás modificar algo o tenés dudas, escribinos a
+      Si necesitas modificar algo o tienes dudas, escríbenos a
       <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
     </p>
   `);
@@ -304,9 +304,9 @@ export function buildOrderModifiedEmail(data: OrderModifiedData): { subject: str
     </table>
     ${data.requiresReceiptUpdate ? `
     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 16px; border-radius: 4px; margin: 0 0 20px 0;">
-      <p style="color: #92400e; margin: 0 0 6px 0; font-size: 14px; font-weight: bold;">⚠️ Acción requerida: actualizá tu comprobante</p>
+      <p style="color: #92400e; margin: 0 0 6px 0; font-size: 14px; font-weight: bold;">⚠️ Acción requerida: actualiza tu comprobante</p>
       <p style="color: #78350f; margin: 0; font-size: 13px; line-height: 1.6;">
-        Como el total cambió, te pedimos que revises el monto transferido. Si corresponde, subí un comprobante actualizado desde tu portal para que podamos seguir procesando el pedido.
+        Como el total cambió, te pedimos que revises el monto transferido. Si corresponde, sube un comprobante actualizado desde tu portal para que podamos seguir procesando el pedido.
       </p>
     </div>` : ''}
     <p style="text-align: center; margin: 24px 0;">
@@ -315,7 +315,7 @@ export function buildOrderModifiedEmail(data: OrderModifiedData): { subject: str
       </a>
     </p>
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
-      Si tenés dudas, escribinos a
+      Si tienes dudas, escríbenos a
       <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
     </p>
   `);
@@ -345,7 +345,7 @@ export function buildQuoteReceivedEmail(data: QuoteReceivedData): { subject: str
     </div>` : ''}
     ${getPaymentInfoBlock()}
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
-      Si necesitás algo urgente, escribinos a
+      Si necesitas algo urgente, escríbenos a
       <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
     </p>
   `);
@@ -365,7 +365,7 @@ interface SuggestedOrderData {
 export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: string; html: string } {
   const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
   const totalStr = fmt(data.total);
-  const subject = `Tienes un pedido sugerido #${data.orderNumber} - Pinturas Panorámica`;
+  const subject = `Tu pedido sugerido #${data.orderNumber} ya está listo — revísalo en 1 minuto`;
 
   const itemsRows = (data.items || []).slice(0, 50).map(it => `
     <tr>
@@ -375,12 +375,12 @@ export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: s
     </tr>`).join('');
 
   const html = wrapEmailContent(`
-    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Te enviamos un pedido sugerido</h2>
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Preparamos un pedido pensado para ti</h2>
     <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
-      Hola <strong>${data.clientName}</strong>, ${data.suggestedByName ? `<strong>${data.suggestedByName}</strong> del equipo de Pinturas Panorámica` : 'nuestro equipo'} preparó un pedido sugerido para vos.
+      Hola <strong>${data.clientName}</strong>, ${data.suggestedByName ? `<strong>${data.suggestedByName}</strong> del equipo de Pinturas Panorámica` : 'nuestro equipo'} armó este pedido pensando en lo que sueles necesitar, y lo dejó listo para que no tengas que empezar de cero.
     </p>
     <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-      Podés <strong>aceptarlo</strong> tal cual está, <strong>modificarlo</strong> antes de confirmar, o <strong>rechazarlo</strong> desde tu portal. No se procesa ningún cobro hasta que lo confirmes. Adjuntamos el detalle completo en PDF.
+      Revísalo en segundos: <strong>acéptalo</strong> tal cual, <strong>ajústalo</strong> a tu gusto o <strong>descártalo</strong>, todo desde tu portal. No se cobra nada hasta que tú lo confirmes. Adjuntamos el detalle completo en PDF.
     </p>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
       <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
@@ -409,13 +409,16 @@ export function buildSuggestedOrderEmail(data: SuggestedOrderData): { subject: s
       <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Nota del equipo:</p>
       <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.notes}</p>
     </div>` : ''}
-    <p style="text-align: center; margin: 24px 0;">
-      <a href="${data.orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-        Revisar y responder el sugerido
+    <p style="text-align: center; margin: 24px 0 8px 0;">
+      <a href="${data.orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 14px 34px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+        Revisar mi pedido ahora
       </a>
     </p>
+    <p style="text-align: center; color: #6b7280; font-size: 12px; margin: 0 0 8px 0;">
+      Solo te tomará un minuto · Sin compromiso
+    </p>
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
-      Si tenés dudas, escribinos a
+      Si tienes dudas, escríbenos a
       <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
     </p>
   `);
