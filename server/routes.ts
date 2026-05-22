@@ -943,6 +943,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Serve locally uploaded invoice PDFs (stored under server/uploads/invoices/)
+  // Necesario porque /api/uploads/:filename solo matchea un segmento y las facturas
+  // se guardan en el subdirectorio invoices/ (ver POST /api/ecommerce/orders/:id/invoices).
+  app.get('/api/uploads/invoices/:filename', (req: any, res: any) => {
+    const filename = path.basename(req.params.filename); // evita path traversal
+    const filePath = path.resolve(process.cwd(), 'server', 'uploads', 'invoices', filename);
+
+    if (!fs.existsSync(filePath)) {
+      console.warn(`❌ [GET-INVOICE] File NOT found: ${filePath}`);
+      return res.status(404).json({ message: 'Factura no encontrada en el servidor', filename });
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    res.setHeader('Content-Type', ext === '.pdf' ? 'application/pdf' : 'application/octet-stream');
+    const wantsDownload = req.query.download === 'true';
+    res.setHeader('Content-Disposition', `${wantsDownload ? 'attachment' : 'inline'}; filename="${filename}"`);
+    res.sendFile(filePath);
+  });
+
   // Fast readiness check - responds immediately for Cloud Run health checks
   app.get('/api/ready', (req: any, res: any) => {
     res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
