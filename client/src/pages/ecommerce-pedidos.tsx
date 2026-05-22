@@ -77,6 +77,14 @@ export default function EcommercePedidos() {
   const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
   const pendingRevenue = pendingOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
 
+  // Conteo de cotizaciones para el selector (comparte cache con SentQuotesTable)
+  const { data: allQuotes = [] } = useQuery<SentQuote[]>({
+    queryKey: ["/api/quotes"],
+  });
+  const sentQuotesCount = allQuotes.filter(
+    (q) => q.status === "sent" || q.sentToFinanceAt
+  ).length;
+
   // Detail view
   if (selectedOrder) {
     return (
@@ -99,6 +107,37 @@ export default function EcommercePedidos() {
           <p className="text-sm text-gray-500 mt-1">Gestiona los pedidos recibidos desde la tienda</p>
         </div>
       </div>
+
+      <Tabs defaultValue="tienda" className="w-full space-y-6">
+        {/* Selector de modo — dos opciones claras de ingreso */}
+        <TabsList className="grid grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
+          <TabsTrigger
+            value="tienda"
+            className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
+              <ShoppingCart className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
+            </div>
+            <div className="text-left min-w-0">
+              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Pedidos de Tienda</div>
+              <div className="text-xs text-gray-500 font-normal truncate">{orders.length} pedido{orders.length !== 1 ? "s" : ""} recibido{orders.length !== 1 ? "s" : ""}</div>
+            </div>
+          </TabsTrigger>
+          <TabsTrigger
+            value="cotizaciones"
+            className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
+              <FileText className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
+            </div>
+            <div className="text-left min-w-0">
+              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Cotizaciones</div>
+              <div className="text-xs text-gray-500 font-normal truncate">{sentQuotesCount} cotización{sentQuotesCount !== 1 ? "es" : ""} enviada{sentQuotesCount !== 1 ? "s" : ""}</div>
+            </div>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tienda" className="mt-0 space-y-6">
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -145,18 +184,6 @@ export default function EcommercePedidos() {
           <div className="text-xs text-gray-500 mt-0.5">facturado</div>
         </div>
       </div>
-
-      <Tabs defaultValue="tienda" className="w-full">
-        <TabsList className="bg-slate-100/70 border border-slate-200 rounded-xl p-1.5 h-auto gap-1">
-          <TabsTrigger value="tienda" className="gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-medium">
-            <ShoppingCart className="h-4 w-4" /> Pedidos de Tienda
-          </TabsTrigger>
-          <TabsTrigger value="cotizaciones" className="gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-medium">
-            <FileText className="h-4 w-4" /> Cotizaciones
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tienda" className="mt-4 space-y-6">
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4">
@@ -280,7 +307,7 @@ export default function EcommercePedidos() {
 
         </TabsContent>
 
-        <TabsContent value="cotizaciones" className="mt-4 space-y-6">
+        <TabsContent value="cotizaciones" className="mt-0 space-y-6">
           <SentQuotesTable />
         </TabsContent>
       </Tabs>
