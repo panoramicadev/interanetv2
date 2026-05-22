@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getNumericOrderId } from "@/lib/utils";
@@ -662,6 +662,22 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     },
   });
 
+  // Fetch SAP (ERP) order history for the linked client: FCV facturas + NVV pending invoicing.
+  // Only fired for SAP-linked clients (clientId present), mirroring the commercial dashboard.
+  const { data: erpData } = useQuery<{ documents: any[]; fcvCount?: number; nvvPendingCount?: number }>({
+    queryKey: ["/api/users/clients", client.clientId, "erp-orders"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/users/clients/${client.clientId}/erp-orders`);
+        return await res.json();
+      } catch {
+        return { documents: [] };
+      }
+    },
+    enabled: !!client.clientId,
+  });
+  const sapDocuments = erpData?.documents || [];
+
   // Fetch SAP price list for this client's code
   const { data: priceListData } = useQuery<{ items: any[]; totalCount: number }>({
     queryKey: ["/api/price-list", { clientCode: client.clientCode }],
@@ -694,6 +710,36 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
   const totalSpent = orders.reduce((acc: number, o: any) => acc + (parseFloat(o.total) || 0), 0);
   const pendingOrders = orders.filter((o: any) => o.status === "pending" || o.status === "Pendiente").length;
   const approvedOrders = orders.filter((o: any) => o.status === "approved" || o.status === "Aprobado").length;
+
+  // Unified order history: eCommerce store orders + SAP documents (FCV facturas + NVV pendientes
+  // de facturación). SAP-linked clients should see their full history, not only store orders.
+  const mergedOrders = useMemo(() => {
+    const ecommerceRows = orders.map((o: any) => ({
+      key: `ecom-${o.id}`,
+      source: "ecommerce" as const,
+      docType: "ECOM" as const,
+      orderNumber: o.orderNumber || getNumericOrderId(o.id),
+      date: o.createdAt,
+      items: o.items?.length || 0,
+      total: parseFloat(o.total || "0") || 0,
+      status: o.status,
+    }));
+    const sapRows = (sapDocuments || []).map((d: any) => ({
+      key: d.id,
+      source: "sap" as const,
+      docType: d.docType as "FCV" | "NVV",
+      orderNumber: d.orderNumber,
+      date: d.date,
+      items: d.items || 0,
+      total: d.total || 0,
+      status: d.status,
+    }));
+    return [...ecommerceRows, ...sapRows].sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const dbb = b.date ? new Date(b.date).getTime() : 0;
+      return dbb - da;
+    });
+  }, [orders, sapDocuments]);
 
   return (
     <div className="space-y-6 p-6">
@@ -972,7 +1018,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
           </TabsTrigger>
           <TabsTrigger value="orders" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <ShoppingBag className="h-4 w-4" /> Pedidos
-            {totalOrders > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">{totalOrders}</Badge>}
+            {mergedOrders.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">{mergedOrders.length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="pricelist" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" /> Lista de Precios
@@ -1255,11 +1301,11 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
             <CardHeader className="bg-muted/30 border-b px-6 py-4">
               <CardTitle className="text-base">Historial de Pedidos</CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                Todos los pedidos realizados por este cliente
+                Pedidos eCommerce, facturas (FCV) y notas de venta (NVV) pendientes de facturación
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {orders.length === 0 ? (
+              {mergedOrders.length === 0 ? (
                 <div className="text-center py-12">
                   <ShoppingBag className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Este cliente aún no tiene pedidos</p>
@@ -1268,7 +1314,8 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/20">
-                      <TableHead className="text-xs uppercase">Pedido</TableHead>
+                      <TableHead className="text-xs uppercase">Tipo</TableHead>
+                      <TableHead className="text-xs uppercase">Documento</TableHead>
                       <TableHead className="text-xs uppercase">Fecha</TableHead>
                       <TableHead className="text-xs uppercase">Productos</TableHead>
                       <TableHead className="text-xs uppercase text-right">Total</TableHead>
@@ -1276,35 +1323,52 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order: any) => (
-                      <TableRow key={order.id} className="hover:bg-muted/10">
-                        <TableCell className="font-mono text-sm font-semibold text-orange-600">
-                          #{order.orderNumber || getNumericOrderId(order.id)}
+                    {mergedOrders.map((order) => (
+                      <TableRow key={order.key} className="hover:bg-muted/10">
+                        <TableCell>
+                          {order.docType === "FCV" ? (
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 border-emerald-200">Factura</Badge>
+                          ) : order.docType === "NVV" ? (
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-violet-100 text-violet-700 border-violet-200">Nota de venta</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 border-blue-200">eCommerce</Badge>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm">{formatDate(order.createdAt)}</TableCell>
+                        <TableCell className="font-mono text-sm font-semibold text-orange-600">
+                          #{order.orderNumber}
+                        </TableCell>
+                        <TableCell className="text-sm">{formatDate(order.date)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {order.items?.length || 0} items
+                          {order.items} items
                         </TableCell>
                         <TableCell className="text-sm text-right font-medium tabular-nums">
-                          {formatCurrency(parseFloat(order.total || "0"))}
+                          {formatCurrency(order.total)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge
-                            variant="secondary"
-                            className={`text-[10px] px-2 py-0.5 ${
-                              order.status === "approved" || order.status === "Aprobado"
-                                ? "bg-green-100 text-green-700 border-green-200"
+                          {order.source === "sap" ? (
+                            order.docType === "FCV" ? (
+                              <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 border-green-200">Facturado</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 border-amber-200">Pend. facturación</Badge>
+                            )
+                          ) : (
+                            <Badge
+                              variant="secondary"
+                              className={`text-[10px] px-2 py-0.5 ${
+                                order.status === "approved" || order.status === "Aprobado"
+                                  ? "bg-green-100 text-green-700 border-green-200"
+                                  : order.status === "archived"
+                                  ? "bg-gray-100 text-gray-500"
+                                  : "bg-amber-100 text-amber-700 border-amber-200"
+                              }`}
+                            >
+                              {order.status === "approved" || order.status === "Aprobado"
+                                ? "Aprobado"
                                 : order.status === "archived"
-                                ? "bg-gray-100 text-gray-500"
-                                : "bg-amber-100 text-amber-700 border-amber-200"
-                            }`}
-                          >
-                            {order.status === "approved" || order.status === "Aprobado"
-                              ? "Aprobado"
-                              : order.status === "archived"
-                              ? "Archivado"
-                              : "Pendiente"}
-                          </Badge>
+                                ? "Archivado"
+                                : "Pendiente"}
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
