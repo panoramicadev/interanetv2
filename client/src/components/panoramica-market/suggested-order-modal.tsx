@@ -18,6 +18,10 @@ const PRESET_EMAIL_CONTACTS = [
   { name: "Joaquin", email: "jsaiz@pinturaspanoramica.cl" },
 ];
 
+// Roles que pueden fijar o cambiar el precio (lista) de cada línea. Un cliente que
+// modifica su propio sugerido NO puede: sólo ajusta cantidades, agrega/quita SKUs y notas.
+const PRICE_EDIT_ROLES = new Set(["admin", "supervisor", "encargado_area", "salesperson"]);
+
 interface StoreFormatVariant {
   ecomId: string;
   sku: string;
@@ -238,6 +242,9 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const isModify = mode === "modify";
+  // Sólo el equipo comercial puede elegir/cambiar la lista de precio. El cliente que
+  // reabre su sugerido (modify) ve precios fijos y no puede agregar productos personalizados.
+  const canEditPrice = PRICE_EDIT_ROLES.has((user?.role || "").toString());
 
   const [skuSearch, setSkuSearch] = useState("");
   const [debouncedSku, setDebouncedSku] = useState("");
@@ -733,14 +740,16 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowCustomModal(true)}
-                  className="h-[52px] px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow"
-                  title="Agregar producto personalizado"
-                >
-                  <Wrench className="h-4 w-4" />
-                  <span className="hidden md:inline">Personalizado</span>
-                </button>
+                {canEditPrice && (
+                  <button
+                    onClick={() => setShowCustomModal(true)}
+                    className="h-[52px] px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow"
+                    title="Agregar producto personalizado"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    <span className="hidden md:inline">Personalizado</span>
+                  </button>
+                )}
               </div>
               {debouncedSku && matchedVariants.length > 0 && (
                 <p className="text-xs text-gray-400 mt-2 pl-1">
@@ -750,10 +759,17 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                   )}
                 </p>
               )}
-              <p className="text-[11px] text-gray-400 mt-2 pl-1 flex items-start gap-1">
-                <Sparkles className="h-3 w-3 mt-0.5 text-amber-500 flex-shrink-0" />
-                Podés elegir la lista de precio (Lista, 10%, Mínimo, Mix, Oferta…) en cada producto del carrito.
-              </p>
+              {canEditPrice ? (
+                <p className="text-[11px] text-gray-400 mt-2 pl-1 flex items-start gap-1">
+                  <Sparkles className="h-3 w-3 mt-0.5 text-amber-500 flex-shrink-0" />
+                  Podés elegir la lista de precio (Lista, 10%, Mínimo, Mix, Oferta…) en cada producto del carrito.
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-400 mt-2 pl-1 flex items-start gap-1">
+                  <Sparkles className="h-3 w-3 mt-0.5 text-amber-500 flex-shrink-0" />
+                  Ajustá cantidades o agregá productos por SKU. Los precios los define el equipo comercial.
+                </p>
+              )}
             </div>
 
             {/* Resultados de búsqueda */}
@@ -975,8 +991,9 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                           </div>
                         </div>
 
-                        {/* Tier selector (sólo standard) */}
-                        {!isCustom && (
+                        {/* Tier selector (sólo standard) — sólo para el equipo comercial.
+                            El cliente que modifica su sugerido no ve ni cambia la lista de precio. */}
+                        {!isCustom && canEditPrice && (
                           <div className="mt-2 flex items-center gap-1.5">
                             <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Lista:</label>
                             {isLoadingTiers ? (
