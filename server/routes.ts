@@ -14423,9 +14423,7 @@ export function registerRoutes(app: Express): Server {
         scope,
         additionalMessage,
         salespersonId,
-        attachmentBase64,
-        attachmentName,
-        attachmentMime,
+        attachments: extraAttachments,
       } = req.body;
 
       if (!pdfBase64) {
@@ -14529,7 +14527,7 @@ export function registerRoutes(app: Express): Server {
           ${ocNumber ? dataRow('N° OC', `<strong>${ocNumber}</strong>`, true) : ''}
           ${segmentDisplay ? dataRow('Segmento', segmentDisplay) : ''}
           ${paymentMethod ? dataRow('Método de pago', paymentMethod) : ''}
-          ${attachmentName ? dataRow('Archivo adjunto', attachmentName) : ''}
+          ${Array.isArray(extraAttachments) && extraAttachments.length ? dataRow(extraAttachments.length > 1 ? 'Archivos adjuntos' : 'Archivo adjunto', extraAttachments.map((a: any) => a?.name).filter(Boolean).join(', ')) : ''}
         </table>
 
         ${scope ? `
@@ -14561,12 +14559,16 @@ export function registerRoutes(app: Express): Server {
       const attachments: Array<{ filename: string; content: Buffer; contentType?: string }> = [
         { filename: `Cotizacion_${quote.quoteNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
       ];
-      if (attachmentBase64 && attachmentName) {
-        attachments.push({
-          filename: attachmentName,
-          content: Buffer.from(attachmentBase64, 'base64'),
-          contentType: attachmentMime || 'application/octet-stream',
-        });
+      if (Array.isArray(extraAttachments)) {
+        for (const att of extraAttachments) {
+          if (att?.base64 && att?.name) {
+            attachments.push({
+              filename: att.name,
+              content: Buffer.from(att.base64, 'base64'),
+              contentType: att.mime || 'application/octet-stream',
+            });
+          }
+        }
       }
 
       // Sender: use shared "Contacto" mailbox so the email arrives a nombre de contacto.
