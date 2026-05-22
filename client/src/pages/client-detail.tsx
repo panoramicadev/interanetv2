@@ -103,6 +103,7 @@ export default function ClientDetail() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isLastPurchaseActive, setIsLastPurchaseActive] = useState(false);
+  const [periodInitializedFor, setPeriodInitializedFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("resumen");
 
   // Fetch available periods
@@ -146,6 +147,20 @@ export default function ClientDetail() {
         break;
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
+
+  // On first load (per client), default the period to the client's last-purchase
+  // month so the KPIs show real data immediately instead of an empty
+  // "last 30 days" window. Skips clients with no sales; never overrides a manual change.
+  useEffect(() => {
+    if (periodInitializedFor === decodedClientName) return;
+    if (!lastOrder?.feemdo) return;
+    const lastDate = new Date(lastOrder.feemdo);
+    if (Number.isNaN(lastDate.getTime())) return;
+    setFilterType("month");
+    setSelectedPeriod(format(lastDate, "yyyy-MM"));
+    setIsLastPurchaseActive(true);
+    setPeriodInitializedFor(decodedClientName);
+  }, [lastOrder, decodedClientName, periodInitializedFor]);
 
   // Handler for "Mes Ultima Compra" button
   const handleLastPurchaseMonth = useCallback(() => {
@@ -589,7 +604,16 @@ export default function ClientDetail() {
                       ))}
                     </div>
                   ) : products.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No hay productos registrados para este cliente en el periodo seleccionado</p>
+                    <div className="text-center py-8 space-y-1">
+                      {!lastOrder?.feemdo ? (
+                        <p className="text-gray-500">Este cliente no tiene historial de compras registrado.</p>
+                      ) : (
+                        <>
+                          <p className="text-gray-500">Sin compras en el período seleccionado.</p>
+                          <p className="text-sm text-gray-400">Última compra: {formatDate(lastOrder.feemdo)}. Cambiá el período para verla.</p>
+                        </>
+                      )}
+                    </div>
                   ) : (
                     products.map((product, index) => (
                       <div

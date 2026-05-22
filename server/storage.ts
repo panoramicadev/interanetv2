@@ -7049,6 +7049,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Client detail operations
+  // Builds the WHERE condition that matches a client's sales rows. Matches by the
+  // fuzzy client name AND by the reliable client code (fact_ventas.endo =
+  // clients.koen) resolved from the SAP ficha, so clients whose ficha name differs
+  // from the name stored on their sales (abbreviations, encoding, suffixes) still
+  // resolve to their transactions.
+  private async buildClientSalesMatch(clientName: string) {
+    const normalized = decodeURIComponent(clientName).trim();
+    const normalizedForExactSearch = normalized.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const nameCond = sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`;
+
+    let codes: string[] = [];
+    try {
+      const fichaRows = await db
+        .select({ koen: clients.koen })
+        .from(clients)
+        .where(sql`UPPER(TRIM(REGEXP_REPLACE(REPLACE(${clients.nokoen}, '-', ' '), '[[:space:]]+', ' ', 'g'))) = UPPER(${normalizedForExactSearch})`)
+        .limit(5);
+      codes = fichaRows.map((r) => (r.koen || '').trim()).filter((c) => c !== '');
+    } catch (e) {
+      console.error('[buildClientSalesMatch] ficha code lookup failed:', e);
+    }
+
+    if (codes.length === 0) return nameCond;
+
+    const codeList = sql.join(codes.map((c) => sql`${c}`), sql`, `);
+    return sql`(${nameCond} OR TRIM(${factVentas.endo}) IN (${codeList}))`;
+  }
+
   async getClientDetails(clientName: string, period?: string, filterType: string = 'month'): Promise<{
     totalPurchases: number;
     totalProducts: number;
@@ -7067,7 +7096,7 @@ export class DatabaseStorage implements IStorage {
     console.log('[getClientDetails] Client:', normalizedClientName, 'Normalized:', normalizedForExactSearch, 'Period:', period, 'FilterType:', filterType);
 
     const conditions = [
-      sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+      await this.buildClientSalesMatch(clientName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -7173,12 +7202,8 @@ export class DatabaseStorage implements IStorage {
     lastPurchase: string;
     daysSinceLastPurchase: number;
   }>> {
-    // Normalize client name for comparison - handle URL encoding
-    const normalizedClientName = decodeURIComponent(clientName).trim();
-    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-
     const conditions = [
-      sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+      await this.buildClientSalesMatch(clientName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -7272,9 +7297,7 @@ export class DatabaseStorage implements IStorage {
     monto: string;
     nokofu: string;
   } | null> {
-    // Normalize client name for comparison - handle URL encoding
-    const normalizedClientName = decodeURIComponent(clientName).trim();
-    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const clientMatch = await this.buildClientSalesMatch(clientName);
 
     const [result] = await db
       .select({
@@ -7287,7 +7310,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(and(
-        sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+        clientMatch,
         sql`${factVentas.tido} != 'GDV'`
       ))
       .orderBy(desc(factVentas.feemdo))
@@ -7313,9 +7336,7 @@ export class DatabaseStorage implements IStorage {
     monto: string;
     nokofu: string;
   }>> {
-    // Normalize client name for comparison - handle URL encoding
-    const normalizedClientName = decodeURIComponent(clientName).trim();
-    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const clientMatch = await this.buildClientSalesMatch(clientName);
 
     const result = await db
       .select({
@@ -7328,7 +7349,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(and(
-        sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+        clientMatch,
         sql`${factVentas.tido} != 'GDV'`
       ))
       .orderBy(desc(factVentas.feemdo))
