@@ -28,6 +28,7 @@ import {
   GitBranch, Building, Network, Send
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 import SuggestedOrderModal, { type SuggestedOrderTargetClient } from "@/components/panoramica-market/suggested-order-modal";
 
 interface ClientUser {
@@ -100,6 +101,7 @@ interface Warehouse {
 // ─── Client Profile Detail Panel ─────────────────────────
 function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser; onBack: () => void; onClientUpdated: (updated: ClientUser) => void }) {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const canSendSuggested = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
   const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -780,16 +782,27 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
             </div>
           </div>
           <div className="flex flex-col items-end gap-3">
-            {canSendSuggested && (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               <Button
-                onClick={() => setSuggestedTarget({ clientName: client.clientName, clientCode: client.clientCode })}
-                className="bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-lg shadow-orange-500/20 h-9 px-4 text-sm font-semibold"
-                data-testid="button-send-suggested-detail"
+                variant="outline"
+                onClick={() => setLocation(`/client/${encodeURIComponent(client.clientName)}`)}
+                className="border-slate-600 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white h-9 px-4 text-sm font-semibold"
+                data-testid="button-view-analysis-detail"
               >
-                <Send className="h-4 w-4 mr-2" />
-                Enviar sugerido
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Ver análisis
               </Button>
-            )}
+              {canSendSuggested && (
+                <Button
+                  onClick={() => setSuggestedTarget({ clientName: client.clientName, clientCode: client.clientCode })}
+                  className="bg-[#FF6E23] hover:bg-[#E55E13] text-white shadow-lg shadow-orange-500/20 h-9 px-4 text-sm font-semibold"
+                  data-testid="button-send-suggested-detail"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar sugerido
+                </Button>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
                 <KeyRound className="h-3 w-3 mr-1" />
