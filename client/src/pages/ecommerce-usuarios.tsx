@@ -104,6 +104,12 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
   const [suggestedTarget, setSuggestedTarget] = useState<SuggestedOrderTargetClient | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditingCommercial, setIsEditingCommercial] = useState(false);
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    email: client.email || "",
+    phone: client.phone || "",
+    address: client.address || "",
+  });
   const [linkSearchQuery, setLinkSearchQuery] = useState("");
   const [linkSearchResults, setLinkSearchResults] = useState<any[]>([]);
   const [isSearchingClients, setIsSearchingClients] = useState(false);
@@ -147,6 +153,12 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
       lcen: client.lcen || "",
       freeShipping: !!client.freeShipping
     });
+    setContactForm({
+      email: client.email || "",
+      phone: client.phone || "",
+      address: client.address || "",
+    });
+    setIsEditingContact(false);
   }, [client]);
 
   // Fetch salespeople
@@ -248,6 +260,37 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo actualizar la información comercial.", variant: "destructive" });
+    }
+  });
+
+  // Mutation: Update contact info — email, phone, address (keyed by user id, not clientId)
+  const updateContactInfo = useMutation({
+    mutationFn: async (data: { email: string; phone: string; address: string }) => {
+      // Phone/address live on the SAP client ficha; ensure one exists when setting them.
+      let newClientId: string | null = null;
+      if (!client.clientId && (data.phone.trim() || data.address.trim())) {
+        const linkRes = await apiRequest("POST", `/api/users/clients/${client.id}/create-and-link`);
+        const linkData = await linkRes.json();
+        newClientId = linkData.client?.id || null;
+      }
+      const res = await apiRequest("PATCH", `/api/users/clients/${client.id}/contact-info`, data);
+      const result = await res.json();
+      return { ...result, newClientId };
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Guardado", description: "Datos de contacto actualizados." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      setIsEditingContact(false);
+      onClientUpdated({
+        ...client,
+        email: data.email,
+        phone: data.phone ?? null,
+        address: data.address ?? null,
+        clientId: data.clientId || data.newClientId || client.clientId,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "No se pudieron actualizar los datos de contacto.", variant: "destructive" });
     }
   });
 
@@ -940,30 +983,53 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         <TabsContent value="overview" className="mt-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base flex items-center gap-2">
                   <UserCircle className="h-4 w-4 text-blue-500" />
                   Información General
                 </CardTitle>
+                {!isEditingContact && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-blue-600" onClick={() => { setContactForm({ email: client.email || "", phone: client.phone || "", address: client.address || "" }); setIsEditingContact(true); }}>
+                    <Edit2 className="h-3.5 w-3.5 mr-1" /> Editar
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { label: "Nombre", value: client.clientName, icon: UserCircle },
-                  { label: "Email", value: client.email, icon: Mail },
-                  { label: "RUT", value: client.rut, icon: Building2 },
-                  { label: "Código", value: client.clientCode, icon: Hash },
-                  { label: "Teléfono", value: client.phone, icon: Phone },
-                  { label: "Dirección", value: client.address, icon: MapPin },
-                  { label: "Comuna", value: client.commune, icon: MapPin },
-                  { label: "Registro", value: formatDate(client.createdAt), icon: Calendar },
-                ].map(({ label, value, icon: Icon }) => (
+                  { label: "Nombre", value: client.clientName, icon: UserCircle, field: null },
+                  { label: "Email", value: client.email, icon: Mail, field: "email" as const },
+                  { label: "RUT", value: client.rut, icon: Building2, field: null },
+                  { label: "Código", value: client.clientCode, icon: Hash, field: null },
+                  { label: "Teléfono", value: client.phone, icon: Phone, field: "phone" as const },
+                  { label: "Dirección", value: client.address, icon: MapPin, field: "address" as const },
+                  { label: "Comuna", value: client.commune, icon: MapPin, field: null },
+                  { label: "Registro", value: formatDate(client.createdAt), icon: Calendar, field: null },
+                ].map(({ label, value, icon: Icon, field }) => (
                   <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0">
                     <span className="text-sm text-muted-foreground flex items-center gap-2">
                       <Icon className="h-3.5 w-3.5" /> {label}
                     </span>
-                    <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
+                    {field && isEditingContact ? (
+                      <Input
+                        type={field === "email" ? "email" : field === "phone" ? "tel" : "text"}
+                        value={contactForm[field]}
+                        onChange={(e) => setContactForm((f) => ({ ...f, [field]: e.target.value }))}
+                        placeholder={field === "email" ? "correo@ejemplo.com" : field === "phone" ? "Teléfono" : "Dirección"}
+                        className="h-8 text-sm max-w-[60%]"
+                      />
+                    ) : (
+                      <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
+                    )}
                   </div>
                 ))}
+                {isEditingContact && (
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setIsEditingContact(false); setContactForm({ email: client.email || "", phone: client.phone || "", address: client.address || "" }); }}>Cancelar</Button>
+                    <Button size="sm" className="h-8 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => updateContactInfo.mutate({ email: contactForm.email.trim(), phone: contactForm.phone.trim(), address: contactForm.address.trim() })} disabled={updateContactInfo.isPending || !contactForm.email.trim()}>
+                      {updateContactInfo.isPending ? "Guardando..." : "Guardar"}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
