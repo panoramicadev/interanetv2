@@ -12309,6 +12309,116 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get ERP (SAP) order history for a specific linked client (admin/commercial view).
+  // Unlike /api/ecommerce/client/erp-orders (session-based, client portal), this is
+  // parametrized by the clients.id being viewed and returns real SAP documents:
+  //   - FCV (facturas de venta) → already invoiced orders
+  //   - NVV (notas de venta) still pending invoicing → eslido open + qty pendiente > 0
+  // Matched by client name (nokoen), consistent with the SAP totals shown on the same page.
+  app.get('/api/users/clients/:clientId/erp-orders', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { clientId } = req.params;
+      const { sql } = await import('drizzle-orm');
+      const { db } = await import('./db');
+
+      // Resolve the SAP client record to get its canonical name (join key for fact tables)
+      const clientResult = await db.execute(sql`SELECT id, koen, nokoen FROM clients WHERE id = ${clientId} LIMIT 1`);
+      const clientRow = (Array.isArray(clientResult) ? clientResult : (clientResult as any).rows || [])[0];
+      if (!clientRow || !clientRow.nokoen) {
+        return res.json({ documents: [], fcvCount: 0, nvvPendingCount: 0 });
+      }
+      const clientName = clientRow.nokoen as string;
+
+      // FCV invoices (facturas), aggregated per document
+      let invoices: any[] = [];
+      try {
+        const invResult = await db.execute(sql`
+          SELECT
+            idmaeedo::text AS doc_id,
+            MAX(nudo)::text AS nudo,
+            MAX(feemdo)::text AS fecha,
+            COALESCE(SUM(monto), 0)::numeric AS total,
+            COUNT(*)::int AS items,
+            MAX(nokofu) AS vendedor
+          FROM ventas.fact_ventas
+          WHERE nokoen = ${clientName} AND tido = 'FCV'
+          GROUP BY idmaeedo
+          ORDER BY MAX(feemdo) DESC
+          LIMIT 300
+        `);
+        const rows = Array.isArray(invResult) ? invResult : (invResult as any).rows || [];
+        invoices = rows.map((r: any) => ({
+          source: 'sap',
+          docType: 'FCV',
+          id: `fcv-${r.doc_id}`,
+          orderNumber: r.nudo,
+          date: r.fecha,
+          items: Number(r.items) || 0,
+          total: Number(r.total) || 0,
+          status: 'facturado',
+          salesperson: r.vendedor || null,
+          deliveryDate: null,
+        }));
+      } catch (e) {
+        console.warn('[GET /api/users/clients/:clientId/erp-orders] FCV query failed:', e);
+      }
+
+      // NVV (notas de venta) still pending invoicing, aggregated per document
+      let nvvPending: any[] = [];
+      try {
+        const nvvResult = await db.execute(sql`
+          SELECT
+            idmaeedo::text AS doc_id,
+            MAX(nudo) AS nudo,
+            MAX(feemdo)::text AS fecha,
+            MAX(feer)::text AS fecha_entrega,
+            COALESCE(SUM(monto), 0)::numeric AS total,
+            COALESCE(SUM(monto_pendiente), 0)::numeric AS total_pendiente,
+            COUNT(*)::int AS items,
+            MAX(nombre_vendedor) AS vendedor
+          FROM nvv.fact_nvv
+          WHERE nokoen = ${clientName}
+            AND (eslido IS NULL OR TRIM(eslido) = '')
+            AND COALESCE(cantidad_pendiente_ud2, 0) > 0
+          GROUP BY idmaeedo
+          ORDER BY MAX(feemdo) DESC
+          LIMIT 300
+        `);
+        const rows = Array.isArray(nvvResult) ? nvvResult : (nvvResult as any).rows || [];
+        nvvPending = rows.map((r: any) => ({
+          source: 'sap',
+          docType: 'NVV',
+          id: `nvv-${r.doc_id}`,
+          orderNumber: r.nudo,
+          date: r.fecha,
+          items: Number(r.items) || 0,
+          total: Number(r.total) || 0,
+          totalPending: Number(r.total_pendiente) || 0,
+          status: 'pendiente_facturacion',
+          salesperson: r.vendedor || null,
+          deliveryDate: r.fecha_entrega || null,
+        }));
+      } catch (e) {
+        console.warn('[GET /api/users/clients/:clientId/erp-orders] NVV query failed:', e);
+      }
+
+      res.json({
+        documents: [...nvvPending, ...invoices],
+        fcvCount: invoices.length,
+        nvvPendingCount: nvvPending.length,
+        clientName,
+      });
+    } catch (error: any) {
+      console.error('Error fetching client ERP orders:', error);
+      res.status(500).json({ message: 'Error al consultar pedidos ERP', detail: error?.message || 'Unknown error' });
+    }
+  });
+
   // Search clients (for CRM lead creation from existing clients)
   app.get('/api/users/clients/search', requireCommercialAccess, async (req: any, res) => {
     try {
