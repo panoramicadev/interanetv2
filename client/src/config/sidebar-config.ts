@@ -101,18 +101,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
-      children: [
-        {
-          href: "/clientes",
-          label: "Listado Clientes",
-          icon: Users,
-        },
-        {
-          href: "/ayuda-memoria",
-          label: "Ayuda Memoria",
-          icon: BookOpen,
-        },
-      ],
     },
     {
       href: "/facturas",
@@ -388,18 +376,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
-      children: [
-        {
-          href: "/clientes",
-          label: "Listado Clientes",
-          icon: Users,
-        },
-        {
-          href: "/ayuda-memoria",
-          label: "Ayuda Memoria",
-          icon: BookOpen,
-        },
-      ],
     },
     {
       href: "/facturas",
