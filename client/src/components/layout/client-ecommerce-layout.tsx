@@ -10,7 +10,7 @@ import {
   Menu,
   X,
   ChevronRight,
-  Gift
+  FileText,
 } from "lucide-react";
 
 interface StoreConfig {
@@ -22,7 +22,13 @@ interface StoreConfig {
 const navItems = [
   { label: "Mi Panel", href: "/mi-cuenta", icon: LayoutDashboard },
   { label: "Mis Pedidos", href: "/mis-pedidos", icon: ClipboardList },
+  { label: "Documentos", href: "/mis-documentos", icon: FileText },
 ];
+
+const niceFirstName = (full: string) => {
+  const first = (full || "").trim().split(/\s+/)[0] || "Cliente";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+};
 
 export default function ClientEcommerceLayout({ children }: { children: ReactNode }) {
   const { user, logoutMutation } = useAuth();
@@ -35,20 +41,23 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
   });
 
   const displayName = (user as any)?.salespersonName || (user as any)?.name || (user as any)?.username || "Cliente";
+  const firstName = niceFirstName(displayName);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Top Header Bar */}
-      <header className="bg-gray-900 sticky top-0 z-50">
+      <header className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 sticky top-0 z-50 shadow-lg shadow-slate-900/10 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            {/* Logo */}
+          <div className="flex items-center justify-between h-16">
+            {/* Logo — fondo claro para que el logo de letras oscuras se lea sobre la barra oscura */}
             <a href="/" className="flex-shrink-0">
-              <img
-                src={storeConfig?.logoUrl || "/panoramica-logo.png"}
-                alt="Panorámica"
-                className="h-8 sm:h-9"
-              />
+              <span className="inline-flex items-center bg-white rounded-xl px-3 py-1.5 shadow-sm ring-1 ring-black/5">
+                <img
+                  src={storeConfig?.logoUrl || "/panoramica-logo.png"}
+                  alt="Panorámica"
+                  className="h-7 sm:h-8 w-auto"
+                />
+              </span>
             </a>
 
             {/* Desktop Nav */}
@@ -83,15 +92,18 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
                 Ver mi Catálogo
               </a>
 
-              {/* User avatar */}
-              <div className="hidden md:flex items-center gap-2 text-gray-300 text-sm pl-3 border-l border-white/20 ml-2">
-                <div className="w-7 h-7 rounded-full bg-[#FF6E23] flex items-center justify-center text-white font-bold text-xs">
-                  {displayName.charAt(0).toUpperCase()}
+              {/* User greeting */}
+              <div className="hidden md:flex items-center gap-2.5 text-gray-300 text-sm pl-3 border-l border-white/20 ml-2">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/10">
+                  {firstName.charAt(0).toUpperCase()}
                 </div>
-                <span className="max-w-[120px] truncate text-xs">{displayName}</span>
+                <div className="leading-tight max-w-[150px]">
+                  <p className="text-[10px] text-gray-400 -mb-0.5">Hola,</p>
+                  <p className="text-xs font-semibold text-white truncate">{firstName}</p>
+                </div>
                 <button
                   onClick={() => logoutMutation.mutate()}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors ml-1"
                   title="Cerrar sesión"
                 >
                   <LogOut className="h-4 w-4" />
@@ -147,10 +159,10 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
               {/* Mobile user info */}
               <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/10">
                 <div className="flex items-center gap-2 text-gray-300 text-sm">
-                  <div className="w-7 h-7 rounded-full bg-[#FF6E23] flex items-center justify-center text-white font-bold text-xs">
-                    {displayName.charAt(0).toUpperCase()}
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center text-white font-bold text-xs">
+                    {firstName.charAt(0).toUpperCase()}
                   </div>
-                  <span className="truncate text-xs">{displayName}</span>
+                  <span className="truncate text-xs">Hola, <span className="font-semibold text-white">{firstName}</span></span>
                 </div>
                 <button
                   onClick={() => logoutMutation.mutate()}

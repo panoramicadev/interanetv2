@@ -11,20 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -54,6 +40,7 @@ import {
   ArrowRight,
   BarChart3,
   ExternalLink,
+  FileText,
 } from "lucide-react";
 
 // ==========================================
@@ -251,6 +238,12 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 
   const isLoading = webLoading || erpLoading || clientLoading;
 
+  const rawName = (user as any)?.salespersonName || (user as any)?.name || (user as any)?.username || salesperson || "Cliente";
+  const firstName = (() => {
+    const f = String(rawName).trim().split(/\s+/)[0] || "Cliente";
+    return f.charAt(0).toUpperCase() + f.slice(1).toLowerCase();
+  })();
+
   // Compute metrics from Web Orders.
   // Incluimos todos los estados activos del flujo (pending → approved → sent → ingresado),
   // descartando sólo los terminales/cancelados (rejected/archived). Antes el filtro dejaba
@@ -365,19 +358,23 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Welcome header */}
-      <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
-        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">Resumen de Cuenta</h2>
-            <p className="text-blue-100 text-sm mt-1 max-w-2xl">
-              Tus métricas de compra, pedidos recientes y productos más solicitados a través de nuestro portal eCommerce.
+      {/* Welcome header — saludo personalizado */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-7 text-white">
+        <div className="absolute -top-16 -right-10 w-72 h-72 bg-[#FF6E23]/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-20 -left-10 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#FF6E23]">Tu portal de compras</p>
+            <h2 className="text-3xl sm:text-4xl font-black mt-1 leading-tight">
+              Hola, <span className="text-[#FF6E23]">{firstName}</span>
+            </h2>
+            <p className="text-slate-300 text-sm mt-2 max-w-xl">
+              Acá tenés tus métricas, pedidos, seguimiento de despachos y documentos — todo en un solo lugar.
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            className="bg-white/10 border-white/20 hover:bg-white/20 text-white rounded-xl shadow-lg backdrop-blur-sm"
+          <Button
+            variant="outline"
+            className="bg-white/10 border-white/20 hover:bg-white/20 text-white rounded-xl shadow-lg backdrop-blur-sm flex-shrink-0"
             onClick={() => setShowProfileModal(true)}
           >
             <User className="w-4 h-4 mr-2" />
@@ -558,7 +555,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
         <a href="/tienda" className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group">
           <div className="p-2.5 rounded-xl bg-orange-50 group-hover:bg-orange-100 transition-colors">
             <ShoppingCart className="h-5 w-5 text-orange-500" />
@@ -574,10 +571,20 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
             <ClipboardList className="h-5 w-5 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">Ver Pedidos Completos</p>
-            <p className="text-[10px] text-gray-500">Ingresados y en despacho</p>
+            <p className="text-sm font-semibold text-gray-900">Ver Pedidos</p>
+            <p className="text-[10px] text-gray-500">Seguimiento y despachos</p>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 transition-colors" />
+        </a>
+        <a href="/mis-documentos" className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all group">
+          <div className="p-2.5 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors">
+            <FileText className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900">Documentos</p>
+            <p className="text-[10px] text-gray-500">Facturas y guías de despacho</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-emerald-400 transition-colors" />
         </a>
       </div>
     </div>
@@ -589,10 +596,12 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 // ==========================================
 import React from 'react';
 import { OrderDetailView, EcommerceOrder, getOrderItems, statusConfig } from "@/components/ecommerce/order-detail-view";
-import { ChevronDown, ChevronUp, Repeat, Sparkles, Check, X as XIcon, Pencil, Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Repeat, Sparkles, Check, X as XIcon, Pencil, ImageIcon } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
+import { SuggestedOrderModal } from "@/components/panoramica-market/suggested-order-modal";
+import { groupFacturas, groupDespachos } from "@/components/ecommerce/client-documents";
 
 // ==========================================
 // Suggested Orders Panel — sugeridos pendientes
@@ -649,60 +658,72 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
 
   return (
     <>
-      <div className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-sm">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="h-10 w-10 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0">
+      <div className="relative overflow-hidden rounded-3xl border border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-white p-5 sm:p-6 shadow-sm">
+        <div className="absolute -top-12 -right-8 w-48 h-48 bg-[#FF6E23]/10 rounded-full blur-3xl" />
+        <div className="relative flex items-start gap-3 mb-5">
+          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/30">
             <Sparkles className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-bold text-orange-900">
-              Tienes {orders.length} pedido{orders.length !== 1 ? "s" : ""} sugerido{orders.length !== 1 ? "s" : ""}
+            <h3 className="text-lg font-black text-slate-900">
+              {orders.length} pedido{orders.length !== 1 ? "s" : ""} sugerido{orders.length !== 1 ? "s" : ""} para vos
             </h3>
-            <p className="text-xs text-orange-700 mt-0.5">
-              Nuestro equipo te preparó este pedido. Podés aceptarlo, modificarlo o rechazarlo.
+            <p className="text-sm text-slate-600 mt-0.5">
+              Nuestro equipo armó {orders.length !== 1 ? "estos pedidos" : "este pedido"} pensando en vos. Aceptalo, ajustalo a tu gusto o rechazalo.
             </p>
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="relative grid grid-cols-1 gap-4">
           {orders.map((o) => {
             const items = getOrderItems(o);
+            const totalUnits = items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0);
+            const isAccepting = acceptMutation.isPending && acceptMutation.variables === o.id;
             return (
-              <div key={o.id} className="rounded-xl bg-white border border-orange-100 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3 mb-3">
+              <div key={o.id} className="rounded-2xl bg-white border border-orange-100 shadow-sm overflow-hidden">
+                {/* Cabecera de la tarjeta */}
+                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-orange-50/80 to-transparent border-b border-orange-100/70">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold bg-[#FF6E23]/10 text-[#E55E13] px-2 py-0.5 rounded-md">
                         #{getNumericOrderId(o.id)}
                       </span>
-                      <span className="text-xs text-slate-500">{formatDate(o.createdAt)}</span>
+                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {formatDate(o.createdAt)}
+                      </span>
                     </div>
                     {o.suggestedByName && (
-                      <p className="text-xs text-slate-600">
-                        Enviado por <strong>{o.suggestedByName}</strong>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Preparado por <strong className="text-slate-700">{o.suggestedByName}</strong>
                       </p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-lg font-black text-orange-600">{formatCurrency(Number(o.total))}</p>
-                    <p className="text-[10px] text-slate-500">
-                      {items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0)} unidades
-                    </p>
+                    <p className="text-xl font-black text-[#FF6E23] leading-none">{formatCurrency(Number(o.total))}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{totalUnits} unidad{totalUnits !== 1 ? "es" : ""} · {items.length} ítem{items.length !== 1 ? "s" : ""}</p>
                   </div>
                 </div>
 
-                <div className="space-y-1.5 max-h-[180px] overflow-y-auto border-t border-slate-100 pt-3">
+                {/* Items con miniatura */}
+                <div className="px-4 py-3 space-y-2 max-h-[220px] overflow-y-auto">
                   {items.slice(0, 8).map((it: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center text-xs">
-                      <span className="text-slate-700 truncate flex-1 mr-2">
-                        {it.productName}
-                        {(it.selectedColor || it.selectedPackaging) && (
-                          <span className="text-slate-400 ml-1">
-                            ({[it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")})
-                          </span>
+                    <div key={idx} className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {it.imageUrl ? (
+                          <img src={it.imageUrl} alt="" className="w-full h-full object-contain p-0.5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-slate-300" />
                         )}
-                      </span>
-                      <span className="text-slate-500 flex-shrink-0">
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-700 truncate">{it.productName}</p>
+                        {(it.selectedColor || it.selectedPackaging) && (
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {[it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-500 flex-shrink-0 tabular-nums">
                         {it.quantity} × {formatCurrency(Number(it.unitPrice || 0))}
                       </span>
                     </div>
@@ -715,41 +736,36 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
                 </div>
 
                 {o.notes && (
-                  <div className="mt-3 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
-                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1">
-                      Nota del equipo
-                    </p>
+                  <div className="mx-4 mb-3 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-0.5">Nota del equipo</p>
                     <p className="text-xs text-amber-900 whitespace-pre-wrap">{o.notes}</p>
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
+                {/* Acciones */}
+                <div className="flex flex-wrap gap-2 px-4 py-3 bg-slate-50/60 border-t border-slate-100">
                   <Button
                     onClick={() => acceptMutation.mutate(o.id)}
                     disabled={acceptMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 rounded-lg flex-1 min-w-[140px]"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm h-9 rounded-xl flex-[2] min-w-[150px] font-bold shadow-sm shadow-emerald-500/20"
                   >
-                    {acceptMutation.isPending && acceptMutation.variables === o.id ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5 mr-1.5" />
-                    )}
-                    Aceptar
+                    {isAccepting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Check className="h-4 w-4 mr-1.5" />}
+                    Aceptar pedido
                   </Button>
                   <Button
                     onClick={() => setEditing(o)}
                     variant="outline"
-                    className="text-xs h-8 rounded-lg flex-1 min-w-[140px] border-blue-200 text-blue-700 hover:bg-blue-50"
+                    className="text-sm h-9 rounded-xl flex-1 min-w-[120px] border-[#FF6E23]/30 text-[#E55E13] hover:bg-orange-50 font-semibold"
                   >
-                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    <Pencil className="h-4 w-4 mr-1.5" />
                     Modificar
                   </Button>
                   <Button
                     onClick={() => setRejecting(o)}
-                    variant="outline"
-                    className="text-xs h-8 rounded-lg flex-1 min-w-[140px] border-red-200 text-red-700 hover:bg-red-50"
+                    variant="ghost"
+                    className="text-sm h-9 rounded-xl flex-1 min-w-[110px] text-red-600 hover:bg-red-50 font-semibold"
                   >
-                    <XIcon className="h-3.5 w-3.5 mr-1.5" />
+                    <XIcon className="h-4 w-4 mr-1.5" />
                     Rechazar
                   </Button>
                 </div>
@@ -794,146 +810,22 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: modificar items */}
+      {/* Modificar: reutiliza el MISMO builder que usa el equipo para armar sugeridos */}
       {editing && (
-        <ModifySuggestedDialog
-          order={editing}
+        <SuggestedOrderModal
+          open={!!editing}
+          mode="modify"
+          existingOrder={{
+            id: editing.id,
+            items: getOrderItems(editing),
+            notes: editing.notes,
+            clientName: editing.clientName,
+          }}
+          client={{ clientName: editing.clientName || "Mi cuenta" }}
           onClose={() => setEditing(null)}
         />
       )}
     </>
-  );
-}
-
-function ModifySuggestedDialog({ order, onClose }: { order: any; onClose: () => void }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const initialItems = getOrderItems(order);
-  const [items, setItems] = useState<any[]>(initialItems.map((it: any) => ({ ...it })));
-  const [notes, setNotes] = useState<string>(order.notes || "");
-
-  const updateQty = (idx: number, qty: number) => {
-    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, quantity: Math.max(0, qty) } : it)));
-  };
-
-  const filteredItems = items.filter((it) => Number(it.quantity || 0) > 0);
-  const refSubtotal = filteredItems.reduce((s, it) => s + (Number(it.unitPrice || 0) * Number(it.quantity || 0)), 0);
-
-  const modifyMutation = useMutation({
-    mutationFn: async () => {
-      if (filteredItems.length === 0) throw new Error("Dejá al menos un producto");
-      const res = await fetch(`/api/ecommerce/orders/${order.id}/suggested-modify`, {
-        method: "PATCH", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: filteredItems.map((it) => ({
-            // Preservamos el shape que armó el vendedor (type, priceTier, custom*, etc.)
-            // para que el backend siga respetando el tier elegido y no re-cotice todo.
-            ...it,
-            productName: it.productName,
-            sku: it.sku || it.productCode,
-            quantity: it.quantity,
-            unitPrice: Number(it.unitPrice || 0),
-            totalPrice: Number(it.unitPrice || 0) * Number(it.quantity || 0),
-          })),
-          notes: notes.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message || "No se pudo modificar");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Sugerido modificado", description: "Tu pedido modificado quedó en revisión del equipo." });
-      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
-      onClose();
-    },
-    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
-  });
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Modificar pedido sugerido</DialogTitle>
-          <DialogDescription>
-            Ajustá cantidades o eliminá productos. El equipo revisará tu pedido modificado antes de confirmarlo.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto py-2 space-y-2">
-          {items.map((it, idx) => (
-            <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{it.productName}</p>
-                <p className="text-[11px] text-slate-500 truncate">
-                  {[it.sku || it.productCode, it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")}
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Precio ref.: {formatCurrency(Number(it.unitPrice || 0))}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button" size="icon" variant="outline"
-                  className="h-7 w-7 rounded-lg"
-                  onClick={() => updateQty(idx, Number(it.quantity || 0) - 1)}
-                  disabled={Number(it.quantity || 0) <= 0}
-                >
-                  <Minus className="h-3 w-3" />
-                </Button>
-                <Input
-                  type="number"
-                  min={0}
-                  value={it.quantity || ""}
-                  onChange={(e) => updateQty(idx, parseInt(e.target.value) || 0)}
-                  className="h-7 w-14 text-center text-sm font-bold rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <Button
-                  type="button" size="icon" variant="outline"
-                  className="h-7 w-7 rounded-lg"
-                  onClick={() => updateQty(idx, Number(it.quantity || 0) + 1)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-3">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Nota para el equipo (opcional)
-            </Label>
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej: necesito que llegue antes del viernes"
-              className="mt-1 rounded-xl"
-              rows={2}
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100 mt-3">
-            <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">Subtotal ref.</span>
-            <span className="text-base font-black text-orange-600">{formatCurrency(refSubtotal)}</span>
-          </div>
-        </div>
-
-        <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={onClose} className="rounded-xl">Cancelar</Button>
-          <Button
-            onClick={() => modifyMutation.mutate()}
-            disabled={filteredItems.length === 0 || modifyMutation.isPending}
-            className="rounded-xl bg-orange-600 hover:bg-orange-700"
-          >
-            {modifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Enviar pedido modificado
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1027,6 +919,13 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   const gdvOrders = groupErpOrders(erpData?.gdv || [], 'numeroGuia', 'despacho');
   const txOrders = groupErpOrders(erpData?.transactions || [], 'documentNumber', 'facturado');
 
+  // Adjuntamos el documento (factura/despacho) generable a cada pedido ERP, para que
+  // el detalle del pedido permita ver/descargar el PDF correspondiente.
+  const facturaByNum = new Map(groupFacturas(erpData?.transactions || []).map((d) => [d.numero, d]));
+  const despachoByNum = new Map(groupDespachos(erpData?.gdv || []).map((d) => [d.numero, d]));
+  gdvOrders.forEach((o) => { (o as any)._document = despachoByNum.get(String(o.id)); });
+  txOrders.forEach((o) => { (o as any)._document = facturaByNum.get(String(o.id)); });
+
   // Sugeridos pendientes se muestran en panel aparte arriba de la tabla principal
   const suggestedPendingOrders = webOrders.filter((o: any) => o.status === 'suggested_pending');
 
@@ -1057,94 +956,109 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
       {/* Sugeridos pendientes (admin/supervisor envía pre-armado al cliente) */}
       <SuggestedOrdersPanel orders={suggestedPendingOrders} />
 
-      <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50 border-b">
-              <TableHead className="w-[40px]"></TableHead>
-              <TableHead className="text-xs font-bold text-slate-500 uppercase">ID de Pedido</TableHead>
-              <TableHead className="text-xs font-bold text-slate-500 uppercase">Fecha</TableHead>
-              <TableHead className="text-xs font-bold text-slate-500 uppercase">Estado</TableHead>
-              <TableHead className="text-xs font-bold text-slate-500 uppercase text-right">Total</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(erpLoading || webLoading) ? (
-               <TableRow><TableCell colSpan={6} className="h-48 text-center text-slate-500">Cargando...</TableCell></TableRow>
-            ) : allOrders.length === 0 ? (
-               <TableRow><TableCell colSpan={6} className="h-48 text-center text-slate-500">No tienes pedidos registrados.</TableCell></TableRow>
-            ) : (
-              allOrders.map((order) => {
-                const isExpanded = expandedRowId === order.id;
-                const items = getOrderItems(order);
-                const statusObj = statusConfig[order.status?.toLowerCase()] || statusConfig.pending;
-                const StatusIcon = statusObj.icon;
-                
-                return (
-                  <React.Fragment key={order.id}>
-                    <TableRow className="hover:bg-orange-50/20 cursor-pointer group transition-colors" onClick={() => setSelectedOrder(order)}>
-                      <TableCell className="pl-4 cursor-pointer" onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : order.id); }}>
-                        <div className="w-6 h-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400">
-                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm font-semibold text-slate-700">
-                        #{order.id?.includes('-') ? getNumericOrderId(order.id) : order.id}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {formatDate(order.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusObj.bg} ${statusObj.color}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {statusObj.label}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-slate-900">
-                        {formatCurrency(Number(order.total))}
-                      </TableCell>
-                    </TableRow>
-                    
-                    {isExpanded && (
-                      <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                        <TableCell colSpan={6} className="p-0 border-b-2 border-slate-100">
-                          <div className="py-4 pl-14 pr-8 animate-in slide-in-from-top-2 fade-in duration-200">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                               <Package className="w-3 h-3" />
-                               Productos Solicitados ({items.length})
-                            </h4>
-                            <div className="space-y-3">
-                              {items.map((it, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium text-slate-700">{it.productName}</span>
-                                    <span className="text-[10px] text-slate-400">{it.quantity} x {formatCurrency(Number(it.unitPrice || 0))}</span>
-                                  </div>
-                                  <span className="font-semibold text-slate-600">{formatCurrency(Number(it.totalPrice || Number(it.unitPrice || 0) * it.quantity))}</span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2">
-                               <Button variant="outline" size="sm" onClick={(e) => handleRepeatOrder(e, order)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-semibold text-xs h-8">
-                                 <Repeat className="w-3 h-3 mr-1.5" />
-                                 Repetir Pedido
-                               </Button>
-                               <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-semibold text-xs h-8">
-                                 Ver detalle completo
-                               </Button>
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+      {/* Encabezado de la lista */}
+      <div className="flex items-end justify-between gap-3 px-1">
+        <div>
+          <h3 className="text-lg font-black text-slate-900">Mis Pedidos</h3>
+          <p className="text-xs text-slate-500">Tocá un pedido para ver su seguimiento y documentos asociados.</p>
+        </div>
+        {allOrders.length > 0 && (
+          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full flex-shrink-0">
+            {allOrders.length} pedido{allOrders.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
+
+      {(erpLoading || webLoading) ? (
+        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>
+      ) : allOrders.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center">
+          <ClipboardList className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm text-slate-500 mb-4">Aún no tienes pedidos registrados.</p>
+          <a href="/tienda" className="inline-flex items-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+            <ShoppingCart className="h-4 w-4" /> Ir a la tienda
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {allOrders.map((order) => {
+            const isExpanded = expandedRowId === order.id;
+            const items = getOrderItems(order);
+            const statusObj = statusConfig[order.status?.toLowerCase()] || statusConfig.pending;
+            const StatusIcon = statusObj.icon;
+            const totalUnits = items.reduce((s, it) => s + Number(it.quantity || 0), 0);
+            const summary = items.length === 1 ? items[0].productName : `Mix de productos (${items.length})`;
+
+            return (
+              <div key={order.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:border-orange-200 hover:shadow-md transition-all overflow-hidden">
+                <div className="flex items-center gap-3 p-4 cursor-pointer group" onClick={() => setSelectedOrder(order)}>
+                  {/* Estado */}
+                  <div className={`h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0 border ${statusObj.bg} ${statusObj.color}`}>
+                    <StatusIcon className="w-5 h-5" />
+                  </div>
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-slate-800 truncate max-w-[220px]">{summary}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusObj.bg} ${statusObj.color}`}>
+                        {statusObj.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                      <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">#{order.id?.includes('-') ? getNumericOrderId(order.id) : order.id}</span>
+                      <span className="text-slate-300">·</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(order.createdAt)}</span>
+                    </div>
+                  </div>
+                  {/* Total */}
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-base font-black text-slate-900">{formatCurrency(Number(order.total))}</p>
+                    <p className="text-[10px] text-slate-400">{totalUnits} uds</p>
+                  </div>
+                  {/* Expand */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : order.id); }}
+                    className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0"
+                    title={isExpanded ? "Ocultar productos" : "Ver productos"}
+                  >
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/40 animate-in slide-in-from-top-2 fade-in duration-200">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest my-3 flex items-center gap-1.5">
+                      <Package className="w-3 h-3" /> Productos ({items.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {items.slice(0, 6).map((it, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm">
+                          <div className="flex flex-col min-w-0 mr-2">
+                            <span className="font-medium text-slate-700 truncate">{it.productName}</span>
+                            <span className="text-[10px] text-slate-400">{it.quantity} × {formatCurrency(Number(it.unitPrice || 0))}</span>
+                          </div>
+                          <span className="font-semibold text-slate-600 flex-shrink-0">{formatCurrency(Number(it.totalPrice || Number(it.unitPrice || 0) * it.quantity))}</span>
+                        </div>
+                      ))}
+                      {items.length > 6 && (
+                        <p className="text-[10px] text-slate-400 text-center">+ {items.length - 6} producto{items.length - 6 !== 1 ? "s" : ""} más</p>
+                      )}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={(e) => handleRepeatOrder(e, order)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-semibold text-xs h-8 rounded-lg">
+                        <Repeat className="w-3 h-3 mr-1.5" /> Repetir Pedido
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-semibold text-xs h-8 rounded-lg">
+                        Ver seguimiento y documentos
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
