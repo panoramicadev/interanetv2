@@ -9130,7 +9130,12 @@ export function registerRoutes(app: Express): Server {
         // Salesperson sees only their assigned orders
         filters.salespersonId = user.id;
       } else if (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'reception') {
-        // Admin/supervisor see all orders
+        // Admin/supervisor see all orders.
+        // Optionally scope to a single ecommerce client user (?userId=) — used by the
+        // unified client ficha to show that client's orders/KPIs.
+        if (req.query.userId) {
+          filters.clientId = req.query.userId as string;
+        }
         // Optionally filter by status if provided
         if (req.query.status && req.query.status !== 'all') {
           filters.status = req.query.status;
@@ -12886,6 +12891,96 @@ export function registerRoutes(app: Express): Server {
         return res.status(409).json({ message: "Ya existe un cliente con estos datos" });
       }
       res.status(500).json({ message: "Error al crear ficha de cliente" });
+    }
+  });
+
+  // Activate Panorámica Market access for an existing client ficha (ficha-first).
+  // Atomically creates the ecommerce user (role=client) and links it to the ficha.
+  // Idempotent: if the ficha already has an ecommerce user (by id or RUT), just
+  // ensures the link. Credentials follow the existing convention (username/password
+  // derived from the RUT) unless an email/password is supplied in the body.
+  app.post('/api/clients/:id/activate-market', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq, sql } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      const [ficha] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, id)).limit(1);
+      if (!ficha) {
+        return res.status(404).json({ message: "Ficha de cliente no encontrada" });
+      }
+
+      const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').toUpperCase();
+      const fichaRut = normalizeRut(ficha.rten);
+
+      // Idempotent: reuse an existing ecommerce user for this ficha (by id or RUT).
+      const existing = await dbInstance.select().from(spTable).where(sql`
+        ${spTable.role} = 'client' AND (
+          ${spTable.clientId} = ${id}
+          ${fichaRut ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(${spTable.clientRut}), '.', ''), '-', ''), ' ', '') = ${fichaRut}` : sql``}
+        )
+      `).limit(1);
+
+      if (existing.length > 0) {
+        const ex = existing[0];
+        if (!ex.clientId) {
+          await dbInstance.update(spTable).set({ clientId: id, updatedAt: new Date() }).where(eq(spTable.id, ex.id));
+        }
+        await dbInstance.update(clientsTable).set({ userId: ex.id }).where(eq(clientsTable.id, id));
+        return res.json({ success: true, created: false, ecommerceUserId: ex.id, username: ex.username, message: "El cliente ya tenía acceso a Panorámica Market; vínculo asegurado." });
+      }
+
+      // Credentials convention: username = RUT, password = RUT (fallback to código).
+      const loginKey = (req.body?.username || ficha.rten || ficha.koen || `cli-${String(id).slice(0, 8)}`).toString().trim();
+      const rawPassword = (req.body?.password || loginKey).toString();
+      const email = req.body?.email || ficha.email || ficha.emailcomer || null;
+
+      const bcryptjs: any = await import('bcryptjs');
+      const hashedPassword = await bcryptjs.hash(rawPassword, 12);
+
+      const baseValues = {
+        username: loginKey,
+        email,
+        password: hashedPassword,
+        role: 'client',
+        clientId: id,
+        clientRut: ficha.rten || null,
+        publicPhone: ficha.foen || null,
+        publicEmail: email,
+        isActive: true,
+      };
+
+      let newUser: any;
+      try {
+        [newUser] = await dbInstance.insert(spTable).values({ ...baseValues, salespersonName: ficha.nokoen }).returning();
+      } catch (insertError: any) {
+        if (insertError.code === '23505' || String(insertError.message || '').includes('unique')) {
+          [newUser] = await dbInstance.insert(spTable).values({
+            ...baseValues,
+            salespersonName: `${ficha.nokoen} (${ficha.rten || ficha.koen || id})`,
+            username: `${loginKey}-${String(id).slice(0, 6)}`,
+          }).returning();
+        } else {
+          throw insertError;
+        }
+      }
+
+      await dbInstance.update(clientsTable).set({ userId: newUser.id }).where(eq(clientsTable.id, id));
+
+      console.log(`[ACTIVATE-MARKET] Client ficha ${id} activated → user ${newUser.id} by ${user.id}`);
+      res.json({ success: true, created: true, ecommerceUserId: newUser.id, username: newUser.username, message: "Acceso a Panorámica Market activado." });
+    } catch (error: any) {
+      console.error("Error activating market access:", error);
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Ya existe un usuario con estos datos" });
+      }
+      res.status(500).json({ message: "Error al activar acceso a Panorámica Market" });
     }
   });
 

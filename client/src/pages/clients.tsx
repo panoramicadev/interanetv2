@@ -77,6 +77,8 @@ interface Client {
   salespersonName?: string;
   lastTransactionAmount?: number;
   salesSegment?: string;
+  marketAccess?: boolean;
+  ecommerceUserId?: string | null;
 }
 
 interface BitacoraEntry {
@@ -943,11 +945,13 @@ export default function Clients() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
-                  <TableHead className="w-[300px] font-semibold text-xs uppercase tracking-wider pl-6">Cliente</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Segmento</TableHead>
+                  <TableHead className="w-[260px] font-semibold text-xs uppercase tracking-wider pl-6">Cliente</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">RUT</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Contacto</TableHead>
                   <TableHead className="font-semibold text-xs uppercase tracking-wider">Vendedor</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Segmento</TableHead>
                   <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Última Compra</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-right pr-6">Monto Última Compra</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Panorámica Market</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -971,13 +975,22 @@ export default function Clients() {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell className="py-4">
+                        <p className="text-sm text-muted-foreground font-medium">{client.rten || "-"}</p>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <p className="text-sm text-foreground/80 truncate max-w-[180px]">{client.foen || client.email || "-"}</p>
+                        {client.foen && client.email && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[180px]">{client.email}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <p className="text-sm text-muted-foreground font-medium">{client.salespersonName || "-"}</p>
+                      </TableCell>
                       <TableCell className="py-4 text-center">
                         <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
                           {client.salesSegment || "SIN SEGMENTO"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <p className="text-sm text-muted-foreground font-medium">{client.salespersonName || "-"}</p>
                       </TableCell>
                       <TableCell className="text-center py-4">
                         <p className="text-sm text-muted-foreground">
@@ -985,11 +998,20 @@ export default function Clients() {
                             ? new Date(client.lastTransactionDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
                             : "-"}
                         </p>
+                        {client.lastTransactionAmount ? (
+                          <p className="text-xs font-semibold text-foreground">{formatCurrency(client.lastTransactionAmount)}</p>
+                        ) : null}
                       </TableCell>
-                      <TableCell className="text-right py-4 pr-6">
-                        <p className="text-sm font-bold text-foreground">
-                          {client.lastTransactionAmount ? formatCurrency(client.lastTransactionAmount) : "$0"}
-                        </p>
+                      <TableCell className="text-center py-4">
+                        {client.marketAccess ? (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 text-[10px] font-bold gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Activo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground text-[10px] font-bold gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300" /> Sin acceso
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right py-4 pr-4">
                         <div className="flex justify-end gap-1">
@@ -1049,17 +1071,30 @@ export default function Clients() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-foreground truncate">{client.nokoen}</p>
-                          <p className="text-xs text-muted-foreground">#{client.koen}</p>
+                          <p className="text-xs text-muted-foreground">#{client.koen} {client.rten ? `· ${client.rten}` : ""}</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
-                        {client.salesSegment || "S/S"}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
+                          {client.salesSegment || "S/S"}
+                        </Badge>
+                        {client.marketAccess ? (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 text-[10px] font-bold gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Market
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground text-[10px] font-bold gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300" /> Sin acceso
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-muted/30">
                       <div>
                         <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Vendedor</p>
                         <p className="text-sm text-foreground/70 truncate font-medium">{client.salespersonName || "-"}</p>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mt-1">Contacto</p>
+                        <p className="text-sm text-foreground/70 truncate font-medium">{client.foen || client.email || "-"}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Última Compra</p>
@@ -1241,203 +1276,6 @@ export default function Clients() {
         </>
       )}
 
-      {/* Client Details Modal — Full CRM View */}
-      <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-lg shadow-indigo-500/20">
-                {selectedClient?.nokoen?.charAt(0) || "?"}
-              </div>
-              <div className="min-w-0">
-                <p className="font-bold text-foreground truncate text-lg">{selectedClient?.nokoen}</p>
-                <p className="text-xs text-muted-foreground font-normal">
-                  Código: {selectedClient?.koen || "S/C"} {selectedClient?.rten ? `· RUT: ${selectedClient.rten}` : ""}
-                </p>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedClient && (
-            <div className="space-y-4 pt-1">
-              {/* Grid: Comuna, Región, Método de Pago */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Comuna */}
-                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Comuna</p>
-                  <p className="text-sm font-semibold text-foreground mt-0.5">
-                    {selectedClient.comuna || "—"}
-                  </p>
-                </div>
-                {/* Región */}
-                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Región</p>
-                  <p className="text-sm font-semibold text-foreground mt-0.5">
-                    {selectedClient.provincia || "—"}
-                  </p>
-                </div>
-                {/* Método de Pago */}
-                <div className="p-3 rounded-xl bg-muted/30 border border-muted/50">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Método de Pago</p>
-                  <p className="text-sm font-semibold text-foreground mt-0.5">
-                    {selectedClient.cpen?.trim() || "—"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Anotaciones del Cliente */}
-              <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones del Cliente</p>
-                </div>
-                <p className="text-sm text-foreground whitespace-pre-wrap">
-                  {selectedClient.oben?.trim() || "Sin anotaciones"}
-                </p>
-              </div>
-
-              {/* Teléfonos de Contacto */}
-              <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200/50 dark:border-blue-800/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400">Teléfonos de Contacto</p>
-                </div>
-                <div className="space-y-2">
-                  {/* Teléfono principal */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{selectedClient.foen || "Sin teléfono principal"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedClient.purchasingContactName
-                          ? `Encargado: ${selectedClient.purchasingContactName}`
-                          : "Contacto principal"}
-                      </p>
-                    </div>
-                    {selectedClient.foen && (
-                      <Badge variant="outline" className="text-[10px] shrink-0 bg-blue-50 text-blue-700 border-blue-200">Principal</Badge>
-                    )}
-                  </div>
-                  {/* Contacto 2 (cnen) */}
-                  {selectedClient.cnen && (
-                    <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{selectedClient.cnen}</p>
-                        <p className="text-xs text-muted-foreground">Contacto alternativo</p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">Secundario</Badge>
-                    </div>
-                  )}
-                  {/* Contacto 3 (cnen2) */}
-                  {selectedClient.cnen2 && (
-                    <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{selectedClient.cnen2}</p>
-                        <p className="text-xs text-muted-foreground">Contacto adicional</p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">Adicional</Badge>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Bitácora Section */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <BookOpen className="h-4 w-4 text-indigo-600" />
-                  <h3 className="text-sm font-bold text-foreground">Bitácora del Cliente</h3>
-                  <Badge variant="secondary" className="text-[10px] ml-auto">{bitacoraEntries.length} {bitacoraEntries.length === 1 ? "entrada" : "entradas"}</Badge>
-                </div>
-
-                {/* New entry form */}
-                <div className="space-y-2 border rounded-xl p-3 bg-gray-50/50 dark:bg-gray-900/30 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Select value={newBitacoraTipo} onValueChange={setNewBitacoraTipo}>
-                      <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BITACORA_TYPES.map(t => (
-                          <SelectItem key={t.value} value={t.value}>
-                            <div className="flex items-center gap-1.5">
-                              <t.icon className="h-3 w-3" />
-                              {t.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Textarea
-                    placeholder="Escribir nota sobre este cliente..."
-                    value={newBitacoraNota}
-                    onChange={(e) => setNewBitacoraNota(e.target.value)}
-                    className="min-h-[50px] text-sm rounded-lg resize-none"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleAddBitacora}
-                    disabled={!newBitacoraNota.trim() || createBitacoraMutation.isPending}
-                    className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    {createBitacoraMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                    ) : (
-                      <Plus className="h-4 w-4 mr-1" />
-                    )}
-                    Agregar Entrada
-                  </Button>
-                </div>
-
-                {/* Entries list */}
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {bitacoraLoading ? (
-                    <div className="text-center py-6">
-                      <Loader2 className="h-5 w-5 animate-spin text-gray-400 mx-auto" />
-                    </div>
-                  ) : bitacoraEntries.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400">
-                      <BookOpen className="h-7 w-7 mx-auto mb-2 opacity-40" />
-                      <p className="text-xs">Sin entradas en la bitácora</p>
-                      <p className="text-[10px]">Agrega una nota para comenzar el seguimiento</p>
-                    </div>
-                  ) : (
-                    bitacoraEntries.map((entry) => {
-                      const typeConfig = BITACORA_TYPES.find(t => t.value === entry.tipo) || BITACORA_TYPES[0];
-                      const TypeIcon = typeConfig.icon;
-                      return (
-                        <div key={entry.id} className="border rounded-xl p-3 space-y-1 bg-white dark:bg-gray-900 hover:shadow-sm transition-shadow">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${typeConfig.color} text-[10px] gap-1`}>
-                                <TypeIcon className="w-2.5 h-2.5" />
-                                {typeConfig.label}
-                              </Badge>
-                              <span className="text-[10px] text-gray-400">
-                                {new Date(entry.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })} · {getTimeAgo(entry.createdAt)}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => deleteBitacoraMutation.mutate(entry.id)}
-                              className="text-gray-300 hover:text-red-500 transition-colors"
-                              title="Eliminar"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{entry.nota}</p>
-                          <p className="text-[10px] text-gray-400">por {entry.autorNombre}</p>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* New Client Modal */}
       <Dialog open={isNewClientModalOpen} onOpenChange={setIsNewClientModalOpen}>

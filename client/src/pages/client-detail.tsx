@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
+  Store, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
 
 interface ClientDetails {
   totalPurchases: number;
@@ -94,6 +98,8 @@ export default function ClientDetail() {
   const { clientName } = useParams();
   const { user } = useAuth();
   const canManage = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area" || user?.role === "reception";
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Date filter states - default to last 30 days for better initial data display
   const [selectedPeriod, setSelectedPeriod] = useState<string>("last-30-days");
@@ -103,7 +109,9 @@ export default function ClientDetail() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isLastPurchaseActive, setIsLastPurchaseActive] = useState(false);
+  const [periodInitializedFor, setPeriodInitializedFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("resumen");
+  const [suggestedOpen, setSuggestedOpen] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -146,6 +154,20 @@ export default function ClientDetail() {
         break;
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
+
+  // On first load (per client), default the period to the client's last-purchase
+  // month so the KPIs show real data immediately instead of an empty
+  // "last 30 days" window. Skips clients with no sales; never overrides a manual change.
+  useEffect(() => {
+    if (periodInitializedFor === decodedClientName) return;
+    if (!lastOrder?.feemdo) return;
+    const lastDate = new Date(lastOrder.feemdo);
+    if (Number.isNaN(lastDate.getTime())) return;
+    setFilterType("month");
+    setSelectedPeriod(format(lastDate, "yyyy-MM"));
+    setIsLastPurchaseActive(true);
+    setPeriodInitializedFor(decodedClientName);
+  }, [lastOrder, decodedClientName, periodInitializedFor]);
 
   // Handler for "Mes Ultima Compra" button
   const handleLastPurchaseMonth = useCallback(() => {
@@ -190,6 +212,52 @@ export default function ClientDetail() {
   });
 
   const ficha = accountStatus?.ficha;
+  const ecommerceUserId = accountStatus?.ecommerceUserId || null;
+  const fichaIdForActivation = accountStatus?.ficha?.id || accountStatus?.clientId || null;
+
+  // eCommerce orders feed the Panorámica Market KPIs (only when the client has access)
+  const { data: marketOrders = [] } = useQuery<any[]>({
+    queryKey: [`/api/ecommerce/orders?userId=${ecommerceUserId}`],
+    enabled: !!ecommerceUserId && !!accountStatus?.inEcommerce && canManage,
+  });
+
+  const marketStats = {
+    pedidos: marketOrders.length,
+    comprado: marketOrders.reduce((acc, o: any) => acc + (parseFloat(o?.total) || 0), 0),
+    pendientes: marketOrders.filter((o: any) => ["pending", "Pendiente", "suggested_pending"].includes(o?.status)).length,
+    aprobados: marketOrders.filter((o: any) => ["approved", "Aprobado", "confirmed", "completed"].includes(o?.status)).length,
+  };
+
+  const activateMarket = useMutation({
+    mutationFn: async () => {
+      if (!fichaIdForActivation) throw new Error("Este cliente no tiene ficha SAP para activar.");
+      const res = await apiRequest("POST", `/api/clients/${fichaIdForActivation}/activate-market`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      toast({ title: "Acceso activado", description: "El cliente ya puede usar Panorámica Market." });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo activar", description: e?.message || "Error al activar acceso", variant: "destructive" });
+    },
+  });
+
+  const approveRequest = useMutation({
+    mutationFn: async () => {
+      const reqId = accountStatus?.pendingRequest?.id;
+      if (!reqId) throw new Error("Sin solicitud pendiente");
+      const res = await apiRequest("PATCH", `/api/ecommerce/account-requests/${reqId}`, { status: "aprobada" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      toast({ title: "Solicitud aprobada", description: "Se creó el acceso a Panorámica Market." });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo aprobar", description: e?.message || "Error al aprobar la solicitud", variant: "destructive" });
+    },
+  });
 
   if (!decodedClientName) {
     return (
@@ -284,14 +352,6 @@ export default function ClientDetail() {
                       <span className="sm:hidden">Volver</span>
                     </Button>
                   </Link>
-                  {canManage && accountStatus?.inEcommerce && (
-                    <Link href="/clientes">
-                      <Button size="sm" className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white" data-testid="button-manage-ecommerce">
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Administrar en eCommerce
-                      </Button>
-                    </Link>
-                  )}
                 </div>
                 {/* Status badges — the four client contexts */}
                 <div className="flex items-center gap-2 flex-wrap md:justify-end">
@@ -431,17 +491,28 @@ export default function ClientDetail() {
         </div>
 
         {/* Pending request alert */}
-        {accountStatus?.pendingRequest && (
+        {accountStatus?.pendingRequest && !accountStatus?.inEcommerce && (
           <Card className="border-orange-200 bg-orange-50/60 shadow-sm">
-            <CardContent className="p-4 flex items-start gap-3">
+            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <Clock className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-orange-800">Solicitud de acceso al eCommerce pendiente</h3>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold text-orange-800">Solicitud de acceso a Panorámica Market pendiente</h3>
                 <p className="text-xs text-orange-600 mt-0.5">
                   {accountStatus.pendingRequest.contacto || accountStatus.pendingRequest.empresa} solicitó unirse el {formatDate(accountStatus.pendingRequest.createdAt)}.
-                  Revísala en la pestaña <span className="font-medium">Solicitudes</span> de Usuarios eCommerce.
                 </p>
               </div>
+              {canManage && (
+                <Button
+                  size="sm"
+                  onClick={() => approveRequest.mutate()}
+                  disabled={approveRequest.isPending}
+                  className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                  data-testid="button-approve-request"
+                >
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  {approveRequest.isPending ? "Aprobando…" : "Aprobar acceso"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
@@ -557,6 +628,80 @@ export default function ClientDetail() {
           </Card>
         </div>
 
+        {/* Panorámica Market */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Store className="h-4 w-4 text-[#FF6E23]" /> Panorámica Market
+              {accountStatus?.inEcommerce ? (
+                <Badge className="ml-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-200 gap-1 text-[10px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Acceso activo
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="ml-1 text-muted-foreground gap-1 text-[10px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" /> Sin acceso
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!accountStatus?.inEcommerce ? (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Este cliente aún no tiene acceso a Panorámica Market.
+                </p>
+                {canManage && (
+                  fichaIdForActivation ? (
+                    <Button
+                      onClick={() => activateMarket.mutate()}
+                      disabled={activateMarket.isPending}
+                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shrink-0"
+                      data-testid="button-activate-market"
+                    >
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      {activateMarket.isPending ? "Activando…" : "Activar acceso Panorámica Market"}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-amber-600 shrink-0">Requiere ficha SAP para activar.</span>
+                  )
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-blue-50 p-3">
+                    <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Pedidos eCommerce</p>
+                    <p className="text-lg font-bold text-blue-900">{formatNumber(marketStats.pedidos)}</p>
+                  </div>
+                  <div className="rounded-xl bg-green-50 p-3">
+                    <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Comprado eCommerce</p>
+                    <p className="text-lg font-bold text-green-900">{formatCurrency(marketStats.comprado)}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 p-3">
+                    <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wider">Pendientes</p>
+                    <p className="text-lg font-bold text-amber-900">{formatNumber(marketStats.pendientes)}</p>
+                  </div>
+                  <div className="rounded-xl bg-violet-50 p-3">
+                    <p className="text-[10px] font-medium text-violet-600 uppercase tracking-wider">Aprobados</p>
+                    <p className="text-lg font-bold text-violet-900">{formatNumber(marketStats.aprobados)}</p>
+                  </div>
+                </div>
+                {canManage && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => setSuggestedOpen(true)}
+                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                      data-testid="button-enviar-sugerido"
+                    >
+                      <Send className="h-4 w-4 mr-2" /> Enviar sugerido
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
@@ -589,7 +734,16 @@ export default function ClientDetail() {
                       ))}
                     </div>
                   ) : products.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No hay productos registrados para este cliente en el periodo seleccionado</p>
+                    <div className="text-center py-8 space-y-1">
+                      {!lastOrder?.feemdo ? (
+                        <p className="text-gray-500">Este cliente no tiene historial de compras registrado.</p>
+                      ) : (
+                        <>
+                          <p className="text-gray-500">Sin compras en el período seleccionado.</p>
+                          <p className="text-sm text-gray-400">Última compra: {formatDate(lastOrder.feemdo)}. Cambiá el período para verla.</p>
+                        </>
+                      )}
+                    </div>
                   ) : (
                     products.map((product, index) => (
                       <div
@@ -682,15 +836,6 @@ export default function ClientDetail() {
                         <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
                       </div>
                     ))}
-                    {canManage && accountStatus?.inEcommerce && (
-                      <div className="pt-3">
-                        <Link href="/clientes">
-                          <Button variant="outline" size="sm" className="w-full text-xs">
-                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> Editar en Usuarios eCommerce
-                          </Button>
-                        </Link>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -735,6 +880,14 @@ export default function ClientDetail() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {canManage && accountStatus?.inEcommerce && suggestedOpen && (
+          <SuggestedOrderModal
+            open={suggestedOpen}
+            client={{ clientName: decodedClientName, clientCode: ficha?.clientCode || null }}
+            onClose={() => setSuggestedOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
