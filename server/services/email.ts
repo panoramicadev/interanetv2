@@ -9,6 +9,25 @@ import { eq } from 'drizzle-orm';
 
 const RESEND_DEFAULT_FROM = 'Panoramica <notificaciones@pinturaspanoramica.cl>';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Normaliza un string de destinatarios que puede traer varias direcciones
+// separadas por coma, punto y coma o saltos de línea (común en datos de ERP).
+// Soporta el formato "Nombre <correo@dominio.cl>". Descarta cualquier entrada
+// que no sea un email válido para no pasarle un `to` malformado a Resend.
+function parseRecipients(raw?: string | null): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const part of raw.split(/[,;\n\r]+/)) {
+    const entry = part.trim();
+    if (!entry) continue;
+    const angle = entry.match(/<([^>]+)>/);
+    const addr = (angle ? angle[1] : entry).trim();
+    if (EMAIL_RE.test(addr)) out.push(angle ? entry : addr);
+  }
+  return out;
+}
+
 interface EmailOptions {
   to: string;
   subject: string;
@@ -117,17 +136,25 @@ class EmailService {
     const ETAG = '[emailService.sendEmail]';
     console.log(`${ETAG} ▶️ to="${options.to}" cc="${options.cc || ''}" subjectLen=${options.subject.length}`);
 
+    const toList = parseRecipients(options.to);
+    const ccList = parseRecipients(options.cc);
+    if (toList.length === 0) {
+      throw new Error(
+        `Destinatario de correo inválido: "${(options.to ?? '').trim()}". Revisa el email del cliente (formato esperado: nombre@dominio.cl).`,
+      );
+    }
+    const toStr = toList.join(', ');
+    const ccStr = ccList.length ? ccList.join(', ') : undefined;
+
     // Prefer Resend when configured — much more reliable than SMTP/OAuth.
     if (this.resend) {
       try {
-        const toList = options.to.split(',').map(s => s.trim()).filter(Boolean);
-        const ccList = options.cc ? options.cc.split(',').map(s => s.trim()).filter(Boolean) : undefined;
         const fromAddress = options.from || this.resendFrom;
-        console.log(`${ETAG} usando Resend`, { from: fromAddress, to: toList, cc: ccList, replyTo: options.replyTo });
+        console.log(`${ETAG} usando Resend`, { from: fromAddress, to: toList, cc: ccStr, replyTo: options.replyTo });
         const { data, error } = await this.resend.emails.send({
           from: fromAddress,
           to: toList,
-          cc: ccList,
+          cc: ccList.length ? ccList : undefined,
           replyTo: options.replyTo,
           subject: options.subject,
           html: options.html,
@@ -175,8 +202,8 @@ class EmailService {
           console.log(`${ETAG} OAuth tokenInfo`, { hasToken: !!tokenInfo, email: tokenInfo?.email });
           const info = await oauthTransporter.sendMail({
             from: options.from || (config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email),
-            to: options.to,
-            cc: options.cc || undefined,
+            to: toStr,
+            cc: ccStr,
             replyTo: options.replyTo || undefined,
             subject: options.subject,
             html: options.html,
@@ -225,8 +252,8 @@ class EmailService {
 
         const info = await dbTransporter.sendMail({
           from: fromAddress,
-          to: options.to,
-          cc: options.cc || undefined,
+          to: toStr,
+          cc: ccStr,
           replyTo: options.replyTo || undefined,
           subject: options.subject,
           html: options.html,
@@ -259,8 +286,8 @@ class EmailService {
     try {
       const info = await this.transporter.sendMail({
         from: options.from || process.env.SMTP_USER,
-        to: options.to,
-        cc: options.cc || undefined,
+        to: toStr,
+        cc: ccStr,
         replyTo: options.replyTo || undefined,
         subject: options.subject,
         html: options.html,
