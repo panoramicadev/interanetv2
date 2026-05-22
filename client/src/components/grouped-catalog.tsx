@@ -976,7 +976,7 @@ export default function GroupedCatalog() {
                         {isExpanded && (
                             <div className="border-t">
                                 {/* Tag toggles — Dynamic */}
-                                <div className="p-3 bg-muted/20 border-b flex items-center gap-2 flex-wrap">
+                                <div className="px-3 py-2 bg-muted/20 border-b flex items-center gap-2 flex-wrap">
                                     <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                                     <span className="text-xs font-medium text-muted-foreground mr-1">Etiquetas:</span>
                                     {dynamicTags.map((tagObj) => {
@@ -1002,8 +1002,8 @@ export default function GroupedCatalog() {
                                     })}
                                 </div>
                                 {/* Color pills */}
-                                <div className="p-4 bg-muted/10">
-                                    <div className="flex items-center gap-2 mb-3">
+                                <div className="p-3 bg-muted/10">
+                                    <div className="flex items-center gap-2 mb-2">
                                         <Palette className="h-4 w-4 text-muted-foreground" />
                                         <span className="text-sm font-medium text-muted-foreground">Colores y formatos disponibles:</span>
                                         <Button
@@ -1016,37 +1016,36 @@ export default function GroupedCatalog() {
                                             Agregar SKU
                                         </Button>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-x-3 gap-y-1">
                                         {colorKeys.map(color => {
                                             const isActive = activeColor === color;
                                             const variants = product.colors[color];
                                             return (
                                                 <div
                                                     key={color}
-                                                    className={`p-3 rounded-lg border cursor-pointer transition-all ${isActive
+                                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer transition-all ${isActive
                                                         ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
-                                                        : "border-border hover:border-orange-300 hover:bg-muted/30"
+                                                        : "border-transparent hover:border-orange-300 hover:bg-muted/40"
                                                         }`}
                                                     onClick={() => selectColor(product.genericName, color)}
                                                 >
-                                                    <div className="flex items-center gap-2 mb-1.5">
-                                                        <Palette className={`h-4 w-4 ${isActive ? "text-orange-600" : "text-muted-foreground"}`} />
-                                                        <span className={`font-semibold text-sm ${isActive ? "text-orange-700 dark:text-orange-400" : ""}`}>
-                                                            {color}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1.5">
+                                                    <span
+                                                        className={`font-semibold text-xs w-32 shrink-0 truncate ${isActive ? "text-orange-700 dark:text-orange-400" : ""}`}
+                                                        title={color}
+                                                    >
+                                                        {color}
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-1 justify-end ml-auto">
                                                         {variants.map((v, i) => (
-                                                            <Badge
+                                                            <span
                                                                 key={i}
-                                                                variant="secondary"
-                                                                className={`text-xs font-normal gap-1 ${isActive ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200" : ""}`}
+                                                                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border ${isActive ? "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-200" : "bg-muted/60 border-border text-muted-foreground"}`}
                                                             >
                                                                 {v.format}
-                                                                <span className={`text-[10px] font-semibold ${v.stock > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                                                                <span className={`font-bold ${v.stock > 0 ? "text-emerald-600" : "text-red-500"}`}>
                                                                     ({Math.round(v.stock)})
                                                                 </span>
-                                                            </Badge>
+                                                            </span>
                                                         ))}
                                                     </div>
                                                 </div>
@@ -1057,14 +1056,14 @@ export default function GroupedCatalog() {
 
                                 {/* Format cards for selected color */}
                                 {activeColor && activeFormats && (
-                                    <div className="p-4 border-t bg-muted/5">
-                                        <div className="flex items-center gap-2 mb-3">
+                                    <div className="p-3 border-t bg-muted/5">
+                                        <div className="flex items-center gap-2 mb-2">
                                             <Box className="h-4 w-4 text-muted-foreground" />
                                             <span className="text-sm font-medium text-muted-foreground">
                                                 Envases disponibles para {activeColor}:
                                             </span>
                                         </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                                             {activeFormats.map((variant) => (
                                                 <Card key={variant.sku} className="overflow-hidden hover:shadow-md transition-shadow">
                                                     <div className="p-4">
