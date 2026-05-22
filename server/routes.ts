@@ -2071,6 +2071,135 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Consolidated account status for the unified client view.
+  // Given a client name (and optionally RUT), returns whether the client has a
+  // SAP ficha, an eCommerce account (and if it is linked), and any pending
+  // request to join the eCommerce. Powers the status badges + commercial panel.
+  app.get('/api/clients/account-status', requireAuth, async (req, res) => {
+    try {
+      const name = ((req.query.name as string) || '').trim();
+      const rut = ((req.query.rut as string) || '').trim();
+      if (!name && !rut) {
+        return res.status(400).json({ message: 'name o rut es requerido' });
+      }
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      const normalizeRut = (v?: string | null) =>
+        (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
+      const upperName = name.toUpperCase();
+      const cleanRut = normalizeRut(rut);
+
+      // 1. SAP ficha (clients table) — match by name or normalized RUT
+      let ficha: any = null;
+      try {
+        const fichaResult = await db.execute(sql`
+          SELECT id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
+                 cpen, kofuen, lcen, crlt, cren, crsd
+          FROM clients
+          WHERE (${upperName} <> '' AND UPPER(nokoen) = ${upperName})
+             OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
+          ORDER BY parent_client_id NULLS FIRST
+          LIMIT 1
+        `);
+        const rows = Array.isArray(fichaResult) ? fichaResult : (fichaResult as any).rows || [];
+        ficha = rows[0] || null;
+      } catch (e) {
+        console.error('[account-status] ficha lookup failed:', e);
+      }
+
+      const fichaRut = normalizeRut(ficha?.rten) || cleanRut;
+      const fichaId = ficha?.id || null;
+
+      // 2. eCommerce account (salespeople_users role=client) — by client_id, RUT or name
+      let ecommerceAccount: any = null;
+      try {
+        const acctResult = await db.execute(sql`
+          SELECT id, email, salesperson_name, client_rut, client_id
+          FROM salespeople_users
+          WHERE role = 'client'
+            AND (
+              (${fichaId} IS NOT NULL AND client_id = ${fichaId})
+              OR (${upperName} <> '' AND UPPER(salesperson_name) = ${upperName})
+              OR (${fichaRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') = ${fichaRut})
+            )
+          ORDER BY created_at DESC
+          LIMIT 1
+        `);
+        const rows = Array.isArray(acctResult) ? acctResult : (acctResult as any).rows || [];
+        ecommerceAccount = rows[0] || null;
+      } catch (e) {
+        console.error('[account-status] ecommerce account lookup failed:', e);
+      }
+
+      // 3. Pending eCommerce join request (stored as JSON in app_config)
+      let pendingRequest: any = null;
+      try {
+        const reqResult = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'`);
+        const reqRows = Array.isArray(reqResult) ? reqResult : (reqResult as any).rows || [];
+        if (reqRows.length > 0) {
+          const raw = reqRows[0].value;
+          let requests: any[] = [];
+          try {
+            requests = typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+          } catch {}
+          pendingRequest = requests.find((r: any) => {
+            if ((r.status || '').toLowerCase() !== 'pendiente') return false;
+            const reqRut = normalizeRut(r.rut);
+            const reqEmpresa = (r.empresa || '').toUpperCase();
+            return (fichaRut && reqRut && reqRut === fichaRut) || (upperName && reqEmpresa === upperName);
+          }) || null;
+        }
+      } catch (e) {
+        console.error('[account-status] pending request lookup failed:', e);
+      }
+
+      const linked = !!(ecommerceAccount && ecommerceAccount.client_id);
+
+      res.json({
+        hasFicha: !!ficha,
+        ficha: ficha
+          ? {
+              id: ficha.id,
+              clientCode: ficha.koen,
+              clientName: ficha.nokoen,
+              rut: ficha.rten,
+              phone: ficha.foen,
+              address: ficha.dien,
+              commune: ficha.cmen || ficha.comuna || null,
+              email: ficha.email,
+              paymentCondition: ficha.cpen,
+              salesRepCode: ficha.kofuen,
+              priceList: ficha.lcen,
+              creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
+              creditAvailable: ficha.cren != null ? Number(ficha.cren) : null,
+              creditUsed: ficha.crsd != null ? Number(ficha.crsd) : null,
+            }
+          : null,
+        inEcommerce: !!ecommerceAccount,
+        linked,
+        ecommerceUserId: ecommerceAccount?.id || null,
+        clientId: linked ? ecommerceAccount.client_id : fichaId,
+        pendingRequest: pendingRequest
+          ? {
+              id: pendingRequest.id,
+              empresa: pendingRequest.empresa,
+              rut: pendingRequest.rut,
+              contacto: pendingRequest.contacto,
+              email: pendingRequest.email,
+              telefono: pendingRequest.telefono,
+              ciudad: pendingRequest.ciudad,
+              createdAt: pendingRequest.createdAt,
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error('Error fetching client account status:', error);
+      res.status(500).json({ message: 'Error al obtener estado del cliente' });
+    }
+  });
+
   // Check if RUT exists in clients database
   app.get('/api/clients/check-rut', requireAuth, async (req, res) => {
     try {

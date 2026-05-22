@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -326,12 +326,12 @@ export default function Clients() {
     setSearch(value);
   }, []);
 
+  const [, setLocation] = useLocation();
+
+  // Open the unified client view (same view used from the dashboard).
   const openClientDetails = useCallback((client: Client) => {
-    setSelectedClient(client);
-    setIsClientModalOpen(true);
-    setNewBitacoraNota("");
-    setNewBitacoraTipo("nota");
-  }, []);
+    setLocation(`/client/${encodeURIComponent(client.nokoen)}`);
+  }, [setLocation]);
 
   const clearFilters = useCallback(() => {
     setSelectedSegment("");
