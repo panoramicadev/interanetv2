@@ -151,10 +151,24 @@ export interface SuggestedOrderTargetClient {
   clientCode?: string | null;
 }
 
+export interface SuggestedOrderToModify {
+  id: string;
+  items?: any[] | string;
+  notes?: string | null;
+  clientName?: string;
+}
+
 interface Props {
   open: boolean;
   client: SuggestedOrderTargetClient;
   onClose: () => void;
+  /**
+   * 'create' (default): admin/vendedor arma un sugerido y lo envía (POST + correos).
+   * 'modify': el propio cliente reabre su sugerido en el mismo builder, ajusta lo que
+   *  quiera y lo reenvía a revisión vía PATCH (sin paso de destinatarios/correo).
+   */
+  mode?: "create" | "modify";
+  existingOrder?: SuggestedOrderToModify | null;
 }
 
 interface CustomProductForm {
@@ -188,11 +202,42 @@ const formatPrice = (price: number | string | null | undefined): string => {
   return `$${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(numPrice)}`;
 };
 
-export function SuggestedOrderModal({ open, client, onClose }: Props) {
+const TIER_LABEL = (t?: string): string => (t && (TIER_LABELS as any)[t]) || "Lista";
+
+// Mapea un ítem ya persistido (sugerido existente) al shape interno del builder.
+const mapOrderItemToSuggested = (it: any, idx: number): SuggestedItem => {
+  const isCustom = it?.type === "custom";
+  const unitPrice = Number(it?.unitPrice ?? it?.price ?? 0) || 0;
+  const quantity = Number(it?.quantity ?? 0) || 1;
+  const tier = (it?.priceTier as PriceTier) || "lista";
+  return {
+    id: `pre-${idx}-${it?.sku || it?.customSku || it?.productName || "item"}`,
+    type: isCustom ? "custom" : "standard",
+    productName: it?.productName || it?.name || "Producto",
+    sku: it?.sku || it?.productCode || undefined,
+    selectedColor: it?.selectedColor || undefined,
+    selectedPackaging: it?.selectedPackaging || undefined,
+    imageUrl: it?.imageUrl ?? null,
+    priceTier: isCustom ? undefined : tier,
+    tierPrices: isCustom ? undefined : [{ key: tier, label: TIER_LABEL(tier), price: unitPrice }],
+    quantity,
+    unitPrice,
+    totalPrice: Number(it?.totalPrice ?? unitPrice * quantity) || unitPrice * quantity,
+    customSku: it?.customSku || undefined,
+    productUnit: it?.productUnit || undefined,
+    productColor: it?.productColor || undefined,
+    costOfProduction: it?.costOfProduction,
+    profitMargin: it?.profitMargin,
+    pricingMode: it?.pricingMode,
+  };
+};
+
+export function SuggestedOrderModal({ open, client, onClose, mode = "create", existingOrder = null }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
+  const isModify = mode === "modify";
 
   const [skuSearch, setSkuSearch] = useState("");
   const [debouncedSku, setDebouncedSku] = useState("");
@@ -218,8 +263,6 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
       setSkuSearch("");
       setDebouncedSku("");
       setSkuQuantities({});
-      setItems([]);
-      setNotes("");
       setShowNotes(false);
       setShowCustomModal(false);
       setCustomForm(INITIAL_CUSTOM);
@@ -228,9 +271,37 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
       setTeamRecipient(user?.email || "");
       setTeamCc("");
       setTeamMessage("");
+
+      if (isModify && existingOrder) {
+        const raw = typeof existingOrder.items === "string"
+          ? (() => { try { return JSON.parse(existingOrder.items as string); } catch { return []; } })()
+          : (existingOrder.items || []);
+        const preloaded = (Array.isArray(raw) ? raw : []).map(mapOrderItemToSuggested);
+        setItems(preloaded);
+        setNotes(existingOrder.notes || "");
+        setShowNotes(!!existingOrder.notes);
+        // Enriquecemos los tiers reales de cada SKU en segundo plano para que el
+        // selector de lista de precio quede usable (igual que al agregar un producto).
+        preloaded.forEach((it) => {
+          if (it.type !== "standard" || !it.sku) return;
+          fetchTiersForSku(it.sku).then((tiers) => {
+            if (!tiers || tiers.length === 0) return;
+            setItems((prev) => prev.map((p) => {
+              if (p.id !== it.id) return p;
+              const stillExists = tiers.find((t) => t.key === p.priceTier);
+              const chosen = stillExists || tiers[0];
+              return { ...p, tierPrices: tiers, priceTier: chosen.key, unitPrice: chosen.price, totalPrice: chosen.price * p.quantity };
+            }));
+          }).catch(() => { /* el ítem queda con el precio original */ });
+        });
+      } else {
+        setItems([]);
+        setNotes("");
+      }
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [open, user?.email]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user?.email, isModify, existingOrder?.id]);
 
   // Libera el blob URL del PDF al desmontar.
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
@@ -554,6 +625,35 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
     },
   });
 
+  // Modo cliente: reenvía el sugerido modificado a revisión del equipo (PATCH).
+  // No usa los endpoints admin (preview/create); va directo al endpoint del cliente.
+  const modifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!existingOrder?.id) throw new Error("Falta el pedido a modificar");
+      if (items.length === 0) throw new Error("Dejá al menos un producto");
+      const res = await fetch(`/api/ecommerce/orders/${existingOrder.id}/suggested-modify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items: buildItemsPayload(), notes: notes.trim() || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "No se pudo enviar el pedido modificado");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+      qc.invalidateQueries({ queryKey: ["/api/ecommerce/orders"] });
+      toast({ title: "✓ Pedido modificado enviado", description: "Tu pedido quedó en revisión del equipo." });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error al enviar tu pedido", description: err?.message, variant: "destructive" });
+    },
+  });
+
   const toggleTeamCc = (email: string) => {
     const itemsArr = teamCc.split(",").map((s) => s.trim()).filter(Boolean);
     const idx = itemsArr.findIndex((it) => it.toLowerCase() === email.toLowerCase());
@@ -578,12 +678,16 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
         <div className="bg-gradient-to-r from-[#FF6E23] to-[#E55E13] px-5 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0">
-              <Zap className="h-5 w-5 text-white" />
+              {isModify ? <Wrench className="h-5 w-5 text-white" /> : <Zap className="h-5 w-5 text-white" />}
             </div>
             <div className="min-w-0">
-              <h2 className="text-white font-bold text-lg truncate">Enviar pedido sugerido</h2>
+              <h2 className="text-white font-bold text-lg truncate">
+                {isModify ? "Modificar mi pedido" : "Enviar pedido sugerido"}
+              </h2>
               <p className="text-white/80 text-xs truncate">
-                Cliente: <strong>{client.clientName}</strong>{client.clientCode ? ` · ${client.clientCode}` : ""}
+                {isModify
+                  ? "Ajustá productos, listas y cantidades — lo revisamos antes de confirmar."
+                  : <>Cliente: <strong>{client.clientName}</strong>{client.clientCode ? ` · ${client.clientCode}` : ""}</>}
               </p>
             </div>
           </div>
@@ -1120,7 +1224,7 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
               <button
                 onClick={onClose}
                 className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
-                disabled={previewMutation.isPending}
+                disabled={previewMutation.isPending || modifyMutation.isPending}
               >
                 Cancelar
               </button>
@@ -1129,16 +1233,29 @@ export function SuggestedOrderModal({ open, client, onClose }: Props) {
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total</span>
                   <span className="text-base font-black text-gray-800">{formatPrice(subtotal) || "$0"}</span>
                 </div>
-                <button
-                  onClick={() => previewMutation.mutate()}
-                  disabled={items.length === 0 || previewMutation.isPending}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-                >
-                  {previewMutation.isPending
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <FileText className="h-4 w-4" />}
-                  Continuar a revisión{items.length > 0 ? ` (${items.length})` : ""}
-                </button>
+                {isModify ? (
+                  <button
+                    onClick={() => modifyMutation.mutate()}
+                    disabled={items.length === 0 || modifyMutation.isPending}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                  >
+                    {modifyMutation.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                    Enviar pedido modificado{items.length > 0 ? ` (${items.length})` : ""}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => previewMutation.mutate()}
+                    disabled={items.length === 0 || previewMutation.isPending}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                  >
+                    {previewMutation.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <FileText className="h-4 w-4" />}
+                    Continuar a revisión{items.length > 0 ? ` (${items.length})` : ""}
+                  </button>
+                )}
               </div>
             </>
           ) : (

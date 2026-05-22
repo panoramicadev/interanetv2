@@ -81,6 +81,7 @@ import AiAssistantPage from "@/pages/ai-assistant";
 import AdminCatalogos from "@/pages/admin-catalogos";
 import Reception from "@/pages/reception";
 import ClientPortal from "@/pages/client-portal";
+import ClientDocumentos from "@/components/ecommerce/client-documents";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
@@ -165,6 +166,7 @@ function Router() {
           {/* Account management pages use eCommerce layout */}
           <Route path="/mi-cuenta">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          <Route path="/mis-documentos">{() => <ClientEcommerceLayout><ClientDocumentos /></ClientEcommerceLayout>}</Route>
           <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/client-portal">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route component={() => { window.location.replace('/tienda'); return null; }} />

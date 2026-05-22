@@ -9,7 +9,7 @@ import {
   Pencil, Archive, Trash2, FileImage, Landmark,
   Upload, Download, X, Loader2, RefreshCw, Save, Inbox,
   AlertTriangle, RefreshCcw,
-  Plus, Minus, Search, Ban,
+  Plus, Minus, Search, Ban, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Textarea } from "@/components/ui/textarea";
 import { QuotePDFDocument } from "@/pages/tomador-pedidos";
 import { pdf } from "@react-pdf/renderer";
+import { OrderTrackingTimeline } from "./order-tracking-timeline";
+import { DocumentViewerModal, downloadDocumento, type ClientDocument } from "./client-documents";
 
 // Export the types so order lists can use them
 export interface OrderItem {
@@ -245,6 +247,13 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
 
   const items = isEditingPrices ? editedItems : getOrderItems(currentOrder);
   const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
+
+  // Seguimiento + documento (vista del cliente).
+  // Un pedido web tiene UUID (con guiones); los pedidos ERP traen su documento adjunto.
+  const isWebOrder = typeof currentOrder.id === "string" && currentOrder.id.includes("-");
+  const erpDocument = (currentOrder as any)._document as ClientDocument | undefined;
+  const [viewingDoc, setViewingDoc] = useState<ClientDocument | null>(null);
+  const [isDownloadingDoc, setIsDownloadingDoc] = useState(false);
 
   const liveSubtotal = isEditingPrices
     ? editedItems.reduce((sum, i) => sum + Math.round((Number(i.unitPrice) || 0) * (Number(i.quantity) || 0)), 0)
@@ -1047,11 +1056,16 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
 
         {/* Quick Quote Modal */}
         {showQuoteModal && (
-          <EcommerceQuoteModal 
-            order={currentOrder} 
-            open={showQuoteModal} 
-            onOpenChange={setShowQuoteModal} 
+          <EcommerceQuoteModal
+            order={currentOrder}
+            open={showQuoteModal}
+            onOpenChange={setShowQuoteModal}
           />
+        )}
+
+        {/* Visor de documento (factura / guía) */}
+        {viewingDoc && (
+          <DocumentViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />
         )}
       </div>
 
@@ -1299,6 +1313,60 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
               </div>
               <div className="px-5 py-4">
                 <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{order.notes}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Seguimiento del pedido (solo cliente, pedidos web) */}
+          {isClientView && isWebOrder && (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#FF6E23]" />
+                <h3 className="font-bold text-gray-900">Seguimiento del pedido</h3>
+              </div>
+              <div className="px-5 py-4">
+                <OrderTrackingTimeline orderId={currentOrder.id} />
+              </div>
+            </div>
+          )}
+
+          {/* Documento ERP del pedido (factura / guía de despacho) — vista del cliente */}
+          {isClientView && erpDocument && (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#FF6E23]" />
+                <h3 className="font-bold text-gray-900">Documento del pedido</h3>
+              </div>
+              <div className="px-5 py-4">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${erpDocument.kind === "factura" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"}`}>
+                    {erpDocument.kind === "factura" ? <FileText className="w-4 h-4" /> : <Truck className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{erpDocument.tipoLabel} N° {erpDocument.numero}</p>
+                    <p className="text-[10px] text-gray-400">{erpDocument.items.length} ítem{erpDocument.items.length !== 1 ? "s" : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setViewingDoc(erpDocument)}
+                      className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Ver documento"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try { setIsDownloadingDoc(true); await downloadDocumento(erpDocument); }
+                        finally { setIsDownloadingDoc(false); }
+                      }}
+                      disabled={isDownloadingDoc}
+                      className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                      title="Descargar PDF"
+                    >
+                      {isDownloadingDoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
