@@ -65,6 +65,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
+        },
+        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
@@ -404,6 +409,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
+        },
+        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
@@ -598,6 +608,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ShoppingCart,
       isPremium: true,
       children: [
+        {
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
+        },
         {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
@@ -809,6 +824,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ShoppingCart,
       isPremium: true,
       children: [
+        {
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
+        },
         {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
