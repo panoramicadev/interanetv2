@@ -103,7 +103,6 @@ import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import SeguimientoPublico from "@/pages/seguimiento-publico";
-import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import MailingPage from "@/pages/mailing";
 import DondeComprar from "@/pages/donde-comprar";
@@ -231,7 +230,6 @@ function Router() {
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
-            <Route path="/ecommerce-usuarios" component={EcommerceUsuarios} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/mailing" component={MailingPage} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />

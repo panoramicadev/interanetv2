@@ -1,9 +1,8 @@
 import { useMemo, useState, type ComponentType } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { Users, ShoppingCart, BookOpen, type LucideIcon } from "lucide-react";
+import { Users, BookOpen, type LucideIcon } from "lucide-react";
 import Clients from "@/pages/clients";
-import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 
 interface ClienteTab {
@@ -22,13 +21,6 @@ const CLIENTE_TABS: ClienteTab[] = [
     icon: Users,
     Component: Clients,
     roles: null,
-  },
-  {
-    value: "market",
-    label: "Usuarios eCommerce",
-    icon: ShoppingCart,
-    Component: EcommerceUsuarios,
-    roles: ["admin", "supervisor", "encargado_area", "reception"],
   },
   {
     value: "ayuda-memoria",

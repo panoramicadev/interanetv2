@@ -11637,6 +11637,8 @@ export class DatabaseStorage implements IStorage {
     lastTransactionDate?: string;
     salespersonName?: string;
     lastTransactionAmount?: number;
+    marketAccess?: boolean;
+    ecommerceUserId?: string | null;
   }>> {
     const conditions = [];
 
@@ -11877,7 +11879,39 @@ export class DatabaseStorage implements IStorage {
       return bDate - aDate;
     });
 
-    return clientsWithMetrics;
+    // Enrich with Panorámica Market access (linked ecommerce user, role=client).
+    // Match by the ficha link (salespeople_users.client_id) or normalized RUT.
+    const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').toUpperCase();
+    try {
+      const clientIds = clientsWithMetrics.map((c: any) => c.id).filter(Boolean);
+      const ruts = Array.from(new Set(clientsWithMetrics.map((c: any) => normalizeRut(c.rten)).filter(Boolean)));
+      if (clientIds.length > 0) {
+        const marketRows: any = await db.execute(sql`
+          SELECT id, client_id, client_rut
+          FROM salespeople_users
+          WHERE role = 'client'
+            AND (
+              client_id IN (${sql.join(clientIds.map((i: string) => sql`${i}`), sql`, `)})
+              ${ruts.length > 0 ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') IN (${sql.join(ruts.map((r: string) => sql`${r}`), sql`, `)})` : sql``}
+            )
+        `);
+        const rows = (Array.isArray(marketRows) ? marketRows : marketRows.rows) || [];
+        const byClientId = new Map<string, string>();
+        const byRut = new Map<string, string>();
+        for (const r of rows as any[]) {
+          if (r.client_id) byClientId.set(String(r.client_id), String(r.id));
+          if (r.client_rut) byRut.set(normalizeRut(r.client_rut), String(r.id));
+        }
+        return clientsWithMetrics.map((c: any) => {
+          const uid = byClientId.get(String(c.id)) || byRut.get(normalizeRut(c.rten)) || null;
+          return { ...c, marketAccess: !!uid, ecommerceUserId: uid };
+        });
+      }
+    } catch (e) {
+      console.error('[getClients] market access enrichment failed:', e);
+    }
+
+    return clientsWithMetrics.map((c: any) => ({ ...c, marketAccess: false, ecommerceUserId: null }));
   }
 
   async getClientsCount(filters?: {
