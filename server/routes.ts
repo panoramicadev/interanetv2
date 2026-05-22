@@ -12418,6 +12418,111 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update client contact info (email, phone, address). :id is the user account id
+  // (salespeople_users.id or legacy users.id) — the same id the eCommerce users list
+  // keys each row by. Email lives on the user account; phone/address live on the SAP
+  // client record (clients.foen / clients.dien), with phone mirrored to public_phone.
+  app.patch('/api/users/clients/:id/contact-info', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      if (!rawEmail) {
+        return res.status(400).json({ message: "El correo es obligatorio" });
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(rawEmail)) {
+        return res.status(400).json({ message: "El correo no tiene un formato válido" });
+      }
+
+      // undefined = field not sent (leave as is); '' = explicit clear (null); else trimmed value
+      const normStr = (v: unknown): string | null | undefined => {
+        if (v === undefined) return undefined;
+        if (typeof v !== 'string') return null;
+        const t = v.trim();
+        return t === '' ? null : t;
+      };
+      const phone = normStr(req.body?.phone);
+      const address = normStr(req.body?.address);
+
+      const { salespeopleUsers, users, clients } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db } = await import('./db');
+
+      // The email shown in the eCommerce users list comes from salespeople_users.email
+      // (with a fallback to users.email for legacy accounts), so update there first.
+      // Phone is mirrored to public_phone so unlinked accounts keep a phone too.
+      const spUpdated = await db.update(salespeopleUsers)
+        .set({
+          email: rawEmail,
+          ...(phone !== undefined ? { publicPhone: phone } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(salespeopleUsers.id, id))
+        .returning({ id: salespeopleUsers.id, clientId: salespeopleUsers.clientId });
+
+      let matched = spUpdated.length > 0;
+      let linkedClientId: string | null = spUpdated[0]?.clientId || null;
+
+      if (!matched) {
+        const uUpdated = await db.update(users)
+          .set({ email: rawEmail, updatedAt: new Date() })
+          .where(eq(users.id, id))
+          .returning({ id: users.id });
+        matched = uUpdated.length > 0;
+      }
+
+      if (!matched) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      // Resolve the linked SAP client record. Prefer the FK on salespeople_users;
+      // fall back to the back-link clients.user_id (covers legacy accounts).
+      if (!linkedClientId) {
+        const [byUser] = await db.select({ id: clients.id }).from(clients)
+          .where(eq(clients.userId, id)).limit(1);
+        linkedClientId = byUser?.id || null;
+      }
+
+      // Address can only be stored on a client record. Guard against silent data loss
+      // when the user is not linked (the frontend create-and-links before saving these).
+      if (!linkedClientId && address) {
+        return res.status(409).json({
+          message: "Vincula o crea una ficha de cliente para guardar la dirección.",
+        });
+      }
+
+      // Update the client record: email (kept in sync), phone (foen) and address (dien).
+      if (linkedClientId) {
+        await db.update(clients)
+          .set({
+            email: rawEmail,
+            ...(phone !== undefined ? { foen: phone } : {}),
+            ...(address !== undefined ? { dien: address } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(clients.id, linkedClientId));
+      }
+
+      res.json({ success: true, email: rawEmail, phone: phone ?? null, address: address ?? null, clientId: linkedClientId });
+    } catch (error: any) {
+      // Unique violation on salespeople_users.email / users.email
+      if (error?.code === '23505' || /duplicate key|unique/i.test(error?.message || '')) {
+        return res.status(409).json({ message: "Ese correo ya está en uso por otro usuario" });
+      }
+      console.error("Error updating contact info:", error);
+      res.status(500).json({
+        message: "Error al actualizar el correo",
+        detail: error?.message || String(error),
+      });
+    }
+  });
+
   // Link an eCommerce user to an existing SAP client record
   app.post('/api/users/clients/:userId/link-client', requireCommercialAccess, async (req: any, res) => {
     try {
