@@ -18,14 +18,14 @@ interface ClienteTab {
 const CLIENTE_TABS: ClienteTab[] = [
   {
     value: "listado",
-    label: "Listado de Clientes",
+    label: "Todos los Clientes",
     icon: Users,
     Component: Clients,
     roles: null,
   },
   {
     value: "market",
-    label: "Panorámica Market",
+    label: "Usuarios eCommerce",
     icon: ShoppingCart,
     Component: EcommerceUsuarios,
     roles: ["admin", "supervisor", "encargado_area", "reception"],
