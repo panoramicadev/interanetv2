@@ -16799,6 +16799,12 @@ export function registerRoutes(app: Express): Server {
   let _storeCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number } | null = null;
   const STORE_CACHE_TTL = 60_000; // 60 seconds
 
+  // Normaliza texto para búsqueda: minúsculas y sin tildes/acentos.
+  // Así "latex" encuentra "látex", "construccion" → "construcción", etc.
+  // Rango U+0300–U+036F = marcas diacríticas combinantes (vía String.fromCharCode para evitar escapes Unicode en el fuente).
+  const DIACRITICS_RE = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');
+  const normalizeSearch = (str: string) => str.normalize('NFD').replace(DIACRITICS_RE, '').toLowerCase();
+
   // Invalidate store cache (call this when products/order/images change)
   const invalidateStoreCache = () => { _storeCatalogCache = null; };
 
@@ -16967,8 +16973,8 @@ export function registerRoutes(app: Express): Server {
       presentacion: p.presentacion,
       imageUrl: p.imageUrl,
       colors: Object.fromEntries(p.colors),
-      // Precompute searchable text for fast filtering
-      _searchText: [
+      // Precompute searchable text for fast filtering (sin tildes para búsqueda insensible a acentos)
+      _searchText: normalizeSearch([
         p.genericName,
         p.groupName || '',
         p.tags?.join(' ') || '',
@@ -16977,7 +16983,7 @@ export function registerRoutes(app: Express): Server {
         p.usos || '',
         p.presentacion || '',
         ...(Array.from(p.colors.values()).flat().map((v: any) => `${v.sku} ${v.name || ''} ${v.color} ${v.format} ${v.description || ''}`)),
-      ].join(' ').toLowerCase(),
+      ].join(' ')),
     }));
 
     // Apply custom display order from app_config
@@ -17117,7 +17123,7 @@ export function registerRoutes(app: Express): Server {
 
       // Filter by search text sequentially
       if (search) {
-        const s = (search as string).toLowerCase().trim();
+        const s = normalizeSearch((search as string).trim());
         filtered = filtered.filter(p => (p as any)._searchText.includes(s));
       }
 
