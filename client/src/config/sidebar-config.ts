@@ -80,7 +80,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: FileText,
         },
         {
-          href: "/ecommerce-usuarios",
+          href: "/clientes",
           label: "Clientes",
           icon: Users,
         },
@@ -128,11 +128,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Rendición de Gastos",
       icon: Banknote,
       separator: true,
-    },
-    {
-      href: "/clientes",
-      label: "Clientes",
-      icon: Users,
     },
     {
       href: "/facturas",
@@ -407,7 +402,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: FileText,
         },
         {
-          href: "/ecommerce-usuarios",
+          href: "/clientes",
           label: "Clientes",
           icon: Users,
         },
@@ -433,11 +428,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
       separator: true,
-    },
-    {
-      href: "/clientes",
-      label: "Clientes",
-      icon: Users,
     },
     {
       href: "/facturas",
@@ -590,7 +580,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: FileText,
         },
         {
-          href: "/ecommerce-usuarios",
+          href: "/clientes",
           label: "Clientes",
           icon: Users,
         },
@@ -801,7 +791,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: FileText,
         },
         {
-          href: "/ecommerce-usuarios",
+          href: "/clientes",
           label: "Clientes",
           icon: Users,
         },
