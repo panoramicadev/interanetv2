@@ -2036,7 +2036,21 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, limit, offset, includeBranches } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, orderStatus, marketAccess, limit, offset, includeBranches } = req.query;
+
+      // Filtros que requieren precomputar conjuntos de IDs de cliente: estado de
+      // pedido (eCommerce / NVV) y acceso a Panorámica Market. Se calculan una
+      // sola vez y se reutilizan en getClients y getClientsCount para que la
+      // paginación y los totales queden coherentes, evitando subconsultas
+      // correlacionadas sobre toda la tabla de clientes.
+      const clientIdRestrictions: Array<{ ids: string[]; mode: 'include' | 'exclude' }> = [];
+      if (marketAccess === 'true' || marketAccess === 'false') {
+        const ids = await storage.getMarketAccessClientIds();
+        clientIdRestrictions.push({ ids, mode: marketAccess === 'true' ? 'include' : 'exclude' });
+      }
+      if (orderStatus && typeof orderStatus === 'string') {
+        clientIdRestrictions.push(await storage.getClientIdsByOrderStatus(orderStatus));
+      }
 
       const filters = {
         search: search as string,
@@ -2047,6 +2061,7 @@ export function registerRoutes(app: Express): Server {
         debtStatus: debtStatus as string,
         entityType: entityType as string,
         salesPeriod: salesPeriod as string,
+        clientIdRestrictions: clientIdRestrictions.length > 0 ? clientIdRestrictions : undefined,
         // Por defecto colapsa sucursales y muestra una sola fila (casa matriz) por RUT.
         // ?includeBranches=true para ver todas las sucursales.
         mainBranchesOnly: includeBranches !== 'true',
@@ -2054,7 +2069,10 @@ export function registerRoutes(app: Express): Server {
         offset: offset ? parseInt(offset as string) : 0,
       };
 
-      console.log('GET /api/clients - Filtros:', filters);
+      console.log('GET /api/clients - Filtros:', {
+        ...filters,
+        clientIdRestrictions: clientIdRestrictions.map((r) => ({ mode: r.mode, count: r.ids.length })),
+      });
 
       // Get both clients and total count in parallel for better performance
       const [clients, totalCount] = await Promise.all([

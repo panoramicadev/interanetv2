@@ -351,7 +351,7 @@ import {
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -11636,6 +11636,98 @@ export class DatabaseStorage implements IStorage {
     )`;
   }
 
+  // Agrupación de estados de pedido eCommerce para el filtro del listado de clientes.
+  // El badge "Estado Pedido" puede mostrar muchos estados; aquí se agrupan los
+  // sinónimos para que el filtro sea claro y accionable.
+  private static readonly ECOMMERCE_STATUS_GROUPS: Record<string, string[]> = {
+    pending: ['pending', 'suggested_pending'],
+    approved: ['approved', 'modified'],
+    preparacion: ['preparacion', 'ingresado'],
+    despacho: ['sent', 'despacho', 'transito'],
+    facturado: ['facturado'],
+    entregado: ['entregado'],
+  };
+
+  // IDs de clientes con acceso a Panorámica Market (cuenta eCommerce role=client),
+  // vinculados por client_id o por RUT normalizado. Una sola consulta (hash join)
+  // para evitar subconsultas correlacionadas sobre las 13k+ filas de clients.
+  async getMarketAccessClientIds(): Promise<string[]> {
+    const res: any = await db.execute(sql`
+      SELECT DISTINCT c.id
+      FROM clients c
+      JOIN salespeople_users su
+        ON su.role = 'client'
+        AND (
+          su.client_id = c.id
+          OR (
+            c.rten IS NOT NULL
+            AND REPLACE(REPLACE(REPLACE(UPPER(su.client_rut), '.', ''), '-', ''), ' ', '')
+                = REPLACE(REPLACE(REPLACE(UPPER(c.rten), '.', ''), '-', ''), ' ', '')
+          )
+        )
+    `);
+    const rows = (Array.isArray(res) ? res : res.rows) || [];
+    return rows.map((r: any) => String(r.id)).filter(Boolean);
+  }
+
+  // IDs de clientes con al menos un pedido eCommerce activo (no archivado/rechazado).
+  // Si se pasan `statuses`, restringe a esos estados.
+  private async getEcommerceOrderClientIds(statuses?: string[]): Promise<string[]> {
+    const statusFilter = statuses && statuses.length > 0
+      ? sql`AND eo.status IN (${sql.join(statuses.map((s) => sql`${s}`), sql`, `)})`
+      : sql``;
+    const res: any = await db.execute(sql`
+      SELECT DISTINCT c.id
+      FROM clients c
+      JOIN salespeople_users su
+        ON su.role = 'client'
+        AND (
+          su.client_id = c.id
+          OR (
+            c.rten IS NOT NULL
+            AND REPLACE(REPLACE(REPLACE(UPPER(su.client_rut), '.', ''), '-', ''), ' ', '')
+                = REPLACE(REPLACE(REPLACE(UPPER(c.rten), '.', ''), '-', ''), ' ', '')
+          )
+        )
+      JOIN ecommerce_orders eo ON eo.client_id = su.id
+      WHERE COALESCE(eo.status, '') NOT IN ('archived', 'rejected')
+      ${statusFilter}
+    `);
+    const rows = (Array.isArray(res) ? res : res.rows) || [];
+    return rows.map((r: any) => String(r.id)).filter(Boolean);
+  }
+
+  // IDs de clientes con al menos una NVV pendiente de facturación en el ERP.
+  private async getNvvPendingClientIds(): Promise<string[]> {
+    const res: any = await db.execute(sql`
+      SELECT DISTINCT c.id
+      FROM clients c
+      JOIN nvv.fact_nvv fn ON fn.nokoen = c.nokoen
+      WHERE (fn.eslido IS NULL OR TRIM(fn.eslido) = '')
+        AND COALESCE(fn.cantidad_pendiente_ud2, 0) > 0
+    `);
+    const rows = (Array.isArray(res) ? res : res.rows) || [];
+    return rows.map((r: any) => String(r.id)).filter(Boolean);
+  }
+
+  // Resuelve un valor de filtro "estado de pedido" a un conjunto de IDs de cliente
+  // y un modo (incluir/excluir) que el listado aplica con IN / NOT IN.
+  async getClientIdsByOrderStatus(orderStatus: string): Promise<{ ids: string[]; mode: 'include' | 'exclude' }> {
+    if (orderStatus === 'con_pedido' || orderStatus === 'sin_pedido') {
+      const [eco, nvvIds] = await Promise.all([
+        this.getEcommerceOrderClientIds(),
+        this.getNvvPendingClientIds(),
+      ]);
+      const union = Array.from(new Set([...eco, ...nvvIds]));
+      return { ids: union, mode: orderStatus === 'con_pedido' ? 'include' : 'exclude' };
+    }
+    if (orderStatus === 'nvv') {
+      return { ids: await this.getNvvPendingClientIds(), mode: 'include' };
+    }
+    const group = DatabaseStorage.ECOMMERCE_STATUS_GROUPS[orderStatus] || [orderStatus];
+    return { ids: await this.getEcommerceOrderClientIds(group), mode: 'include' };
+  }
+
   async getClients(filters?: {
     search?: string;
     segment?: string;
@@ -11646,6 +11738,7 @@ export class DatabaseStorage implements IStorage {
     entityType?: string;
     salesPeriod?: string;
     mainBranchesOnly?: boolean;
+    clientIdRestrictions?: Array<{ ids: string[]; mode: 'include' | 'exclude' }>;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -11722,6 +11815,17 @@ export class DatabaseStorage implements IStorage {
     // Colapsar sucursales: una sola fila (casa matriz) por RUT.
     if (filters?.mainBranchesOnly) {
       conditions.push(this.mainBranchOnlyCondition());
+    }
+
+    // Restricciones por conjunto de IDs (estado de pedido, acceso a Market).
+    // Los conjuntos se precomputan en la ruta para evitar subconsultas
+    // correlacionadas sobre la tabla completa de clientes.
+    for (const restriction of filters?.clientIdRestrictions || []) {
+      if (restriction.mode === 'include') {
+        conditions.push(restriction.ids.length > 0 ? inArray(clients.id, restriction.ids) : sql`FALSE`);
+      } else if (restriction.ids.length > 0) {
+        conditions.push(notInArray(clients.id, restriction.ids));
+      }
     }
 
     // First get all clients with basic info
@@ -11946,11 +12050,23 @@ export class DatabaseStorage implements IStorage {
     entityType?: string;
     salesPeriod?: string;
     mainBranchesOnly?: boolean;
+    clientIdRestrictions?: Array<{ ids: string[]; mode: 'include' | 'exclude' }>;
   }): Promise<number> {
     const conditions = [];
 
     if (filters?.mainBranchesOnly) {
       conditions.push(this.mainBranchOnlyCondition());
+    }
+
+    // Restricciones por conjunto de IDs (estado de pedido, acceso a Market).
+    // Los conjuntos se precomputan en la ruta para evitar subconsultas
+    // correlacionadas sobre la tabla completa de clientes.
+    for (const restriction of filters?.clientIdRestrictions || []) {
+      if (restriction.mode === 'include') {
+        conditions.push(restriction.ids.length > 0 ? inArray(clients.id, restriction.ids) : sql`FALSE`);
+      } else if (restriction.ids.length > 0) {
+        conditions.push(notInArray(clients.id, restriction.ids));
+      }
     }
 
     if (filters?.search) {
