@@ -162,6 +162,27 @@ const OrderStatusBadge = ({ status }: { status?: string }) => {
   );
 };
 
+// Opciones del filtro "Estado Pedido". Los valores agrupan estados eCommerce
+// sinónimos en el backend (ver getClientIdsByOrderStatus en storage.ts).
+const ORDER_STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "con_pedido", label: "Con pedido" },
+  { value: "pending", label: "Pendiente" },
+  { value: "approved", label: "Aprobado" },
+  { value: "preparacion", label: "En preparación" },
+  { value: "despacho", label: "En despacho" },
+  { value: "facturado", label: "Facturado" },
+  { value: "entregado", label: "Entregado" },
+  { value: "nvv", label: "NVV pendiente" },
+  { value: "sin_pedido", label: "Sin pedido" },
+];
+
+const ORDER_STATUS_FILTER_LABELS: Record<string, string> = Object.fromEntries(
+  ORDER_STATUS_FILTER_OPTIONS.map((o) => [o.value, o.label])
+);
+
+// Valor centinela para la opción "Todos" de los Select (Radix no admite "" como value).
+const ALL_SENTINEL = "__all__";
+
 export default function Clients() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -196,6 +217,9 @@ export default function Clients() {
   const [selectedBusinessType, setSelectedBusinessType] = useState<string>("");
   const [selectedDebtStatus, setSelectedDebtStatus] = useState<string>("");
   const [selectedEntityType, setSelectedEntityType] = useState<string>("");
+
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>("");
+  const [selectedMarketAccess, setSelectedMarketAccess] = useState<string>("");
 
   const [filterBySales, setFilterBySales] = useState(false);
   const [salesPeriod, setSalesPeriod] = useState<string>("today");
@@ -234,7 +258,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clientsData, isLoading, isFetching, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage, itemsPerPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, filterBySales, salesPeriod],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, itemsPerPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, selectedOrderStatus, selectedMarketAccess, filterBySales, salesPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -244,6 +268,8 @@ export default function Clients() {
       if (selectedBusinessType) params.set('businessType', selectedBusinessType);
       if (selectedDebtStatus) params.set('debtStatus', selectedDebtStatus);
       if (selectedEntityType) params.set('entityType', selectedEntityType);
+      if (selectedOrderStatus) params.set('orderStatus', selectedOrderStatus);
+      if (selectedMarketAccess) params.set('marketAccess', selectedMarketAccess);
       if (filterBySales) params.set('salesPeriod', salesPeriod);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
@@ -384,8 +410,11 @@ export default function Clients() {
     setSelectedBusinessType("");
     setSelectedDebtStatus("");
     setSelectedEntityType("");
+    setSelectedOrderStatus("");
+    setSelectedMarketAccess("");
     setFilterBySales(false);
     setSalesPeriod("today");
+    setSearch("");
     setCurrentPage(1);
   }, []);
 
@@ -419,7 +448,7 @@ export default function Clients() {
     setIsDrawerOpen(false);
   };
 
-  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType || filterBySales;
+  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType || selectedOrderStatus || selectedMarketAccess || filterBySales;
 
   const previewMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -685,6 +714,8 @@ export default function Clients() {
   const generateSummaryChips = () => {
     const chips = [];
     if (selectedSegment) chips.push({ label: 'Segmento', value: selectedSegment });
+    if (selectedOrderStatus) chips.push({ label: 'Estado', value: ORDER_STATUS_FILTER_LABELS[selectedOrderStatus] || selectedOrderStatus });
+    if (selectedMarketAccess) chips.push({ label: 'Market', value: selectedMarketAccess === 'true' ? 'Con acceso' : 'Sin acceso' });
     if (selectedSalesperson) chips.push({ label: 'Vendedor', value: selectedSalesperson });
     if (selectedCreditStatus) chips.push({ label: 'Crédito', value: selectedCreditStatus });
     if (selectedBusinessType) chips.push({ label: 'Negocio', value: selectedBusinessType });
@@ -692,6 +723,10 @@ export default function Clients() {
     if (selectedEntityType) chips.push({ label: 'Entidad', value: selectedEntityType });
     return chips;
   };
+
+  // Estilo compartido para los gatillos de filtro (Select). Resalta el filtro activo.
+  const filterTriggerClass = (active: boolean) =>
+    `h-10 gap-1.5 rounded-xl text-sm flex-1 sm:flex-none sm:w-[160px] transition-colors ${active ? "border-indigo-300 bg-indigo-50 text-indigo-700 font-medium" : "border-muted bg-muted/40 text-foreground"}`;
 
   if (isLoading && !clientsData) {
     return (
@@ -777,42 +812,6 @@ export default function Clients() {
           </div>
         </div>
       </div>
-
-      {/* Modern Stat Cards */}
-      {!isLoading && (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 px-1">
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Clientes</p>
-                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100">{totalCount.toLocaleString()}</p>
-                </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm">
-                  <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
-            </CardContent>
-          </Card>
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/50 dark:to-amber-900/30">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Segmentos</p>
-                  <p className="text-2xl font-bold mt-1 text-amber-900 dark:text-amber-100">
-                    {segments?.length || 0}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 backdrop-blur-sm">
-                  <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                </div>
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600" />
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* Clientes Tab Content */}
       {activeTab === "clientes" && (
@@ -903,25 +902,89 @@ export default function Clients() {
             </Card>
           )}
 
-          {/* Search & Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              {isFetching ? (
-                <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 animate-spin" />
-              ) : (
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              )}
-              <Input
-                type="text"
-                placeholder="Buscar por nombre, RUT o código..."
-                className="pl-10 h-11 rounded-xl border-muted bg-muted/30 focus:bg-background transition-colors"
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
+          {/* Search & Filters — barra de control unificada */}
+          <div className="rounded-2xl border border-muted/70 bg-card/60 backdrop-blur-sm shadow-sm p-3 sm:p-4 space-y-3">
+            {/* Fila 1: búsqueda + limpiar */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <div className="flex-1 relative">
+                {isFetching ? (
+                  <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 animate-spin" />
+                ) : (
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                )}
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre, RUT o código..."
+                  className="pl-10 h-11 rounded-xl border-muted bg-muted/40 focus:bg-background transition-colors"
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters && !search}
+                className="h-11 rounded-xl border-muted gap-1.5 shrink-0 disabled:opacity-50"
+              >
+                <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                Limpiar
+              </Button>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-muted rounded-xl">
+            {/* Fila 2: filtros */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Segmento */}
+              <Select
+                value={selectedSegment || ALL_SENTINEL}
+                onValueChange={(v) => { setSelectedSegment(v === ALL_SENTINEL ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className={filterTriggerClass(!!selectedSegment)}>
+                  <TrendingUp className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <SelectValue placeholder="Segmento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SENTINEL}>Todos los segmentos</SelectItem>
+                  {(segments || []).filter(Boolean).map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Estado del pedido */}
+              <Select
+                value={selectedOrderStatus || ALL_SENTINEL}
+                onValueChange={(v) => { setSelectedOrderStatus(v === ALL_SENTINEL ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className={filterTriggerClass(!!selectedOrderStatus)}>
+                  <ShoppingCart className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <SelectValue placeholder="Estado pedido" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SENTINEL}>Todos los estados</SelectItem>
+                  {ORDER_STATUS_FILTER_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Panorámica Market */}
+              <Select
+                value={selectedMarketAccess || ALL_SENTINEL}
+                onValueChange={(v) => { setSelectedMarketAccess(v === ALL_SENTINEL ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className={filterTriggerClass(!!selectedMarketAccess)}>
+                  <Gift className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <SelectValue placeholder="Market" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SENTINEL}>Market: Todos</SelectItem>
+                  <SelectItem value="true">Con acceso</SelectItem>
+                  <SelectItem value="false">Sin acceso</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Ventas (período) */}
+              <div className={`flex items-center gap-2 px-3 h-10 rounded-xl border transition-colors flex-1 sm:flex-none ${filterBySales ? "bg-indigo-50 border-indigo-300" : "bg-muted/40 border-muted"}`}>
                 <Checkbox
                   id="filter-sales"
                   checked={filterBySales}
@@ -932,10 +995,10 @@ export default function Clients() {
                 />
                 <Label
                   htmlFor="filter-sales"
-                  className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+                  className={`text-sm font-medium cursor-pointer flex items-center gap-1.5 ${filterBySales ? "text-indigo-700" : ""}`}
                 >
                   <ShoppingCart className="h-3.5 w-3.5 text-indigo-500" />
-                  Ventas:
+                  Ventas
                 </Label>
                 <Select
                   value={salesPeriod}
@@ -945,7 +1008,7 @@ export default function Clients() {
                   }}
                   disabled={!filterBySales}
                 >
-                  <SelectTrigger className="w-[130px] h-8 text-xs border-none bg-transparent focus:ring-0">
+                  <SelectTrigger className="w-[118px] h-7 text-xs border-none bg-transparent focus:ring-0 px-1">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
@@ -957,44 +1020,35 @@ export default function Clients() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="h-10 rounded-xl border-muted"
-              >
-                <RotateCcw className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                Limpiar
-              </Button>
+            {/* Fila 3: resumen de resultados + chips de filtros activos */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5 pt-0.5">
+              <Badge variant="outline" className="rounded-lg bg-muted/40 text-foreground/70 border-muted whitespace-nowrap shrink-0">
+                <span className="font-semibold text-foreground mr-1">{totalCount.toLocaleString()}</span> clientes
+              </Badge>
+              {generateSummaryChips().map((chip, idx) => (
+                <Badge key={idx} variant="secondary" className="rounded-lg bg-indigo-50 text-indigo-700 border-indigo-100 whitespace-nowrap shrink-0">
+                  {chip.label}: {chip.value}
+                </Badge>
+              ))}
             </div>
           </div>
 
-          {/* Results summary */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 px-1">
-            <Badge variant="outline" className="rounded-lg bg-muted/30 text-foreground/70 border-muted">
-              {totalCount} Clientes encontrados
-            </Badge>
-            {generateSummaryChips().map((chip, idx) => (
-              <Badge key={idx} variant="secondary" className="rounded-lg bg-indigo-50 text-indigo-700 border-indigo-100">
-                {chip.label}: {chip.value}
-              </Badge>
-            ))}
-          </div>
-
           {/* Desktop: Clients Table */}
-          <Card className="hidden sm:block border-0 shadow-sm rounded-xl overflow-hidden">
+          <Card className="hidden sm:block border border-muted/60 shadow-sm rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/20 hover:bg-muted/20">
-                  <TableHead className="w-[260px] font-semibold text-xs uppercase tracking-wider pl-6">Cliente</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider">RUT</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Contacto</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Vendedor</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Segmento</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Última Compra</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Estado Pedido</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Panorámica Market</TableHead>
+                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                  <TableHead className="w-[260px] font-semibold text-[11px] uppercase tracking-wider text-muted-foreground pl-6">Cliente</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">RUT</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">Contacto</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">Vendedor</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Segmento</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Última Compra</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Estado Pedido</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Panorámica Market</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1004,16 +1058,16 @@ export default function Clients() {
                   return (
                     <TableRow
                       key={client.id}
-                      className="group hover:bg-muted/30 transition-colors cursor-pointer"
+                      className="group border-b border-muted/40 last:border-0 hover:bg-indigo-50/40 transition-colors cursor-pointer"
                       onClick={() => openClientDetails(client)}
                     >
                       <TableCell className="py-4 pl-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase">
                             {client.nokoen.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-foreground truncate">{client.nokoen}</p>
+                            <p className="font-semibold text-foreground truncate group-hover:text-indigo-700 transition-colors">{client.nokoen}</p>
                             <p className="text-xs text-muted-foreground">#{client.koen || "S/C"}</p>
                           </div>
                         </div>
@@ -1031,9 +1085,15 @@ export default function Clients() {
                         <p className="text-sm text-muted-foreground font-medium">{client.salespersonName || "-"}</p>
                       </TableCell>
                       <TableCell className="py-4 text-center">
-                        <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
-                          {client.salesSegment || "SIN SEGMENTO"}
-                        </Badge>
+                        {client.salesSegment ? (
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
+                            {client.salesSegment}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] uppercase font-semibold border-muted text-muted-foreground bg-muted/30">
+                            Sin segmento
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-center py-4">
                         <p className="text-sm text-muted-foreground">
@@ -1085,16 +1145,26 @@ export default function Clients() {
                 })}
               </TableBody>
             </Table>
+            </div>
 
             {clients?.length === 0 && !isLoading && (
               <div className="text-center py-20">
                 <Users className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-1">
-                  {search ? "No se encontraron resultados" : "Sin clientes"}
+                  {search || hasActiveFilters ? "No se encontraron resultados" : "Sin clientes"}
                 </h3>
                 <p className="text-muted-foreground">
-                  {search ? `No hay coincidencias para "${search}"` : "Tu lista de clientes aparecerá aquí."}
+                  {search
+                    ? `No hay coincidencias para "${search}"`
+                    : hasActiveFilters
+                      ? "Ningún cliente coincide con los filtros aplicados."
+                      : "Tu lista de clientes aparecerá aquí."}
                 </p>
+                {(search || hasActiveFilters) && (
+                  <Button variant="outline" onClick={clearFilters} className="mt-4 rounded-xl gap-1.5">
+                    <RotateCcw className="h-4 w-4" /> Limpiar filtros
+                  </Button>
+                )}
               </div>
             )}
           </Card>
@@ -1106,13 +1176,13 @@ export default function Clients() {
               return (
                 <Card
                   key={client.id}
-                  className="border-0 shadow-sm rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
+                  className="border border-muted/60 shadow-sm rounded-2xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
                   onClick={() => openClientDetails(client)}
                 >
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase">
                           {client.nokoen.charAt(0)}
                         </div>
                         <div className="min-w-0">
@@ -1162,6 +1232,27 @@ export default function Clients() {
                 </Card>
               );
             })}
+
+            {clients?.length === 0 && !isLoading && (
+              <div className="text-center py-16 rounded-2xl border border-dashed border-muted">
+                <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="font-semibold text-foreground mb-1">
+                  {search || hasActiveFilters ? "Sin resultados" : "Sin clientes"}
+                </p>
+                <p className="text-sm text-muted-foreground px-6">
+                  {search
+                    ? `No hay coincidencias para "${search}"`
+                    : hasActiveFilters
+                      ? "Ningún cliente coincide con los filtros."
+                      : "Tu lista de clientes aparecerá aquí."}
+                </p>
+                {(search || hasActiveFilters) && (
+                  <Button variant="outline" onClick={clearFilters} className="mt-4 rounded-xl gap-1.5">
+                    <RotateCcw className="h-4 w-4" /> Limpiar filtros
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Pagination */}
