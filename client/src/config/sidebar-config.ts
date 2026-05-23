@@ -32,6 +32,7 @@ import {
   Sparkles,
   Gift,
   PackageSearch,
+  Truck,
   UserCheck,
   BookOpen,
   MapPin,
@@ -73,6 +74,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
+        },
+        {
+          href: "/logistica",
+          label: "Logística",
+          icon: Truck,
         },
         {
           href: "/cotizaciones-b2c",
@@ -397,6 +403,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
+          href: "/logistica",
+          label: "Logística",
+          icon: Truck,
+        },
+        {
           href: "/cotizaciones-b2c",
           label: "Cotizaciones",
           icon: FileText,
@@ -573,6 +584,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
+        },
+        {
+          href: "/logistica",
+          label: "Logística",
+          icon: Truck,
         },
         {
           href: "/cotizaciones-b2c",
@@ -784,6 +800,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
+        },
+        {
+          href: "/logistica",
+          label: "Logística",
+          icon: Truck,
         },
         {
           href: "/cotizaciones-b2c",
