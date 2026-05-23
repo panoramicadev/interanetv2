@@ -2036,7 +2036,7 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, limit, offset } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, limit, offset, includeBranches } = req.query;
 
       const filters = {
         search: search as string,
@@ -2047,6 +2047,9 @@ export function registerRoutes(app: Express): Server {
         debtStatus: debtStatus as string,
         entityType: entityType as string,
         salesPeriod: salesPeriod as string,
+        // Por defecto colapsa sucursales y muestra una sola fila (casa matriz) por RUT.
+        // ?includeBranches=true para ver todas las sucursales.
+        mainBranchesOnly: includeBranches !== 'true',
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
@@ -2091,28 +2094,38 @@ export function registerRoutes(app: Express): Server {
       const upperName = name.toUpperCase();
       const cleanRut = normalizeRut(rut);
 
-      // 1. SAP ficha (clients table) — match by name or normalized RUT
-      let ficha: any = null;
+      // 1. SAP ficha (clients table) — match by name or normalized RUT.
+      // A client can have several rows (parent + branches) sharing the same
+      // name/RUT, so fetch ALL of them: rows[0] (parent first) powers the header,
+      // and the full set of ids/ruts drives the eCommerce match below so it
+      // mirrors the clients list (which links access by ANY of those ids/ruts).
+      let fichaRows: any[] = [];
       try {
         const fichaResult = await db.execute(sql`
           SELECT id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
                  cpen, kofuen, lcen, crlt, cren, crsd
           FROM clients
-          WHERE (${upperName} <> '' AND UPPER(nokoen) = ${upperName})
+          WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
              OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
           ORDER BY parent_client_id NULLS FIRST
-          LIMIT 1
         `);
-        const rows = Array.isArray(fichaResult) ? fichaResult : (fichaResult as any).rows || [];
-        ficha = rows[0] || null;
+        fichaRows = Array.isArray(fichaResult) ? fichaResult : (fichaResult as any).rows || [];
       } catch (e) {
         console.error('[account-status] ficha lookup failed:', e);
       }
 
+      const ficha: any = fichaRows[0] || null;
       const fichaRut = normalizeRut(ficha?.rten) || cleanRut;
       const fichaId = ficha?.id || null;
 
-      // 2. eCommerce account (salespeople_users role=client) — by client_id, RUT or name
+      // Every clients id + normalized RUT for this company, used to match access.
+      const companyIds = Array.from(new Set(fichaRows.map((f: any) => f.id).filter(Boolean)));
+      const companyRuts = Array.from(new Set(
+        [...fichaRows.map((f: any) => normalizeRut(f.rten)), cleanRut].filter(Boolean)
+      ));
+
+      // 2. eCommerce account (salespeople_users role=client) — by any company id, RUT or name.
+      // Prefer a linked account (client_id set) so `linked`/`ecommerceUserId` are accurate.
       let ecommerceAccount: any = null;
       try {
         const acctResult = await db.execute(sql`
@@ -2120,11 +2133,11 @@ export function registerRoutes(app: Express): Server {
           FROM salespeople_users
           WHERE role = 'client'
             AND (
-              (${fichaId} IS NOT NULL AND client_id = ${fichaId})
+              ${companyIds.length > 0 ? sql`client_id IN (${sql.join(companyIds.map((i: string) => sql`${i}`), sql`, `)})` : sql`FALSE`}
               OR (${upperName} <> '' AND UPPER(salesperson_name) = ${upperName})
-              OR (${fichaRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') = ${fichaRut})
+              ${companyRuts.length > 0 ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') IN (${sql.join(companyRuts.map((r: string) => sql`${r}`), sql`, `)})` : sql``}
             )
-          ORDER BY created_at DESC
+          ORDER BY (client_id IS NOT NULL) DESC, created_at DESC
           LIMIT 1
         `);
         const rows = Array.isArray(acctResult) ? acctResult : (acctResult as any).rows || [];
@@ -2197,6 +2210,89 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching client account status:', error);
       res.status(500).json({ message: 'Error al obtener estado del cliente' });
+    }
+  });
+
+  // Estado de pedido por cliente para la vista rápida del listado.
+  // Recibe la página visible de clientes y devuelve, por cada uno, el estado más
+  // relevante: pedido eCommerce más reciente (en curso/ingresado/despacho/facturado)
+  // o, si no hay, nota de venta (NVV) pendiente de facturación en el ERP.
+  // Endpoint aislado y tolerante a fallos: si una consulta falla, ese estado queda
+  // vacío y el listado sigue funcionando igual.
+  app.post('/api/clients/order-statuses', requireAuth, async (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (items.length === 0) return res.json({ statuses: {} });
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      // Limit defensively to a single page worth of clients.
+      const page = items.slice(0, 200);
+      const ecommerceUserIds = Array.from(new Set(
+        page.map((c: any) => c?.ecommerceUserId).filter(Boolean).map(String)
+      ));
+      const names = Array.from(new Set(
+        page.map((c: any) => (c?.nokoen || '').toString().trim()).filter(Boolean)
+      ));
+
+      // Latest non-archived eCommerce order per client user.
+      const ecommerceByUser = new Map<string, { status: string; orderId: string }>();
+      if (ecommerceUserIds.length > 0) {
+        try {
+          const ordRes: any = await db.execute(sql`
+            SELECT DISTINCT ON (client_id) client_id, id, status, created_at
+            FROM ecommerce_orders
+            WHERE client_id IN (${sql.join(ecommerceUserIds.map((i) => sql`${i}`), sql`, `)})
+              AND COALESCE(status, '') NOT IN ('archived', 'rejected')
+            ORDER BY client_id, created_at DESC NULLS LAST
+          `);
+          const rows = (Array.isArray(ordRes) ? ordRes : ordRes.rows) || [];
+          for (const r of rows as any[]) {
+            ecommerceByUser.set(String(r.client_id), { status: String(r.status || 'pending'), orderId: String(r.id) });
+          }
+        } catch (e) {
+          console.warn('[order-statuses] ecommerce lookup failed:', e);
+        }
+      }
+
+      // Clients with at least one NVV pending invoicing in the ERP.
+      const nvvPendingNames = new Set<string>();
+      if (names.length > 0) {
+        try {
+          const nvvRes: any = await db.execute(sql`
+            SELECT DISTINCT nokoen
+            FROM nvv.fact_nvv
+            WHERE nokoen IN (${sql.join(names.map((n) => sql`${n}`), sql`, `)})
+              AND (eslido IS NULL OR TRIM(eslido) = '')
+              AND COALESCE(cantidad_pendiente_ud2, 0) > 0
+          `);
+          const rows = (Array.isArray(nvvRes) ? nvvRes : nvvRes.rows) || [];
+          for (const r of rows as any[]) {
+            if (r.nokoen) nvvPendingNames.add(String(r.nokoen).trim());
+          }
+        } catch (e) {
+          console.warn('[order-statuses] NVV lookup failed:', e);
+        }
+      }
+
+      const statuses: Record<string, { status: string; source: string; orderId?: string }> = {};
+      for (const c of page as any[]) {
+        if (!c?.id) continue;
+        const uid = c.ecommerceUserId ? String(c.ecommerceUserId) : null;
+        const eco = uid ? ecommerceByUser.get(uid) : undefined;
+        if (eco) {
+          statuses[String(c.id)] = { status: eco.status, source: 'ecommerce', orderId: eco.orderId };
+        } else if ((c.nokoen || '') && nvvPendingNames.has((c.nokoen || '').toString().trim())) {
+          statuses[String(c.id)] = { status: 'nvv', source: 'erp' };
+        }
+      }
+
+      res.json({ statuses });
+    } catch (error) {
+      console.error('Error fetching client order statuses:', error);
+      // Non-blocking: return empty map so the list still renders.
+      res.json({ statuses: {} });
     }
   });
 
