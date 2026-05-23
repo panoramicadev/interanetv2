@@ -7313,7 +7313,7 @@ export class DatabaseStorage implements IStorage {
         clientMatch,
         sql`${factVentas.tido} != 'GDV'`
       ))
-      .orderBy(desc(factVentas.feemdo))
+      .orderBy(sql`${factVentas.feemdo} DESC NULLS LAST`)
       .limit(1);
 
     if (!result) return null;
@@ -7352,7 +7352,7 @@ export class DatabaseStorage implements IStorage {
         clientMatch,
         sql`${factVentas.tido} != 'GDV'`
       ))
-      .orderBy(desc(factVentas.feemdo))
+      .orderBy(sql`${factVentas.feemdo} DESC NULLS LAST`)
       .limit(limit);
 
     return result.map(r => ({
@@ -11620,6 +11620,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Client operations implementation
+  // Filtro "solo casa matriz": deja una única fila representante por RUT y oculta
+  // las sucursales/duplicados con el mismo RUT. Prefiere la fila sin parent_client_id
+  // (casa matriz) y, ante empate, el nombre más corto (sin sufijo de sucursal).
+  // Las filas sin RUT se conservan individualmente (clave de agrupación = id).
+  private mainBranchOnlyCondition() {
+    return sql`${clients.id} IN (
+      SELECT DISTINCT ON (COALESCE(NULLIF(REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', ''), ''), id)) id
+      FROM clients
+      ORDER BY
+        COALESCE(NULLIF(REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', ''), ''), id),
+        (parent_client_id IS NOT NULL),
+        LENGTH(nokoen),
+        id
+    )`;
+  }
+
   async getClients(filters?: {
     search?: string;
     segment?: string;
@@ -11629,6 +11645,7 @@ export class DatabaseStorage implements IStorage {
     debtStatus?: string;
     entityType?: string;
     salesPeriod?: string;
+    mainBranchesOnly?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -11700,6 +11717,11 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.salesPeriod) {
       console.log(`[getClients] Sales period filter: ${filters.salesPeriod}, range: ${JSON.stringify(salesPeriodRange)}`);
+    }
+
+    // Colapsar sucursales: una sola fila (casa matriz) por RUT.
+    if (filters?.mainBranchesOnly) {
+      conditions.push(this.mainBranchOnlyCondition());
     }
 
     // First get all clients with basic info
@@ -11923,8 +11945,13 @@ export class DatabaseStorage implements IStorage {
     debtStatus?: string;
     entityType?: string;
     salesPeriod?: string;
+    mainBranchesOnly?: boolean;
   }): Promise<number> {
     const conditions = [];
+
+    if (filters?.mainBranchesOnly) {
+      conditions.push(this.mainBranchOnlyCondition());
+    }
 
     if (filters?.search) {
       conditions.push(

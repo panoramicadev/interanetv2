@@ -5,13 +5,14 @@ import {
   ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send,
+  Store, Send, Truck, Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -20,6 +21,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
+import { OrderTrackingTimeline } from "@/components/ecommerce/order-tracking-timeline";
+import { statusConfig } from "@/components/ecommerce/order-detail-view";
 
 interface ClientDetails {
   totalPurchases: number;
@@ -56,6 +59,27 @@ interface PurchaseItem {
   nokopr: string;
   monto: string;
   nokofu: string;
+}
+
+interface ErpDocument {
+  source: string;
+  docType: "FCV" | "NVV";
+  id: string;
+  orderNumber: string | number | null;
+  date: string | null;
+  items: number;
+  total: number;
+  totalPending?: number;
+  status: "facturado" | "pendiente_facturacion";
+  salesperson: string | null;
+  deliveryDate: string | null;
+}
+
+interface ErpOrdersResponse {
+  documents: ErpDocument[];
+  fcvCount: number;
+  nvvPendingCount: number;
+  clientName?: string;
 }
 
 interface FichaInfo {
@@ -112,6 +136,7 @@ export default function ClientDetail() {
   const [periodInitializedFor, setPeriodInitializedFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("resumen");
   const [suggestedOpen, setSuggestedOpen] = useState(false);
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -220,6 +245,15 @@ export default function ClientDetail() {
     queryKey: [`/api/ecommerce/orders?userId=${ecommerceUserId}`],
     enabled: !!ecommerceUserId && !!accountStatus?.inEcommerce && canManage,
   });
+
+  // FCV (facturas) + NVV (notas de venta pendientes) desde el ERP — para ver el estado real.
+  const { data: erpOrders, isLoading: isLoadingErp } = useQuery<ErpOrdersResponse>({
+    queryKey: [`/api/users/clients/${fichaIdForActivation}/erp-orders`],
+    enabled: !!fichaIdForActivation && canManage && activeTab === "pedidos",
+  });
+  const erpDocuments = erpOrders?.documents || [];
+  const nvvDocs = erpDocuments.filter((d) => d.docType === "NVV");
+  const fcvDocs = erpDocuments.filter((d) => d.docType === "FCV");
 
   const marketStats = {
     pedidos: marketOrders.length,
@@ -517,112 +551,117 @@ export default function ClientDetail() {
           </Card>
         )}
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* KPI Cards — compactas */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Compras Totales</p>
-                  <p className="text-xl lg:text-2xl font-bold text-green-900" data-testid="text-total-purchases">
+                  <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider truncate">Compras Totales</p>
+                  <p className="text-sm lg:text-base font-bold text-green-900 truncate" data-testid="text-total-purchases">
                     {isLoadingDetails ? '…' : formatCurrency(details?.totalPurchases || 0)}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-green-400/60 shrink-0" />
+                <DollarSign className="h-5 w-5 text-green-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider">Transacciones</p>
-                  <p className="text-xl lg:text-2xl font-bold text-purple-900" data-testid="text-transaction-count">
+                  <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider truncate">Transacciones</p>
+                  <p className="text-sm lg:text-base font-bold text-purple-900 truncate" data-testid="text-transaction-count">
                     {isLoadingDetails ? '…' : formatNumber(details?.transactionCount || 0)}
                   </p>
                 </div>
-                <ShoppingBag className="h-8 w-8 text-purple-400/60 shrink-0" />
+                <ShoppingBag className="h-5 w-5 text-purple-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Productos Diferentes</p>
-                  <p className="text-xl lg:text-2xl font-bold text-blue-900" data-testid="text-total-products">
+                  <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider truncate">Productos Diferentes</p>
+                  <p className="text-sm lg:text-base font-bold text-blue-900 truncate" data-testid="text-total-products">
                     {isLoadingDetails ? '…' : formatNumber(details?.totalProducts || 0)}
                   </p>
                 </div>
-                <Package className="h-8 w-8 text-blue-400/60 shrink-0" />
+                <Package className="h-5 w-5 text-blue-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Ticket Promedio</p>
-                  <p className="text-xl lg:text-2xl font-bold text-indigo-900" data-testid="text-average-ticket">
+                  <p className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider truncate">Ticket Promedio</p>
+                  <p className="text-sm lg:text-base font-bold text-indigo-900 truncate" data-testid="text-average-ticket">
                     {isLoadingDetails ? '…' : formatCurrency(details?.averageTicket || 0)}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-indigo-400/60 shrink-0" />
+                <TrendingUp className="h-5 w-5 text-indigo-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-orange-600 uppercase tracking-wider">Frecuencia</p>
-                  <p className="text-lg lg:text-xl font-bold text-orange-900" data-testid="text-purchase-frequency">
+                  <p className="text-[10px] font-medium text-orange-600 uppercase tracking-wider truncate">Frecuencia</p>
+                  <p className="text-sm lg:text-base font-bold text-orange-900 truncate" data-testid="text-purchase-frequency">
                     {isLoadingDetails ? '…' : getFrequencyDescription(details?.purchaseFrequency || 0)}
                   </p>
-                  <p className="text-[10px] text-orange-700/70">{isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} dias prom.`}</p>
+                  <p className="text-[10px] text-orange-700/70 truncate">{isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} dias prom.`}</p>
                 </div>
-                <Clock className="h-8 w-8 text-orange-400/60 shrink-0" />
+                <Clock className="h-5 w-5 text-orange-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-rose-600 uppercase tracking-wider">Última Compra</p>
-                  <p className="text-lg lg:text-xl font-bold text-rose-900">{lastOrder?.feemdo ? formatDate(lastOrder.feemdo) : '—'}</p>
+                  <p className="text-[10px] font-medium text-rose-600 uppercase tracking-wider truncate">Última Compra</p>
+                  <p className="text-sm lg:text-base font-bold text-rose-900 truncate" data-testid="text-last-purchase">
+                    {(() => {
+                      const last = details?.lastPurchaseDate || lastOrder?.feemdo;
+                      return last ? formatDate(last) : '—';
+                    })()}
+                  </p>
                 </div>
-                <CalendarIcon className="h-8 w-8 text-rose-400/60 shrink-0" />
+                <CalendarIcon className="h-5 w-5 text-rose-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-violet-600 uppercase tracking-wider">Vendedor</p>
+                  <p className="text-[10px] font-medium text-violet-600 uppercase tracking-wider truncate">Vendedor</p>
                   <p className="text-sm lg:text-base font-bold text-violet-900 truncate">{vendedor || '—'}</p>
                 </div>
-                <UserCircle className="h-8 w-8 text-violet-400/60 shrink-0" />
+                <UserCircle className="h-5 w-5 text-violet-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-teal-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-teal-600 uppercase tracking-wider">Segmentos</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
+                  <p className="text-[10px] font-medium text-teal-600 uppercase tracking-wider truncate">Segmentos</p>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
                     {details?.segments && details.segments.length > 0 ? (
-                      details.segments.slice(0, 3).map((s, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px] bg-teal-100 text-teal-700 hover:bg-teal-200">{s}</Badge>
+                      details.segments.slice(0, 2).map((s, i) => (
+                        <Badge key={i} variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-100 text-teal-700 hover:bg-teal-200">{s}</Badge>
                       ))
                     ) : (
                       <span className="text-sm font-bold text-teal-900">—</span>
                     )}
                   </div>
                 </div>
-                <Tag className="h-8 w-8 text-teal-400/60 shrink-0" />
+                <Tag className="h-5 w-5 text-teal-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
@@ -842,8 +881,133 @@ export default function ClientDetail() {
             )}
           </TabsContent>
 
-          {/* Pedidos tab — purchase history */}
-          <TabsContent value="pedidos" className="mt-4">
+          {/* Pedidos tab — Documentos ERP (FCV/NVV) + Pedidos Market + Historial SAP */}
+          <TabsContent value="pedidos" className="mt-4 space-y-4">
+            {/* Documentos ERP: notas de venta pendientes (NVV) + facturas (FCV) */}
+            {canManage && fichaIdForActivation && (
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-emerald-500" /> Documentos ERP (FCV / NVV)
+                    <span className="ml-auto flex items-center gap-2">
+                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold">{nvvDocs.length} NVV pend.</Badge>
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold">{fcvDocs.length} FCV</Badge>
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingErp ? (
+                    <div className="space-y-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="animate-pulse h-14 bg-gray-200 rounded-lg"></div>
+                      ))}
+                    </div>
+                  ) : erpDocuments.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">Sin documentos de venta en el ERP para este cliente.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {nvvDocs.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Notas de venta pendientes de facturación</p>
+                          {nvvDocs.map((d) => (
+                            <div key={d.id} className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/40">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-bold">NVV</Badge>
+                                  <span className="text-sm font-semibold text-gray-900">N° {d.orderNumber ?? "—"}</span>
+                                  <Badge variant="outline" className="text-amber-700 border-amber-200 text-[10px] font-bold gap-1"><Clock className="h-3 w-3" /> Pendiente facturación</Badge>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {formatDate(d.date || undefined)}</span>
+                                  {d.deliveryDate && <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> Entrega: {formatDate(d.deliveryDate)}</span>}
+                                  {d.salesperson && <span className="flex items-center gap-1"><UserCircle className="h-3 w-3" /> {d.salesperson}</span>}
+                                  <span>{formatNumber(d.items)} ítems</span>
+                                </div>
+                              </div>
+                              <div className="text-right ml-4 shrink-0">
+                                <p className="text-sm font-semibold text-gray-900">{formatCurrency(d.total)}</p>
+                                {d.totalPending ? <p className="text-xs text-amber-600 font-medium">Pend.: {formatCurrency(d.totalPending)}</p> : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {fcvDocs.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Facturas</p>
+                          {fcvDocs.map((d) => (
+                            <div key={d.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-[10px] font-bold">FCV</Badge>
+                                  <span className="text-sm font-semibold text-gray-900">N° {d.orderNumber ?? "—"}</span>
+                                  <Badge variant="outline" className="text-emerald-700 border-emerald-200 text-[10px] font-bold">Facturado</Badge>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {formatDate(d.date || undefined)}</span>
+                                  {d.salesperson && <span className="flex items-center gap-1"><UserCircle className="h-3 w-3" /> {d.salesperson}</span>}
+                                  <span>{formatNumber(d.items)} ítems</span>
+                                </div>
+                              </div>
+                              <p className="text-sm font-semibold text-gray-900 ml-4 shrink-0">{formatCurrency(d.total)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pedidos Panorámica Market — con seguimiento de envío */}
+            {canManage && accountStatus?.inEcommerce && (
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Store className="h-4 w-4 text-[#FF6E23]" /> Pedidos Panorámica Market
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {marketOrders.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">Este cliente aún no tiene pedidos en Panorámica Market.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {marketOrders.map((order: any) => {
+                        const cfg = statusConfig[(order.status || "pending").toLowerCase()] || statusConfig.pending;
+                        return (
+                          <div key={order.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold text-gray-900">Pedido #{String(order.id).slice(0, 8)}</span>
+                                <Badge variant="outline" className={`text-[10px] font-bold ${cfg.bg} ${cfg.color}`}>{cfg.label}</Badge>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                                <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {formatDate(order.createdAt)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <p className="text-sm font-semibold text-gray-900">{formatCurrency(Number(order.total) || 0)}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-lg gap-1.5 h-8"
+                                onClick={() => setTrackingOrderId(order.id)}
+                                data-testid={`button-tracking-${order.id}`}
+                              >
+                                <Truck className="h-3.5 w-3.5" /> Ver seguimiento
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Historial de compras SAP */}
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -888,6 +1052,18 @@ export default function ClientDetail() {
             onClose={() => setSuggestedOpen(false)}
           />
         )}
+
+        {/* Seguimiento de envío del pedido (reutiliza el sistema de envío existente) */}
+        <Dialog open={!!trackingOrderId} onOpenChange={(open) => !open && setTrackingOrderId(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-[#FF6E23]" /> Seguimiento del pedido
+              </DialogTitle>
+            </DialogHeader>
+            {trackingOrderId && <OrderTrackingTimeline orderId={trackingOrderId} />}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -136,6 +136,32 @@ const formatDate = (date: string | null) => {
   return new Date(date).toLocaleDateString('es-CL');
 };
 
+// Estado de pedido para la vista rápida del listado (badge por cliente).
+const ORDER_STATUS_META: Record<string, { label: string; className: string }> = {
+  pending: { label: "Pendiente", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  suggested_pending: { label: "Sugerido", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  approved: { label: "Aprobado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  modified: { label: "Modificado", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  sent: { label: "En despacho", className: "bg-purple-50 text-purple-700 border-purple-200" },
+  ingresado: { label: "Ingresado", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  despacho: { label: "En despacho", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  preparacion: { label: "En preparación", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  transito: { label: "En tránsito", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  facturado: { label: "Facturado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  entregado: { label: "Entregado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  nvv: { label: "NVV pendiente", className: "bg-amber-50 text-amber-700 border-amber-200" },
+};
+
+const OrderStatusBadge = ({ status }: { status?: string }) => {
+  if (!status) return <span className="text-xs text-muted-foreground/60">—</span>;
+  const meta = ORDER_STATUS_META[status.toLowerCase()] || { label: status, className: "bg-gray-50 text-gray-600 border-gray-200" };
+  return (
+    <Badge variant="outline" className={`text-[10px] font-bold ${meta.className}`}>
+      {meta.label}
+    </Badge>
+  );
+};
+
 export default function Clients() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -185,7 +211,8 @@ export default function Clients() {
   const [localSelectedDebtStatus, setLocalSelectedDebtStatus] = useState(selectedDebtStatus);
   const [localSelectedEntityType, setLocalSelectedEntityType] = useState(selectedEntityType);
 
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [pageInput, setPageInput] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -207,7 +234,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clientsData, isLoading, isFetching, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, filterBySales, salesPeriod],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, itemsPerPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, filterBySales, salesPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -235,6 +262,21 @@ export default function Clients() {
   const clients = clientsData?.clients;
   const totalCount = clientsData?.totalCount || 0;
   const totalPages = clientsData?.totalPages || 1;
+
+  // Estado de pedido por cliente (vista rápida): consulta aislada que no bloquea el
+  // listado. Si falla o aún no carga, simplemente no se muestra el badge.
+  const clientIdsKey = (clients || []).map((c) => c.id).join(",");
+  const { data: orderStatusMap = {} } = useQuery<Record<string, { status: string; source: string; orderId?: string }>>({
+    queryKey: ['/api/clients/order-statuses', clientIdsKey],
+    enabled: !!clients && clients.length > 0,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const items = (clients || []).map((c) => ({ id: c.id, ecommerceUserId: c.ecommerceUserId, nokoen: c.nokoen }));
+      const res = await apiRequest('POST', '/api/clients/order-statuses', { items });
+      const data = await res.json();
+      return (data?.statuses || {}) as Record<string, { status: string; source: string; orderId?: string }>;
+    },
+  });
 
   const { data: segments } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -951,6 +993,7 @@ export default function Clients() {
                   <TableHead className="font-semibold text-xs uppercase tracking-wider">Vendedor</TableHead>
                   <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Segmento</TableHead>
                   <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Última Compra</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Estado Pedido</TableHead>
                   <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Panorámica Market</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
@@ -1001,6 +1044,9 @@ export default function Clients() {
                         {client.lastTransactionAmount ? (
                           <p className="text-xs font-semibold text-foreground">{formatCurrency(client.lastTransactionAmount)}</p>
                         ) : null}
+                      </TableCell>
+                      <TableCell className="text-center py-4">
+                        <OrderStatusBadge status={orderStatusMap[client.id]?.status} />
                       </TableCell>
                       <TableCell className="text-center py-4">
                         {client.marketAccess ? (
@@ -1108,6 +1154,10 @@ export default function Clients() {
                         )}
                       </div>
                     </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-muted/30">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Estado Pedido</span>
+                      <OrderStatusBadge status={orderStatusMap[client.id]?.status} />
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -1116,12 +1166,46 @@ export default function Clients() {
 
           {/* Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-1">
-            <p className="text-sm text-muted-foreground order-2 sm:order-1">
-              Mostrando <span className="font-semibold text-foreground">{clients?.length}</span> de <span className="font-semibold text-foreground">{totalCount}</span> clientes
-              <span className="hidden sm:inline text-muted-foreground/70 ml-1">
-                (página {currentPage} de {totalPages})
-              </span>
-            </p>
+            <div className="flex flex-wrap items-center gap-3 order-2 sm:order-1">
+              <p className="text-sm text-muted-foreground">
+                Mostrando <span className="font-semibold text-foreground">{clients?.length}</span> de <span className="font-semibold text-foreground">{totalCount}</span> clientes
+                <span className="hidden sm:inline text-muted-foreground/70 ml-1">(página {currentPage} de {totalPages})</span>
+              </p>
+              <Select
+                value={String(itemsPerPage)}
+                onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}
+              >
+                <SelectTrigger className="h-8 w-[110px] text-xs rounded-lg border-muted">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 / pág.</SelectItem>
+                  <SelectItem value="50">50 / pág.</SelectItem>
+                  <SelectItem value="100">100 / pág.</SelectItem>
+                </SelectContent>
+              </Select>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const n = parseInt(pageInput, 10);
+                  if (!Number.isNaN(n) && n >= 1 && n <= totalPages) setCurrentPage(n);
+                  setPageInput("");
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <span className="text-xs text-muted-foreground">Ir a</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  placeholder={String(currentPage)}
+                  className="h-8 w-16 text-xs rounded-lg border-muted"
+                  aria-label="Ir a página"
+                />
+              </form>
+            </div>
             <div className="flex items-center gap-1 order-1 sm:order-2">
               <Button
                 variant="outline"
