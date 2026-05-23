@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Truck, Clock, PackageCheck, Package, Search, MapPin, User as UserIcon,
-  Loader2, Navigation, AlertTriangle, Eye, CheckCircle2, Hash,
+  Truck, PackageCheck, Package, Search, MapPin, User as UserIcon,
+  Loader2, Navigation, AlertTriangle, Eye, CheckCircle2, Hash, Inbox,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,7 @@ interface Envio {
   clientPhone: string | null;
   salespersonName: string | null;
   status: string;
-  estado: "pendiente" | "transito" | "entregado";
+  estado: "ingresado" | "preparacion" | "curso" | "entregado";
   estadoLabel: string;
   subEstado: string | null;
   fecha: string;
@@ -56,7 +56,7 @@ interface Envio {
 interface EnviosResponse {
   tmsEnabled: boolean;
   days: number;
-  resumen: { pendientes: number; transito: number; entregados: number; total: number };
+  resumen: { ingresados: number; preparacion: number; curso: number; entregados: number; total: number };
   envios: Envio[];
 }
 
@@ -83,9 +83,10 @@ const formatDate = (value?: string | null) => {
 
 const estadoStyle = (estado: Envio["estado"], subEstado: string | null) => {
   if (estado === "entregado") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (estado === "pendiente") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (estado === "ingresado") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (estado === "preparacion") return "bg-amber-50 text-amber-700 border-amber-200";
   if (subEstado === "fallido") return "bg-red-50 text-red-700 border-red-200";
-  return "bg-indigo-50 text-indigo-700 border-indigo-200"; // transito
+  return "bg-indigo-50 text-indigo-700 border-indigo-200"; // curso
 };
 
 const shortCode = (e: Envio) => e.trackingCode || `${e.id.slice(0, 8)}…`;
@@ -112,7 +113,7 @@ export default function Logistica() {
   });
 
   const envios = data?.envios ?? [];
-  const resumen = data?.resumen ?? { pendientes: 0, transito: 0, entregados: 0, total: 0 };
+  const resumen = data?.resumen ?? { ingresados: 0, preparacion: 0, curso: 0, entregados: 0, total: 0 };
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -127,8 +128,9 @@ export default function Logistica() {
   }, [envios, search]);
 
   const byEstado = useMemo(() => ({
-    pendiente: filtered.filter((e) => e.estado === "pendiente"),
-    transito: filtered.filter((e) => e.estado === "transito"),
+    ingresado: filtered.filter((e) => e.estado === "ingresado"),
+    preparacion: filtered.filter((e) => e.estado === "preparacion"),
+    curso: filtered.filter((e) => e.estado === "curso"),
     entregado: filtered.filter((e) => e.estado === "entregado"),
   }), [filtered]);
 
@@ -227,7 +229,9 @@ export default function Logistica() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Logística</h1>
-              <p className="text-sm text-gray-500">Envíos de Panorámica Market: pendientes, en tránsito y entregados.</p>
+              <p className="text-sm text-gray-500">
+                {resumen.total} {resumen.total === 1 ? "pedido ingresado al ERP" : "pedidos ingresados al ERP"} · ingresado → en preparación → en curso → entregado.
+              </p>
             </div>
           </div>
           <Select value={days} onValueChange={setDays}>
@@ -246,8 +250,8 @@ export default function Logistica() {
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 flex items-start gap-2 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <span>
-              El sistema de envíos (TMS) no está conectado en este entorno. Los pedidos despachados se muestran como
-              <strong> En tránsito</strong>; el estado <strong>Entregado</strong> y los datos de transportista/ruta se completan cuando el TMS está activo.
+              El sistema de envíos (TMS) no está conectado en este entorno. El estado de cada envío se gestiona de forma manual
+              (preparación, en curso, entregado). Al conectar el TMS se completan automáticamente transportista, patente, ruta y la confirmación de <strong>Entregado</strong>.
             </span>
           </div>
         )}
@@ -257,20 +261,30 @@ export default function Logistica() {
           <Card className="rounded-2xl border-gray-200">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center"><Clock className="w-5 h-5 text-amber-600" /></div>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">PENDIENTES</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"><Inbox className="w-5 h-5 text-blue-600" /></div>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">INGRESADOS</span>
               </div>
-              <div className="text-2xl font-black text-gray-900">{resumen.pendientes}</div>
-              <div className="text-xs text-gray-500 mt-0.5">Por despachar</div>
+              <div className="text-2xl font-black text-gray-900">{resumen.ingresados}</div>
+              <div className="text-xs text-gray-500 mt-0.5">Por preparar</div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-gray-200">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center"><Package className="w-5 h-5 text-amber-600" /></div>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">EN PREPARACIÓN</span>
+              </div>
+              <div className="text-2xl font-black text-gray-900">{resumen.preparacion}</div>
+              <div className="text-xs text-gray-500 mt-0.5">Armándose en bodega</div>
             </CardContent>
           </Card>
           <Card className="rounded-2xl border-gray-200">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center"><Truck className="w-5 h-5 text-indigo-600" /></div>
-                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">EN TRÁNSITO</span>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">EN CURSO</span>
               </div>
-              <div className="text-2xl font-black text-gray-900">{resumen.transito}</div>
+              <div className="text-2xl font-black text-gray-900">{resumen.curso}</div>
               <div className="text-xs text-gray-500 mt-0.5">En camino / reparto</div>
             </CardContent>
           </Card>
@@ -282,16 +296,6 @@ export default function Logistica() {
               </div>
               <div className="text-2xl font-black text-gray-900">{resumen.entregados}</div>
               <div className="text-xs text-gray-500 mt-0.5">Confirmados</div>
-            </CardContent>
-          </Card>
-          <Card className="rounded-2xl border-gray-200">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><Package className="w-5 h-5 text-slate-600" /></div>
-                <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">TOTAL</span>
-              </div>
-              <div className="text-2xl font-black text-gray-900">{resumen.total}</div>
-              <div className="text-xs text-gray-500 mt-0.5">Envíos en el período</div>
             </CardContent>
           </Card>
         </div>
@@ -317,20 +321,24 @@ export default function Logistica() {
             No se pudieron cargar los envíos. Intenta nuevamente.
           </div>
         ) : (
-          <Tabs defaultValue="pendiente" className="w-full space-y-4">
+          <Tabs defaultValue="ingresado" className="w-full space-y-4">
             <TabsList className="bg-white border border-gray-200 rounded-xl p-1">
-              <TabsTrigger value="pendiente" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 rounded-lg gap-2">
-                <Clock className="h-4 w-4" /> Pendientes <span className="text-xs opacity-70">({byEstado.pendiente.length})</span>
+              <TabsTrigger value="ingresado" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-lg gap-2">
+                <Inbox className="h-4 w-4" /> Ingresados <span className="text-xs opacity-70">({byEstado.ingresado.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="transito" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 rounded-lg gap-2">
-                <Truck className="h-4 w-4" /> En tránsito <span className="text-xs opacity-70">({byEstado.transito.length})</span>
+              <TabsTrigger value="preparacion" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 rounded-lg gap-2">
+                <Package className="h-4 w-4" /> En preparación <span className="text-xs opacity-70">({byEstado.preparacion.length})</span>
+              </TabsTrigger>
+              <TabsTrigger value="curso" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 rounded-lg gap-2">
+                <Truck className="h-4 w-4" /> En curso <span className="text-xs opacity-70">({byEstado.curso.length})</span>
               </TabsTrigger>
               <TabsTrigger value="entregado" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 rounded-lg gap-2">
                 <CheckCircle2 className="h-4 w-4" /> Entregados <span className="text-xs opacity-70">({byEstado.entregado.length})</span>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="pendiente" className="mt-0">{renderTable(byEstado.pendiente)}</TabsContent>
-            <TabsContent value="transito" className="mt-0">{renderTable(byEstado.transito)}</TabsContent>
+            <TabsContent value="ingresado" className="mt-0">{renderTable(byEstado.ingresado)}</TabsContent>
+            <TabsContent value="preparacion" className="mt-0">{renderTable(byEstado.preparacion)}</TabsContent>
+            <TabsContent value="curso" className="mt-0">{renderTable(byEstado.curso)}</TabsContent>
             <TabsContent value="entregado" className="mt-0">{renderTable(byEstado.entregado)}</TabsContent>
           </Tabs>
         )}

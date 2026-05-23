@@ -137,7 +137,7 @@ export const statusConfig: Record<string, { label: string; color: string; bg: st
   facturado: { label: "Facturado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
   // Extra order states
   preparacion: { label: "En preparación", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: Package },
-  transito: { label: "En tránsito", color: "text-indigo-700", bg: "bg-indigo-50 border-indigo-200", icon: Truck },
+  transito: { label: "En curso", color: "text-indigo-700", bg: "bg-indigo-50 border-indigo-200", icon: Truck },
   entregado: { label: "Entregado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
 };
 
@@ -649,7 +649,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     Aprobar Pedido
                   </DropdownMenuItem>
                 )}
-                {['approved', 'ingresado', 'preparacion', 'sent', 'transito', 'entregado'].includes(statusKey) && (
+                {['ingresado', 'preparacion', 'sent', 'transito', 'entregado'].includes(statusKey) && (
                   <>
                     <DropdownMenuItem
                       onClick={async () => {
@@ -693,7 +693,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                       className="cursor-pointer"
                     >
                       <Truck className="w-4 h-4 mr-2" />
-                      Marcar en Tránsito
+                      Marcar En curso
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={async () => {

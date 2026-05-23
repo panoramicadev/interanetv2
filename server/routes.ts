@@ -659,7 +659,7 @@ export function registerRoutes(app: Express): Server {
       { key: 'recibido', label: 'Pedido recibido', fecha: order?.createdAt ?? null, done: true },
       { key: 'aprobado', label: 'Pedido aprobado', fecha: order?.approvedAt ?? null, done: aprobado },
       { key: 'preparacion', label: 'En preparación (bodega)', fecha: order?.ingresadoAt ?? null, done: enPreparacion },
-      { key: 'despacho', label: 'En camino', fecha: null, done: despachado },
+      { key: 'despacho', label: 'En curso', fecha: null, done: despachado },
       { key: 'entregado', label: 'Entregado', fecha: entregado ? (order?.updatedAt ?? null) : null, done: entregado },
     ];
   };
@@ -9301,10 +9301,15 @@ export function registerRoutes(app: Express): Server {
 
       const allOrders = await storage.getEcommerceOrders(filters);
 
-      // Solo nos interesan envíos reales: excluimos rechazados/archivados.
+      // El flujo logístico arranca en el INGRESO AL ERP: solo entran a Logística los
+      // pedidos ya ingresados (ingresado → en preparación → en curso → entregado).
+      // Los previos (pending/approved/modified) todavía no son responsabilidad de
+      // logística. Excluimos además rechazados/archivados y aplicamos la ventana.
+      const logisticStatuses = new Set(['ingresado', 'preparacion', 'sent', 'transito', 'entregado']);
       const relevant = allOrders.filter((o: any) => {
         const st = String(o.status || '').toLowerCase();
         if (st === 'rejected' || st === 'archived') return false;
+        if (!o.ingresadoAt && !logisticStatuses.has(st)) return false; // aún no ingresado al ERP
         if (since && o.createdAt && new Date(o.createdAt) < since) return false;
         return true;
       });
@@ -9334,14 +9339,10 @@ export function registerRoutes(app: Express): Server {
       }
 
       const internalLabels: Record<string, string> = {
-        pending: 'Pendiente de despacho',
-        pendiente: 'Pendiente de despacho',
-        approved: 'Aprobado',
-        modified: 'Modificado',
         ingresado: 'Ingresado al ERP',
         preparacion: 'En preparación',
-        sent: 'Despachado',
-        transito: 'En tránsito',
+        sent: 'En curso',
+        transito: 'En curso',
         entregado: 'Entregado',
       };
 
@@ -9350,17 +9351,23 @@ export function registerRoutes(app: Express): Server {
         const tms = tmsById.get(String(o.id)) || null;
         const envio = tms?.envio || null;
 
-        // Categoría base según el estado INTERNO del pedido (marcado a mano o por el
-        // flujo del ERP): entregado → entregado; sent/transito → en tránsito; el
-        // resto (pending/approved/modified/ingresado/preparacion) → pendiente.
-        const internal: 'pendiente' | 'transito' | 'entregado' =
+        // Categoría base según el estado INTERNO dentro del flujo logístico:
+        //   entregado        → entregado
+        //   sent | transito  → curso (en camino al cliente)
+        //   preparacion      → preparacion (armándose en bodega)
+        //   resto (ingresado)→ ingresado (recién ingresado al ERP)
+        const internal: 'ingresado' | 'preparacion' | 'curso' | 'entregado' =
           st === 'entregado' ? 'entregado'
-          : (st === 'sent' || st === 'transito') ? 'transito'
-          : 'pendiente';
+          : (st === 'sent' || st === 'transito') ? 'curso'
+          : st === 'preparacion' ? 'preparacion'
+          : 'ingresado';
 
-        let estado: 'pendiente' | 'transito' | 'entregado' = internal;
+        let estado: 'ingresado' | 'preparacion' | 'curso' | 'entregado' = internal;
         let estadoLabel = internalLabels[st]
-          || (internal === 'entregado' ? 'Entregado' : internal === 'transito' ? 'En tránsito' : 'Pendiente de despacho');
+          || (internal === 'entregado' ? 'Entregado'
+            : internal === 'curso' ? 'En curso'
+            : internal === 'preparacion' ? 'En preparación'
+            : 'Ingresado al ERP');
         let subEstado: string | null = null;
 
         // El TMS, cuando responde con un estado concluyente, tiene prioridad sobre el
@@ -9371,14 +9378,14 @@ export function registerRoutes(app: Express): Server {
             estado = 'entregado';
             estadoLabel = 'Entregado';
           } else if (entrega === 'No Entregado') {
-            estado = 'transito';
+            estado = 'curso';
             estadoLabel = 'Entrega fallida';
             subEstado = 'fallido';
           } else if (tms.retiroEnBodega) {
-            estado = 'transito';
+            estado = 'curso';
             estadoLabel = 'Listo para retiro en bodega';
             subEstado = 'retiro';
-          } else if (internal === 'transito') {
+          } else if (internal === 'curso') {
             // En ruta sin confirmación de entrega: mostramos el estado de ruta del TMS.
             estadoLabel = envio?.rutaEstado || entrega || estadoLabel;
           }
@@ -9416,8 +9423,9 @@ export function registerRoutes(app: Express): Server {
       });
 
       const resumen = {
-        pendientes: envios.filter((e) => e.estado === 'pendiente').length,
-        transito: envios.filter((e) => e.estado === 'transito').length,
+        ingresados: envios.filter((e) => e.estado === 'ingresado').length,
+        preparacion: envios.filter((e) => e.estado === 'preparacion').length,
+        curso: envios.filter((e) => e.estado === 'curso').length,
         entregados: envios.filter((e) => e.estado === 'entregado').length,
         total: envios.length,
       };
