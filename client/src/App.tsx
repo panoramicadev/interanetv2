@@ -69,6 +69,7 @@ import CMmsGastosMateriales from "@/pages/cmms-gastos-materiales";
 import CMmsPlanesPreventivos from "@/pages/cmms-planes-preventivos";
 import CmmsMantencionesPlanificadas from "@/pages/cmms-mantenciones-planificadas";
 import PanoramicaMarketPage from "@/pages/panoramica-market";
+import Logistica from "@/pages/logistica";
 import CMmsCalendario from "@/pages/cmms-calendario";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
@@ -230,6 +231,7 @@ function Router() {
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
+            <Route path="/logistica" component={Logistica} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/mailing" component={MailingPage} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />

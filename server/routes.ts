@@ -9267,6 +9267,145 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==========================================================================
+  // GET /api/logistica/envios → lista los pedidos del Market como "envíos",
+  // agrupados por estado de entrega: pendiente | transito | entregado.
+  // Si el TMS está configurado, enriquece los pedidos despachados (status 'sent')
+  // con el estado real de entrega (transportista/patente/ruta). Si no, degrada al
+  // estado interno del pedido sin romperse.
+  // ==========================================================================
+  app.get('/api/logistica/envios', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+
+      const filters: any = {};
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      // Ventana temporal (días). 0 = sin límite. Por defecto 90 días para acotar
+      // el set y la cantidad de consultas al TMS.
+      const days = Number.parseInt(String(req.query.days ?? '90'), 10);
+      const since = Number.isFinite(days) && days > 0
+        ? new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        : null;
+
+      const allOrders = await storage.getEcommerceOrders(filters);
+
+      // Solo nos interesan envíos reales: excluimos rechazados/archivados.
+      const relevant = allOrders.filter((o: any) => {
+        const st = String(o.status || '').toLowerCase();
+        if (st === 'rejected' || st === 'archived') return false;
+        if (since && o.createdAt && new Date(o.createdAt) < since) return false;
+        return true;
+      });
+
+      const tmsEnabled = isTmsConfigured();
+
+      // Enriquecemos con el TMS solo los despachados con puente al ERP, con
+      // concurrencia acotada (el cliente TMS ya cachea por idmaeedo).
+      const enrichTargets = tmsEnabled
+        ? relevant.filter((o: any) => String(o.status || '').toLowerCase() === 'sent' && o.erpIdmaeedo != null)
+        : [];
+
+      const tmsById = new Map<string, any>();
+      const CONCURRENCY = 6;
+      for (let i = 0; i < enrichTargets.length; i += CONCURRENCY) {
+        const slice = enrichTargets.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(
+          slice.map(async (o: any) => {
+            const estado = await fetchTmsShipping(o.erpIdmaeedo as any);
+            return [String(o.id), estado] as const;
+          }),
+        );
+        for (const [id, estado] of results) tmsById.set(id, estado);
+      }
+
+      const internalLabels: Record<string, string> = {
+        pending: 'Pendiente de despacho',
+        pendiente: 'Pendiente de despacho',
+        approved: 'Aprobado',
+        modified: 'Modificado',
+        ingresado: 'Ingresado al ERP',
+        sent: 'Despachado',
+      };
+
+      const envios = relevant.map((o: any) => {
+        const st = String(o.status || '').toLowerCase();
+        const dispatched = st === 'sent';
+        const tms = tmsById.get(String(o.id)) || null;
+        const envio = tms?.envio || null;
+
+        let estado: 'pendiente' | 'transito' | 'entregado' = dispatched ? 'transito' : 'pendiente';
+        let estadoLabel = internalLabels[st] || (dispatched ? 'En tránsito' : 'Pendiente de despacho');
+        let subEstado: string | null = null;
+
+        if (dispatched && tms) {
+          const entrega = envio?.estadoEntrega || null;
+          if (entrega === 'Entregado') {
+            estado = 'entregado';
+            estadoLabel = 'Entregado';
+          } else if (entrega === 'No Entregado') {
+            estado = 'transito';
+            estadoLabel = 'Entrega fallida';
+            subEstado = 'fallido';
+          } else if (tms.retiroEnBodega) {
+            estado = 'transito';
+            estadoLabel = 'Listo para retiro en bodega';
+            subEstado = 'retiro';
+          } else {
+            estado = 'transito';
+            estadoLabel = envio?.rutaEstado || entrega || 'En ruta';
+          }
+        }
+
+        const items = Array.isArray(o.items) ? o.items : [];
+
+        return {
+          id: o.id,
+          trackingCode: o.trackingCode || null,
+          clientName: o.clientName || null,
+          clientEmail: o.clientEmail || null,
+          clientPhone: o.clientPhone || null,
+          salespersonName: o.assignedSalespersonName || null,
+          status: o.status,
+          estado,
+          estadoLabel,
+          subEstado,
+          fecha: o.createdAt,
+          ingresadoAt: o.ingresadoAt || null,
+          total: o.total,
+          itemsCount: items.length,
+          erpIdmaeedo: o.erpIdmaeedo != null ? String(o.erpIdmaeedo) : null,
+          envio: envio
+            ? {
+                estadoEntrega: envio.estadoEntrega ?? null,
+                horaEntrega: envio.horaEntrega ?? null,
+                operario: envio.operario ?? null,
+                patente: envio.patente ?? null,
+                rutaEstado: envio.rutaEstado ?? null,
+                motivoRechazo: envio.motivoRechazo ?? null,
+              }
+            : null,
+        };
+      });
+
+      const resumen = {
+        pendientes: envios.filter((e) => e.estado === 'pendiente').length,
+        transito: envios.filter((e) => e.estado === 'transito').length,
+        entregados: envios.filter((e) => e.estado === 'entregado').length,
+        total: envios.length,
+      };
+
+      res.json({ tmsEnabled, days: since ? days : 0, resumen, envios });
+    } catch (error) {
+      console.error('Error fetching logistica envios:', error);
+      res.status(500).json({ message: 'Error al obtener los envíos' });
+    }
+  }));
+
   // Get pending orders count
   app.get('/api/ecommerce/orders/pending-count', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
