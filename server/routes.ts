@@ -647,18 +647,25 @@ export function registerRoutes(app: Express): Server {
         { key: 'rechazado', label: 'Pedido rechazado', fecha: order?.rejectedAt ?? null, done: true },
       ];
     }
-    const aprobado = !!order?.approvedAt || !!order?.ingresadoAt || ['approved', 'modified', 'sent'].includes(status);
-    const ingresado = !!order?.ingresadoAt;
-    const despachado = status === 'sent';
+    // El despacho y la entrega se reconocen tanto por el estado interno marcado a
+    // mano (preparacion/transito/entregado) como por el flujo del ERP (ingresado/sent).
+    const aprobado = !!order?.approvedAt || !!order?.ingresadoAt ||
+      ['approved', 'modified', 'sent', 'preparacion', 'transito', 'entregado'].includes(status);
+    const enPreparacion = !!order?.ingresadoAt ||
+      ['preparacion', 'sent', 'transito', 'entregado'].includes(status);
+    const despachado = ['sent', 'transito', 'entregado'].includes(status);
+    const entregado = status === 'entregado';
     return [
       { key: 'recibido', label: 'Pedido recibido', fecha: order?.createdAt ?? null, done: true },
       { key: 'aprobado', label: 'Pedido aprobado', fecha: order?.approvedAt ?? null, done: aprobado },
-      { key: 'preparacion', label: 'En preparación (bodega)', fecha: order?.ingresadoAt ?? null, done: ingresado },
-      { key: 'despacho', label: 'En despacho', fecha: null, done: despachado },
+      { key: 'preparacion', label: 'En preparación (bodega)', fecha: order?.ingresadoAt ?? null, done: enPreparacion },
+      { key: 'despacho', label: 'En camino', fecha: null, done: despachado },
+      { key: 'entregado', label: 'Entregado', fecha: entregado ? (order?.updatedAt ?? null) : null, done: entregado },
     ];
   };
 
   const estadoLabel = (order: any, envio: any): string => {
+    // El TMS, cuando está disponible y es concluyente, tiene prioridad sobre el estado interno.
     if (envio?.envio?.estadoEntrega === 'Entregado') return 'Entregado';
     if (envio?.envio?.estadoEntrega === 'No Entregado') return 'Entrega fallida';
     if (envio?.retiroEnBodega) return 'Listo para retiro en bodega';
@@ -9304,10 +9311,13 @@ export function registerRoutes(app: Express): Server {
 
       const tmsEnabled = isTmsConfigured();
 
-      // Enriquecemos con el TMS solo los despachados con puente al ERP, con
-      // concurrencia acotada (el cliente TMS ya cachea por idmaeedo).
+      // Enriquecemos con el TMS los pedidos despachados o posteriores con puente al
+      // ERP, con concurrencia acotada (el cliente TMS ya cachea por idmaeedo).
       const enrichTargets = tmsEnabled
-        ? relevant.filter((o: any) => String(o.status || '').toLowerCase() === 'sent' && o.erpIdmaeedo != null)
+        ? relevant.filter((o: any) =>
+            ['sent', 'transito', 'entregado'].includes(String(o.status || '').toLowerCase()) &&
+            o.erpIdmaeedo != null,
+          )
         : [];
 
       const tmsById = new Map<string, any>();
@@ -9329,20 +9339,33 @@ export function registerRoutes(app: Express): Server {
         approved: 'Aprobado',
         modified: 'Modificado',
         ingresado: 'Ingresado al ERP',
+        preparacion: 'En preparación',
         sent: 'Despachado',
+        transito: 'En tránsito',
+        entregado: 'Entregado',
       };
 
       const envios = relevant.map((o: any) => {
         const st = String(o.status || '').toLowerCase();
-        const dispatched = st === 'sent';
         const tms = tmsById.get(String(o.id)) || null;
         const envio = tms?.envio || null;
 
-        let estado: 'pendiente' | 'transito' | 'entregado' = dispatched ? 'transito' : 'pendiente';
-        let estadoLabel = internalLabels[st] || (dispatched ? 'En tránsito' : 'Pendiente de despacho');
+        // Categoría base según el estado INTERNO del pedido (marcado a mano o por el
+        // flujo del ERP): entregado → entregado; sent/transito → en tránsito; el
+        // resto (pending/approved/modified/ingresado/preparacion) → pendiente.
+        const internal: 'pendiente' | 'transito' | 'entregado' =
+          st === 'entregado' ? 'entregado'
+          : (st === 'sent' || st === 'transito') ? 'transito'
+          : 'pendiente';
+
+        let estado: 'pendiente' | 'transito' | 'entregado' = internal;
+        let estadoLabel = internalLabels[st]
+          || (internal === 'entregado' ? 'Entregado' : internal === 'transito' ? 'En tránsito' : 'Pendiente de despacho');
         let subEstado: string | null = null;
 
-        if (dispatched && tms) {
+        // El TMS, cuando responde con un estado concluyente, tiene prioridad sobre el
+        // estado interno. Si no es concluyente, NO degradamos una entrega marcada a mano.
+        if (tms) {
           const entrega = envio?.estadoEntrega || null;
           if (entrega === 'Entregado') {
             estado = 'entregado';
@@ -9355,9 +9378,9 @@ export function registerRoutes(app: Express): Server {
             estado = 'transito';
             estadoLabel = 'Listo para retiro en bodega';
             subEstado = 'retiro';
-          } else {
-            estado = 'transito';
-            estadoLabel = envio?.rutaEstado || entrega || 'En ruta';
+          } else if (internal === 'transito') {
+            // En ruta sin confirmación de entrega: mostramos el estado de ruta del TMS.
+            estadoLabel = envio?.rutaEstado || entrega || estadoLabel;
           }
         }
 
@@ -9413,14 +9436,16 @@ export function registerRoutes(app: Express): Server {
 
       // Recepción ve TODOS los pedidos que aún no han sido ingresados al ERP
       // (pending, approved, modified, sent). De esa forma siempre ve la bandeja
-      // completa y puede marcarlos como "ingresado" cuando corresponda.
+      // completa y puede marcarlos como "ingresado" cuando corresponda. Los estados
+      // logísticos posteriores (preparacion/transito/entregado) ya pasaron esa etapa
+      // y no deben inflar el badge de pendientes de ingreso.
       if (user.role === 'reception') {
         const { ecommerceOrders } = await import('@shared/schema');
         const { sql, notInArray } = await import('drizzle-orm');
         const rows = await db
           .select({ id: ecommerceOrders.id })
           .from(ecommerceOrders)
-          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived', 'suggested_pending']));
+          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived', 'suggested_pending', 'preparacion', 'transito', 'entregado']));
         return res.json({ count: rows.length });
       }
 
@@ -9451,7 +9476,9 @@ export function registerRoutes(app: Express): Server {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived', 'ingresado'];
+    // Incluye los estados logísticos internos (preparacion/transito/entregado) que
+    // se marcan a mano desde el detalle del pedido para alimentar la vista de Logística.
+    const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived', 'ingresado', 'preparacion', 'transito', 'entregado'];
 
     // Reception puede marcar como ingresado o descartar pedidos (con motivo)
     if (user.role === 'reception' && !['ingresado', 'rejected'].includes(status)) {

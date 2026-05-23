@@ -208,7 +208,11 @@ export default function EcommercePedidos() {
               <SelectItem value="approved">Aprobados</SelectItem>
               <SelectItem value="modified">Modificados</SelectItem>
               <SelectItem value="rejected">Rechazados</SelectItem>
+              <SelectItem value="ingresado">Ingresados al ERP</SelectItem>
+              <SelectItem value="preparacion">En preparación</SelectItem>
               <SelectItem value="sent">Enviados</SelectItem>
+              <SelectItem value="transito">En tránsito</SelectItem>
+              <SelectItem value="entregado">Entregados</SelectItem>
             </SelectContent>
           </Select>
         </div>

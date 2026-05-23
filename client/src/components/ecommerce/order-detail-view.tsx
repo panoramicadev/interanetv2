@@ -649,17 +649,18 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     Aprobar Pedido
                   </DropdownMenuItem>
                 )}
-                {['approved', 'preparacion', 'transito'].includes(statusKey) && (
+                {['approved', 'ingresado', 'preparacion', 'sent', 'transito', 'entregado'].includes(statusKey) && (
                   <>
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
-                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                          const res = await fetch(`/api/ecommerce/orders/${order.id}/status`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({ status: 'preparacion' }),
                           });
+                          if (!res.ok) throw new Error('No se pudo cambiar el estado');
                           queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
                           toast({ title: 'Pedido en preparación' });
                           onBack();
@@ -675,12 +676,13 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
-                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                          const res = await fetch(`/api/ecommerce/orders/${order.id}/status`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({ status: 'transito' }),
                           });
+                          if (!res.ok) throw new Error('No se pudo cambiar el estado');
                           queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
                           toast({ title: 'Pedido en tránsito' });
                           onBack();
@@ -696,12 +698,13 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
-                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                          const res = await fetch(`/api/ecommerce/orders/${order.id}/status`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({ status: 'entregado' }),
                           });
+                          if (!res.ok) throw new Error('No se pudo cambiar el estado');
                           queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
                           toast({ title: 'Pedido entregado' });
                           onBack();
