@@ -1,12 +1,14 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Truck, PackageCheck, Package, Search, MapPin, User as UserIcon,
-  Loader2, Navigation, AlertTriangle, Eye, CheckCircle2, Hash, Inbox,
+  Loader2, Navigation, AlertTriangle, Eye, CheckCircle2, Hash, Inbox, RefreshCw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -96,9 +98,12 @@ const shortCode = (e: Envio) => e.trackingCode || `${e.id.slice(0, 8)}…`;
 // ==============================
 
 export default function Logistica() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [days, setDays] = useState("90");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Envio | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const { data, isLoading, isError } = useQuery<EnviosResponse>({
     queryKey: ["/api/logistica/envios", days],
@@ -111,6 +116,29 @@ export default function Logistica() {
     },
     staleTime: 30_000,
   });
+
+  const handleSyncErp = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/logistica/sync-erp", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("sync");
+      const r = await res.json();
+      toast({
+        title: "Sincronización con ERP",
+        description: r.vinculados > 0
+          ? `${r.vinculados} pedido(s) vinculados al ERP de ${r.evaluados} evaluados.`
+          : `Sin nuevas coincidencias (${r.evaluados} pedido(s) evaluados).`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/logistica/envios"] });
+    } catch {
+      toast({ title: "No se pudo sincronizar con el ERP", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const envios = data?.envios ?? [];
   const resumen = data?.resumen ?? { ingresados: 0, preparacion: 0, curso: 0, entregados: 0, total: 0 };
@@ -234,15 +262,27 @@ export default function Logistica() {
               </p>
             </div>
           </div>
-          <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="w-[180px] bg-white"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30">Últimos 30 días</SelectItem>
-              <SelectItem value="90">Últimos 90 días</SelectItem>
-              <SelectItem value="180">Últimos 180 días</SelectItem>
-              <SelectItem value="0">Todo el historial</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSyncErp}
+              disabled={isSyncing}
+              className="bg-white"
+              title="Vincular pedidos ingresados con su documento del ERP (NVV) por RUT, fecha y monto"
+            >
+              {isSyncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sincronizar con ERP
+            </Button>
+            <Select value={days} onValueChange={setDays}>
+              <SelectTrigger className="w-[180px] bg-white"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">Últimos 30 días</SelectItem>
+                <SelectItem value="90">Últimos 90 días</SelectItem>
+                <SelectItem value="180">Últimos 180 días</SelectItem>
+                <SelectItem value="0">Todo el historial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Aviso TMS no configurado */}

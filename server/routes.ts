@@ -402,6 +402,7 @@ import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, isTmsConfigured } from "./utils/tms-logistica";
+import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import crypto from "crypto";
@@ -9314,6 +9315,47 @@ export function registerRoutes(app: Express): Server {
         return true;
       });
 
+      // Sincronización con el ERP: completamos el puente erpIdmaeedo de los pedidos
+      // que aún no lo tienen, emparejándolos con su NVV (RUT + fecha + monto). Una vez
+      // persistido, no se vuelve a calcular para ese pedido. Es lo que habilita al TMS
+      // a consultar el estado real de entrega por idmaeedo.
+      const sinIdmaeedo = relevant.filter((o: any) => o.erpIdmaeedo == null);
+      if (sinIdmaeedo.length > 0) {
+        try {
+          const matches = await matchEcommerceOrdersToErp(
+            sinIdmaeedo.map((o: any) => ({
+              id: o.id,
+              clientId: o.clientId,
+              subtotal: o.subtotal,
+              total: o.total,
+              createdAt: o.createdAt,
+              ingresadoAt: o.ingresadoAt,
+            })),
+          );
+          if (matches.size > 0) {
+            const { ecommerceOrders } = await import('@shared/schema');
+            const { eq } = await import('drizzle-orm');
+            await Promise.all(
+              Array.from(matches.entries()).map(async ([orderId, idmaeedo]) => {
+                try {
+                  await db.update(ecommerceOrders)
+                    .set({ erpIdmaeedo: idmaeedo })
+                    .where(eq(ecommerceOrders.id, orderId));
+                } catch (e) {
+                  console.error('[logistica] no se pudo persistir idmaeedo de', orderId, e);
+                }
+              }),
+            );
+            for (const o of relevant) {
+              const idmaeedo = matches.get(o.id);
+              if (idmaeedo) o.erpIdmaeedo = idmaeedo;
+            }
+          }
+        } catch (err) {
+          console.error('[logistica] sync ERP (erpIdmaeedo) falló:', err);
+        }
+      }
+
       const tmsEnabled = isTmsConfigured();
 
       // Enriquecemos con el TMS los pedidos despachados o posteriores con puente al
@@ -9434,6 +9476,67 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching logistica envios:', error);
       res.status(500).json({ message: 'Error al obtener los envíos' });
+    }
+  }));
+
+  // ==========================================================================
+  // POST /api/logistica/sync-erp → fuerza el emparejamiento de pedidos ingresados
+  // sin erpIdmaeedo con su NVV del ERP (RUT + fecha + monto) y persiste el puente.
+  // Devuelve cuántos quedaron vinculados. Útil para "Sincronizar con ERP" a mano.
+  // ==========================================================================
+  app.post('/api/logistica/sync-erp', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const filters: any = {};
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const allOrders = await storage.getEcommerceOrders(filters);
+      const logisticStatuses = new Set(['ingresado', 'preparacion', 'sent', 'transito', 'entregado']);
+      const candidatos = allOrders.filter((o: any) => {
+        if (o.erpIdmaeedo != null) return false;
+        const st = String(o.status || '').toLowerCase();
+        if (st === 'rejected' || st === 'archived') return false;
+        return !!o.ingresadoAt || logisticStatuses.has(st);
+      });
+
+      let vinculados = 0;
+      if (candidatos.length > 0) {
+        const matches = await matchEcommerceOrdersToErp(
+          candidatos.map((o: any) => ({
+            id: o.id,
+            clientId: o.clientId,
+            subtotal: o.subtotal,
+            total: o.total,
+            createdAt: o.createdAt,
+            ingresadoAt: o.ingresadoAt,
+          })),
+        );
+        if (matches.size > 0) {
+          const { ecommerceOrders } = await import('@shared/schema');
+          const { eq } = await import('drizzle-orm');
+          await Promise.all(
+            Array.from(matches.entries()).map(async ([orderId, idmaeedo]) => {
+              try {
+                await db.update(ecommerceOrders)
+                  .set({ erpIdmaeedo: idmaeedo })
+                  .where(eq(ecommerceOrders.id, orderId));
+                vinculados++;
+              } catch (e) {
+                console.error('[logistica/sync-erp] no se pudo persistir idmaeedo de', orderId, e);
+              }
+            }),
+          );
+        }
+      }
+
+      res.json({ evaluados: candidatos.length, vinculados, tmsEnabled: isTmsConfigured() });
+    } catch (error) {
+      console.error('Error en sync-erp:', error);
+      res.status(500).json({ message: 'Error al sincronizar con el ERP' });
     }
   }));
 
