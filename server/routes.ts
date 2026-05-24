@@ -401,7 +401,7 @@ import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
-import { fetchTmsShipping, isTmsConfigured } from "./utils/tms-logistica";
+import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, isTmsConfigured, TMS_ETAPAS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
@@ -9537,6 +9537,146 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error en sync-erp:', error);
       res.status(500).json({ message: 'Error al sincronizar con el ERP' });
+    }
+  }));
+
+  // ==========================================================================
+  // Seguimiento de pedidos del CLIENTE (portal cliente). El cliente ve SUS
+  // órdenes del TMS, resueltas por su propio RUT (clients.rten). El RUT NUNCA
+  // llega desde el request: se deriva del usuario autenticado. Solo lectura.
+  // ==========================================================================
+  const normalizeRutCmp = (rut?: string | null): string =>
+    (rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+
+  // Candidatos de RUT para consultar al TMS (el maestro guarda formatos dispares).
+  const rutQueryCandidates = (rten?: string | null): string[] => {
+    const compact = normalizeRutCmp(rten);
+    if (compact.length < 2) return [];
+    const body = compact.slice(0, -1);
+    const dv = compact.slice(-1);
+    const hyphen = `${body}-${dv}`;
+    // Ordenado: forma con guión (la más común en el TMS), luego compacta.
+    return Array.from(new Set([hyphen, compact]));
+  };
+
+  const resolveClientRut = async (req: any): Promise<string | null> => {
+    try {
+      const client = await storage.getClientByUserId(req.user.id);
+      const rten = (client as any)?.rten;
+      return rten ? String(rten) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const tmsEtapaIndex = (estado: string | null): number =>
+    (TMS_ETAPAS as readonly string[]).indexOf(String(estado ?? ''));
+
+  // GET /api/client/orders → lista de órdenes del cliente logueado (por su RUT).
+  app.get('/api/client/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (req.user.role !== 'client') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const rten = await resolveClientRut(req);
+      const tmsEnabled = isTmsConfigured();
+      if (!rten) {
+        return res.json({ tmsEnabled, rut: null, orders: [], message: 'No encontramos tu RUT asociado a una cuenta de cliente.' });
+      }
+      if (!tmsEnabled) {
+        return res.json({ tmsEnabled: false, rut: rten, orders: [] });
+      }
+
+      let rows: any[] = [];
+      for (const cand of rutQueryCandidates(rten)) {
+        rows = await fetchTmsOrdersByClient(cand);
+        if (rows.length > 0) break;
+      }
+
+      const orders = rows
+        .map((o: any) => ({
+          idErp: o.idErp,
+          numeroDocumento: o.numeroDocumento,
+          tipoDocumento: o.tipoDocumento,
+          estado: o.estado,
+          etapaIndex: tmsEtapaIndex(o.estado),
+          esNoEntregado: o.estado === 'No Entregado',
+          esRetiroCliente: !!o.esRetiroCliente,
+          esDespachoParcial: !!o.esDespachoParcial,
+          esBackorder: !!o.esBackorder,
+          fechaEmision: o.fechaEmision,
+          fechaCompromiso: o.fechaCompromiso,
+          fechaConfirmacionDespacho: o.fechaConfirmacionDespacho,
+          fechaActualizacion: o.fechaActualizacion,
+        }))
+        .sort((a: any, b: any) => new Date(b.fechaEmision || 0).getTime() - new Date(a.fechaEmision || 0).getTime());
+
+      res.json({ tmsEnabled: true, rut: rten, etapas: TMS_ETAPAS, orders });
+    } catch (error) {
+      console.error('Error en /api/client/orders:', error);
+      res.status(500).json({ message: 'Error al obtener tus pedidos' });
+    }
+  }));
+
+  // GET /api/client/orders/:idErp → detalle de UNA orden del cliente (timeline).
+  app.get('/api/client/orders/:idErp', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (req.user.role !== 'client') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      if (!isTmsConfigured()) {
+        return res.status(503).json({ message: 'El seguimiento no está disponible en este momento.' });
+      }
+      const rten = await resolveClientRut(req);
+      if (!rten) {
+        return res.status(403).json({ message: 'No encontramos tu RUT asociado a una cuenta de cliente.' });
+      }
+
+      const idErp = String(req.params.idErp || '').trim();
+      const orden = await fetchTmsOrderDetail(idErp);
+      if (!orden) {
+        return res.status(404).json({ message: 'Pedido no encontrado.' });
+      }
+
+      // Candado de seguridad: la orden debe pertenecer al RUT del cliente logueado.
+      if (normalizeRutCmp(orden.clienteIdErp) !== normalizeRutCmp(rten)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const entregas = Array.isArray(orden.entregas) ? orden.entregas : [];
+      res.json({
+        idErp: orden.idErp,
+        numeroDocumento: orden.numeroDocumento,
+        tipoDocumento: orden.tipoDocumento,
+        estado: orden.estado,
+        etapas: TMS_ETAPAS,
+        etapaIndex: tmsEtapaIndex(orden.estado),
+        esNoEntregado: orden.estado === 'No Entregado',
+        esRetiroCliente: !!orden.esRetiroCliente,
+        esDespachoParcial: !!orden.esDespachoParcial,
+        esBackorder: !!orden.esBackorder,
+        fechaEmision: orden.fechaEmision,
+        fechaCompromiso: orden.fechaCompromiso,
+        fechaConfirmacionDespacho: orden.fechaConfirmacionDespacho,
+        fechaActualizacion: orden.fechaActualizacion,
+        resumen: orden.resumen ?? null,
+        items: Array.isArray(orden.items) ? orden.items : [],
+        entregas: entregas.map((e: any) => ({
+          estadoEntrega: e.estadoEntrega ?? null,
+          horaEntrega: e.horaEntrega ?? null,
+          operarioNombre: e.operarioNombre ?? null,
+          rutaPatente: e.rutaPatente ?? null,
+          rutaEstado: e.rutaEstado ?? null,
+          direccionEntrega: e.direccionEntrega ?? null,
+          motivoRechazo: e.motivoRechazo ?? null,
+          fotoEvidenciaUrl: e.fotoEvidenciaUrl ?? null,
+          fotoFirmaUrl: e.fotoFirmaUrl ?? null,
+          creadoEn: e.creadoEn ?? null,
+        })),
+      });
+    } catch (error) {
+      console.error('Error en /api/client/orders/:idErp:', error);
+      res.status(500).json({ message: 'Error al obtener el detalle del pedido' });
     }
   }));
 
