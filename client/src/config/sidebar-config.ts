@@ -81,6 +81,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Truck,
         },
         {
+          href: "/logistica-tms",
+          label: "Despachos (TMS)",
+          icon: Truck,
+        },
+        {
           href: "/cotizaciones-b2c",
           label: "Cotizaciones",
           icon: FileText,
@@ -408,6 +413,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Truck,
         },
         {
+          href: "/logistica-tms",
+          label: "Despachos (TMS)",
+          icon: Truck,
+        },
+        {
           href: "/cotizaciones-b2c",
           label: "Cotizaciones",
           icon: FileText,
@@ -588,6 +598,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         {
           href: "/logistica",
           label: "Logística",
+          icon: Truck,
+        },
+        {
+          href: "/logistica-tms",
+          label: "Despachos (TMS)",
           icon: Truck,
         },
         {
@@ -804,6 +819,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         {
           href: "/logistica",
           label: "Logística",
+          icon: Truck,
+        },
+        {
+          href: "/logistica-tms",
+          label: "Despachos (TMS)",
           icon: Truck,
         },
         {

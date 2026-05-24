@@ -401,7 +401,7 @@ import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
-import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, isTmsConfigured, TMS_ETAPAS } from "./utils/tms-logistica";
+import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
@@ -9677,6 +9677,158 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error en /api/client/orders/:idErp:', error);
       res.status(500).json({ message: 'Error al obtener el detalle del pedido' });
+    }
+  }));
+
+  // ==========================================================================
+  // Espejo del TMS (lado admin). Refleja el estado real de las órdenes del TMS
+  // (todas las del ERP, no solo las del Market). Sirve global o acotado a un
+  // cliente por su RUT (clienteIdErp). KPIs por estado + lista paginada.
+  // ==========================================================================
+  const TMS_ROLES_INTERNOS = ['admin', 'supervisor', 'encargado_area', 'reception', 'logistica_bodega', 'salesperson'];
+
+  // Resuelve el formato de RUT que el TMS reconoce (prueba con guión y compacto).
+  const resolveTmsRut = async (raw: string): Promise<string | null> => {
+    for (const cand of rutQueryCandidates(raw)) {
+      const r = await fetchTmsOrders({ clienteIdErp: cand, limit: 1, offset: 0 });
+      if (r.total > 0) return cand;
+    }
+    return null;
+  };
+
+  const ventanaFechas = (daysRaw: any): { fechaDesde?: string; fechaHasta?: string; days: number } => {
+    const d = Number.parseInt(String(daysRaw ?? '0'), 10);
+    if (!Number.isFinite(d) || d <= 0) return { days: 0 };
+    const fechaHasta = new Date().toISOString().slice(0, 10);
+    const fechaDesde = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return { fechaDesde, fechaHasta, days: d };
+  };
+
+  // GET /api/logistica/tms → KPIs + página de órdenes del TMS (global o por RUT).
+  app.get('/api/logistica/tms', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!TMS_ROLES_INTERNOS.includes(req.user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const tmsEnabled = isTmsConfigured();
+      const { fechaDesde, fechaHasta, days } = ventanaFechas(req.query.days);
+      const estado = typeof req.query.estado === 'string' && req.query.estado ? String(req.query.estado) : undefined;
+      const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 200);
+      const offset = Math.max(Number.parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+      const rutRaw = typeof req.query.clienteIdErp === 'string' ? req.query.clienteIdErp.trim() : '';
+
+      const baseEmpty = {
+        tmsEnabled,
+        days,
+        clienteIdErp: rutRaw || null,
+        estados: TMS_ESTADOS_ALL,
+        kpis: { total: 0, completadas: 0, fallidas: 0, pendientes: 0, porEstado: {} as Record<string, number> },
+        page: { orders: [] as any[], total: 0, limit, offset },
+      };
+
+      if (!tmsEnabled) return res.json(baseEmpty);
+
+      // Si se pide por cliente, resolvemos el RUT al formato que el TMS reconoce.
+      let clienteIdErp: string | undefined;
+      if (rutRaw) {
+        const resolved = await resolveTmsRut(rutRaw);
+        if (!resolved) return res.json({ ...baseEmpty, clienteIdErp: rutRaw });
+        clienteIdErp = resolved;
+      }
+
+      const base = { clienteIdErp, fechaDesde, fechaHasta };
+      const [counts, page] = await Promise.all([
+        fetchTmsEstadoCounts(base),
+        fetchTmsOrders({ ...base, estado, limit, offset }),
+      ]);
+
+      const completadas = counts.porEstado['Entregado'] || 0;
+      const fallidas = counts.porEstado['No Entregado'] || 0;
+      const pendientes = Math.max(counts.total - completadas - fallidas, 0);
+
+      const orders = page.data.map((o: any) => ({
+        idErp: o.idErp,
+        numeroDocumento: o.numeroDocumento,
+        tipoDocumento: o.tipoDocumento,
+        estado: o.estado,
+        etapaIndex: tmsEtapaIndex(o.estado),
+        esNoEntregado: o.estado === 'No Entregado',
+        esRetiroCliente: !!o.esRetiroCliente,
+        esDespachoParcial: !!o.esDespachoParcial,
+        esBackorder: !!o.esBackorder,
+        clienteIdErp: o.clienteIdErp,
+        clienteNombre: o.clienteNombre,
+        clienteComuna: o.clienteComuna,
+        fechaEmision: o.fechaEmision,
+        fechaCompromiso: o.fechaCompromiso,
+        fechaConfirmacionDespacho: o.fechaConfirmacionDespacho,
+        fechaActualizacion: o.fechaActualizacion,
+      }));
+
+      res.json({
+        tmsEnabled: true,
+        days,
+        clienteIdErp: clienteIdErp || null,
+        estados: TMS_ESTADOS_ALL,
+        kpis: { total: counts.total, completadas, fallidas, pendientes, porEstado: counts.porEstado },
+        page: { orders, total: page.total, limit, offset },
+      });
+    } catch (error) {
+      console.error('Error en /api/logistica/tms:', error);
+      res.status(500).json({ message: 'Error al obtener las órdenes del TMS' });
+    }
+  }));
+
+  // GET /api/logistica/tms/:idErp → detalle de una orden del TMS (admin, sin candado de RUT).
+  app.get('/api/logistica/tms/:idErp', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!TMS_ROLES_INTERNOS.includes(req.user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      if (!isTmsConfigured()) {
+        return res.status(503).json({ message: 'El TMS no está conectado en este entorno.' });
+      }
+      const orden = await fetchTmsOrderDetail(String(req.params.idErp || '').trim());
+      if (!orden) return res.status(404).json({ message: 'Orden no encontrada.' });
+
+      const entregas = Array.isArray(orden.entregas) ? orden.entregas : [];
+      res.json({
+        idErp: orden.idErp,
+        numeroDocumento: orden.numeroDocumento,
+        tipoDocumento: orden.tipoDocumento,
+        estado: orden.estado,
+        etapas: TMS_ETAPAS,
+        etapaIndex: tmsEtapaIndex(orden.estado),
+        esNoEntregado: orden.estado === 'No Entregado',
+        esRetiroCliente: !!orden.esRetiroCliente,
+        esDespachoParcial: !!orden.esDespachoParcial,
+        esBackorder: !!orden.esBackorder,
+        clienteIdErp: orden.clienteIdErp,
+        clienteNombre: orden.clienteNombre,
+        clienteComuna: orden.clienteComuna,
+        fechaEmision: orden.fechaEmision,
+        fechaCompromiso: orden.fechaCompromiso,
+        fechaConfirmacionDespacho: orden.fechaConfirmacionDespacho,
+        fechaActualizacion: orden.fechaActualizacion,
+        resumen: orden.resumen ?? null,
+        items: Array.isArray(orden.items) ? orden.items : [],
+        entregas: entregas.map((e: any) => ({
+          estadoEntrega: e.estadoEntrega ?? null,
+          horaEntrega: e.horaEntrega ?? null,
+          operarioNombre: e.operarioNombre ?? null,
+          rutaPatente: e.rutaPatente ?? null,
+          rutaEstado: e.rutaEstado ?? null,
+          direccionEntrega: e.direccionEntrega ?? null,
+          motivoRechazo: e.motivoRechazo ?? null,
+          fotoEvidenciaUrl: e.fotoEvidenciaUrl ?? null,
+          fotoFirmaUrl: e.fotoFirmaUrl ?? null,
+          creadoEn: e.creadoEn ?? null,
+        })),
+      });
+    } catch (error) {
+      console.error('Error en /api/logistica/tms/:idErp:', error);
+      res.status(500).json({ message: 'Error al obtener el detalle de la orden' });
     }
   }));
 
