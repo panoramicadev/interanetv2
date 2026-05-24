@@ -19,6 +19,7 @@ import {
 } from "@/lib/cmmsPermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import ClientEcommerceLayout from "@/components/layout/client-ecommerce-layout";
+import ClientOrderTracking from "@/pages/client-order-tracking";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Shop from "@/pages/shop";
@@ -167,6 +168,7 @@ function Router() {
           {/* Account management pages use eCommerce layout */}
           <Route path="/mi-cuenta">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          <Route path="/seguimiento">{() => <ClientEcommerceLayout><ClientOrderTracking /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-documentos">{() => <ClientEcommerceLayout><ClientDocumentos /></ClientEcommerceLayout>}</Route>
           <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/client-portal">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>

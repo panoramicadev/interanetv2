@@ -11,6 +11,7 @@ import {
   X,
   ChevronRight,
   FileText,
+  Truck,
 } from "lucide-react";
 
 interface StoreConfig {
@@ -22,6 +23,7 @@ interface StoreConfig {
 const navItems = [
   { label: "Mi Panel", href: "/mi-cuenta", icon: LayoutDashboard },
   { label: "Mis Pedidos", href: "/mis-pedidos", icon: ClipboardList },
+  { label: "Seguimiento", href: "/seguimiento", icon: Truck },
   { label: "Documentos", href: "/mis-documentos", icon: FileText },
 ];
 
