@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
 import { OrderTrackingTimeline } from "@/components/ecommerce/order-tracking-timeline";
 import { statusConfig } from "@/components/ecommerce/order-detail-view";
+import TmsOrdersPanel from "@/components/logistica/tms-orders-panel";
 
 interface ClientDetails {
   totalPurchases: number;
@@ -753,6 +754,9 @@ export default function ClientDetail() {
             <TabsTrigger value="pedidos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <FileText className="h-4 w-4" /> Pedidos
             </TabsTrigger>
+            <TabsTrigger value="despachos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Truck className="h-4 w-4" /> Despachos
+            </TabsTrigger>
           </TabsList>
 
           {/* Resumen tab — products bought */}
@@ -1042,6 +1046,17 @@ export default function ClientDetail() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Despachos tab — espejo del TMS acotado al RUT de este cliente */}
+          <TabsContent value="despachos" className="mt-4">
+            {ficha?.rut ? (
+              <TmsOrdersPanel clienteIdErp={ficha.rut} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                Este cliente no tiene RUT/ficha SAP asociada, por lo que no podemos mostrar sus despachos del TMS.
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
