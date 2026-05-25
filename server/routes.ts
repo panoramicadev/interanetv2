@@ -9548,15 +9548,42 @@ export function registerRoutes(app: Express): Server {
   const normalizeRutCmp = (rut?: string | null): string =>
     (rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
 
+  // Dígito verificador (módulo 11) a partir del cuerpo del RUT (solo dígitos).
+  const computeRutDv = (body: string): string => {
+    let sum = 0, mul = 2;
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body[i], 10) * mul;
+      mul = mul === 7 ? 2 : mul + 1;
+    }
+    const r = 11 - (sum % 11);
+    return r === 11 ? '0' : r === 10 ? 'K' : String(r);
+  };
+
   // Candidatos de RUT para consultar al TMS (el maestro guarda formatos dispares).
+  // Algunas fichas guardan `rten` SIN dígito verificador (p.ej. "96596450" cuando el
+  // RUT real es "96596450-9"). Para resolverlo SIN adivinar a ciegas usamos el DV como
+  // desambiguador: solo emitimos formas de RUT cuyo dígito verificador sea VÁLIDO.
+  //   1) Si el último carácter de `rten` ya es el DV correcto → es el RUT tal cual.
+  //   2) Si no, interpretamos `rten` como el cuerpo y calculamos su DV (módulo 11).
+  // Los clientes con `rten` correcto matchean exactamente igual que antes (interp. 1
+  // primero), y los truncados se completan con su único DV válido (sin falsos positivos).
   const rutQueryCandidates = (rten?: string | null): string[] => {
     const compact = normalizeRutCmp(rten);
     if (compact.length < 2) return [];
-    const body = compact.slice(0, -1);
-    const dv = compact.slice(-1);
-    const hyphen = `${body}-${dv}`;
-    // Ordenado: forma con guión (la más común en el TMS), luego compacta.
-    return Array.from(new Set([hyphen, compact]));
+    const cands: string[] = [];
+    const body1 = compact.slice(0, -1);
+    const dv1 = compact.slice(-1);
+    if (/^[0-9]+$/.test(body1) && computeRutDv(body1) === dv1) {
+      // Interpretación 1: `rten` ya incluye un DV válido → es el RUT tal cual.
+      cands.push(`${body1}-${dv1}`, compact);
+    } else if (/^[0-9]+$/.test(compact)) {
+      // Interpretación 2: `rten` es el cuerpo sin DV → calculamos el DV (módulo 11).
+      const dv2 = computeRutDv(compact);
+      cands.push(`${compact}-${dv2}`, `${compact}${dv2}`);
+    }
+    // Resguardo: ante un formato inesperado, probamos las formas crudas (como antes).
+    if (cands.length === 0) cands.push(`${body1}-${dv1}`, compact);
+    return Array.from(new Set(cands));
   };
 
   const resolveClientRut = async (req: any): Promise<string | null> => {
