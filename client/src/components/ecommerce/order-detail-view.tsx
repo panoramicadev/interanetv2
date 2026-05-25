@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
+import { getShippingKey } from "@shared/format-utils";
 import {
   Clock, CheckCircle, XCircle, Package, FileText,
   Phone, Mail, ArrowLeft, User, MapPin,
@@ -9,7 +10,7 @@ import {
   Pencil, Archive, Trash2, FileImage, Landmark,
   Upload, Download, X, Loader2, RefreshCw, Save, Inbox,
   AlertTriangle, RefreshCcw,
-  Plus, Minus, Search, Ban, Eye,
+  Plus, Minus, Search, Ban, Eye, ChevronDown, Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,9 @@ import {
   AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { EcommerceQuoteModal } from "./ecommerce-quote-modal";
@@ -52,6 +56,16 @@ export interface OrderItem {
   convenioPct?: number;
   originalUnitPrice?: number;
   isOffer?: boolean;
+  priceTier?: string;
+  tierPrices?: PriceTierOption[];
+}
+
+// Precios disponibles para un producto en la lista de precios (lista, descuentos, etc.)
+export type PriceTierKey = 'lista' | 'desc10' | 'desc10_5' | 'desc10_5_3' | 'minimo' | 'canalDigital' | 'oferta';
+export interface PriceTierOption {
+  key: PriceTierKey;
+  label: string;
+  price: number;
 }
 
 export interface InvoiceFile {
@@ -100,6 +114,28 @@ export const formatPrice = (price: string | number | undefined | null) => {
   if (price === undefined || price === null) return '$0';
   const numPrice = typeof price === 'string' ? parseFloat(price) || 0 : price;
   return `$${numPrice.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+
+// Deriva los precios disponibles (tramos) de una fila de la lista de precios.
+// Solo incluye los que tienen valor > 0. Lista se reconstruye desde desc10 si viene vacía.
+export const getProductTiers = (product: any): PriceTierOption[] => {
+  const num = (v: any) => parseFloat(String(v ?? '0')) || 0;
+  const desc10 = num(product?.desc10);
+  const lista = num(product?.lista) > 0 ? num(product?.lista) : (desc10 > 0 ? Math.round(desc10 / 0.9) : 0);
+  const mappings: { key: PriceTierKey; label: string; value: number }[] = [
+    { key: 'lista', label: 'Lista', value: lista },
+    { key: 'desc10', label: '10%', value: desc10 },
+    { key: 'desc10_5', label: '10%+5%', value: num(product?.desc10_5) },
+    { key: 'desc10_5_3', label: '10%+5%+3%', value: num(product?.desc10_5_3) },
+    { key: 'minimo', label: 'Mínimo', value: num(product?.minimo) },
+    { key: 'canalDigital', label: 'Digital', value: num(product?.canalDigital) },
+    { key: 'oferta', label: 'Oferta', value: num(product?.offerPrice) },
+  ];
+  const tiers: PriceTierOption[] = [];
+  for (const m of mappings) {
+    if (m.value > 0) tiers.push({ key: m.key, label: m.label, price: Math.round(m.value) });
+  }
+  return tiers;
 };
 
 export const formatDate = (dateString: string) => {
@@ -239,6 +275,10 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [productResults, setProductResults] = useState<any[]>([]);
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+  const [pickerExpandedCode, setPickerExpandedCode] = useState<string | null>(null);
+  const [loadingTiers, setLoadingTiers] = useState(false);
+  // Tarifas de despacho (formato → { precio, sku ZZFLETE }) para autocalcular las líneas de flete.
+  const [shippingRates, setShippingRates] = useState<Record<string, { price: number; sku: string }>>({});
 
   // Discard / reject order dialog
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -247,6 +287,15 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
 
   const items = isEditingPrices ? editedItems : getOrderItems(currentOrder);
   const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
+
+  // Líneas de despacho (flete): se reconocen por su SKU (ZZFLETE...) según la config de fletes.
+  // Su cantidad se autocalcula a partir de las unidades de producto de cada formato.
+  const despachoSkuToRate = new Map<string, string>();
+  for (const [rate, cfg] of Object.entries(shippingRates)) {
+    if (cfg.sku) despachoSkuToRate.set(cfg.sku.toUpperCase(), rate);
+  }
+  const isDespachoItem = (it: OrderItem) =>
+    despachoSkuToRate.has(String(it.sku || it.productCode || '').toUpperCase());
 
   // Seguimiento + documento (vista del cliente).
   // Un pedido web tiene UUID (con guiones); los pedidos ERP traen su documento adjunto.
@@ -278,7 +327,21 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
 
   const updateEditedItemPrice = (index: number, value: string) => {
     const num = Math.max(0, Number(value.replace(/[^\d]/g, '')) || 0);
-    setEditedItems(prev => prev.map((it, i) => i === index ? { ...it, unitPrice: num } : it));
+    setEditedItems(prev => prev.map((it, i) => {
+      if (i !== index) return it;
+      // Si el valor escrito coincide con un tramo, lo marcamos; si no, queda "Personalizado".
+      const matched = it.tierPrices?.find(t => t.price === num);
+      return { ...it, unitPrice: num, priceTier: matched?.key };
+    }));
+  };
+
+  const updateEditedItemTier = (index: number, tierKey: string) => {
+    setEditedItems(prev => prev.map((it, i) => {
+      if (i !== index) return it;
+      const tier = it.tierPrices?.find(t => t.key === tierKey);
+      if (!tier) return it;
+      return { ...it, priceTier: tier.key, unitPrice: tier.price };
+    }));
   };
 
   const updateEditedItemQuantity = (index: number, value: string | number) => {
@@ -299,8 +362,10 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     setEditedItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const addProductToEditedItems = (product: any) => {
-    const unitPrice = Math.round(Number(product.lista ?? product.precio ?? 0) || 0);
+  const addProductToEditedItems = (product: any, tier?: PriceTierOption) => {
+    const tiers = getProductTiers(product);
+    const chosen = tier ?? tiers.find(t => t.key === 'lista') ?? tiers[0];
+    const unitPrice = chosen ? chosen.price : Math.round(Number(product.lista ?? product.precio ?? 0) || 0);
     const newItem: OrderItem = {
       productId: product.id,
       productName: product.producto || product.nombre || 'Producto',
@@ -313,11 +378,25 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
       subtotal: unitPrice,
       selectedPackaging: product.unidad || undefined,
       imageUrl: product.imageUrl || undefined,
+      priceTier: chosen?.key,
+      tierPrices: tiers.length ? tiers : undefined,
     };
     setEditedItems(prev => [...prev, newItem]);
     setShowProductPicker(false);
     setProductSearch('');
     setProductResults([]);
+    setPickerExpandedCode(null);
+  };
+
+  // Al elegir un producto en el buscador: si tiene un solo precio, se agrega directo;
+  // si tiene varios, se despliegan los tramos para que el usuario elija el precio.
+  const handlePickProduct = (product: any) => {
+    const tiers = getProductTiers(product);
+    if (tiers.length <= 1) {
+      addProductToEditedItems(product, tiers[0]);
+      return;
+    }
+    setPickerExpandedCode(prev => (prev === product.codigo ? null : product.codigo));
   };
 
   // Debounce product search
@@ -334,7 +413,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     }
     let cancelled = false;
     setIsSearchingProducts(true);
-    fetch(`/api/price-list?search=${encodeURIComponent(debouncedSearch)}&limit=20`, { credentials: 'include' })
+    fetch(`/api/price-list?search=${encodeURIComponent(debouncedSearch)}&limit=20&withImages=1`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { items: [] })
       .then(data => { if (!cancelled) setProductResults(data.items || []); })
       .catch(() => { if (!cancelled) setProductResults([]); })
@@ -342,9 +421,103 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     return () => { cancelled = true; };
   }, [debouncedSearch, showProductPicker]);
 
+  // Al entrar en modo edición, traemos los tramos de la lista de precios para los
+  // productos que ya estaban en el pedido, así cada fila ofrece el selector de precio.
+  // No bloquea: si falla, la fila mantiene la edición manual. (Solo corre al abrir edición.)
+  useEffect(() => {
+    if (!isEditingPrices) return;
+    const codes = Array.from(new Set(
+      editedItems
+        .filter(it => it.productCode && (!it.tierPrices || it.tierPrices.length === 0))
+        .map(it => it.productCode as string)
+    ));
+    if (codes.length === 0) return;
+    let cancelled = false;
+    setLoadingTiers(true);
+    (async () => {
+      const tiersByCode = new Map<string, PriceTierOption[]>();
+      await Promise.all(codes.map(async (code) => {
+        try {
+          const r = await fetch(`/api/price-list?search=${encodeURIComponent(code)}&limit=10`, { credentials: 'include' });
+          if (!r.ok) return;
+          const data = await r.json();
+          const product = (data.items || []).find((p: any) => p.codigo === code);
+          if (product) {
+            const tiers = getProductTiers(product);
+            if (tiers.length) tiersByCode.set(code, tiers);
+          }
+        } catch { /* fila queda en edición manual */ }
+      }));
+      if (cancelled || tiersByCode.size === 0) { if (!cancelled) setLoadingTiers(false); return; }
+      // Solo adjuntamos metadata (tramos + tramo inferido); no tocamos cantidades ni precios escritos.
+      setEditedItems(prev => prev.map(it => {
+        if (it.tierPrices && it.tierPrices.length) return it;
+        if (!it.productCode || !tiersByCode.has(it.productCode)) return it;
+        const tiers = tiersByCode.get(it.productCode)!;
+        const current = Math.round(Number(it.unitPrice ?? it.price ?? 0));
+        const matched = tiers.find(t => t.price === current);
+        return { ...it, tierPrices: tiers, priceTier: matched?.key ?? it.priceTier };
+      }));
+      setLoadingTiers(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditingPrices]);
+
+  // Cargamos las tarifas de despacho una vez (formato → { precio, sku ZZFLETE }).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ecommerce/shipping-rates', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : {}))
+      .then((raw: Record<string, any>) => {
+        if (cancelled) return;
+        const norm: Record<string, { price: number; sku: string }> = {};
+        for (const [k, v] of Object.entries(raw || {})) {
+          if (v && typeof v === 'object') norm[k] = { price: Number((v as any).price) || 0, sku: String((v as any).sku || '') };
+          else norm[k] = { price: Number(v) || 0, sku: '' };
+        }
+        setShippingRates(norm);
+      })
+      .catch(() => { /* sin config: las líneas de despacho quedan manuales */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Mientras se editan los productos, la cantidad de cada línea de despacho se mantiene
+  // sincronizada con las unidades de producto de su formato (1/4 Galón, Galón, Balde...).
+  useEffect(() => {
+    if (!isEditingPrices) return;
+    const skuToRate = new Map<string, string>();
+    for (const [rate, cfg] of Object.entries(shippingRates)) {
+      if (cfg.sku) skuToRate.set(cfg.sku.toUpperCase(), rate);
+    }
+    if (skuToRate.size === 0) return;
+
+    const qtyByRate = new Map<string, number>();
+    for (const it of editedItems) {
+      const sku = String(it.sku || it.productCode || '').toUpperCase();
+      if (skuToRate.has(sku)) continue; // saltamos las propias líneas de flete
+      const rate = getShippingKey(it.selectedPackaging || (it as any).unit || (it as any).unidad);
+      if (!rate) continue;
+      qtyByRate.set(rate, (qtyByRate.get(rate) || 0) + (Number(it.quantity) || 0));
+    }
+
+    let changed = false;
+    const next = editedItems.map(it => {
+      const sku = String(it.sku || it.productCode || '').toUpperCase();
+      const rate = skuToRate.get(sku);
+      if (!rate) return it;
+      const desired = qtyByRate.get(rate) || 0;
+      if ((Number(it.quantity) || 0) === desired) return it;
+      changed = true;
+      const unitPrice = Number(it.unitPrice ?? it.price ?? 0);
+      return { ...it, quantity: desired, totalPrice: Math.round(unitPrice * desired), subtotal: Math.round(unitPrice * desired) };
+    });
+    if (changed) setEditedItems(next);
+  }, [editedItems, isEditingPrices, shippingRates]);
+
   const saveEditedPrices = async () => {
     const cleaned = editedItems
-      .map(it => ({ ...it, quantity: Math.max(0, Math.floor(Number(it.quantity) || 0)) }))
+      .map(({ tierPrices, ...it }) => ({ ...it, quantity: Math.max(0, Math.floor(Number(it.quantity) || 0)) }))
       .filter(it => it.quantity > 0);
 
     if (cleaned.length === 0) {
@@ -913,12 +1086,12 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
 
         {/* Product Picker Dialog (add product while editing) */}
         {!isClientView && (
-          <AlertDialog open={showProductPicker} onOpenChange={(o) => { setShowProductPicker(o); if (!o) { setProductSearch(''); setProductResults([]); } }}>
+          <AlertDialog open={showProductPicker} onOpenChange={(o) => { setShowProductPicker(o); if (!o) { setProductSearch(''); setProductResults([]); setPickerExpandedCode(null); } }}>
             <AlertDialogContent className="max-w-lg">
               <AlertDialogHeader>
                 <AlertDialogTitle>Agregar producto al pedido</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Buscá por código o nombre. El precio se carga desde la lista base — luego podés ajustarlo en la fila.
+                  Buscá por código o nombre y elegí a qué precio de la lista lo vendés (Lista, descuentos, mínimo, etc.). Después podés ajustarlo en la fila.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-3">
@@ -950,28 +1123,62 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                       Sin resultados para "{debouncedSearch}"
                     </div>
                   )}
-                  {productResults.map((p: any) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => addProductToEditedItems(p)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-orange-50/50 transition-colors flex items-center gap-3"
-                      data-testid={`product-result-${p.codigo}`}
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
-                        <Package className="w-4 h-4 text-gray-400" />
+                  {productResults.map((p: any) => {
+                    const tiers = getProductTiers(p);
+                    const expanded = pickerExpandedCode === p.codigo;
+                    const multiTier = tiers.length > 1;
+                    const listaPrice = tiers.find(t => t.key === 'lista')?.price ?? p.lista;
+                    return (
+                      <div key={p.id} data-testid={`product-result-${p.codigo}`}>
+                        <button
+                          type="button"
+                          onClick={() => handlePickProduct(p)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-orange-50/50 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-100">
+                            {p.imageUrl ? (
+                              <img src={p.imageUrl} alt={p.producto} className="w-full h-full object-contain p-0.5" />
+                            ) : (
+                              <Package className="w-4 h-4 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{p.producto}</p>
+                            <p className="text-[11px] text-gray-500 truncate">
+                              {p.codigo}{p.unidad ? ` · ${p.unidad}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-xs font-bold text-gray-700">{formatPrice(listaPrice)}</span>
+                            {multiTier && (
+                              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                            )}
+                          </div>
+                        </button>
+                        {expanded && multiTier && (
+                          <div className="px-3 pb-3 pt-1 bg-orange-50/30">
+                            <p className="text-[10px] text-gray-500 mb-1.5 flex items-center gap-1">
+                              <Tag className="w-3 h-3" /> Elegí el precio de venta:
+                            </p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {tiers.map((t) => (
+                                <button
+                                  key={t.key}
+                                  type="button"
+                                  onClick={() => addProductToEditedItems(p, t)}
+                                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-[#FF6E23] hover:bg-orange-50 transition-colors text-left"
+                                  data-testid={`product-tier-${p.codigo}-${t.key}`}
+                                >
+                                  <span className="text-[11px] text-gray-600">{t.label}</span>
+                                  <span className="text-xs font-bold text-gray-900">{formatPrice(t.price)}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{p.producto}</p>
-                        <p className="text-[11px] text-gray-500 truncate">
-                          {p.codigo}{p.unidad ? ` · ${p.unidad}` : ''}
-                        </p>
-                      </div>
-                      <span className="text-xs font-bold text-gray-700 flex-shrink-0">
-                        {formatPrice(p.lista)}
-                      </span>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <AlertDialogFooter>
@@ -1105,6 +1312,11 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     Editando precios
                   </span>
                 )}
+                {isEditingPrices && loadingTiers && (
+                  <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> cargando lista de precios…
+                  </span>
+                )}
               </div>
               {isEditingPrices ? (
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1154,6 +1366,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 const itemTotal = isEditingPrices
                   ? Math.round(itemPrice * (Number(item.quantity) || 0))
                   : (item.subtotal ?? item.totalPrice ?? itemPrice * item.quantity);
+                const isDespacho = isDespachoItem(item);
                 return (
                   <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
                     {/* Product Image */}
@@ -1196,37 +1409,65 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                               />
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-500">Cant.:</span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg"
-                              onClick={() => incrementEditedItemQuantity(index, -1)}
-                              data-testid={`button-qty-decrement-${index}`}
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </Button>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={Number(item.quantity) || 0}
-                              onChange={(e) => updateEditedItemQuantity(index, e.target.value)}
-                              className="h-8 w-14 text-center text-sm"
-                              data-testid={`input-qty-${index}`}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg"
-                              onClick={() => incrementEditedItemQuantity(index, 1)}
-                              data-testid={`button-qty-increment-${index}`}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
+                          {item.tierPrices && item.tierPrices.length > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500">Lista:</span>
+                              <Select
+                                value={item.priceTier && item.tierPrices.some(t => t.key === item.priceTier) ? item.priceTier : undefined}
+                                onValueChange={(val) => updateEditedItemTier(index, val)}
+                              >
+                                <SelectTrigger className="h-8 w-[150px] text-xs" data-testid={`select-tier-${index}`}>
+                                  <SelectValue placeholder="Personalizado" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {item.tierPrices.map((t) => (
+                                    <SelectItem key={t.key} value={t.key} className="text-xs">
+                                      {t.label}: {formatPrice(t.price)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          {isDespacho ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500">Cant.:</span>
+                              <span className="text-sm font-semibold text-gray-700 tabular-nums">{Number(item.quantity) || 0}</span>
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium" title="Se calcula según las unidades de producto de este formato">auto</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500">Cant.:</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg"
+                                onClick={() => incrementEditedItemQuantity(index, -1)}
+                                data-testid={`button-qty-decrement-${index}`}
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </Button>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={Number(item.quantity) || 0}
+                                onChange={(e) => updateEditedItemQuantity(index, e.target.value)}
+                                className="h-8 w-14 text-center text-sm"
+                                data-testid={`input-qty-${index}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg"
+                                onClick={() => incrementEditedItemQuantity(index, 1)}
+                                data-testid={`button-qty-increment-${index}`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"
