@@ -233,11 +233,13 @@ function buildTmsQuery(q: TmsOrdersQuery): string {
 }
 
 // Listado de órdenes del TMS con filtros y paginación.
-export async function fetchTmsOrders(q: TmsOrdersQuery = {}): Promise<TmsListResult> {
+// `fresh` saltea el cache en memoria para traer el estado más reciente (botón "Actualizar").
+export async function fetchTmsOrders(q: TmsOrdersQuery = {}, fresh = false): Promise<TmsListResult> {
   const fallback: TmsListResult = { data: [], total: 0, limit: q.limit ?? 0, offset: q.offset ?? 0 };
   if (!isTmsConfigured()) return fallback;
   const res = await tmsGet<{ data: TmsOrderSummary[]; pagination?: { total?: number; limit?: number; offset?: number } }>(
     `/logistica/ordenes${buildTmsQuery(q)}`,
+    !fresh,
   );
   if (!res) return fallback;
   return {
@@ -252,11 +254,12 @@ export async function fetchTmsOrders(q: TmsOrdersQuery = {}): Promise<TmsListRes
 // (1 request liviano por estado, cacheado). `base` permite acotar por fecha/cliente.
 export async function fetchTmsEstadoCounts(
   base: { clienteIdErp?: string; fechaDesde?: string; fechaHasta?: string } = {},
+  fresh = false,
 ): Promise<{ total: number; porEstado: Record<string, number> }> {
   if (!isTmsConfigured()) return { total: 0, porEstado: {} };
   const [totalRes, ...porEstadoRes] = await Promise.all([
-    fetchTmsOrders({ ...base, limit: 1, offset: 0 }),
-    ...TMS_ESTADOS_ALL.map((e) => fetchTmsOrders({ ...base, estado: e, limit: 1, offset: 0 })),
+    fetchTmsOrders({ ...base, limit: 1, offset: 0 }, fresh),
+    ...TMS_ESTADOS_ALL.map((e) => fetchTmsOrders({ ...base, estado: e, limit: 1, offset: 0 }, fresh)),
   ]);
   const porEstado: Record<string, number> = {};
   TMS_ESTADOS_ALL.forEach((e, i) => {
@@ -315,4 +318,91 @@ export async function fetchTmsShipping(idmaeedo: string | number): Promise<Estad
     backordersPendientes: Number(resumen.backordersPendientes ?? 0) || 0,
     retiroEnBodega: !!orden.esRetiroCliente,
   };
+}
+
+// ---------------------------------------------------------------------------
+// RUTAS del TMS (espejo de "Gestión de Rutas"). Endpoints:
+//   GET /logistica/rutas?estado=&limit=&offset=  → { data, pagination }
+//   GET /logistica/rutas/:id                     → ruta + entregas[]
+// Pasamos los objetos CRUDOS tal cual vienen (con campos extra) para no perder
+// info y poder trabajarlos después. Tipamos lo conocido y dejamos pasar el resto.
+// ---------------------------------------------------------------------------
+
+export const TMS_RUTA_ESTADOS = ['Pendiente', 'Cargando', 'En Ruta', 'Completada'] as const;
+
+export interface TmsRutaEntrega {
+  id?: number | string | null;
+  secuencia?: number | null;
+  estadoEntrega?: string | null;
+  numeroDocumento?: string | null;
+  tipoDocumento?: string | null;
+  clienteIdErp?: string | null;
+  clienteNombre?: string | null;
+  direccionEntrega?: string | null;
+  comunaEntrega?: string | null;
+  regionEntrega?: string | null;
+  horaEntrega?: string | null;
+  motivoRechazo?: string | null;
+  pesoTotalKg?: number | null;
+  [k: string]: any;
+}
+
+export interface TmsRuta {
+  id: number | string;
+  estado?: string | null;
+  operarioNombre?: string | null;
+  vehiculoPatente?: string | null;
+  vehiculoTipo?: string | null;
+  fechaInicioRuta?: string | null;
+  fechaFinRuta?: string | null;
+  pesoTotalKg?: number | null;
+  numeroEntregas?: number | null;
+  creadoEn?: string | null;
+  entregas?: TmsRutaEntrega[];
+  [k: string]: any;
+}
+
+export interface TmsRutasQuery {
+  estado?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface TmsRutasResult {
+  data: TmsRuta[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+function buildRutasQuery(q: TmsRutasQuery): string {
+  const p = new URLSearchParams();
+  if (q.estado) p.set('estado', q.estado);
+  if (q.limit != null) p.set('limit', String(q.limit));
+  if (q.offset != null) p.set('offset', String(q.offset));
+  const s = p.toString();
+  return s ? `?${s}` : '';
+}
+
+// Listado de rutas con filtro por estado y paginación. `fresh` saltea el cache.
+export async function fetchTmsRutas(q: TmsRutasQuery = {}, fresh = false): Promise<TmsRutasResult> {
+  const fallback: TmsRutasResult = { data: [], total: 0, limit: q.limit ?? 0, offset: q.offset ?? 0 };
+  if (!isTmsConfigured()) return fallback;
+  const res = await tmsGet<{ data: TmsRuta[]; pagination?: { total?: number; limit?: number; offset?: number } }>(
+    `/logistica/rutas${buildRutasQuery(q)}`,
+    !fresh,
+  );
+  if (!res) return fallback;
+  return {
+    data: res.data ?? [],
+    total: res.pagination?.total ?? (res.data?.length ?? 0),
+    limit: res.pagination?.limit ?? (q.limit ?? 0),
+    offset: res.pagination?.offset ?? (q.offset ?? 0),
+  };
+}
+
+// Detalle de una ruta por su id (incluye entregas[]). `fresh` saltea el cache.
+export async function fetchTmsRutaDetail(id: string | number, fresh = false): Promise<TmsRuta | null> {
+  if (!isTmsConfigured() || id == null) return null;
+  return tmsGet<TmsRuta>(`/logistica/rutas/${encodeURIComponent(String(id))}`, !fresh);
 }
