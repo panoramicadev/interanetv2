@@ -11793,7 +11793,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.segment) {
-      conditions.push(eq(clients.ruen, filters.segment));
+      // El segmento del cliente no se guarda en la tabla clients (clients.ruen es la
+      // RUTA, no el segmento). El dropdown lista nombres de segmento desde
+      // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
+      // ventas en ese segmento.
+      conditions.push(
+        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE noruen = ${filters.segment})`
+      );
     }
 
     if (filters?.businessType) {
@@ -12110,7 +12116,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.segment) {
-      conditions.push(eq(clients.ruen, filters.segment));
+      // El segmento del cliente no se guarda en la tabla clients (clients.ruen es la
+      // RUTA, no el segmento). El dropdown lista nombres de segmento desde
+      // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
+      // ventas en ese segmento.
+      conditions.push(
+        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE noruen = ${filters.segment})`
+      );
     }
 
     if (filters?.businessType) {
