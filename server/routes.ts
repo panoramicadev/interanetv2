@@ -13588,6 +13588,112 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Detalle de un pedido ERP: líneas de producto (espejo del ERP) + estado de logística (TMS).
+  // Query: docType=NVV|FCV & ids=idmaeedo[,idmaeedo...] (varios cuando el pedido viene splitteado).
+  app.get('/api/ecommerce/erp-orders/detail', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { sql } = await import('drizzle-orm');
+      const { db } = await import('./db');
+
+      const docType = String(req.query.docType || '').toUpperCase() === 'FCV' ? 'FCV' : 'NVV';
+      const ids = String(req.query.ids || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => /^\d+$/.test(s))
+        .slice(0, 50);
+
+      if (ids.length === 0) {
+        return res.json({ items: [], logistica: [], tmsConfigured: isTmsConfigured() });
+      }
+
+      // Vendedores solo ven sus propios documentos (mismo scoping que el listado).
+      const salesName = (user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim());
+      const isSales = user.role === 'salesperson';
+      const inClause = sql.join(ids.map((id) => sql`${id}`), sql`, `);
+
+      let items: any[] = [];
+      try {
+        if (docType === 'FCV') {
+          const vendorCond = isSales ? (salesName ? sql`AND nokofu ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+          const r = await db.execute(sql`
+            SELECT
+              idmaeedo::text AS doc_id,
+              nudo::text AS nudo,
+              koprct AS codigo,
+              nokoprct AS nombre,
+              COALESCE(caprco2, 0)::numeric AS cantidad,
+              ud02pr AS unidad,
+              COALESCE(ppprne, 0)::numeric AS precio,
+              COALESCE(monto, 0)::numeric AS total
+            FROM ventas.fact_ventas
+            WHERE idmaeedo::text IN (${inClause})
+              ${vendorCond}
+            ORDER BY idmaeedo, idmaeddo
+          `);
+          const rows = Array.isArray(r) ? r : (r as any).rows || [];
+          items = rows.map((x: any) => ({
+            docId: x.doc_id,
+            orderNumber: x.nudo,
+            code: x.codigo ? String(x.codigo).trim() : '',
+            name: (x.nombre || '').trim() || (x.codigo ? String(x.codigo).trim() : 'Producto'),
+            quantity: Number(x.cantidad) || 0,
+            unit: x.unidad ? String(x.unidad).trim() : null,
+            unitPrice: Number(x.precio) || 0,
+            total: Number(x.total) || 0,
+            pending: null,
+          }));
+        } else {
+          const vendorCond = isSales ? (salesName ? sql`AND nombre_vendedor ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+          const r = await db.execute(sql`
+            SELECT
+              idmaeedo::text AS doc_id,
+              nudo::text AS nudo,
+              koprct AS codigo,
+              nokopr AS nombre,
+              COALESCE(caprco2, 0)::numeric AS cantidad,
+              ud02pr AS unidad,
+              COALESCE(ppprne, 0)::numeric AS precio,
+              COALESCE(monto, 0)::numeric AS total,
+              COALESCE(cantidad_pendiente_ud2, 0)::numeric AS pendiente
+            FROM nvv.fact_nvv
+            WHERE idmaeedo::text IN (${inClause})
+              ${vendorCond}
+            ORDER BY idmaeedo, idmaeddo
+          `);
+          const rows = Array.isArray(r) ? r : (r as any).rows || [];
+          items = rows.map((x: any) => ({
+            docId: x.doc_id,
+            orderNumber: x.nudo,
+            code: x.codigo ? String(x.codigo).trim() : '',
+            name: (x.nombre || '').trim() || (x.codigo ? String(x.codigo).trim() : 'Producto'),
+            quantity: Number(x.cantidad) || 0,
+            unit: x.unidad ? String(x.unidad).trim() : null,
+            unitPrice: Number(x.precio) || 0,
+            total: Number(x.total) || 0,
+            pending: Number(x.pendiente) || 0,
+          }));
+        }
+      } catch (e) {
+        console.warn('[GET /api/ecommerce/erp-orders/detail] line items query failed:', e);
+      }
+
+      // Estado de logística por documento (TMS, consultado por idmaeedo). Degrada a null si el TMS no responde.
+      const tmsConfigured = isTmsConfigured();
+      let logistica: any[] = [];
+      if (tmsConfigured) {
+        logistica = await Promise.all(
+          ids.map(async (id) => ({ docId: id, estado: await fetchTmsShipping(id) })),
+        );
+      }
+
+      res.json({ items, logistica, tmsConfigured });
+    } catch (error: any) {
+      console.error('Error fetching ERP order detail:', error);
+      res.status(500).json({ message: 'Error al consultar el detalle del pedido', detail: error?.message || 'Unknown error' });
+    }
+  });
+
   // Search clients (for CRM lead creation from existing clients)
   app.get('/api/users/clients/search', requireCommercialAccess, async (req: any, res) => {
     try {

@@ -3,11 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Clock, CheckCircle, ShoppingCart, DollarSign, Search, Filter,
   ChevronRight, Database, Layers, FileText, Receipt, Calendar, User,
+  Users, Building2, Check, ChevronsUpDown, X, Truck, Package,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -49,7 +56,61 @@ interface ErpOrdersResponse {
   fcvCount: number;
 }
 
+interface ErpOrderLine {
+  docId: string;
+  orderNumber: string;
+  code: string;
+  name: string;
+  quantity: number;
+  unit: string | null;
+  unitPrice: number;
+  total: number;
+  pending: number | null;
+}
+
+interface TmsEstadoLogistica {
+  estadoPedido: string | null;
+  envio: {
+    estadoEntrega: string | null;
+    horaEntrega: string | null;
+    motivoRechazo: string | null;
+    operario: string | null;
+    patente: string | null;
+    rutaEstado: string | null;
+  } | null;
+  tieneFaltantes: boolean;
+  backordersPendientes: number;
+  retiroEnBodega: boolean;
+}
+
+interface ErpOrderDetailResponse {
+  items: ErpOrderLine[];
+  logistica: { docId: string; estado: TmsEstadoLogistica | null }[];
+  tmsConfigured: boolean;
+}
+
 const PAGE_SIZE = 60;
+
+// Colores por estado de logística del TMS.
+function tmsEstadoStyle(estado?: string | null): string {
+  switch ((estado || "").trim()) {
+    case "Entregado":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "Despachado":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "Listo para Despacho":
+    case "Preparada":
+      return "bg-indigo-50 text-indigo-700 border-indigo-200";
+    case "En Preparación":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    case "Pendiente":
+      return "bg-gray-100 text-gray-600 border-gray-200";
+    case "No Entregado":
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    default:
+      return "bg-gray-100 text-gray-600 border-gray-200";
+  }
+}
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -57,6 +118,70 @@ function fmtDate(d?: string | null) {
   const [y, m, day] = iso.split("-");
   if (!y || !m || !day) return iso;
   return `${day}-${m}-${y}`;
+}
+
+function fmtQty(n?: number | null) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : v.toLocaleString("es-CL", { maximumFractionDigits: 2 });
+}
+
+const MONTH_NAMES = [
+  "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+// Combobox buscable para listas largas (vendedores / clientes)
+function FilterCombobox({
+  value, onChange, options, placeholder, allLabel, searchPlaceholder, icon, width = "w-full sm:w-[220px]",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder: string;
+  allLabel: string;
+  searchPlaceholder: string;
+  icon: React.ReactNode;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={`${width} justify-between rounded-xl font-normal ${value === "all" ? "text-gray-500" : "text-gray-900"}`}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            {icon}
+            <span className="truncate">{value === "all" ? placeholder : value}</span>
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value={allLabel} onSelect={() => { onChange("all"); setOpen(false); }}>
+                <Check className={`mr-2 h-4 w-4 ${value === "all" ? "opacity-100" : "opacity-0"}`} />
+                {allLabel}
+              </CommandItem>
+              {options.map((opt) => (
+                <CommandItem key={opt} value={opt} onSelect={() => { onChange(opt); setOpen(false); }}>
+                  <Check className={`mr-2 h-4 w-4 ${value === opt ? "opacity-100" : "opacity-0"}`} />
+                  <span className="truncate">{opt}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function StatusBadge({ docType }: { docType: ErpOrder["docType"] }) {
@@ -83,8 +208,74 @@ export default function ErpOrdersTable() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [tipo, setTipo] = useState<"all" | "nvv" | "fcv">("all");
+  const [vendedor, setVendedor] = useState("all");
+  const [cliente, setCliente] = useState("all");
+  const [anio, setAnio] = useState("all");
+  const [mes, setMes] = useState("all");
+  const [dia, setDia] = useState("all");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [detail, setDetail] = useState<ErpOrder | null>(null);
+
+  // Opciones de filtro derivadas de los pedidos cargados
+  const salespeople = useMemo(
+    () => Array.from(new Set(orders.map((o) => o.salesperson).filter(Boolean) as string[]))
+      .sort((a, b) => a.localeCompare(b, "es")),
+    [orders],
+  );
+  const clients = useMemo(
+    () => Array.from(new Set(orders.map((o) => o.clientName).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, "es")),
+    [orders],
+  );
+  const years = useMemo(
+    () => Array.from(new Set(orders.map((o) => (o.date || "").slice(0, 4)).filter(Boolean)))
+      .sort().reverse(),
+    [orders],
+  );
+  // Meses presentes según el año elegido (cascada)
+  const months = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o) => {
+      const iso = (o.date || "").slice(0, 10);
+      if (!iso) return;
+      if (anio !== "all" && iso.slice(0, 4) !== anio) return;
+      set.add(iso.slice(5, 7));
+    });
+    return Array.from(set).sort();
+  }, [orders, anio]);
+  // Días presentes según año + mes elegidos (cascada)
+  const days = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o) => {
+      const iso = (o.date || "").slice(0, 10);
+      if (!iso) return;
+      if (anio !== "all" && iso.slice(0, 4) !== anio) return;
+      if (mes !== "all" && iso.slice(5, 7) !== mes) return;
+      set.add(iso.slice(8, 10));
+    });
+    return Array.from(set).sort();
+  }, [orders, anio, mes]);
+
+  const hasActiveFilters =
+    !!searchTerm || tipo !== "all" || vendedor !== "all" || cliente !== "all" ||
+    anio !== "all" || mes !== "all" || dia !== "all";
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setTipo("all");
+    setVendedor("all");
+    setCliente("all");
+    setAnio("all");
+    setMes("all");
+    setDia("all");
+  };
+
+  // Detalle del pedido abierto: líneas de producto + estado de logística (TMS).
+  const detailIds = detail ? detail.documents.map((d) => d.docId).join(",") : "";
+  const { data: detailData, isLoading: detailLoading } = useQuery<ErpOrderDetailResponse>({
+    queryKey: ["/api/ecommerce/erp-orders/detail", { docType: detail?.docType, ids: detailIds }],
+    enabled: !!detail,
+  });
 
   // KPIs
   const nvvCount = data?.nvvCount ?? 0;
@@ -100,6 +291,12 @@ export default function ErpOrdersTable() {
     return orders.filter((o) => {
       if (tipo === "nvv" && o.docType !== "NVV") return false;
       if (tipo === "fcv" && o.docType !== "FCV") return false;
+      if (vendedor !== "all" && (o.salesperson || "") !== vendedor) return false;
+      if (cliente !== "all" && o.clientName !== cliente) return false;
+      const iso = (o.date || "").slice(0, 10);
+      if (anio !== "all" && iso.slice(0, 4) !== anio) return false;
+      if (mes !== "all" && iso.slice(5, 7) !== mes) return false;
+      if (dia !== "all" && iso.slice(8, 10) !== dia) return false;
       if (!searchTerm) return true;
       const t = searchTerm.toLowerCase();
       return (
@@ -109,12 +306,12 @@ export default function ErpOrdersTable() {
         o.orderNumbers.some((n) => String(n).toLowerCase().includes(t))
       );
     });
-  }, [orders, tipo, searchTerm]);
+  }, [orders, tipo, searchTerm, vendedor, cliente, anio, mes, dia]);
 
   // Reset pagination when the filtered set changes
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [searchTerm, tipo]);
+  }, [searchTerm, tipo, vendedor, cliente, anio, mes, dia]);
 
   const visible = filtered.slice(0, visibleCount);
 
@@ -167,7 +364,7 @@ export default function ErpOrdersTable() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -179,7 +376,7 @@ export default function ErpOrdersTable() {
             />
           </div>
           <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
-            <SelectTrigger className="w-[200px] rounded-xl">
+            <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
               <Filter className="h-4 w-4 mr-2 text-gray-400" />
               <SelectValue />
             </SelectTrigger>
@@ -189,6 +386,73 @@ export default function ErpOrdersTable() {
               <SelectItem value="fcv">FCV (facturadas)</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Filtros por vendedor, cliente y fecha */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+          <FilterCombobox
+            value={vendedor}
+            onChange={setVendedor}
+            options={salespeople}
+            placeholder="Vendedor"
+            allLabel="Todos los vendedores"
+            searchPlaceholder="Buscar vendedor..."
+            icon={<Users className="h-4 w-4 shrink-0 text-gray-400" />}
+          />
+          <FilterCombobox
+            value={cliente}
+            onChange={setCliente}
+            options={clients}
+            placeholder="Cliente"
+            allLabel="Todos los clientes"
+            searchPlaceholder="Buscar cliente..."
+            icon={<Building2 className="h-4 w-4 shrink-0 text-gray-400" />}
+            width="w-full sm:w-[260px]"
+          />
+          <Select value={anio} onValueChange={(v) => { setAnio(v); setMes("all"); setDia("all"); }}>
+            <SelectTrigger className="w-full sm:w-[120px] rounded-xl">
+              <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+              <SelectValue placeholder="Año" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Año</SelectItem>
+              {years.map((y) => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={mes} onValueChange={(v) => { setMes(v); setDia("all"); }}>
+            <SelectTrigger className="w-full sm:w-[150px] rounded-xl">
+              <SelectValue placeholder="Mes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Mes</SelectItem>
+              {months.map((m) => (
+                <SelectItem key={m} value={m}>{MONTH_NAMES[parseInt(m, 10)] || m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={dia} onValueChange={setDia}>
+            <SelectTrigger className="w-full sm:w-[110px] rounded-xl">
+              <SelectValue placeholder="Día" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Día</SelectItem>
+              {days.map((d) => (
+                <SelectItem key={d} value={d}>{parseInt(d, 10)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              onClick={clearFilters}
+              className="rounded-xl text-gray-500 hover:text-gray-900"
+            >
+              <X className="h-4 w-4 mr-1.5" />
+              Limpiar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -205,7 +469,7 @@ export default function ErpOrdersTable() {
               <Database className="w-7 h-7 text-gray-400" />
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Sin pedidos ERP</h3>
-            <p className="text-sm text-gray-500">No hay documentos {tipo !== "all" ? "de este tipo" : "en los últimos 90 días"}</p>
+            <p className="text-sm text-gray-500">No hay documentos {hasActiveFilters ? "con los filtros aplicados" : "en los últimos 90 días"}</p>
           </div>
         ) : (
           <>
@@ -345,6 +609,92 @@ export default function ErpOrdersTable() {
                 Pedido detectado como dividido en <strong>{detail.documents.length} documentos</strong> porque superó el tope de 30 ítems por documento en el ERP. Se unen por mismo cliente, fecha y vendedor.
               </div>
             )}
+
+            {/* Estado de logística (TMS) */}
+            <div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                <Truck className="w-3 h-3" /> Estado de logística
+              </div>
+              {detailLoading ? (
+                <div className="text-sm text-gray-400">Consultando estado de envío…</div>
+              ) : !detailData?.tmsConfigured ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
+                  El sistema de logística (TMS) no está conectado. No hay estado de envío disponible.
+                </div>
+              ) : detailData.logistica.every((l) => !l.estado) ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
+                  Sin información de envío en el TMS para este pedido.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {detailData.logistica.filter((l) => l.estado).map((l) => {
+                    const doc = detail?.documents.find((d) => d.docId === l.docId);
+                    const est = l.estado!;
+                    const envioEstado = est.envio?.estadoEntrega || est.estadoPedido;
+                    return (
+                      <div key={l.docId} className="rounded-xl border border-gray-200 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {detail?.isGrouped && doc && (
+                              <span className="text-[10px] font-bold text-gray-400">N° {doc.orderNumber}</span>
+                            )}
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${tmsEstadoStyle(envioEstado)}`}>
+                              <Truck className="w-3 h-3" /> {envioEstado || "Sin estado"}
+                            </span>
+                          </div>
+                          {est.retiroEnBodega && (
+                            <span className="text-[10px] text-gray-500">Retiro en bodega</span>
+                          )}
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                          {est.envio?.horaEntrega && (<div><span className="text-gray-400">Entrega:</span> {fmtDate(est.envio.horaEntrega)}</div>)}
+                          {est.envio?.patente && (<div><span className="text-gray-400">Patente:</span> {est.envio.patente}</div>)}
+                          {est.envio?.operario && (<div><span className="text-gray-400">Operario:</span> {est.envio.operario}</div>)}
+                          {est.envio?.rutaEstado && (<div><span className="text-gray-400">Ruta:</span> {est.envio.rutaEstado}</div>)}
+                          {est.tieneFaltantes && (<div className="text-amber-600">Despacho con faltantes</div>)}
+                          {est.backordersPendientes > 0 && (<div className="text-amber-600">{est.backordersPendientes} backorder(s) pendiente(s)</div>)}
+                          {est.envio?.motivoRechazo && (<div className="col-span-2 text-rose-600">Motivo: {est.envio.motivoRechazo}</div>)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Productos del pedido */}
+            <div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                <Package className="w-3 h-3" /> Productos {detailData?.items?.length ? `(${detailData.items.length})` : ""}
+              </div>
+              {detailLoading ? (
+                <div className="text-sm text-gray-400">Cargando productos…</div>
+              ) : !detailData?.items?.length ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
+                  No se encontraron líneas de producto para este pedido.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                  {detailData.items.map((it, i) => (
+                    <div key={`${it.docId}-${it.code}-${i}`} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 break-words">{it.name}</div>
+                        <div className="text-[10px] text-gray-400 flex items-center gap-2 flex-wrap mt-0.5">
+                          {it.code && <span className="font-mono">{it.code}</span>}
+                          <span>{fmtQty(it.quantity)}{it.unit ? ` ${it.unit}` : ""}</span>
+                          {detail?.docType === "NVV" && it.pending ? (
+                            <span className="text-amber-600">· {fmtQty(it.pending)} pend.</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold text-gray-900">{formatPrice(it.total)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Documentos que componen el pedido */}
             <div>
