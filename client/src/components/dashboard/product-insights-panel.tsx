@@ -161,7 +161,12 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
   // Matrix axes
   const matrixColors = useMemo(() => (data?.colorBreakdown || []).map((c) => c.color), [data]);
-  const matrixFormats = useMemo(() => (data?.formatBreakdown || []).map((f) => f.format), [data]);
+  // Keep the matrix to formats with actual sales so unsold catalog formats don't
+  // add all-empty columns (they still appear in the Formatos breakdown).
+  const matrixFormats = useMemo(() => {
+    const sold = new Set((data?.colorFormatMatrix || []).map((e) => e.format));
+    return (data?.formatBreakdown || []).map((f) => f.format).filter((f) => sold.has(f));
+  }, [data]);
   const matrixLookup = useMemo(() => {
     const m = new Map<string, { totalSales: number; totalUnits: number }>();
     (data?.colorFormatMatrix || []).forEach((e) => m.set(`${e.color}|||${e.format}`, e));
@@ -290,7 +295,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
         </SectionCard>
 
         <SectionCard icon={<Package className="w-4.5 h-4.5 text-white" />} gradient="from-green-500 to-emerald-600" shadow="shadow-green-500/20"
-          title="Formatos" subtitle={`${data.formatBreakdown.length} formatos vendidos`}>
+          title="Formatos" subtitle={`${data.formatBreakdown.length} formatos del producto`}>
           {data.formatBreakdown.length > 0 ? (
             <div className="space-y-2.5">
               {data.formatBreakdown.map((f) => (
