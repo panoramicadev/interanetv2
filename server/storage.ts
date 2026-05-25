@@ -355,6 +355,7 @@ import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isN
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import { generateTrackingCode } from "./utils/tracking-code";
+import { fuzzyRank } from "./utils/fuzzy-match";
 import mssql from 'mssql';
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -1394,6 +1395,7 @@ export interface IStorage {
     limit?: number;
     offset?: number;
   }): Promise<{ items: any[]; totalCount: number }>;
+  getPriceListFuzzy(search: string, limit?: number): Promise<any[]>;
   getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number>;
   getMargenProductList(filters: {
     search?: string;
@@ -14104,6 +14106,27 @@ export class DatabaseStorage implements IStorage {
       // Approximate: if hasMore, we know there are at least offset+limit+1 items
       totalCount: hasMore ? offset + limit + 1 : offset + resultItems.length,
     };
+  }
+
+  /**
+   * Búsqueda difusa de productos: tolera errores de tipeo / reconocimiento de
+   * voz (ej: "stein" -> "stain") cuando la búsqueda exacta (ILIKE) no devuelve
+   * nada. Carga un conjunto acotado del catálogo y lo ordena por similitud de
+   * tokens en memoria. Pensado solo como fallback, por eso carga las filas y
+   * puntúa en JS en vez de exigir extensiones de Postgres (pg_trgm).
+   */
+  async getPriceListFuzzy(search: string, limit = 8): Promise<any[]> {
+    const q = (search || "").trim();
+    if (q.length < 2) return [];
+
+    const rows = await db.select().from(priceList).limit(6000);
+
+    return fuzzyRank(
+      q,
+      rows,
+      (r: any) => `${r.producto ?? ""} ${r.unidad ?? ""}`,
+      { threshold: 0.7, limit },
+    );
   }
 
   /**
