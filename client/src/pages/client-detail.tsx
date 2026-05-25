@@ -101,6 +101,7 @@ interface FichaInfo {
   creditAvailable: number | null;
   creditUsed: number | null;
   creditOverdue: number | null;
+  overdueSince: string | null;
   creditUpcoming: number | null;
   nextDueDate: string | null;
 }
@@ -873,6 +874,7 @@ export default function ClientDetail() {
                       { label: "Límite de Crédito", value: ficha?.creditLimit != null ? formatCurrency(ficha.creditLimit) : null },
                       { label: "Crédito Usado", value: ficha?.creditUsed != null ? formatCurrency(ficha.creditUsed) : null },
                       { label: "Vencido", value: ficha?.creditOverdue != null ? formatCurrency(ficha.creditOverdue) : null, valueClassName: (ficha?.creditOverdue ?? 0) > 0 ? "text-red-600 font-semibold" : undefined },
+                      { label: "Vencido desde", value: ficha?.overdueSince ? formatDate(ficha.overdueSince) : null, valueClassName: ficha?.overdueSince ? "text-red-600" : undefined },
                       { label: "Por vencer", value: ficha?.creditUpcoming != null ? formatCurrency(ficha.creditUpcoming) : null },
                       { label: "Próximo vencimiento", value: ficha?.nextDueDate ? formatDate(ficha.nextDueDate) : null },
                       { label: "Crédito Disponible", value: ficha?.creditAvailable != null ? formatCurrency(ficha.creditAvailable) : null },

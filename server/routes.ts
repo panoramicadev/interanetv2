@@ -2175,6 +2175,7 @@ export function registerRoutes(app: Express): Server {
       let carteraVencido: number | null = null;
       let carteraPorVencer: number | null = null;
       let carteraProximoVenc: string | null = null;
+      let carteraVencidoDesde: string | null = null;
       if (companyKoens.length > 0) {
         try {
           const carteraResult = await db.execute(sql`
@@ -2192,7 +2193,8 @@ export function registerRoutes(app: Express): Server {
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
-              MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc
+              MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc,
+              MIN(venc) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE) AS vencido_desde
             FROM docs
           `);
           const crow = (Array.isArray(carteraResult) ? carteraResult : (carteraResult as any).rows || [])[0];
@@ -2204,6 +2206,11 @@ export function registerRoutes(app: Express): Server {
               ? (crow.proximo_venc instanceof Date
                   ? crow.proximo_venc.toISOString().slice(0, 10)
                   : String(crow.proximo_venc).slice(0, 10))
+              : null;
+            carteraVencidoDesde = crow.vencido_desde
+              ? (crow.vencido_desde instanceof Date
+                  ? crow.vencido_desde.toISOString().slice(0, 10)
+                  : String(crow.vencido_desde).slice(0, 10))
               : null;
           }
         } catch (e) {
@@ -2276,6 +2283,7 @@ export function registerRoutes(app: Express): Server {
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
               creditOverdue: carteraVencido,
+              overdueSince: carteraVencidoDesde,
               creditUpcoming: carteraPorVencer,
               nextDueDate: carteraProximoVenc,
               creditAvailable: ficha.crlt != null ? Number(ficha.crlt) - (carteraUsado ?? 0) : null,
@@ -2508,6 +2516,79 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('[cartera] error:', error);
       res.status(500).json({ message: 'Error al obtener la cartera del cliente' });
+    }
+  });
+
+  // Crédito vencido por cliente para la vista rápida del listado. Recibe la página
+  // visible y devuelve, por cada cliente con código (koen), el monto vencido de su
+  // cartera. Reproduce el mismo cálculo validado de /api/clients/account-status
+  // (saldo del documento = vabrdo - vaabdo; vencido = fe01vedo < hoy; solo pendientes
+  // espgdo='P'; dedup por idmaeedo) pero agregando por cliente en una sola consulta.
+  // Es por código de cliente: una casa matriz colapsada no suma la deuda de sucursales
+  // (eso lo muestra la ficha). Endpoint aislado y tolerante a fallos.
+  app.post('/api/clients/credit-overdue', requireAuth, async (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (items.length === 0) return res.json({ overdue: {} });
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      const page = items.slice(0, 200);
+      // koen -> ids de cliente que comparten ese código (normalmente 1).
+      const koenToIds = new Map<string, string[]>();
+      for (const c of page as any[]) {
+        const koen = (c?.koen ?? '').toString().trim();
+        const id = c?.id ? String(c.id) : null;
+        if (!koen || !id) continue;
+        if (!koenToIds.has(koen)) koenToIds.set(koen, []);
+        koenToIds.get(koen)!.push(id);
+      }
+
+      const koens = Array.from(koenToIds.keys());
+      // Pre-poblar en 0 a todo cliente con código: tras cargar, la ausencia de fila
+      // significa "sin deuda vencida" (al día), no "desconocido". Clientes sin koen
+      // quedan fuera del mapa (no se puede calcular cartera sin código).
+      const overdue: Record<string, number> = {};
+      koenToIds.forEach((ids) => {
+        for (const id of ids) overdue[id] = 0;
+      });
+
+      if (koens.length > 0) {
+        try {
+          const result: any = await db.execute(sql`
+            WITH docs AS (
+              SELECT endo,
+                     idmaeedo,
+                     MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                     MAX(fe01vedo) AS venc
+              FROM ventas.fact_ventas
+              WHERE endo IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})
+                AND tido IN ('FCV', 'FDV')
+                AND espgdo = 'P'
+              GROUP BY endo, idmaeedo
+            )
+            SELECT endo,
+                   COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido
+            FROM docs
+            GROUP BY endo
+          `);
+          const rows = (Array.isArray(result) ? result : result.rows) || [];
+          for (const r of rows as any[]) {
+            const ids = koenToIds.get(String(r.endo)) || [];
+            const vencido = Number(r.vencido) || 0;
+            for (const id of ids) overdue[id] = vencido;
+          }
+        } catch (e) {
+          console.warn('[credit-overdue] cartera lookup failed:', e);
+        }
+      }
+
+      res.json({ overdue });
+    } catch (error) {
+      console.error('Error fetching client credit overdue:', error);
+      // Non-blocking: return empty map so the list still renders.
+      res.json({ overdue: {} });
     }
   });
 

@@ -136,28 +136,22 @@ const formatDate = (date: string | null) => {
   return new Date(date).toLocaleDateString('es-CL');
 };
 
-// Estado de pedido para la vista rápida del listado (badge por cliente).
-const ORDER_STATUS_META: Record<string, { label: string; className: string }> = {
-  pending: { label: "Pendiente", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  suggested_pending: { label: "Sugerido", className: "bg-orange-50 text-orange-700 border-orange-200" },
-  approved: { label: "Aprobado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  modified: { label: "Modificado", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  sent: { label: "En despacho", className: "bg-purple-50 text-purple-700 border-purple-200" },
-  ingresado: { label: "Ingresado", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  despacho: { label: "En despacho", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  preparacion: { label: "En preparación", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  transito: { label: "En tránsito", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  facturado: { label: "Facturado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  entregado: { label: "Entregado", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  nvv: { label: "NVV pendiente", className: "bg-amber-50 text-amber-700 border-amber-200" },
-};
-
-const OrderStatusBadge = ({ status }: { status?: string }) => {
-  if (!status) return <span className="text-xs text-muted-foreground/60">—</span>;
-  const meta = ORDER_STATUS_META[status.toLowerCase()] || { label: status, className: "bg-gray-50 text-gray-600 border-gray-200" };
+// Crédito vencido para la vista rápida del listado.
+// `amount` undefined = cliente sin código o aún cargando (—); >0 = deuda vencida
+// (rojo con monto); 0 = al día (verde).
+const CreditOverdueBadge = ({ amount }: { amount?: number }) => {
+  if (amount === undefined) return <span className="text-xs text-muted-foreground/60">—</span>;
+  if (amount > 0) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-bold bg-red-50 text-red-700 border-red-200 gap-1">
+        <AlertCircle className="h-3 w-3" />
+        {formatCurrency(amount)}
+      </Badge>
+    );
+  }
   return (
-    <Badge variant="outline" className={`text-[10px] font-bold ${meta.className}`}>
-      {meta.label}
+    <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Al día
     </Badge>
   );
 };
@@ -221,8 +215,8 @@ export default function Clients() {
   const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>("");
   const [selectedMarketAccess, setSelectedMarketAccess] = useState<string>("");
 
-  const [filterBySales, setFilterBySales] = useState(false);
-  const [salesPeriod, setSalesPeriod] = useState<string>("today");
+  const [filterBySales, setFilterBySales] = useState(true);
+  const [salesPeriod, setSalesPeriod] = useState<string>("this_month");
   const activeTab = "clientes";
 
   const isMobile = useIsMobile();
@@ -289,18 +283,19 @@ export default function Clients() {
   const totalCount = clientsData?.totalCount || 0;
   const totalPages = clientsData?.totalPages || 1;
 
-  // Estado de pedido por cliente (vista rápida): consulta aislada que no bloquea el
-  // listado. Si falla o aún no carga, simplemente no se muestra el badge.
+  // Crédito vencido por cliente (vista rápida): consulta aislada que no bloquea el
+  // listado. Tras cargar, la ausencia de entrada = sin deuda vencida (al día);
+  // clientes sin código (koen) quedan fuera del mapa (cartera no calculable).
   const clientIdsKey = (clients || []).map((c) => c.id).join(",");
-  const { data: orderStatusMap = {} } = useQuery<Record<string, { status: string; source: string; orderId?: string }>>({
-    queryKey: ['/api/clients/order-statuses', clientIdsKey],
+  const { data: creditOverdueMap = {} } = useQuery<Record<string, number>>({
+    queryKey: ['/api/clients/credit-overdue', clientIdsKey],
     enabled: !!clients && clients.length > 0,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const items = (clients || []).map((c) => ({ id: c.id, ecommerceUserId: c.ecommerceUserId, nokoen: c.nokoen }));
-      const res = await apiRequest('POST', '/api/clients/order-statuses', { items });
+      const items = (clients || []).map((c) => ({ id: c.id, koen: c.koen }));
+      const res = await apiRequest('POST', '/api/clients/credit-overdue', { items });
       const data = await res.json();
-      return (data?.statuses || {}) as Record<string, { status: string; source: string; orderId?: string }>;
+      return (data?.overdue || {}) as Record<string, number>;
     },
   });
 
@@ -413,7 +408,7 @@ export default function Clients() {
     setSelectedOrderStatus("");
     setSelectedMarketAccess("");
     setFilterBySales(false);
-    setSalesPeriod("today");
+    setSalesPeriod("this_month");
     setSearch("");
     setCurrentPage(1);
   }, []);
@@ -674,41 +669,6 @@ export default function Clients() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const getCreditStatus = (client: Client) => {
-    const cpen = client.cpen?.trim().toUpperCase() || '';
-    const diprve = client.diprve ? parseFloat(client.diprve) : 0;
-    const crsd = client.crsd ? parseFloat(client.crsd) : 0;
-    const crto = client.crto ? parseFloat(client.crto) : 0;
-
-    // Determine credit type from payment condition
-    if (cpen.includes('CREDITO') || diprve > 0) {
-      // Client has credit
-      const days = diprve > 0 ? diprve : (cpen.match(/(\d+)/) ? parseInt(cpen.match(/(\d+)/)![1]) : 0);
-      if (crsd > 0) {
-        return { status: "credito-con-deuda", text: `Crédito${days > 0 ? ` ${days}d` : ''} - Con deuda`, color: "bg-orange-500" };
-      }
-      return { status: "con-credito", text: `Crédito${days > 0 ? ` ${days} días` : ''}`, color: "bg-blue-500" };
-    }
-    if (cpen.includes('CHEQUE')) {
-      return { status: "cheque", text: "Cheque", color: "bg-yellow-500" };
-    }
-    if (cpen.includes('CONTADO')) {
-      return { status: "contado", text: "Contado", color: "bg-slate-500" };
-    }
-    if (cpen.includes('TRANSFERENCIA')) {
-      return { status: "transferencia", text: "Transferencia", color: "bg-slate-400" };
-    }
-    if (cpen) {
-      // Other payment conditions (EFECTIVO, MERCADO LIBRE, etc.)
-      return { status: "otro", text: cpen.charAt(0) + cpen.slice(1).toLowerCase(), color: "bg-slate-400" };
-    }
-    // No data at all — check if they have credit amounts
-    if (crto > 0 || crsd > 0) {
-      return { status: "con-credito", text: crsd > 0 ? "Con deuda" : "Con crédito", color: crsd > 0 ? "bg-orange-500" : "bg-blue-500" };
-    }
-    return { status: "sin-datos", text: "Sin datos", color: "bg-gray-400" };
   };
 
   const generateSummaryChips = () => {
@@ -1041,20 +1001,16 @@ export default function Clients() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
-                  <TableHead className="w-[260px] font-semibold text-[11px] uppercase tracking-wider text-muted-foreground pl-6">Cliente</TableHead>
-                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">RUT</TableHead>
-                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">Contacto</TableHead>
+                  <TableHead className="w-[340px] font-semibold text-[11px] uppercase tracking-wider text-muted-foreground pl-6">Cliente</TableHead>
                   <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">Vendedor</TableHead>
                   <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Segmento</TableHead>
-                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Última Compra</TableHead>
-                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Estado Pedido</TableHead>
+                  <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Crédito Vencido</TableHead>
                   <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-center">Panorámica Market</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clients?.map((client) => {
-                  const creditStatus = getCreditStatus(client);
                   return (
                     <TableRow
                       key={client.id}
@@ -1062,24 +1018,30 @@ export default function Clients() {
                       onClick={() => openClientDetails(client)}
                     >
                       <TableCell className="py-4 pl-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase mt-0.5">
                             {client.nokoen.charAt(0)}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground truncate group-hover:text-indigo-700 transition-colors">{client.nokoen}</p>
-                            <p className="text-xs text-muted-foreground">#{client.koen || "S/C"}</p>
+                          <div className="min-w-0 space-y-1">
+                            <p className="font-semibold text-foreground truncate group-hover:text-indigo-700 transition-colors leading-tight">{client.nokoen}</p>
+                            <p className="text-xs font-medium text-muted-foreground truncate">
+                              {client.rten || "Sin RUT"}
+                              {client.koen ? <span className="text-muted-foreground/50 font-normal"> · #{client.koen}</span> : null}
+                            </p>
+                            {client.email && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Mail className="h-3 w-3 shrink-0 opacity-60" />
+                                <span className="truncate max-w-[250px]">{client.email}</span>
+                              </div>
+                            )}
+                            {client.foen && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Phone className="h-3 w-3 shrink-0 opacity-60" />
+                                <span className="truncate max-w-[250px]">{client.foen}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <p className="text-sm text-muted-foreground font-medium">{client.rten || "-"}</p>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <p className="text-sm text-foreground/80 truncate max-w-[180px]">{client.foen || client.email || "-"}</p>
-                        {client.foen && client.email && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[180px]">{client.email}</p>
-                        )}
                       </TableCell>
                       <TableCell className="py-4">
                         <p className="text-sm text-muted-foreground font-medium">{client.salespersonName || "-"}</p>
@@ -1096,17 +1058,7 @@ export default function Clients() {
                         )}
                       </TableCell>
                       <TableCell className="text-center py-4">
-                        <p className="text-sm text-muted-foreground">
-                          {client.lastTransactionDate
-                            ? new Date(client.lastTransactionDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                            : "-"}
-                        </p>
-                        {client.lastTransactionAmount ? (
-                          <p className="text-xs font-semibold text-foreground">{formatCurrency(client.lastTransactionAmount)}</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-center py-4">
-                        <OrderStatusBadge status={orderStatusMap[client.id]?.status} />
+                        <CreditOverdueBadge amount={creditOverdueMap[client.id]} />
                       </TableCell>
                       <TableCell className="text-center py-4">
                         {client.marketAccess ? (
@@ -1172,7 +1124,7 @@ export default function Clients() {
           {/* Mobile: Client Cards */}
           <div className="sm:hidden space-y-3">
             {clients?.map((client) => {
-              const creditStatus = getCreditStatus(client);
+              const overdueAmount: number | undefined = creditOverdueMap[client.id];
               return (
                 <Card
                   key={client.id}
@@ -1180,14 +1132,28 @@ export default function Clients() {
                   onClick={() => openClientDetails(client)}
                 >
                   <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 ring-1 ring-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 uppercase mt-0.5">
                           {client.nokoen.charAt(0)}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 space-y-0.5">
                           <p className="font-bold text-foreground truncate">{client.nokoen}</p>
-                          <p className="text-xs text-muted-foreground">#{client.koen} {client.rten ? `· ${client.rten}` : ""}</p>
+                          <p className="text-xs font-medium text-muted-foreground truncate">
+                            {client.rten || "Sin RUT"}{client.koen ? ` · #${client.koen}` : ""}
+                          </p>
+                          {client.email && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3 shrink-0 opacity-60" />
+                              <span className="truncate">{client.email}</span>
+                            </div>
+                          )}
+                          {client.foen && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Phone className="h-3 w-3 shrink-0 opacity-60" />
+                              <span className="truncate">{client.foen}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1206,27 +1172,22 @@ export default function Clients() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-muted/30">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Vendedor</p>
                         <p className="text-sm text-foreground/70 truncate font-medium">{client.salespersonName || "-"}</p>
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mt-1">Contacto</p>
-                        <p className="text-sm text-foreground/70 truncate font-medium">{client.foen || client.email || "-"}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Última Compra</p>
-                        <p className="text-sm text-foreground/70 font-medium">
-                          {client.lastTransactionDate
-                            ? new Date(client.lastTransactionDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                            : "-"}
-                        </p>
-                        {client.lastTransactionAmount && (
-                          <p className="font-bold text-foreground">{formatCurrency(client.lastTransactionAmount)}</p>
-                        )}
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Crédito Vencido</p>
+                        <div className="mt-0.5 flex justify-end">
+                          {overdueAmount === undefined ? (
+                            <span className="text-sm text-muted-foreground/60">—</span>
+                          ) : overdueAmount > 0 ? (
+                            <span className="text-sm font-bold text-red-600">{formatCurrency(overdueAmount)}</span>
+                          ) : (
+                            <span className="text-sm font-medium text-emerald-600">Al día</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-muted/30">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Estado Pedido</span>
-                      <OrderStatusBadge status={orderStatusMap[client.id]?.status} />
                     </div>
                   </CardContent>
                 </Card>
