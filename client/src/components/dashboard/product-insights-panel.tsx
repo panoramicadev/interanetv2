@@ -161,8 +161,8 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
   // Matrix axes
   const matrixColors = useMemo(() => (data?.colorBreakdown || []).map((c) => c.color), [data]);
-  // Only formats with sales become matrix columns — the breakdown now also lists unsold
-  // catalog formats (at $0), which shouldn't add empty columns to the matrix.
+  // Keep the matrix to formats with actual sales so unsold catalog formats don't
+  // add all-empty columns (they still appear in the Formatos breakdown).
   const matrixFormats = useMemo(() => {
     const sold = new Set((data?.colorFormatMatrix || []).map((e) => e.format));
     return (data?.formatBreakdown || []).map((f) => f.format).filter((f) => sold.has(f));

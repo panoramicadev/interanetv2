@@ -191,9 +191,9 @@ export default function CotizacionesB2CPage() {
           { label: 'Cotizados', value: stats.quoted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Ventas', value: stats.sale, color: 'text-orange-600', bg: 'bg-orange-50' },
         ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 p-4`}>
+          <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 px-4 py-2.5`}>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{s.label}</p>
-            <p className={`text-2xl font-black mt-1 ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-black mt-0.5 ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>

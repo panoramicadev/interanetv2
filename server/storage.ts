@@ -5003,6 +5003,10 @@ export class DatabaseStorage implements IStorage {
     const skuFormat = new Map<string, string>();
     const skuUnit = new Map<string, string>();
     const officialColors = new Set<string>();
+    // Every format this product offers in the active catalog (1/4, Galón, 4 Galones…),
+    // so the breakdown lists the full lineup even when a format had no sales in the period.
+    const skuSet = new Set(skuList);
+    const productCatalogFormats = new Set<string>();
     for (const row of catalogRows) {
       const code = (row.codigo || '').trim();
       if (!code) continue;
@@ -5012,6 +5016,7 @@ export class DatabaseStorage implements IStorage {
       if (f && !skuFormat.has(code)) skuFormat.set(code, f);
       if (row.unidad && !skuUnit.has(code)) skuUnit.set(code, row.unidad);
       if (row.activo && c) officialColors.add(c);
+      if (row.activo && f && skuSet.has(code)) productCatalogFormats.add(f);
     }
     const hasOfficialColors = officialColors.size > 0;
 
@@ -5044,14 +5049,6 @@ export class DatabaseStorage implements IStorage {
     const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
     const colorMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
     const matrixMap = new Map<string, { color: string; format: string; totalSales: number; totalUnits: number; transactionCount: number }>();
-    // Seed every format the catalog defines for this product's SKUs, so formats that exist
-    // in the commercial grouping but had no sales still appear (at $0, sorted to the bottom).
-    // Keeps the dashboard's format list consistent with the catalog editor. Products picked
-    // via free-text search have no skuList → they keep showing only what was sold.
-    for (const sku of skuList) {
-      const f = skuFormat.get(sku) || this.normalizeFormatLabel(skuUnit.get(sku));
-      if (f && !formatMap.has(f)) formatMap.set(f, { totalSales: 0, totalUnits: 0, transactionCount: 0 });
-    }
     for (const v of variants) {
       const f = formatMap.get(v.format) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
       formatMap.set(v.format, { totalSales: f.totalSales + v.totalSales, totalUnits: f.totalUnits + v.totalUnits, transactionCount: f.transactionCount + v.transactionCount });
@@ -5061,6 +5058,12 @@ export class DatabaseStorage implements IStorage {
       const m = matrixMap.get(key) || { color: v.color, format: v.format, totalSales: 0, totalUnits: 0, transactionCount: 0 };
       matrixMap.set(key, { color: v.color, format: v.format, totalSales: m.totalSales + v.totalSales, totalUnits: m.totalUnits + v.totalUnits, transactionCount: m.transactionCount + v.transactionCount });
     }
+
+    // Surface formats the product offers but didn't sell in the period, so the
+    // lineup is complete (they appear at $0 / 0%, sorted to the bottom).
+    productCatalogFormats.forEach((f) => {
+      if (!formatMap.has(f)) formatMap.set(f, { totalSales: 0, totalUnits: 0, transactionCount: 0 });
+    });
 
     const formatBreakdown = Array.from(formatMap.entries())
       .map(([format, data]) => ({ format, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
