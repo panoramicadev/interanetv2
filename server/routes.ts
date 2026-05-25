@@ -13666,7 +13666,7 @@ export function registerRoutes(app: Express): Server {
           await dbInstance.update(spTable).set({ clientId: id, updatedAt: new Date() }).where(eq(spTable.id, ex.id));
         }
         await dbInstance.update(clientsTable).set({ userId: ex.id }).where(eq(clientsTable.id, id));
-        return res.json({ success: true, created: false, ecommerceUserId: ex.id, username: ex.username, message: "El cliente ya tenía acceso a Panorámica Market; vínculo asegurado." });
+        return res.json({ success: true, created: false, ecommerceUserId: ex.id, username: ex.username, loginEmail: ex.email, tempPassword: null, message: "El cliente ya tenía acceso a Panorámica Market; vínculo asegurado." });
       }
 
       // Credentials convention: username = RUT, password = RUT (fallback to código).
@@ -13707,7 +13707,7 @@ export function registerRoutes(app: Express): Server {
       await dbInstance.update(clientsTable).set({ userId: newUser.id }).where(eq(clientsTable.id, id));
 
       console.log(`[ACTIVATE-MARKET] Client ficha ${id} activated → user ${newUser.id} by ${user.id}`);
-      res.json({ success: true, created: true, ecommerceUserId: newUser.id, username: newUser.username, message: "Acceso a Panorámica Market activado." });
+      res.json({ success: true, created: true, ecommerceUserId: newUser.id, username: newUser.username, loginEmail: newUser.email, tempPassword: rawPassword, message: "Acceso a Panorámica Market activado." });
     } catch (error: any) {
       console.error("Error activating market access:", error);
       if (error.code === '23505') {

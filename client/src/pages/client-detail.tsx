@@ -5,7 +5,7 @@ import {
   ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send, Truck, Receipt,
+  Store, Send, Truck, Receipt, Copy, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +119,30 @@ interface AccountStatus {
   } | null;
 }
 
+function CredField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard no disponible */
+    }
+  };
+  return (
+    <div>
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
+      <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+        <code className="flex-1 text-sm font-mono break-all">{value}</code>
+        <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={copy} type="button">
+          {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientDetail() {
   const { clientName } = useParams();
   const { user } = useAuth();
@@ -138,6 +162,7 @@ export default function ClientDetail() {
   const [activeTab, setActiveTab] = useState<string>("resumen");
   const [suggestedOpen, setSuggestedOpen] = useState(false);
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
+  const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean } | null>(null);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -269,9 +294,14 @@ export default function ClientDetail() {
       const res = await apiRequest("POST", `/api/clients/${fichaIdForActivation}/activate-market`, {});
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
-      toast({ title: "Acceso activado", description: "El cliente ya puede usar Panorámica Market." });
+      setMarketCreds({
+        loginEmail: data?.loginEmail ?? null,
+        tempPassword: data?.tempPassword ?? null,
+        username: data?.username ?? "",
+        created: !!data?.created,
+      });
     },
     onError: (e: any) => {
       toast({ title: "No se pudo activar", description: e?.message || "Error al activar acceso", variant: "destructive" });
@@ -1077,6 +1107,52 @@ export default function ClientDetail() {
               </DialogTitle>
             </DialogHeader>
             {trackingOrderId && <OrderTrackingTimeline orderId={trackingOrderId} />}
+          </DialogContent>
+        </Dialog>
+
+        {/* Credenciales de acceso a Panorámica Market */}
+        <Dialog open={!!marketCreds} onOpenChange={(open) => !open && setMarketCreds(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-[#FF6E23]" />
+                {marketCreds?.created ? "Acceso creado" : "Acceso ya existente"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {marketCreds?.created
+                  ? "Entregá estas credenciales al cliente para que ingrese a Panorámica Market. La contraseña no vuelve a mostrarse."
+                  : "Este cliente ya tenía acceso. Por seguridad, la contraseña está cifrada y no se puede recuperar."}
+              </p>
+
+              {marketCreds?.loginEmail ? (
+                <CredField label="Usuario (email de acceso)" value={marketCreds.loginEmail} />
+              ) : (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 flex gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    La ficha no tiene un email cargado, por lo que el cliente <strong>no podrá iniciar sesión</strong>.
+                    Cargá un email en la ficha del cliente y volvé a activar el acceso.
+                  </span>
+                </div>
+              )}
+
+              {marketCreds?.tempPassword ? (
+                <CredField label="Contraseña inicial" value={marketCreds.tempPassword} />
+              ) : marketCreds && !marketCreds.created ? (
+                <p className="text-xs text-muted-foreground">Contraseña: definida previamente (no recuperable).</p>
+              ) : null}
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                  onClick={() => setMarketCreds(null)}
+                >
+                  Listo
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
