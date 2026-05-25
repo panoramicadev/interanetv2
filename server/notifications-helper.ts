@@ -216,22 +216,24 @@ export async function sendAutoCustomerEmail(opts: {
   to: string;
   subject: string;
   html: string;
-}): Promise<void> {
+  force?: boolean;
+}): Promise<boolean> {
   const TAG = `[auto-email:${opts.notificationType}]`;
   if (!opts.to) {
     console.log(`${TAG} sin destinatario, saltando`);
-    return;
+    return false;
   }
   try {
     const settings = await db.select()
       .from(emailNotificationSettings)
       .where(eq(emailNotificationSettings.notificationType, opts.notificationType));
     const setting = settings[0];
-    if (!setting || !setting.enabled) {
+    // `force` lo usa un envío manual explícito (botón en la ficha del pedido): ignora el toggle global.
+    if (!opts.force && (!setting || !setting.enabled)) {
       console.log(`${TAG} deshabilitado o no configurado, saltando`);
-      return;
+      return false;
     }
-    const cc = setting.ccRecipients
+    const cc = setting?.ccRecipients
       ? setting.ccRecipients.split(',').map(s => s.trim()).filter(Boolean).join(', ')
       : undefined;
 
@@ -245,6 +247,7 @@ export async function sendAutoCustomerEmail(opts: {
       createdAt: new Date(),
     });
     console.log(`${TAG} ✅ enviado a ${opts.to}${cc ? ` (cc: ${cc})` : ''}`);
+    return true;
   } catch (error: any) {
     console.error(`${TAG} ❌ error:`, error?.message);
     try {
@@ -257,6 +260,7 @@ export async function sendAutoCustomerEmail(opts: {
         createdAt: new Date(),
       });
     } catch {}
+    return false;
   }
 }
 
@@ -284,10 +288,10 @@ interface OrderModifiedNotifyOpts {
   paymentCondition?: string | null;
 }
 
-export async function notifyOrderModified(opts: OrderModifiedNotifyOpts): Promise<void> {
+export async function notifyOrderModified(opts: OrderModifiedNotifyOpts, force = false): Promise<boolean> {
   if (!opts.clientEmail) {
     console.log(`[notifyOrderModified] orden ${opts.orderNumber} sin email de cliente, saltando`);
-    return;
+    return false;
   }
   try {
     const { buildOrderModifiedEmail } = await import('./email-templates');
@@ -295,24 +299,31 @@ export async function notifyOrderModified(opts: OrderModifiedNotifyOpts): Promis
     const isCredit = cond.includes('CREDITO') || cond.includes('CRÉDITO');
     const requiresReceiptUpdate = !isCredit;
     const base = (process.env.PUBLIC_BASE_URL || 'https://ai.pinturaspanoramica.cl').replace(/\/$/, '');
-    const orderUrl = `${base}/mis-pedidos`;
+    // Link directo al pedido: el portal del cliente lo auto-abre al leer ?pedido=<id>.
+    const orderUrl = `${base}/mis-pedidos?pedido=${encodeURIComponent(opts.orderId)}`;
+    // Número legible (#4511012) derivado del UUID, igual que getNumericOrderId en el front.
+    const displayNumber = opts.orderId.includes('-')
+      ? String(parseInt(opts.orderId.replace(/-/g, '').substring(0, 6), 16) || opts.orderNumber)
+      : opts.orderNumber;
     const built = buildOrderModifiedEmail({
       clientName: opts.clientName || 'Cliente',
-      orderNumber: opts.orderNumber,
+      orderNumber: displayNumber,
       newTotal: opts.newTotal,
       previousTotal: opts.previousTotal,
       paymentCondition: opts.paymentCondition || undefined,
       requiresReceiptUpdate,
       orderUrl,
     });
-    await sendAutoCustomerEmail({
+    return await sendAutoCustomerEmail({
       notificationType: 'pedido_modificado',
       to: opts.clientEmail,
       subject: built.subject,
       html: built.html,
+      force,
     });
   } catch (err: any) {
     console.warn(`[notifyOrderModified] error enviando email para orden ${opts.orderNumber}:`, err?.message);
+    return false;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -1076,6 +1076,18 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
       o._document = facturaByNum.get(String(o._facturaNudo));
     }
   });
+
+  // Deep-link desde el correo "pedido modificado": /mis-pedidos?pedido=<id> abre ese pedido.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (erpLoading || webLoading) return;
+    const target = new URLSearchParams(window.location.search).get('pedido');
+    if (!target) return;
+    autoOpenedRef.current = true; // intento único, ya con los pedidos cargados
+    const match = allOrders.find(o => String(o.id) === target);
+    if (match) setSelectedOrder(match);
+  }, [allOrders, erpLoading, webLoading]);
 
   if (selectedOrder) {
     return (
