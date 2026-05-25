@@ -13345,6 +13345,174 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Global "Pedidos ERP" — unified NVV (pendientes de facturación) + FCV (facturadas) across ALL
+  // clients, last 90 days. The ERP splits a document once it passes the 30-line cap, so a 35-item
+  // order shows up as e.g. NVV 30 + NVV 5. We re-group those back into one logical pedido when they
+  // share docType + client + date + salesperson AND at least one of them hit the cap (overflow
+  // evidence) — that avoids fusing two genuinely separate same-day orders. Document shape mirrors
+  // the per-client /api/users/clients/:clientId/erp-orders so the UI can reuse the same look.
+  app.get('/api/ecommerce/erp-orders', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { sql } = await import('drizzle-orm');
+      const { db } = await import('./db');
+
+      const ITEM_CAP = 30; // ERP overflows a document into a new one once it exceeds 30 lines
+
+      // Salespeople only see documents under their own ERP vendor name; commercial/admin roles see all.
+      const salesName = (user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim());
+      const isSales = user.role === 'salesperson';
+      const fcvVendorCond = isSales ? (salesName ? sql`AND nokofu ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+      const nvvVendorCond = isSales ? (salesName ? sql`AND nombre_vendedor ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+
+      // FCV (facturas), one row per document
+      let fcvDocs: any[] = [];
+      try {
+        const r = await db.execute(sql`
+          SELECT
+            idmaeedo::text AS doc_id,
+            MAX(nudo)::text AS nudo,
+            MAX(feemdo)::text AS fecha,
+            MAX(nokoen) AS cliente,
+            MAX(endo) AS cliente_codigo,
+            COALESCE(SUM(monto), 0)::numeric AS total,
+            COUNT(*)::int AS items,
+            MAX(nokofu) AS vendedor
+          FROM ventas.fact_ventas
+          WHERE tido = 'FCV'
+            AND feemdo >= (CURRENT_DATE - INTERVAL '90 days')
+            ${fcvVendorCond}
+          GROUP BY idmaeedo
+          ORDER BY MAX(feemdo) DESC
+          LIMIT 4000
+        `);
+        const rows = Array.isArray(r) ? r : (r as any).rows || [];
+        fcvDocs = rows.map((x: any) => ({
+          docType: 'FCV',
+          docId: x.doc_id,
+          orderNumber: x.nudo,
+          date: x.fecha,
+          deliveryDate: null,
+          clientName: (x.cliente || 'Sin nombre').trim(),
+          clientCode: x.cliente_codigo ? String(x.cliente_codigo).trim() : '',
+          total: Number(x.total) || 0,
+          totalPending: 0,
+          items: Number(x.items) || 0,
+          salesperson: x.vendedor || null,
+        }));
+      } catch (e) {
+        console.warn('[GET /api/ecommerce/erp-orders] FCV query failed:', e);
+      }
+
+      // NVV (notas de venta) still pending invoicing, one row per document
+      let nvvDocs: any[] = [];
+      try {
+        const r = await db.execute(sql`
+          SELECT
+            idmaeedo::text AS doc_id,
+            MAX(nudo)::text AS nudo,
+            MAX(feemdo)::text AS fecha,
+            MAX(feer)::text AS fecha_entrega,
+            MAX(nokoen) AS cliente,
+            MAX(endo) AS cliente_codigo,
+            COALESCE(SUM(monto), 0)::numeric AS total,
+            COALESCE(SUM(monto_pendiente), 0)::numeric AS total_pendiente,
+            COUNT(*)::int AS items,
+            MAX(nombre_vendedor) AS vendedor
+          FROM nvv.fact_nvv
+          WHERE (eslido IS NULL OR TRIM(eslido) = '')
+            AND COALESCE(cantidad_pendiente_ud2, 0) > 0
+            AND feemdo >= (CURRENT_DATE - INTERVAL '90 days')
+            ${nvvVendorCond}
+          GROUP BY idmaeedo
+          ORDER BY MAX(feemdo) DESC
+          LIMIT 4000
+        `);
+        const rows = Array.isArray(r) ? r : (r as any).rows || [];
+        nvvDocs = rows.map((x: any) => ({
+          docType: 'NVV',
+          docId: x.doc_id,
+          orderNumber: x.nudo,
+          date: x.fecha,
+          deliveryDate: x.fecha_entrega || null,
+          clientName: (x.cliente || 'Sin nombre').trim(),
+          clientCode: x.cliente_codigo ? String(x.cliente_codigo).trim() : '',
+          total: Number(x.total) || 0,
+          totalPending: Number(x.total_pendiente) || 0,
+          items: Number(x.items) || 0,
+          salesperson: x.vendedor || null,
+        }));
+      } catch (e) {
+        console.warn('[GET /api/ecommerce/erp-orders] NVV query failed:', e);
+      }
+
+      // Re-group split documents into one logical pedido.
+      const norm = (s: string | null | undefined) => (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
+      const dayOf = (d: string | null) => (d || '').slice(0, 10);
+      const buckets = new Map<string, any[]>();
+      for (const d of [...nvvDocs, ...fcvDocs]) {
+        const key = `${d.docType}|${norm(d.clientCode) || norm(d.clientName)}|${dayOf(d.date)}|${norm(d.salesperson)}`;
+        const arr = buckets.get(key);
+        if (arr) arr.push(d); else buckets.set(key, [d]);
+      }
+
+      const makeOrder = (docs: any[]) => {
+        const head = docs[0];
+        return {
+          id: `erp-${head.docType.toLowerCase()}-${docs.map((x) => x.docId).join('-')}`,
+          source: 'sap',
+          docType: head.docType,
+          status: head.docType === 'FCV' ? 'facturado' : 'pendiente_facturacion',
+          clientName: head.clientName,
+          clientCode: head.clientCode,
+          salesperson: head.salesperson,
+          date: head.date,
+          deliveryDate: head.deliveryDate || null,
+          total: docs.reduce((s, x) => s + (x.total || 0), 0),
+          totalPending: docs.reduce((s, x) => s + (x.totalPending || 0), 0),
+          items: docs.reduce((s, x) => s + (x.items || 0), 0),
+          isGrouped: docs.length > 1,
+          orderNumbers: docs.map((x) => x.orderNumber).filter(Boolean),
+          documents: docs.map((x) => ({
+            docId: x.docId,
+            orderNumber: x.orderNumber,
+            items: x.items,
+            total: x.total,
+            totalPending: x.totalPending || 0,
+            date: x.date,
+            deliveryDate: x.deliveryDate || null,
+          })),
+        };
+      };
+
+      const orders: any[] = [];
+      for (const docs of Array.from(buckets.values())) {
+        if (docs.length === 1) {
+          orders.push(makeOrder(docs));
+        } else if (docs.some((d: any) => (d.items || 0) >= ITEM_CAP)) {
+          // Overflow evidence → treat as one split pedido (ordered by document number for the breakdown)
+          docs.sort((a: any, b: any) => (Number(a.orderNumber) || 0) - (Number(b.orderNumber) || 0));
+          orders.push(makeOrder(docs));
+        } else {
+          // No cap evidence → keep them as separate same-day orders
+          for (const d of docs) orders.push(makeOrder([d]));
+        }
+      }
+
+      orders.sort((a, b) => dayOf(b.date).localeCompare(dayOf(a.date)));
+
+      res.json({
+        orders,
+        count: orders.length,
+        nvvCount: orders.filter((o) => o.docType === 'NVV').length,
+        fcvCount: orders.filter((o) => o.docType === 'FCV').length,
+      });
+    } catch (error: any) {
+      console.error('Error fetching global ERP orders:', error);
+      res.status(500).json({ message: 'Error al consultar pedidos ERP', detail: error?.message || 'Unknown error' });
+    }
+  });
+
   // Search clients (for CRM lead creation from existing clients)
   app.get('/api/users/clients/search', requireCommercialAccess, async (req: any, res) => {
     try {
