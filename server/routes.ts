@@ -2060,6 +2060,11 @@ export function registerRoutes(app: Express): Server {
         clientIdRestrictions.push(await storage.getClientIdsByOrderStatus(orderStatus));
       }
 
+      // Con término de búsqueda no colapsamos por RUT: el usuario busca un cliente
+      // puntual y filas distintas con el mismo RUT (duplicados/renombrados) no deben
+      // quedar ocultas. El colapso aplica solo al listado sin búsqueda.
+      const hasSearch = typeof search === 'string' && search.trim() !== '';
+
       const filters = {
         search: search as string,
         segment: segment as string,
@@ -2070,9 +2075,9 @@ export function registerRoutes(app: Express): Server {
         entityType: entityType as string,
         salesPeriod: salesPeriod as string,
         clientIdRestrictions: clientIdRestrictions.length > 0 ? clientIdRestrictions : undefined,
-        // Por defecto colapsa sucursales y muestra una sola fila (casa matriz) por RUT.
-        // ?includeBranches=true para ver todas las sucursales.
-        mainBranchesOnly: includeBranches !== 'true',
+        // Por defecto colapsa sucursales (una fila "casa matriz" por RUT).
+        // ?includeBranches=true fuerza ver todas; una búsqueda activa también las muestra.
+        mainBranchesOnly: includeBranches !== 'true' && !hasSearch,
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
