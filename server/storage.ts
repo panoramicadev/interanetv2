@@ -4776,9 +4776,16 @@ export class DatabaseStorage implements IStorage {
     const s = raw.toString().trim().replace(/\s+/g, ' ');
     if (!s) return null;
     const ln = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    if (/4\s*gal|4gal|cuatro\s*gal/.test(ln)) return '4 Galones';
+    // Fractions first: "1/4 galón" contains "4 gal", so it must win before the integer-gallon rule.
     if (/1\s*\/\s*4|cuarto|\bq4\b/.test(ln)) return '1/4 Galón';
     if (/1\s*\/\s*2|medio\s*gal/.test(ln)) return '1/2 Galón';
+    if (/cuatro\s*gal/.test(ln)) return '4 Galones';
+    // "balde N galones" / "N gal" → keep the size as its own bucket (5 ≠ Galón).
+    const galMatch = ln.match(/(\d+)\s*gal/);
+    if (galMatch) {
+      const n = parseInt(galMatch[1], 10);
+      return n >= 2 ? `${n} Galones` : 'Galón';
+    }
     if (/galon|\bgl\b|\bgl\.|\bgal\b/.test(ln)) return 'Galón';
     if (/balde|\bbld\b|\bbd\b/.test(ln)) return 'Balde';
     if (/tineta/.test(ln)) return 'Tineta';
@@ -5037,6 +5044,14 @@ export class DatabaseStorage implements IStorage {
     const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
     const colorMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
     const matrixMap = new Map<string, { color: string; format: string; totalSales: number; totalUnits: number; transactionCount: number }>();
+    // Seed every format the catalog defines for this product's SKUs, so formats that exist
+    // in the commercial grouping but had no sales still appear (at $0, sorted to the bottom).
+    // Keeps the dashboard's format list consistent with the catalog editor. Products picked
+    // via free-text search have no skuList → they keep showing only what was sold.
+    for (const sku of skuList) {
+      const f = skuFormat.get(sku) || this.normalizeFormatLabel(skuUnit.get(sku));
+      if (f && !formatMap.has(f)) formatMap.set(f, { totalSales: 0, totalUnits: 0, transactionCount: 0 });
+    }
     for (const v of variants) {
       const f = formatMap.get(v.format) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
       formatMap.set(v.format, { totalSales: f.totalSales + v.totalSales, totalUnits: f.totalUnits + v.totalUnits, transactionCount: f.transactionCount + v.transactionCount });
