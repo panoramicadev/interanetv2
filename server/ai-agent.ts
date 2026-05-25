@@ -15,7 +15,7 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/reso
 // ─── OpenAI Client (lazy init) ───
 let openaiClient: OpenAI | null = null;
 
-function getOpenAI(): OpenAI {
+export function getOpenAI(): OpenAI {
     if (!openaiClient) {
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
