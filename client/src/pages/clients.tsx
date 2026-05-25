@@ -214,6 +214,7 @@ export default function Clients() {
 
   const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>("");
   const [selectedMarketAccess, setSelectedMarketAccess] = useState<string>("");
+  const [selectedCreditOverdue, setSelectedCreditOverdue] = useState<string>("");
 
   const [filterBySales, setFilterBySales] = useState(true);
   const [salesPeriod, setSalesPeriod] = useState<string>("this_month");
@@ -252,7 +253,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clientsData, isLoading, isFetching, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage, itemsPerPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, selectedOrderStatus, selectedMarketAccess, filterBySales, salesPeriod],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, itemsPerPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, selectedOrderStatus, selectedMarketAccess, selectedCreditOverdue, filterBySales, salesPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -264,6 +265,7 @@ export default function Clients() {
       if (selectedEntityType) params.set('entityType', selectedEntityType);
       if (selectedOrderStatus) params.set('orderStatus', selectedOrderStatus);
       if (selectedMarketAccess) params.set('marketAccess', selectedMarketAccess);
+      if (selectedCreditOverdue) params.set('creditOverdue', selectedCreditOverdue);
       if (filterBySales) params.set('salesPeriod', salesPeriod);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
@@ -407,6 +409,7 @@ export default function Clients() {
     setSelectedEntityType("");
     setSelectedOrderStatus("");
     setSelectedMarketAccess("");
+    setSelectedCreditOverdue("");
     setFilterBySales(false);
     setSalesPeriod("this_month");
     setSearch("");
@@ -443,7 +446,7 @@ export default function Clients() {
     setIsDrawerOpen(false);
   };
 
-  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType || selectedOrderStatus || selectedMarketAccess || filterBySales;
+  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType || selectedOrderStatus || selectedMarketAccess || selectedCreditOverdue || filterBySales;
 
   const previewMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -676,6 +679,7 @@ export default function Clients() {
     if (selectedSegment) chips.push({ label: 'Segmento', value: selectedSegment });
     if (selectedOrderStatus) chips.push({ label: 'Estado', value: ORDER_STATUS_FILTER_LABELS[selectedOrderStatus] || selectedOrderStatus });
     if (selectedMarketAccess) chips.push({ label: 'Market', value: selectedMarketAccess === 'true' ? 'Con acceso' : 'Sin acceso' });
+    if (selectedCreditOverdue) chips.push({ label: 'Crédito vencido', value: selectedCreditOverdue === 'overdue' ? 'Con vencido' : 'Al día' });
     if (selectedSalesperson) chips.push({ label: 'Vendedor', value: selectedSalesperson });
     if (selectedCreditStatus) chips.push({ label: 'Crédito', value: selectedCreditStatus });
     if (selectedBusinessType) chips.push({ label: 'Negocio', value: selectedBusinessType });
@@ -940,6 +944,22 @@ export default function Clients() {
                   <SelectItem value={ALL_SENTINEL}>Market: Todos</SelectItem>
                   <SelectItem value="true">Con acceso</SelectItem>
                   <SelectItem value="false">Sin acceso</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Crédito vencido */}
+              <Select
+                value={selectedCreditOverdue || ALL_SENTINEL}
+                onValueChange={(v) => { setSelectedCreditOverdue(v === ALL_SENTINEL ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className={filterTriggerClass(!!selectedCreditOverdue)}>
+                  <CreditCard className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <SelectValue placeholder="Crédito" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SENTINEL}>Crédito: Todos</SelectItem>
+                  <SelectItem value="overdue">Con vencido</SelectItem>
+                  <SelectItem value="current">Al día</SelectItem>
                 </SelectContent>
               </Select>
 

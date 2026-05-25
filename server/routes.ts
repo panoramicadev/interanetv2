@@ -2044,7 +2044,7 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, orderStatus, marketAccess, limit, offset, includeBranches } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, orderStatus, marketAccess, creditOverdue, limit, offset, includeBranches } = req.query;
 
       // Filtros que requieren precomputar conjuntos de IDs de cliente: estado de
       // pedido (eCommerce / NVV) y acceso a Panorámica Market. Se calculan una
@@ -2058,6 +2058,9 @@ export function registerRoutes(app: Express): Server {
       }
       if (orderStatus && typeof orderStatus === 'string') {
         clientIdRestrictions.push(await storage.getClientIdsByOrderStatus(orderStatus));
+      }
+      if (creditOverdue === 'overdue' || creditOverdue === 'current') {
+        clientIdRestrictions.push(await storage.getClientIdsByCreditOverdue(creditOverdue));
       }
 
       // Con término de búsqueda no colapsamos por RUT: el usuario busca un cliente
