@@ -2129,7 +2129,7 @@ export function registerRoutes(app: Express): Server {
       try {
         const fichaResult = await db.execute(sql`
           SELECT id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
-                 cpen, kofuen, lcen, crlt, cren, crsd
+                 cpen, kofuen, lcen, crlt, cren, crsd, ficha_overrides
           FROM clients
           WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
              OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
@@ -2141,6 +2141,15 @@ export function registerRoutes(app: Express): Server {
       }
 
       const ficha: any = fichaRows[0] || null;
+      // Overrides manuales de contacto (sobreviven al ETL). Prevalecen sobre el ERP.
+      const fichaOv: any = (() => {
+        const raw = ficha?.ficha_overrides;
+        if (!raw) return {};
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw) || {}; } catch { return {}; }
+        }
+        return raw;
+      })();
       const fichaRut = normalizeRut(ficha?.rten) || cleanRut;
       const fichaId = ficha?.id || null;
 
@@ -2202,12 +2211,12 @@ export function registerRoutes(app: Express): Server {
           ? {
               id: ficha.id,
               clientCode: ficha.koen,
-              clientName: ficha.nokoen,
+              clientName: fichaOv.clientName ?? ficha.nokoen,
               rut: ficha.rten,
-              phone: ficha.foen,
-              address: ficha.dien,
-              commune: ficha.cmen || ficha.comuna || null,
-              email: ficha.email,
+              phone: fichaOv.phone ?? ficha.foen,
+              address: fichaOv.address ?? ficha.dien,
+              commune: fichaOv.commune ?? (ficha.cmen || ficha.comuna || null),
+              email: fichaOv.email ?? ficha.email,
               paymentCondition: ficha.cpen,
               salesRepCode: ficha.kofuen,
               priceList: ficha.lcen,
@@ -2236,6 +2245,72 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching client account status:', error);
       res.status(500).json({ message: 'Error al obtener estado del cliente' });
+    }
+  });
+
+  // Editar campos de contacto de la ficha (Nombre, Email, Teléfono, Dirección, Comuna).
+  // Se guardan en clients.ficha_overrides (JSONB), columna que el ETL nunca sobrescribe,
+  // por lo que prevalecen sobre los valores de Softland al construir la ficha.
+  // Campo vacío => se elimina el override y vuelve a mostrarse el valor del ERP.
+  app.patch('/api/clients/:id/ficha', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user?.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const { id } = req.params;
+      if (!id) return res.status(400).json({ message: 'id de cliente requerido' });
+
+      const fichaSchema = z.object({
+        clientName: z.string().trim().max(200).optional(),
+        email: z.string().trim().max(200).optional(),
+        phone: z.string().trim().max(50).optional(),
+        address: z.string().trim().max(300).optional(),
+        commune: z.string().trim().max(100).optional(),
+      });
+      const body = fichaSchema.parse(req.body ?? {});
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      const cur = await db.execute(sql`SELECT ficha_overrides FROM clients WHERE id = ${id} LIMIT 1`);
+      const curRows = Array.isArray(cur) ? cur : (cur as any).rows || [];
+      if (curRows.length === 0) return res.status(404).json({ message: 'Cliente no encontrado' });
+
+      let overrides: Record<string, any> = {};
+      const raw = curRows[0].ficha_overrides;
+      if (raw) {
+        if (typeof raw === 'string') {
+          try { overrides = JSON.parse(raw) || {}; } catch { overrides = {}; }
+        } else {
+          overrides = raw;
+        }
+      }
+
+      // Merge: valor con texto => override; vacío => quitar override (vuelve al ERP).
+      const fields: Array<keyof typeof body> = ['clientName', 'email', 'phone', 'address', 'commune'];
+      for (const f of fields) {
+        if (!(f in body)) continue; // campo no enviado: no tocar
+        const v = (body[f] ?? '').toString().trim();
+        if (v) overrides[f] = v; else delete overrides[f];
+      }
+
+      const hasAny = Object.keys(overrides).length > 0;
+      await db.execute(sql`
+        UPDATE clients
+        SET ficha_overrides = ${hasAny ? JSON.stringify(overrides) : null}::jsonb,
+            updated_at = now()
+        WHERE id = ${id}
+      `);
+
+      res.json({ success: true, fichaOverrides: hasAny ? overrides : null });
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error updating client ficha overrides:', error);
+      res.status(500).json({ message: 'Error al guardar la ficha' });
     }
   });
 
