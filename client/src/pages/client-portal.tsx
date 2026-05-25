@@ -215,28 +215,28 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 
   // Fetch ERP Orders directly for the client
   const { data: erpData, isLoading: erpLoading } = useQuery({
-    queryKey: ["/api/ecommerce/client/erp-orders"],
+    queryKey: ["/api/ecommerce/client/erp-orders", { months: 36 }],
     queryFn: async () => {
-      const res = await fetch(`/api/ecommerce/client/erp-orders`, { credentials: "include" });
+      const res = await fetch(`/api/ecommerce/client/erp-orders?months=36`, { credentials: "include" });
       if (!res.ok) return { nvv: [], gdv: [], transactions: [] };
       return res.json();
     }
   });
 
-  // Fetch client data to get credit condition
   const { user } = useAuth();
-  const { data: clientData, isLoading: clientLoading } = useQuery<{ cpen?: string; crlt?: string; cren?: string; crsd?: string; }>({
-    queryKey: ['/api/clients/by-user', user?.id],
+
+  // Estado de cuenta REAL (cartera desde fact_ventas) para la tarjeta de crédito —
+  // reemplaza el dato crudo de clients.crsd (vacío/no fidedigno).
+  const { data: accountStatus, isLoading: accountLoading } = useQuery<any>({
+    queryKey: ["/api/ecommerce/client/account-status"],
     queryFn: async () => {
-      if (!user?.id) return null;
-      const res = await fetch(`/api/clients/by-user/${user.id}`, { credentials: 'include' });
+      const res = await fetch(`/api/ecommerce/client/account-status`, { credentials: "include" });
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: !!user?.id && user?.role === 'client',
   });
 
-  const isLoading = webLoading || erpLoading || clientLoading;
+  const isLoading = webLoading || erpLoading || accountLoading;
 
   const rawName = (user as any)?.salespersonName || (user as any)?.name || (user as any)?.username || salesperson || "Cliente";
   const firstName = (() => {
@@ -257,36 +257,29 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
     });
   }, [webOrders]);
 
-  const totalAmount = useMemo(() => {
-    let sum = validOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
-    if (erpData?.nvv) {
-       sum += erpData.nvv.reduce((acc: number, o: any) => acc + (Number(o.VABRDO) || 0), 0);
-    }
-    if (erpData?.transactions) {
-       // Omitir NVV para no duplicar si consideramos todo histórico facturado,
-       // o sumar transactions y quitar nvv. Para historial global sumamos facturado.
-       // actually the previous design was sum of everything.
-       sum += erpData.transactions.reduce((acc: number, o: any) => acc + (Number(o.vabrdo) || Number(o.amount) || 0), 0);
-    }
-    return sum;
-  }, [validOrders, erpData]);
+  // Historial consolidado: web + facturas ERP (FCV) + NVV pendientes, deduplicado por documento.
+  const unifiedOrders = useMemo<EcommerceOrder[]>(
+    () => buildUnifiedOrders(webOrders, erpData).filter((o: any) => {
+      const s = (o.status || '').toLowerCase();
+      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending';
+    }),
+    [webOrders, erpData],
+  );
 
-  const totalUnits = useMemo(() => {
-    let sum = validOrders.reduce((acc, o) => {
-      return acc + (o.items?.reduce((sum2: number, item: any) => sum2 + item.quantity, 0) || 0);
-    }, 0);
-    if (erpData?.nvv) {
-       sum += erpData.nvv.reduce((acc: number, o: any) => acc + (Number(o.CAPRCO2) || 0), 0);
-    }
-    if (erpData?.transactions) {
-       sum += erpData.transactions.reduce((acc: number, o: any) => acc + (Number(o.caprad) || 0), 0);
-    }
-    return sum;
-  }, [validOrders, erpData]);
+  const totalAmount = useMemo(
+    () => unifiedOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0),
+    [unifiedOrders],
+  );
 
-  const totalOrdersCount = useMemo(() => {
-    return validOrders.length + (erpData?.nvv?.length || 0) + (erpData?.transactions?.length || 0);
-  }, [validOrders, erpData]);
+  const totalUnits = useMemo(
+    () => unifiedOrders.reduce((acc, o) => {
+      const items = getOrderItems(o);
+      return acc + items.reduce((s, it: any) => s + (Number(it.quantity) || 0), 0);
+    }, 0),
+    [unifiedOrders],
+  );
+
+  const totalOrdersCount = unifiedOrders.length;
 
   // Compute Top Products
   const topProducts = useMemo(() => {
@@ -389,7 +382,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
       />
 
       {/* Metric Cards */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${clientData && (clientData.cpen?.toUpperCase().includes('CREDITO') || clientData.cpen?.toUpperCase().includes('CRÉDITO') || Number(clientData.crlt) > 0) ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${accountStatus?.hasCredit ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
@@ -429,34 +422,39 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
           </CardContent>
         </Card>
 
-        {/* Credit Card if applicable */}
-        {clientData && (clientData.cpen?.toUpperCase().includes('CREDITO') || clientData.cpen?.toUpperCase().includes('CRÉDITO') || Number(clientData.crlt) > 0) && (() => {
-          const creditLimit = Number(clientData.crlt || 0);
-          const creditUsed = Number(clientData.crsd || 0);
-          const creditAvailable = creditLimit - creditUsed;
-          
+        {/* Línea de crédito con cartera REAL — enlaza al Estado de Cuenta */}
+        {accountStatus?.hasCredit && (() => {
+          const creditLimit = Number(accountStatus.creditLimit || 0);
+          const creditAvailable = Number(accountStatus.creditAvailable ?? creditLimit);
+          const overdue = Number(accountStatus.creditOverdue || 0);
+          const plazo = accountStatus.paymentCondition?.match?.(/\d+/)?.[0];
+
           return (
-            <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/10">
-                    <ClipboardList className="h-5 w-5 text-emerald-600" />
+            <a href="/mi-credito" className="block focus:outline-none">
+              <Card className={`rounded-2xl border-0 shadow-sm bg-gradient-to-br ${overdue > 0 ? 'from-red-50 to-red-100/50' : 'from-emerald-50 to-emerald-100/50'} hover:shadow-md transition-shadow cursor-pointer`}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`p-2 rounded-xl ${overdue > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+                      <ClipboardList className={`h-5 w-5 ${overdue > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+                    </div>
+                    <Badge className={`text-[10px] border-0 ${creditAvailable < 0 || overdue > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      Línea: {formatCurrency(creditLimit)}
+                    </Badge>
                   </div>
-                  <Badge className={`text-[10px] border-0 ${creditAvailable < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    Línea: {formatCurrency(creditLimit)}
-                  </Badge>
-                </div>
-                <p className={`text-2xl font-bold ${creditAvailable < 0 ? 'text-red-600' : 'text-emerald-900'}`}>
-                  {formatCurrency(creditAvailable)}
-                </p>
-                <div className="flex justify-between items-center mt-1">
-                  <p className={`text-xs ${creditAvailable < 0 ? 'text-red-500' : 'text-emerald-600'}`}>Cupo Disponible</p>
-                  {clientData.cpen?.match(/\d+/) && (
-                    <span className="text-[10px] text-emerald-700 font-medium">Plazo: {clientData.cpen.match(/\d+/)?.[0]} días</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  <p className={`text-2xl font-bold ${creditAvailable < 0 ? 'text-red-600' : 'text-emerald-900'}`}>
+                    {formatCurrency(creditAvailable)}
+                  </p>
+                  <div className="flex justify-between items-center mt-1">
+                    <p className={`text-xs ${creditAvailable < 0 ? 'text-red-500' : 'text-emerald-600'}`}>Cupo disponible</p>
+                    {overdue > 0 ? (
+                      <span className="text-[10px] text-red-600 font-bold">Vencido {formatCurrency(overdue)}</span>
+                    ) : plazo ? (
+                      <span className="text-[10px] text-emerald-700 font-medium">Plazo: {plazo} días</span>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
           );
         })()}
       </div>
@@ -502,13 +500,13 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
           </CardContent>
         </Card>
 
-        {/* Last pending orders quick view */}
+        {/* Pedidos recientes — consolidado web + ERP (facturas y notas de venta) */}
         <Card className="rounded-2xl border border-gray-100 shadow-sm h-full">
           <CardHeader className="pb-3 border-b border-gray-50 bg-gray-50/50 rounded-t-2xl">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2 text-gray-800">
                 <ShoppingCart className="h-4 w-4 text-blue-500" />
-                Pedidos Recientes Web
+                Pedidos Recientes
               </CardTitle>
               <a href="/mis-pedidos" className="text-xs text-blue-600 font-semibold flex items-center hover:underline">
                 Ver todos <ArrowRight className="h-3 w-3 ml-1" />
@@ -516,38 +514,53 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {validOrders.length === 0 ? (
+            {unifiedOrders.length === 0 ? (
               <div className="p-8 text-center">
                 <ClipboardList className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                 <p className="text-sm text-gray-500">No hay pedidos registrados.</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {validOrders.slice(0, 5).map((r: any) => (
-                  <div key={r.id} className="p-4 flex items-center justify-between hover:bg-gray-50/80 transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {r.items?.length === 1 ? r.items[0].productName : `Mix de Productos (${r.items?.length || 0})`}
-                        </p>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 font-normal tracking-wide">
-                          {statusConfig[(r.status || 'pending').toLowerCase()]?.label || r.status}
-                        </Badge>
+                {unifiedOrders.slice(0, 6).map((r: any) => {
+                  const items = getOrderItems(r);
+                  const st = statusConfig[(r.status || 'pending').toLowerCase()] || statusConfig.pending;
+                  const idLabel = r._docType === 'FCV'
+                    ? `Factura ${r._facturaNudo || ''}`.trim()
+                    : r._docType === 'NVV'
+                      ? `NVV ${String(r.id).replace('nvv-', '')}`
+                      : `#${getNumericOrderId(r.id)}`;
+                  const units = items.reduce((acc: number, val: any) => acc + (Number(val.quantity) || 0), 0);
+                  return (
+                    <div key={r.id} className="p-4 flex items-center justify-between hover:bg-gray-50/80 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {items.length === 1 ? items[0].productName : `Mix de productos (${items.length})`}
+                          </p>
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${st.bg} ${st.color}`}>
+                            {st.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{idLabel}</span>
+                          <span className="text-[10px] text-gray-400">·</span>
+                          <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                            <Calendar className="h-3 w-3" /> {formatDate(r.createdAt)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{getNumericOrderId(r.id)}</span>
-                        <span className="text-[10px] text-gray-400">·</span>
-                        <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
-                          <Calendar className="h-3 w-3" /> {formatDate(r.createdAt)}
-                        </span>
+                      <div className="flex items-center gap-2 ml-4">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-amber-600">{formatCurrency(Number(r.total))}</p>
+                          <p className="text-[11px] text-gray-500">{units} uds</p>
+                        </div>
+                        {r._idmaeedo && (
+                          <FacturaDownloadButton idmaeedo={r._idmaeedo} folio={r._facturaNudo} variant="icon" />
+                        )}
                       </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <p className="text-sm font-bold text-amber-600">{formatCurrency(Number(r.total))}</p>
-                      <p className="text-[11px] text-gray-500">{r.items?.reduce((acc: number, val: any) => acc + val.quantity, 0)} uds</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -601,8 +614,113 @@ import { useCart } from "@/hooks/useCart";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { SuggestedOrderModal } from "@/components/panoramica-market/suggested-order-modal";
+import { groupFacturas } from "@/components/ecommerce/client-documents";
 import SuggestedOrderPayment, { type SuggestedPaymentValue } from "@/components/panoramica-market/suggested-order-payment";
-import { groupFacturas, groupDespachos } from "@/components/ecommerce/client-documents";
+import CreditTab from "@/components/ecommerce/credit-tab";
+import { FacturaDownloadButton } from "@/components/ecommerce/factura-download-button";
+
+// ==========================================
+// Unified order builder — consolida el historial del cliente en una sola lista:
+//   • Pedidos web (eCommerce) con su estado del flujo.
+//   • Facturas ERP (FCV) agrupadas por documento (idmaeedo) → 1 fila por factura,
+//     con idmaeedo para descargar el DTE oficial.
+//   • Notas de venta ERP (NVV) pendientes de facturación, agrupadas por número.
+// Las guías de despacho (GDV) NO entran como filas propias (el despacho es un
+// sub-estado; se ven en "Documentos") para no triplicar el mismo pedido.
+// ==========================================
+function buildUnifiedOrders(webOrders: any[], erpData: any): EcommerceOrder[] {
+  const out: EcommerceOrder[] = [];
+  const numOr = (...vals: any[]) => {
+    for (const v of vals) {
+      const n = typeof v === 'string' ? parseFloat(v) : Number(v);
+      if (Number.isFinite(n) && n !== 0) return n;
+    }
+    return 0;
+  };
+
+  // 1) Pedidos web (se excluyen sugeridos pendientes; los terminales se filtran arriba)
+  (webOrders || []).forEach((o: any) => {
+    if ((o.status || '').toLowerCase() === 'suggested_pending') return;
+    out.push({
+      ...o,
+      status: o.status === 'pending' ? 'pendiente' : o.status,
+      items: typeof o.items === 'string' ? (() => { try { return JSON.parse(o.items); } catch { return []; } })() : o.items,
+      _source: 'web',
+    } as any);
+  });
+
+  // 2) Facturas ERP (FCV) — agrupadas por idmaeedo (total del doc = Σ monto de líneas)
+  const fcvMap = new Map<string, any>();
+  (erpData?.transactions || []).forEach((row: any) => {
+    const idmaeedo = row.idmaeedo != null ? String(row.idmaeedo).replace(/\.0+$/, '') : null;
+    const nudo = String(row.nudo ?? row.NUDO ?? '');
+    const key = idmaeedo || nudo;
+    if (!key) return;
+    const lineTotal = numOr(row.monto, row.vabrli, row.vaneli);
+    const qty = numOr(row.caprad2, row.caprco2, row.caprad) || 1;
+    const item = {
+      productName: row.nokoprct ?? row.nokopr ?? 'Producto',
+      productCode: row.koprct,
+      quantity: qty,
+      unitPrice: qty ? lineTotal / qty : lineTotal,
+      totalPrice: lineTotal,
+    };
+    const ex = fcvMap.get(key);
+    if (ex) {
+      (ex.items as any[]).push(item);
+      ex._docTotal += lineTotal;
+    } else {
+      fcvMap.set(key, {
+        id: `fcv-${key}`,
+        clientName: row.nokoen ?? 'Cliente',
+        status: 'facturado',
+        items: [item],
+        createdAt: row.feemdo ?? row.feemli ?? new Date().toISOString(),
+        _docTotal: lineTotal,
+        _source: 'erp',
+        _docType: 'FCV',
+        _idmaeedo: idmaeedo,
+        _facturaNudo: nudo,
+      });
+    }
+  });
+  fcvMap.forEach((o) => { o.total = String(Math.round(o._docTotal)); out.push(o as any); });
+
+  // 3) Notas de venta ERP (NVV) pendientes — agrupadas por número de documento
+  const nvvMap = new Map<string, any>();
+  (erpData?.nvv || []).forEach((row: any) => {
+    const nudo = String(row.NUDO ?? row.nudo ?? '');
+    if (!nudo) return;
+    const lineTotal = numOr(row.totalPendiente, row.PPPRNE, row.monto);
+    const qty = numOr(row.cantidadPendiente, row.CAPRCO2, row.caprco2) || 1;
+    const item = {
+      productName: row.NOKOPR ?? row.nokopr ?? 'Producto',
+      productCode: row.KOPRCT ?? row.koprct,
+      quantity: qty,
+      unitPrice: qty ? lineTotal / qty : lineTotal,
+      totalPrice: lineTotal,
+    };
+    const ex = nvvMap.get(nudo);
+    if (ex) {
+      (ex.items as any[]).push(item);
+      ex._docTotal += lineTotal;
+    } else {
+      nvvMap.set(nudo, {
+        id: `nvv-${nudo}`,
+        clientName: row.NOKOEN ?? row.nokoen ?? 'Cliente',
+        status: 'ingresado',
+        items: [item],
+        createdAt: row.FEEMDO ?? row.feemdo ?? new Date().toISOString(),
+        _docTotal: lineTotal,
+        _source: 'erp',
+        _docType: 'NVV',
+      });
+    }
+  });
+  nvvMap.forEach((o) => { o.total = String(Math.round(o._docTotal)); out.push(o as any); });
+
+  return out.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
 
 // ==========================================
 // Suggested Orders Panel — sugeridos pendientes
@@ -894,6 +1012,7 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
 function PedidosTab({ salesperson }: { salesperson: string }) {
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(15);
   const { clearCart, addItem } = useCart();
   const [, setLocation] = useLocation();
 
@@ -923,9 +1042,9 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
 
   // Fetch ERP Orders directly for the client (linked by RUT)
   const { data: erpData, isLoading: erpLoading } = useQuery({
-    queryKey: ["/api/ecommerce/client/erp-orders"],
+    queryKey: ["/api/ecommerce/client/erp-orders", { months: 36 }],
     queryFn: async () => {
-      const res = await fetch(`/api/ecommerce/client/erp-orders`, { credentials: "include" });
+      const res = await fetch(`/api/ecommerce/client/erp-orders?months=36`, { credentials: "include" });
       if (!res.ok) return { nvv: [], gdv: [], transactions: [] };
       return res.json();
     }
@@ -941,65 +1060,22 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     }
   });
 
-  // Helper to group ERP lines into full EcommerceOrder objects
-  const groupErpOrders = (rows: any[], idField: string, statusText: string) => {
-    const map = new Map<string, EcommerceOrder>();
-    rows.forEach(row => {
-      const id = row[idField] || row.nudo || row.NUDO;
-      if (!id) return;
-      const amount = Number(row.monto || row.PPPRNE || row.vabrdo || row.VABRDO || row.amount || 0);
-      const qty = Number(row.cantidad || row.CAPRCO2 || row.caprad2 || row.caprad || 1);
-      const docTotal = Number(row.vabrdo || row.VABRDO || amount || 0); // VABRDO is usually doc total in NVV
-      const itemName = row.producto || row.nokopr || row.NOKOPR || row.nokoprct || row.productName || row.koprct || 'Producto ERP';
-      
-      const item = {
-        productName: itemName,
-        quantity: qty,
-        unitPrice: amount / qty,
-        totalPrice: docTotal > 0 ? docTotal : amount
-      };
-      
-      if (map.has(id)) {
-        const existing = map.get(id)!;
-        (existing.items as any[]).push(item);
-        // Do not accumulate docTotal if it represents the whole doc, but fallback safely
-      } else {
-        map.set(id, {
-          id: String(id),
-          clientName: row.NOKOEN || row.nokoen || row.clientName || 'Cliente B2B',
-          status: statusText, // ingresado, despacho, facturado
-          total: String(docTotal > 0 ? docTotal : amount),
-          items: [item],
-          createdAt: row.feemdo || row.FEEMDO || row.fecha || row.date || new Date().toISOString()
-        });
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  const nvvOrders = groupErpOrders(erpData?.nvv || [], 'NUDO', 'ingresado');
-  const gdvOrders = groupErpOrders(erpData?.gdv || [], 'numeroGuia', 'despacho');
-  const txOrders = groupErpOrders(erpData?.transactions || [], 'documentNumber', 'facturado');
-
-  // Adjuntamos el documento (factura/despacho) generable a cada pedido ERP, para que
-  // el detalle del pedido permita ver/descargar el PDF correspondiente.
-  const facturaByNum = new Map(groupFacturas(erpData?.transactions || []).map((d) => [d.numero, d]));
-  const despachoByNum = new Map(groupDespachos(erpData?.gdv || []).map((d) => [d.numero, d]));
-  gdvOrders.forEach((o) => { (o as any)._document = despachoByNum.get(String(o.id)); });
-  txOrders.forEach((o) => { (o as any)._document = facturaByNum.get(String(o.id)); });
-
-  // Sugeridos pendientes se muestran en panel aparte arriba de la tabla principal
+  // Sugeridos pendientes se muestran en panel aparte arriba de la lista principal
   const suggestedPendingOrders = webOrders.filter((o: any) => o.status === 'suggested_pending');
 
-  const unifiedWebOrders: EcommerceOrder[] = webOrders
-    .filter((o: any) => o.status !== 'suggested_pending')
-    .map((o: any) => ({
-      ...o,
-      status: o.status === 'pending' || o.status === 'pendiente' ? 'pendiente' : (o.status === 'approved' ? 'approved' : o.status),
-      items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
-    }));
+  // Documento de respaldo (factura) para el detalle del pedido, indexado por número.
+  const facturaByNum = new Map(groupFacturas(erpData?.transactions || []).map((d) => [d.numero, d]));
 
-  const allOrders = [...unifiedWebOrders, ...nvvOrders, ...gdvOrders, ...txOrders].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Historial consolidado y deduplicado: pedidos web + facturas ERP (FCV, una fila por
+  // documento, con idmaeedo para descargar el DTE oficial) + notas de venta (NVV) pendientes.
+  // Las guías de despacho (GDV) no se listan como filas propias (el despacho es un sub-estado).
+  const allOrders: EcommerceOrder[] = buildUnifiedOrders(webOrders, erpData)
+    .filter((o: any) => o.status !== 'suggested_pending');
+  allOrders.forEach((o: any) => {
+    if (o._docType === 'FCV' && o._facturaNudo) {
+      o._document = facturaByNum.get(String(o._facturaNudo));
+    }
+  });
 
   if (selectedOrder) {
     return (
@@ -1043,13 +1119,19 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {allOrders.map((order) => {
+          {allOrders.slice(0, visibleCount).map((order) => {
             const isExpanded = expandedRowId === order.id;
             const items = getOrderItems(order);
             const statusObj = statusConfig[order.status?.toLowerCase()] || statusConfig.pending;
             const StatusIcon = statusObj.icon;
             const totalUnits = items.reduce((s, it) => s + Number(it.quantity || 0), 0);
             const summary = items.length === 1 ? items[0].productName : `Mix de productos (${items.length})`;
+            const oid: any = order as any;
+            const idLabel = oid._docType === 'FCV'
+              ? `Factura ${oid._facturaNudo || ''}`.trim()
+              : oid._docType === 'NVV'
+                ? `NVV ${String(order.id).replace('nvv-', '')}`
+                : `#${getNumericOrderId(order.id)}`;
 
             return (
               <div key={order.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:border-orange-200 hover:shadow-md transition-all overflow-hidden">
@@ -1067,7 +1149,7 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                      <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">#{order.id?.includes('-') ? getNumericOrderId(order.id) : order.id}</span>
+                      <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{idLabel}</span>
                       <span className="text-slate-300">·</span>
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(order.createdAt)}</span>
                     </div>
@@ -1077,6 +1159,10 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
                     <p className="text-base font-black text-slate-900">{formatCurrency(Number(order.total))}</p>
                     <p className="text-[10px] text-slate-400">{totalUnits} uds</p>
                   </div>
+                  {/* Descargar factura oficial (solo FCV) */}
+                  {oid._idmaeedo && (
+                    <FacturaDownloadButton idmaeedo={oid._idmaeedo} folio={oid._facturaNudo} variant="icon" />
+                  )}
                   {/* Expand */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : order.id); }}
@@ -1106,7 +1192,10 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
                         <p className="text-[10px] text-slate-400 text-center">+ {items.length - 6} producto{items.length - 6 !== 1 ? "s" : ""} más</p>
                       )}
                     </div>
-                    <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2">
+                    <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2 flex-wrap">
+                      {oid._idmaeedo && (
+                        <FacturaDownloadButton idmaeedo={oid._idmaeedo} folio={oid._facturaNudo} />
+                      )}
                       <Button variant="outline" size="sm" onClick={(e) => handleRepeatOrder(e, order)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-semibold text-xs h-8 rounded-lg">
                         <Repeat className="w-3 h-3 mr-1.5" /> Repetir Pedido
                       </Button>
@@ -1119,6 +1208,17 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
               </div>
             );
           })}
+          {allOrders.length > visibleCount && (
+            <div className="flex justify-center pt-3">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleCount((c) => c + 15)}
+                className="rounded-xl text-sm font-semibold text-slate-600 border-slate-200 hover:bg-slate-50"
+              >
+                Ver más pedidos ({allOrders.length - visibleCount} restantes)
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1136,8 +1236,10 @@ export default function ClientPortal() {
 
   const getInitialTab = () => {
     if (location === '/mis-pedidos') return 'pedidos';
+    if (location === '/mi-credito') return 'credito';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
     if (tab === 'pedidos') return 'pedidos';
+    if (tab === 'credito') return 'credito';
     return 'dashboard';
   };
   const activeTab = getInitialTab();
@@ -1151,6 +1253,9 @@ export default function ClientPortal() {
         )}
         {activeTab === "pedidos" && (
           <PedidosTab salesperson={salespersonName} />
+        )}
+        {activeTab === "credito" && (
+          <CreditTab />
         )}
       </div>
     </div>
