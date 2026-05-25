@@ -4740,6 +4740,256 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  /** Extract packaging format from a product name (heuristic). */
+  private extractFormatFromName(name: string): string {
+    const ln = (name || '').toLowerCase();
+    if (ln.includes('4 galones') || ln.includes('4gal')) return '4 Galones';
+    if (ln.includes('1/4') || ln.includes('cuarto')) return '1/4 Galón';
+    if (ln.includes('galón') || ln.includes('galon') || ln.includes(' gl') || ln.endsWith(' gl') || ln.includes(' gal ') || ln.endsWith(' gal')) return 'Galón';
+    if (ln.includes('balde') || ln.includes('bd') || ln.includes('bld')) return 'Balde';
+    if (ln.includes('tineta')) return 'Tineta';
+    if (ln.includes('kilo') || ln.includes(' kg') || ln.endsWith(' kg')) return 'Kilo';
+    if (ln.includes('litro') || ln.includes(' lt') || ln.endsWith(' lt') || ln.includes(' lts')) return 'Litro';
+    if (ln.includes('onza') || ln.includes(' oz')) return 'Onza';
+    if (ln.includes('metro') || ln.includes(' mt') || ln.includes(' m ')) return 'Metro';
+    return 'Otro';
+  }
+
+  /** Extract color from a product name (heuristic). */
+  private extractColorFromName(name: string): string {
+    const ln = (name || '').toLowerCase();
+    if (ln.includes('blanco')) return 'Blanco';
+    if (ln.includes('negro')) return 'Negro';
+    if (ln.includes('rojo')) return 'Rojo';
+    if (ln.includes('azul pacifico')) return 'Azul Pacífico';
+    if (ln.includes('azul')) return 'Azul';
+    if (ln.includes('verde')) return 'Verde';
+    if (ln.includes('amarillo')) return 'Amarillo';
+    if (ln.includes('gris')) return 'Gris';
+    if (ln.includes('cafe') || ln.includes('café') || ln.includes('marron') || ln.includes('marrón')) return 'Café';
+    if (ln.includes('rosa') || ln.includes('rosado')) return 'Rosa';
+    if (ln.includes('naranja') || ln.includes('anaranjado')) return 'Naranja';
+    if (ln.includes('violeta') || ln.includes('morado')) return 'Violeta';
+    if (ln.includes('incoloro') || ln.includes('transparente')) return 'Incoloro';
+    if (ln.includes('beige')) return 'Beige';
+    if (ln.includes('crema')) return 'Crema';
+    if (ln.includes('marfil')) return 'Marfil';
+    if (ln.includes('celeste')) return 'Celeste';
+    return 'Sin especificar';
+  }
+
+  /**
+   * Consolidated product insights for the dashboard "Por producto" view.
+   * Resolves ALL sales variants of a commercial product (by parent-name match, so
+   * selecting a parent like "ESMALTE AL AGUA COPPER" captures every color/format SKU),
+   * then returns KPIs, seasonality, color/format breakdowns, a color×format matrix,
+   * top clients, the full salesperson ranking (best→worst), salespeople who do NOT
+   * sell it, and the per-variant detail.
+   */
+  async getProductInsights(parentName: string, filters: {
+    startDate?: string;
+    endDate?: string;
+    trendStartDate?: string;
+    trendEndDate?: string;
+  }): Promise<{
+    productName: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    uniqueClients: number;
+    variantCount: number;
+    topClient: string | null;
+    topSalesperson: string | null;
+    variants: Array<{ fullName: string; format: string; color: string; totalSales: number; totalUnits: number; transactionCount: number }>;
+    formatBreakdown: Array<{ format: string; totalSales: number; totalUnits: number; transactionCount: number; percentage: number }>;
+    colorBreakdown: Array<{ color: string; totalSales: number; totalUnits: number; transactionCount: number; percentage: number }>;
+    colorFormatMatrix: Array<{ color: string; format: string; totalSales: number; totalUnits: number; transactionCount: number }>;
+    topClients: Array<{ clientName: string; totalSales: number; totalUnits: number; transactionCount: number }>;
+    salespeople: Array<{ salespersonName: string; totalSales: number; totalUnits: number; clientCount: number }>;
+    salespeopleNotSelling: Array<{ salespersonName: string; totalSales: number }>;
+    monthlyTrend: Array<{ period: string; sales: number; units: number }>;
+  }> {
+    const empty = {
+      productName: parentName,
+      totalSales: 0, totalUnits: 0, transactionCount: 0, uniqueClients: 0, variantCount: 0,
+      topClient: null, topSalesperson: null,
+      variants: [], formatBreakdown: [], colorBreakdown: [], colorFormatMatrix: [],
+      topClients: [], salespeople: [], salespeopleNotSelling: [], monthlyTrend: [],
+    };
+    if (!parentName) return empty;
+
+    // 1. Resolve all fact_ventas product names that roll up to this parent.
+    const allProducts = await db
+      .select({ name: factVentas.nokoprct })
+      .from(factVentas)
+      .where(and(
+        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
+      .groupBy(factVentas.nokoprct);
+
+    const targetUpper = parentName.toUpperCase();
+    const matchingNames = allProducts
+      .map(r => r.name || '')
+      .filter(name => {
+        const upper = name.toUpperCase();
+        return upper === targetUpper || this.extractParentProductName(name).toUpperCase() === targetUpper;
+      });
+
+    if (matchingNames.length === 0) return empty;
+
+    // Period-scoped conditions (KPIs, breakdowns, clients, salespeople).
+    const periodConditions: any[] = [sql`${factVentas.tido} != 'GDV'`];
+    if (filters.startDate) periodConditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+    if (filters.endDate) periodConditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
+    const productWhere = and(...periodConditions, inArray(factVentas.nokoprct, matchingNames));
+
+    // Trend-scoped conditions (seasonality window, independent of selected period).
+    const trendConditions: any[] = [sql`${factVentas.tido} != 'GDV'`, inArray(factVentas.nokoprct, matchingNames)];
+    if (filters.trendStartDate) trendConditions.push(sql`${factVentas.feemdo} >= ${filters.trendStartDate}::date`);
+    if (filters.trendEndDate) trendConditions.push(sql`${factVentas.feemdo} <= ${filters.trendEndDate}::date`);
+    const trendWhere = and(...trendConditions);
+
+    const [
+      metricsResult,
+      variantResults,
+      clientResults,
+      salespersonResults,
+      universeSalespeople,
+      trendResults,
+    ] = await Promise.all([
+      // Overall KPIs
+      db.select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      }).from(factVentas).where(productWhere),
+
+      // Per-variant breakdown
+      db.select({
+        fullName: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      }).from(factVentas).where(productWhere)
+        .groupBy(factVentas.nokoprct)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`),
+
+      // Top clients
+      db.select({
+        clientName: factVentas.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      }).from(factVentas).where(and(productWhere, sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`))
+        .groupBy(factVentas.nokoen)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(20),
+
+      // Salespeople selling this product (full ranking)
+      db.select({
+        salespersonName: factVentas.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        clientCount: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      }).from(factVentas).where(and(productWhere, sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`))
+        .groupBy(factVentas.nokofu)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`),
+
+      // Universe of active salespeople in the period (any product, to derive who does NOT sell this one)
+      db.select({
+        salespersonName: factVentas.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      }).from(factVentas).where(and(...periodConditions, sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`))
+        .groupBy(factVentas.nokofu)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`),
+
+      // Monthly seasonality trend
+      db.select({
+        period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        units: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+      }).from(factVentas).where(trendWhere)
+        .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`),
+    ]);
+
+    const metrics = metricsResult[0];
+    const totalSales = Number(metrics?.totalSales || 0);
+
+    const variants = variantResults.map(r => ({
+      fullName: r.fullName || '',
+      format: this.extractFormatFromName(r.fullName || ''),
+      color: this.extractColorFromName(r.fullName || ''),
+      totalSales: Number(r.totalSales),
+      totalUnits: Number(r.totalUnits),
+      transactionCount: Number(r.transactionCount),
+    }));
+
+    // Aggregate by format / color / (color,format)
+    const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    const colorMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    const matrixMap = new Map<string, { color: string; format: string; totalSales: number; totalUnits: number; transactionCount: number }>();
+    for (const v of variants) {
+      const f = formatMap.get(v.format) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      formatMap.set(v.format, { totalSales: f.totalSales + v.totalSales, totalUnits: f.totalUnits + v.totalUnits, transactionCount: f.transactionCount + v.transactionCount });
+      const c = colorMap.get(v.color) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      colorMap.set(v.color, { totalSales: c.totalSales + v.totalSales, totalUnits: c.totalUnits + v.totalUnits, transactionCount: c.transactionCount + v.transactionCount });
+      const key = `${v.color}|||${v.format}`;
+      const m = matrixMap.get(key) || { color: v.color, format: v.format, totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      matrixMap.set(key, { color: v.color, format: v.format, totalSales: m.totalSales + v.totalSales, totalUnits: m.totalUnits + v.totalUnits, transactionCount: m.transactionCount + v.transactionCount });
+    }
+
+    const formatBreakdown = Array.from(formatMap.entries())
+      .map(([format, data]) => ({ format, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+    const colorBreakdown = Array.from(colorMap.entries())
+      .map(([color, data]) => ({ color, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+    const colorFormatMatrix = Array.from(matrixMap.values()).sort((a, b) => b.totalSales - a.totalSales);
+
+    const salespeople = salespersonResults.map(s => ({
+      salespersonName: s.salespersonName || '',
+      totalSales: Number(s.totalSales),
+      totalUnits: Number(s.totalUnits),
+      clientCount: Number(s.clientCount),
+    }));
+
+    const sellingSet = new Set(salespeople.map(s => s.salespersonName.toUpperCase()));
+    const salespeopleNotSelling = universeSalespeople
+      .map(s => ({ salespersonName: s.salespersonName || '', totalSales: Number(s.totalSales) }))
+      .filter(s => s.salespersonName && !sellingSet.has(s.salespersonName.toUpperCase()));
+
+    return {
+      productName: parentName,
+      totalSales,
+      totalUnits: Number(metrics?.totalUnits || 0),
+      transactionCount: Number(metrics?.transactionCount || 0),
+      uniqueClients: Number(metrics?.uniqueClients || 0),
+      variantCount: variants.length,
+      topClient: clientResults[0]?.clientName || null,
+      topSalesperson: salespeople[0]?.salespersonName || null,
+      variants,
+      formatBreakdown,
+      colorBreakdown,
+      colorFormatMatrix,
+      topClients: clientResults.map(c => ({
+        clientName: c.clientName || '',
+        totalSales: Number(c.totalSales),
+        totalUnits: Number(c.totalUnits),
+        transactionCount: Number(c.transactionCount),
+      })),
+      salespeople,
+      salespeopleNotSelling,
+      monthlyTrend: trendResults.map(t => ({
+        period: t.period || '',
+        sales: Number(t.sales),
+        units: Number(t.units),
+      })),
+    };
+  }
+
   /**
    * Get product families (agrupación comercial) from fact_ventas.nofmpr
    */

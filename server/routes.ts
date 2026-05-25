@@ -3818,6 +3818,29 @@ export function registerRoutes(app: Express): Server {
     res.json(dashboardData);
   }));
 
+  // Consolidated insights for a single commercial product (dashboard "Por producto" view)
+  app.get('/api/sales/product-insights', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { product, period, filterType } = req.query;
+    if (!product || typeof product !== 'string' || !product.trim()) {
+      return res.status(400).json({ message: 'product es requerido' });
+    }
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    // Seasonality window: 12 months ending at the selected period's end month
+    const endRef = dateRange.endDate ? new Date(`${dateRange.endDate}T00:00:00`) : new Date();
+    const trendEnd = new Date(endRef.getFullYear(), endRef.getMonth() + 1, 0); // last day of end month
+    const trendStart = new Date(endRef.getFullYear(), endRef.getMonth() - 11, 1); // first day, 12 months back
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const insights = await storage.getProductInsights(decodeURIComponent(product), {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      trendStartDate: fmt(trendStart),
+      trendEndDate: fmt(trendEnd),
+    });
+    res.json(insights);
+  }));
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
