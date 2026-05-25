@@ -31,7 +31,8 @@ import ComparativePackagingTable from "@/components/dashboard/comparative-packag
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
-import ProductGroupBreakdown from "@/components/dashboard/product-group-breakdown";
+import ProductGroupedSelector from "@/components/dashboard/product-grouped-selector";
+import ProductInsightsPanel from "@/components/dashboard/product-insights-panel";
 import { Button } from "@/components/ui/button";
 import { CardWrapper } from "@/components/dashboard/CardWrapper";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -203,10 +204,6 @@ export default function Dashboard() {
   // Client search state
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState("");
-
-  // Product search state
-  const [productSearchOpen, setProductSearchOpen] = useState(false);
-  const [productSearchTerm, setProductSearchTerm] = useState("");
 
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
@@ -742,19 +739,6 @@ export default function Dashboard() {
       return response.json();
     },
     enabled: clientSearchTerm.length >= 2,
-    staleTime: 30000,
-  });
-
-  // Search products query
-  const { data: searchedProducts, isLoading: isSearchingProducts } = useQuery<Array<{ parentName: string; totalSales: number; totalUnits: number; variantCount: number }>>({
-    queryKey: ["/api/products/search-parent", productSearchTerm],
-    queryFn: async () => {
-      if (!productSearchTerm || productSearchTerm.length < 2) return [];
-      const response = await fetch(`/api/products/search-parent?q=${encodeURIComponent(productSearchTerm)}`, { credentials: "include" });
-      if (!response.ok) throw new Error('Failed to search products');
-      return response.json();
-    },
-    enabled: productSearchTerm.length >= 2,
     staleTime: 30000,
   });
 
@@ -1334,81 +1318,13 @@ export default function Dashboard() {
                         {localSelectedFilter === "product" && (
                           <div>
                             <label className="text-sm font-medium text-gray-700 block mb-2">
-                              Buscar producto
+                              Producto
                             </label>
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                              <Input
-                                type="text"
-                                inputMode="search"
-                                autoComplete="off"
-                                autoCorrect="off"
-                                placeholder="Buscar por nombre o SKU..."
-                                value={productSearchTerm}
-                                onChange={(e) => setProductSearchTerm(e.target.value)}
-                                onFocus={(e) => {
-                                  setTimeout(() => {
-                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  }, 300);
-                                }}
-                                className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200 text-base"
-                                style={{ fontSize: '16px' }}
-                                data-testid="input-mobile-product-search"
-                              />
-                              {productSearchTerm && (
-                                <button
-                                  onClick={() => setProductSearchTerm("")}
-                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                  data-testid="button-clear-mobile-product-search"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-
-                            {productSearchTerm.length >= 2 && (
-                              <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl bg-white">
-                                {isSearchingProducts ? (
-                                  <div className="p-3 text-center text-sm text-gray-500">
-                                    Buscando...
-                                  </div>
-                                ) : searchedProducts && searchedProducts.length > 0 ? (
-                                  <div className="py-1">
-                                    {searchedProducts.map((product, idx) => (
-                                      <button
-                                        key={`${product.parentName}-${idx}`}
-                                        onClick={() => {
-                                          setLocalGlobalFilter({ type: "product", value: product.parentName });
-                                          setProductSearchTerm("");
-                                        }}
-                                        className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${localGlobalFilter.value === product.parentName ? 'bg-teal-50' : ''
-                                          }`}
-                                        data-testid={`mobile-product-result-${idx}`}
-                                      >
-                                        <div className="flex flex-col min-w-0 flex-1">
-                                          <span className="text-sm text-gray-900 truncate">{product.parentName}</span>
-                                          {product.variantCount > 1 && (
-                                            <span className="text-xs text-gray-500">{product.variantCount} variantes</span>
-                                          )}
-                                        </div>
-                                        {localGlobalFilter.value === product.parentName && (
-                                          <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
-                                        )}
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="p-3 text-center text-sm text-gray-500">
-                                    No se encontraron productos
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {productSearchTerm.length > 0 && productSearchTerm.length < 2 && (
-                              <p className="mt-2 text-xs text-gray-500">Escribe al menos 2 caracteres</p>
-                            )}
-
+                            <ProductGroupedSelector
+                              value={localGlobalFilter.type === "product" ? localGlobalFilter.value : undefined}
+                              onChange={(v) => setLocalGlobalFilter({ type: "product", value: v })}
+                              triggerClassName="w-full h-11 rounded-xl"
+                            />
                             {localGlobalFilter.type === "product" && localGlobalFilter.value && (
                               <div className="mt-3 flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
                                 <span className="text-sm text-teal-900 truncate flex-1">{localGlobalFilter.value}</span>
@@ -1696,73 +1612,14 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Product selector with search */}
+              {/* Product selector grouped by commercial category */}
               {selectedFilter === "product" && (
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-700">Producto:</span>
-                  <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={productSearchOpen}
-                        className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal"
-                        data-testid="button-product-search"
-                      >
-                        <span className="truncate max-w-[180px]">
-                          {globalFilter.type === "product" && globalFilter.value
-                            ? globalFilter.value
-                            : "Buscar producto..."}
-                        </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80 p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Buscar producto por nombre o SKU..."
-                          value={productSearchTerm}
-                          onValueChange={setProductSearchTerm}
-                          data-testid="input-product-search"
-                        />
-                        <CommandList>
-                          {productSearchTerm.length < 2 ? (
-                            <CommandEmpty>Escribe al menos 2 caracteres para buscar...</CommandEmpty>
-                          ) : isSearchingProducts ? (
-                            <CommandEmpty>Buscando productos...</CommandEmpty>
-                          ) : searchedProducts && searchedProducts.length > 0 ? (
-                            <CommandGroup heading="Resultados de búsqueda">
-                              {searchedProducts.map((product, idx) => (
-                                <CommandItem
-                                  key={`${product.parentName}-${idx}`}
-                                  value={product.parentName}
-                                  onSelect={() => {
-                                    setGlobalFilter({ type: "product", value: product.parentName });
-                                    setProductSearchOpen(false);
-                                    setProductSearchTerm("");
-                                  }}
-                                  data-testid={`product-option-${idx}`}
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${globalFilter.value === product.parentName ? "opacity-100" : "opacity-0"
-                                      }`}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span>{product.parentName}</span>
-                                    {product.variantCount > 1 && (
-                                      <span className="text-xs text-gray-500">{product.variantCount} variantes</span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          ) : (
-                            <CommandEmpty>No se encontraron productos.</CommandEmpty>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <ProductGroupedSelector
+                    value={globalFilter.type === "product" ? globalFilter.value : undefined}
+                    onChange={(v) => setGlobalFilter({ type: "product", value: v })}
+                  />
                 </div>
               )}
 
@@ -1882,6 +1739,13 @@ export default function Dashboard() {
             dashboardSelectedYear={selectedYear}
             dashboardDateRange={dateRange}
           />
+        ) : globalFilter.type === "product" && globalFilter.value ? (
+          <ProductInsightsPanel
+            key={globalFilter.value}
+            productName={globalFilter.value}
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
+          />
         ) : isComparativeMode ? (
           <>
             {/* Total Acumulado - arriba de los gráficos */}
@@ -1937,17 +1801,6 @@ export default function Dashboard() {
                 comparePeriod={comparePeriod}
               />
             </div>
-
-            {/* Product Group Breakdown - Format/Color/Variant data */}
-            {globalFilter.type === "product" && globalFilter.value && (
-              <CardWrapper>
-                <ProductGroupBreakdown
-                  productName={globalFilter.value}
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                />
-              </CardWrapper>
-            )}
 
             {/* Goals Progress Dashboard - Solo mostrar si hay metas asignadas */}
             {filterType === "month" && goalsProgress && Array.isArray(goalsProgress) && goalsProgress.length > 0 && (

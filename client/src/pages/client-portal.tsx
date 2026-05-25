@@ -615,6 +615,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { SuggestedOrderModal } from "@/components/panoramica-market/suggested-order-modal";
 import { groupFacturas } from "@/components/ecommerce/client-documents";
+import SuggestedOrderPayment, { type SuggestedPaymentValue } from "@/components/panoramica-market/suggested-order-payment";
 import CreditTab from "@/components/ecommerce/credit-tab";
 import { FacturaDownloadButton } from "@/components/ecommerce/factura-download-button";
 
@@ -731,11 +732,24 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
   const [rejecting, setRejecting] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [editing, setEditing] = useState<any | null>(null);
+  // Checkout del sugerido: el cliente confirma forma de pago (transferencia/crédito) y OC.
+  const [paying, setPaying] = useState<any | null>(null);
+  const [payment, setPayment] = useState<SuggestedPaymentValue>({ paymentMethod: "transfer", purchaseOrderPdfUrl: null, purchaseOrderFileName: null });
+  const [payValid, setPayValid] = useState(true);
+
+  const openPayDialog = (order: any) => {
+    setPayment({ paymentMethod: "transfer", purchaseOrderPdfUrl: null, purchaseOrderFileName: null });
+    setPayValid(true);
+    setPaying(order);
+  };
 
   const acceptMutation = useMutation({
-    mutationFn: async (orderId: string) => {
+    mutationFn: async ({ orderId, paymentMethod, purchaseOrderPdfUrl }: { orderId: string; paymentMethod: "transfer" | "credit"; purchaseOrderPdfUrl: string | null }) => {
       const res = await fetch(`/api/ecommerce/orders/${orderId}/suggested-accept`, {
-        method: "POST", credentials: "include",
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethod, purchaseOrderPdfUrl }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -743,9 +757,10 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
       }
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Sugerido aceptado", description: "Tu pedido pasa a revisión del equipo." });
-      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+    onSuccess: (updated: any) => {
+      // Misma experiencia post-checkout del ecommerce: subir comprobante (transferencia)
+      // o ver el pedido en proceso (crédito).
+      window.location.href = `/pedido-confirmado?id=${updated?.id || paying?.id || ""}`;
     },
     onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
   });
@@ -796,7 +811,6 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
           {orders.map((o) => {
             const items = getOrderItems(o);
             const totalUnits = items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0);
-            const isAccepting = acceptMutation.isPending && acceptMutation.variables === o.id;
             return (
               <div key={o.id} className="rounded-2xl bg-white border border-orange-100 shadow-sm overflow-hidden">
                 {/* Cabecera de la tarjeta */}
@@ -863,11 +877,10 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
                 {/* Acciones */}
                 <div className="flex flex-wrap gap-2 px-4 py-3 bg-slate-50/60 border-t border-slate-100">
                   <Button
-                    onClick={() => acceptMutation.mutate(o.id)}
-                    disabled={acceptMutation.isPending}
+                    onClick={() => openPayDialog(o)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm h-9 rounded-xl flex-[2] min-w-[150px] font-bold shadow-sm shadow-emerald-500/20"
                   >
-                    {isAccepting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Check className="h-4 w-4 mr-1.5" />}
+                    <Check className="h-4 w-4 mr-1.5" />
                     Aceptar pedido
                   </Button>
                   <Button
@@ -923,6 +936,55 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
             >
               {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Rechazar sugerido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout del sugerido: forma de pago + OC, igual que el checkout del ecommerce */}
+      <Dialog open={!!paying} onOpenChange={(o) => { if (!o && !acceptMutation.isPending) setPaying(null); }}>
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-[#FF6E23]" /> Confirmar y pagar
+            </DialogTitle>
+            <DialogDescription>
+              Elegí cómo pagar tu pedido. Es el mismo proceso que el checkout de la tienda.
+            </DialogDescription>
+          </DialogHeader>
+
+          {paying && (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 flex items-center justify-between">
+                <div className="text-xs text-gray-500">
+                  Pedido <span className="font-mono font-bold text-gray-700">#{getNumericOrderId(paying.id)}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">Total</p>
+                  <p className="text-lg font-black text-[#FF6E23] leading-none">{formatCurrency(Number(paying.total))}</p>
+                </div>
+              </div>
+
+              <SuggestedOrderPayment
+                total={Number(paying.total) || 0}
+                value={payment}
+                onChange={setPayment}
+                onValidityChange={setPayValid}
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaying(null)} disabled={acceptMutation.isPending} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => paying && acceptMutation.mutate({ orderId: paying.id, paymentMethod: payment.paymentMethod, purchaseOrderPdfUrl: payment.purchaseOrderPdfUrl })}
+              disabled={!payValid || acceptMutation.isPending}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              {acceptMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+              Confirmar pedido
             </Button>
           </DialogFooter>
         </DialogContent>

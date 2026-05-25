@@ -1,0 +1,206 @@
+/**
+ * Voice / Text Order Parser
+ *
+ * Interpreta un pedido dictado o escrito en lenguaje natural por un vendedor
+ * (ej: "presupuesto para terrandina, dos stain a precio mix, un latex a precio lista")
+ * y lo convierte en un borrador estructurado:
+ *   - cliente resuelto contra la base (storage.getClients)
+ *   - productos resueltos contra la lista de precios (storage.getPriceList)
+ *   - cantidad y lista de precio (tier) por producto
+ *
+ * Soporta refinamiento iterativo: se le pasa el borrador actual + una nueva
+ * instrucción ("el latex que sean 3", "saca el stain", "cambia el cliente a ...")
+ * y devuelve el pedido completo actualizado.
+ */
+import { getOpenAI } from "./ai-agent";
+import { storage } from "./storage";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+
+// Tiers de precio válidos (deben coincidir con PriceTier del frontend). "" = no especificado.
+const VALID_TIERS = [
+  "lista",
+  "mix",
+  "oferta",
+  "desc10",
+  "desc10_5",
+  "desc10_5_3",
+  "minimo",
+  "canalDigital",
+  "",
+] as const;
+type PriceTierValue = (typeof VALID_TIERS)[number];
+
+export interface ParsedOrderItemIntent {
+  productQuery: string;
+  quantity: number;
+  priceTier: PriceTierValue;
+}
+
+export interface ParsedOrderIntent {
+  clientQuery: string;
+  notes: string;
+  items: ParsedOrderItemIntent[];
+}
+
+export interface ResolvedClient {
+  query: string;
+  match: any | null;
+  alternatives: any[];
+}
+
+export interface ResolvedItem {
+  query: string;
+  quantity: number;
+  requestedTier: PriceTierValue;
+  product: any | null;
+  alternatives: any[];
+}
+
+export interface ParsedOrderResult {
+  intent: ParsedOrderIntent;
+  client: ResolvedClient;
+  items: ResolvedItem[];
+  notes: string;
+}
+
+const SYSTEM_PROMPT = `Eres un asistente que interpreta pedidos de venta de Pinturas Panorámica (Chile), dictados o escritos por un vendedor en lenguaje natural chileno.
+
+Tu tarea: extraer del texto el CLIENTE, los PRODUCTOS (con cantidad y lista de precio) y notas, y devolver SOLO un JSON válido con esta forma exacta:
+{
+  "clientQuery": string,   // nombre o pista del cliente mencionado (ej: "terrandina"). "" si no se menciona.
+  "notes": string,         // notas u observaciones extra para el presupuesto. "" si no hay.
+  "items": [
+    { "productQuery": string, "quantity": number, "priceTier": string }
+  ]
+}
+
+Reglas:
+- "productQuery": el nombre/pista del producto tal como lo dice el vendedor (ej: "stain", "latex satinado blanco galón"). No inventes productos ni códigos; mantén el término cercano a lo dicho.
+- "quantity": número entero. Convierte números en palabras: "un"/"una"/"uno" = 1, "dos" = 2, "tres" = 3, "medio"/"media" = 1, etc. Si no se indica cantidad, usa 1.
+- "priceTier": normaliza la lista de precio a uno de estos valores EXACTOS:
+    "lista"        ← "precio lista", "a lista", "lista"
+    "mix"          ← "precio mix", "lista mix", "mix"
+    "oferta"       ← "oferta", "en oferta", "precio oferta"
+    "minimo"       ← "mínimo", "precio mínimo"
+    "desc10"       ← "menos 10", "descuento 10", "10%", "diez por ciento"
+    "desc10_5"     ← "10 y 5", "10+5", "10 5"
+    "desc10_5_3"   ← "10 5 3", "10+5+3"
+    "canalDigital" ← "digital", "canal digital"
+    ""             ← si NO se especifica lista de precio para ese producto
+- Si el texto incluye "PEDIDO ACTUAL (JSON)", aplica la nueva instrucción del vendedor como una MODIFICACIÓN de ese pedido: agrega, quita o reemplaza productos, cambia cantidades, listas de precio o el cliente según se indique, y devuelve el pedido COMPLETO actualizado (no solo el cambio).
+- Devuelve ÚNICAMENTE el JSON, sin texto adicional ni explicaciones.
+
+Ejemplo:
+Texto: "presupuesto para terrandina, dos stain a precio mix y un latex a precio lista"
+JSON: {"clientQuery":"terrandina","notes":"","items":[{"productQuery":"stain","quantity":2,"priceTier":"mix"},{"productQuery":"latex","quantity":1,"priceTier":"lista"}]}`;
+
+function sanitizeTier(value: any): PriceTierValue {
+  const v = String(value || "").trim();
+  return (VALID_TIERS as readonly string[]).includes(v) ? (v as PriceTierValue) : "";
+}
+
+function sanitizeIntent(raw: any): ParsedOrderIntent {
+  const itemsRaw = Array.isArray(raw?.items) ? raw.items : [];
+  const items: ParsedOrderItemIntent[] = itemsRaw
+    .map((it: any) => {
+      const productQuery = String(it?.productQuery || "").trim();
+      let quantity = Math.floor(Number(it?.quantity));
+      if (!Number.isFinite(quantity) || quantity < 1) quantity = 1;
+      if (quantity > 99999) quantity = 99999;
+      return { productQuery, quantity, priceTier: sanitizeTier(it?.priceTier) };
+    })
+    .filter((it: ParsedOrderItemIntent) => it.productQuery.length > 0)
+    .slice(0, 40);
+
+  return {
+    clientQuery: String(raw?.clientQuery || "").trim(),
+    notes: String(raw?.notes || "").trim(),
+    items,
+  };
+}
+
+/** Llama a OpenAI para extraer la intención estructurada del texto. */
+async function extractIntent(
+  text: string,
+  currentIntent?: ParsedOrderIntent | null,
+): Promise<ParsedOrderIntent> {
+  const openai = getOpenAI();
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+  ];
+
+  if (currentIntent && (currentIntent.items.length > 0 || currentIntent.clientQuery)) {
+    messages.push({
+      role: "user",
+      content: `PEDIDO ACTUAL (JSON):\n${JSON.stringify(currentIntent)}\n\nNUEVA INSTRUCCIÓN DEL VENDEDOR:\n${text}`,
+    });
+  } else {
+    messages.push({ role: "user", content: text });
+  }
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    messages,
+    response_format: { type: "json_object" },
+  });
+
+  const content = completion.choices[0]?.message?.content || "{}";
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    parsed = {};
+  }
+  return sanitizeIntent(parsed);
+}
+
+async function resolveClient(query: string): Promise<ResolvedClient> {
+  const q = query.trim();
+  if (q.length < 2) return { query: q, match: null, alternatives: [] };
+  try {
+    const rows = await storage.getClients({ search: q, limit: 5, offset: 0 });
+    const list = Array.isArray(rows) ? rows : [];
+    return { query: q, match: list[0] || null, alternatives: list.slice(0, 5) };
+  } catch (error) {
+    console.error("[voice-order] resolveClient error:", error);
+    return { query: q, match: null, alternatives: [] };
+  }
+}
+
+async function resolveItem(item: ParsedOrderItemIntent): Promise<ResolvedItem> {
+  const base: ResolvedItem = {
+    query: item.productQuery,
+    quantity: item.quantity,
+    requestedTier: item.priceTier,
+    product: null,
+    alternatives: [],
+  };
+  if (item.productQuery.trim().length < 2) return base;
+  try {
+    const result = await storage.getPriceList({ search: item.productQuery, limit: 8, offset: 0 });
+    const list = result?.items || [];
+    return { ...base, product: list[0] || null, alternatives: list.slice(0, 8) };
+  } catch (error) {
+    console.error("[voice-order] resolveItem error:", error);
+    return base;
+  }
+}
+
+/**
+ * Punto de entrada: interpreta el texto y resuelve cliente + productos.
+ */
+export async function parseAndResolveOrder(
+  text: string,
+  currentIntent?: ParsedOrderIntent | null,
+): Promise<ParsedOrderResult> {
+  const intent = await extractIntent(text, currentIntent);
+
+  const [client, items] = await Promise.all([
+    resolveClient(intent.clientQuery),
+    Promise.all(intent.items.map((it) => resolveItem(it))),
+  ]);
+
+  return { intent, client, items, notes: intent.notes };
+}

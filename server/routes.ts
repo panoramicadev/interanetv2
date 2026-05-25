@@ -91,6 +91,7 @@ import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAu
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
+import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
 
@@ -460,6 +461,29 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   return res.status(403).json({
     message: "No tienes permiso para acceder a esta información"
   });
+}
+
+// ficha_overrides es JSONB y puede llegar como string (según el driver) u objeto.
+function parseFichaOverrides(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) || {}; } catch { return {}; }
+  }
+  if (typeof raw === 'object') return raw;
+  return {};
+}
+
+// Lista de precios efectiva de un cliente: el override manual guardado en
+// ficha_overrides.priceList (que el ETL nunca sobrescribe) prevalece sobre el
+// lcen sincronizado desde Softland. Devuelve null si no hay ninguno.
+// Acepta tanto la fila camelCase de Drizzle (fichaOverrides) como la cruda
+// de db.execute (ficha_overrides).
+function effectivePriceList(client: any): string | null {
+  const ov = parseFichaOverrides(client?.fichaOverrides ?? client?.ficha_overrides);
+  const override = typeof ov.priceList === 'string' ? ov.priceList.trim() : '';
+  if (override) return override;
+  const lcen = (client?.lcen && typeof client.lcen === 'string') ? client.lcen.trim() : '';
+  return lcen || null;
 }
 
 export function registerRoutes(app: Express): Server {
@@ -2281,7 +2305,12 @@ export function registerRoutes(app: Express): Server {
               email: fichaOv.email ?? ficha.email,
               paymentCondition: ficha.cpen,
               salesRepCode: ficha.kofuen,
-              priceList: ficha.lcen,
+              // Lista efectiva (override manual > lcen del ERP). priceListOverride indica
+              // si fue fijada a mano, y priceListErp es el valor crudo de Softland, para que
+              // el editor sepa qué mostrar por defecto.
+              priceList: effectivePriceList(ficha),
+              priceListOverride: (typeof fichaOv.priceList === 'string' && fichaOv.priceList.trim()) ? fichaOv.priceList.trim() : null,
+              priceListErp: ficha.lcen ?? null,
               creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
@@ -2335,6 +2364,8 @@ export function registerRoutes(app: Express): Server {
         phone: z.string().trim().max(50).optional(),
         address: z.string().trim().max(300).optional(),
         commune: z.string().trim().max(100).optional(),
+        // Lista de precios asignada manualmente. Vacío => quitar override (vuelve al lcen del ERP).
+        priceList: z.string().trim().max(50).optional(),
       });
       const body = fichaSchema.parse(req.body ?? {});
 
@@ -2356,7 +2387,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Merge: valor con texto => override; vacío => quitar override (vuelve al ERP).
-      const fields: Array<keyof typeof body> = ['clientName', 'email', 'phone', 'address', 'commune'];
+      const fields: Array<keyof typeof body> = ['clientName', 'email', 'phone', 'address', 'commune', 'priceList'];
       for (const f of fields) {
         if (!(f in body)) continue; // campo no enviado: no tocar
         const v = (body[f] ?? '').toString().trim();
@@ -2726,7 +2757,9 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      res.json({ ...client, parentNokoen, parentGien });
+      // El storefront (tienda/carrito) usa client.lcen como lista de precios. Exponemos
+      // la lista efectiva (override manual > ERP) para que coincida con lo que cobra el checkout.
+      res.json({ ...client, lcen: effectivePriceList(client), parentNokoen, parentGien });
     } catch (error) {
       console.error('Error al obtener datos del cliente:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
@@ -3783,6 +3816,29 @@ export function registerRoutes(app: Express): Server {
       branch: branch as string,
     });
     res.json(dashboardData);
+  }));
+
+  // Consolidated insights for a single commercial product (dashboard "Por producto" view)
+  app.get('/api/sales/product-insights', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { product, period, filterType } = req.query;
+    if (!product || typeof product !== 'string' || !product.trim()) {
+      return res.status(400).json({ message: 'product es requerido' });
+    }
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    // Seasonality window: 12 months ending at the selected period's end month
+    const endRef = dateRange.endDate ? new Date(`${dateRange.endDate}T00:00:00`) : new Date();
+    const trendEnd = new Date(endRef.getFullYear(), endRef.getMonth() + 1, 0); // last day of end month
+    const trendStart = new Date(endRef.getFullYear(), endRef.getMonth() - 11, 1); // first day, 12 months back
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const insights = await storage.getProductInsights(decodeURIComponent(product), {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      trendStartDate: fmt(trendStart),
+      trendEndDate: fmt(trendEnd),
+    });
+    res.json(insights);
   }));
 
   // Segment analysis endpoint
@@ -8318,7 +8374,7 @@ export function registerRoutes(app: Express): Server {
   //     instead of the client's lcen, and convenio discount is NOT applied (the salesperson
   //     already chose the final tier).
   async function resolveItemsPricing(items: any[], client: any | null) {
-    const priceListCode = (client?.lcen && typeof client.lcen === 'string' && client.lcen.trim()) ? client.lcen.trim().toUpperCase() : 'LP01';
+    const priceListCode = (effectivePriceList(client) || 'LP01').toUpperCase();
     const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
     const useCustomList = priceListCode !== 'LP01';
 
@@ -9204,11 +9260,68 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Cliente acepta el sugerido tal cual → pasa a flujo normal (pending) para revisión admin
+  // ── Helpers para el "checkout" de un sugerido (aceptar/modificar) ──────────
+  // Detecta si el cliente pertenece al segmento MCT (nombre del cliente, su giro
+  // o el de la casa matriz contienen el token "MCT"). Para MCT la OC es obligatoria.
+  const detectMCTClient = async (clientRecord: any): Promise<boolean> => {
+    if (!clientRecord) return false;
+    let names = `${clientRecord.nokoen || ''} ${clientRecord.gien || ''}`;
+    if (clientRecord.parentClientId) {
+      try {
+        const { clients: clientsTbl } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const { db: dbLookup } = await import('./db');
+        const [parent] = await dbLookup
+          .select({ nokoen: clientsTbl.nokoen, gien: clientsTbl.gien })
+          .from(clientsTbl)
+          .where(eqOp(clientsTbl.id, clientRecord.parentClientId))
+          .limit(1);
+        if (parent) names += ` ${parent.nokoen || ''} ${parent.gien || ''}`;
+      } catch (e) {
+        console.warn('Warning: could not load parent client for MCT detection:', e);
+      }
+    }
+    return /\bMCT\b/i.test(names);
+  };
+
+  // Consume cupo de crédito del cliente (por userId) al aprobar un pedido a crédito.
+  // Mantiene la misma semántica que el checkout: crsd = usado/deuda, cren = disponible.
+  const consumeClientCreditForUser = async (userId: string, orderTotal: number): Promise<void> => {
+    try {
+      const { clients: clientsTbl } = await import('@shared/schema');
+      const { eq: eqOp } = await import('drizzle-orm');
+      const { db: dbLookup } = await import('./db');
+      const [rec] = await dbLookup.select().from(clientsTbl).where(eqOp(clientsTbl.userId, userId)).limit(1);
+      if (!rec || !rec.crlt) return;
+      const limit = parseFloat(rec.crlt as any) || 0;
+      const used = parseFloat((rec.crsd as any) || '0') || 0;
+      const newUsed = used + (Number(orderTotal) || 0);
+      const newAvailable = Math.max(0, limit - newUsed);
+      await dbLookup.update(clientsTbl)
+        .set({ crsd: newUsed.toString(), cren: newAvailable.toString() })
+        .where(eqOp(clientsTbl.id, rec.id));
+    } catch (e) {
+      console.error('Error consuming client credit (suggested order):', e);
+    }
+  };
+
+  // Cliente acepta el sugerido → elige forma de pago (transferencia/crédito) y, si
+  // corresponde, adjunta la OC. Igual que el checkout del ecommerce: a crédito se
+  // aprueba y se consume cupo; por transferencia queda pendiente para subir el
+  // comprobante en la pantalla de pedido confirmado.
   app.post('/api/ecommerce/orders/:id/suggested-accept', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const orderId = req.params.id;
+      const schema = z.object({
+        paymentMethod: z.enum(['transfer', 'credit']).optional(),
+        purchaseOrderPdfUrl: z.string().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      const paymentMethod = parsed.data.paymentMethod || 'transfer';
+      const purchaseOrderPdfUrl = parsed.data.purchaseOrderPdfUrl || null;
+
       const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
       if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
       if (order.clientId !== user.id) return res.status(403).json({ message: 'No autorizado' });
@@ -9216,14 +9329,31 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Este pedido no está en estado de sugerido pendiente.' });
       }
 
+      // OC obligatoria para clientes MCT (igual que el checkout del ecommerce).
+      const clientRecord = await storage.getClientByUserId(order.clientId).catch(() => null);
+      const finalOcUrl = purchaseOrderPdfUrl || order.purchaseOrderPdfUrl || null;
+      if (await detectMCTClient(clientRecord) && !finalOcUrl) {
+        return res.status(400).json({ message: 'Los clientes MCT deben adjuntar la Orden de Compra (PDF) para confirmar el pedido.' });
+      }
+
+      const isCreditMethod = paymentMethod === 'credit';
+      const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
-          status: 'pending',
-          suggestedResponseAt: new Date(),
-          updatedAt: new Date(),
+          status: isCreditMethod ? 'approved' : 'pending',
+          paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
+          purchaseOrderPdfUrl: finalOcUrl,
+          suggestedResponseAt: now,
+          updatedAt: now,
+          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
+
+      // A crédito: aprobación inmediata y consumo de cupo (igual que el checkout).
+      if (isCreditMethod) {
+        await consumeClientCreditForUser(order.clientId, Number(order.total) || 0);
+      }
 
       // Notificar al vendedor asignado / supervisor / admin
       try {
@@ -9233,7 +9363,7 @@ export function registerRoutes(app: Express): Server {
             userId: notifyTo,
             type: 'ecommerce_order',
             title: 'Sugerido aceptado por cliente',
-            message: `${order.clientName} aceptó el sugerido por $${Number(order.total).toFixed(0)}`,
+            message: `${order.clientName} aceptó el sugerido por $${Number(order.total).toFixed(0)} (${isCreditMethod ? 'Crédito' : 'Transferencia'})`,
             relatedOrderId: order.id,
             read: false,
           });
@@ -9324,9 +9454,13 @@ export function registerRoutes(app: Express): Server {
           pricingMode: z.enum(['calculated', 'direct']).optional(),
         }).passthrough()).min(1),
         notes: z.string().optional().nullable(),
+        paymentMethod: z.enum(['transfer', 'credit']).optional(),
+        purchaseOrderPdfUrl: z.string().optional().nullable(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      const paymentMethod = parsed.data.paymentMethod || 'transfer';
+      const purchaseOrderPdfUrl = parsed.data.purchaseOrderPdfUrl || null;
 
       const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
       if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
@@ -9389,6 +9523,13 @@ export function registerRoutes(app: Express): Server {
 
       const resolved = await resolveItemsPricing(lockedItems, clientRecord || null);
 
+      // OC obligatoria para clientes MCT (igual que el checkout del ecommerce).
+      const finalOcUrl = purchaseOrderPdfUrl || order.purchaseOrderPdfUrl || null;
+      if (await detectMCTClient(clientRecord) && !finalOcUrl) {
+        return res.status(400).json({ message: 'Los clientes MCT deben adjuntar la Orden de Compra (PDF) para confirmar el pedido.' });
+      }
+
+      const isCreditMethod = paymentMethod === 'credit';
       const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
@@ -9399,14 +9540,22 @@ export function registerRoutes(app: Express): Server {
           branchDiscountPercent: String(resolved.branchDiscountPct || 0),
           priceListUsed: resolved.priceListUsed,
           notes: parsed.data.notes ?? order.notes,
-          status: 'pending',
+          status: isCreditMethod ? 'approved' : 'pending',
+          paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
+          purchaseOrderPdfUrl: finalOcUrl,
           modifiedAt: now,
           modifiedById: user.id,
           suggestedResponseAt: now,
           updatedAt: now,
+          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
+
+      // A crédito: aprobación inmediata y consumo de cupo (con el total recalculado).
+      if (isCreditMethod) {
+        await consumeClientCreditForUser(order.clientId, Number(resolved.total) || 0);
+      }
 
       try {
         const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
@@ -19222,7 +19371,7 @@ export function registerRoutes(app: Express): Server {
         isRoot: !b.parentClientId,
         address: b.dien || null,
         discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
-        priceList: b.lcen || null,
+        priceList: effectivePriceList(b),
       }));
 
       res.json({
@@ -21785,6 +21934,7 @@ export function registerRoutes(app: Express): Server {
     fechaVencimiento: z.string().min(1),
     numeroDocumento: z.string().optional(),
     mensajeAdicional: z.string().optional(),
+    subjectOverride: z.string().optional(),
     sendToClient: z.boolean().optional().default(true),
     ccInternal: z.boolean().optional().default(true),
     extraCc: z.string().optional(),
@@ -21805,7 +21955,7 @@ export function registerRoutes(app: Express): Server {
         console.warn(`${TAG} ❌ validación falló`, parsed.error.errors);
         return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
       }
-      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, sendToClient, ccInternal, extraCc } = parsed.data;
+      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, subjectOverride, sendToClient, ccInternal, extraCc } = parsed.data;
 
       const montoNum = Number(montoAdeudado);
       if (!isFinite(montoNum) || montoNum <= 0) {
@@ -21864,7 +22014,7 @@ export function registerRoutes(app: Express): Server {
           numeroDocumento,
           mensajeAdicional,
         });
-        subject = built.subject;
+        subject = (subjectOverride && subjectOverride.trim()) || built.subject;
         html = built.html;
         console.log(`${TAG} 📝 template OK`, { subjectLen: subject.length, htmlLen: html.length });
       } catch (e: any) {
@@ -21925,6 +22075,41 @@ export function registerRoutes(app: Express): Server {
         res.status(500).json({ message: `Error al enviar correo: ${outerError?.message || 'desconocido'}`, error: outerError?.message });
       }
     }
+  }));
+
+  // Vista previa del correo de cobranza (sin enviar ni registrar) — para revisar/editar antes de enviar.
+  app.post('/api/admin/mailing/cobranza-preview', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
+    const previewSchema = z.object({
+      clientName: z.string().min(1),
+      clientRut: z.string().optional(),
+      montoAdeudado: z.union([z.number(), z.string()]),
+      fechaVencimiento: z.string().min(1),
+      numeroDocumento: z.string().optional(),
+      mensajeAdicional: z.string().optional(),
+      subjectOverride: z.string().optional(),
+    }).strict();
+    const parsed = previewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const montoNum = Number(parsed.data.montoAdeudado);
+    if (!isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ message: 'Monto adeudado inválido' });
+    }
+    const venc = new Date(parsed.data.fechaVencimiento);
+    if (isNaN(venc.getTime())) {
+      return res.status(400).json({ message: 'Fecha de vencimiento inválida' });
+    }
+    const built = buildCobranzaEmail({
+      clientName: parsed.data.clientName,
+      clientRut: parsed.data.clientRut || undefined,
+      montoAdeudado: montoNum,
+      fechaVencimiento: venc,
+      numeroDocumento: parsed.data.numeroDocumento,
+      mensajeAdicional: parsed.data.mensajeAdicional,
+    });
+    const subject = (parsed.data.subjectOverride && parsed.data.subjectOverride.trim()) || built.subject;
+    res.json({ subject, html: built.html });
   }));
 
   // Auto-create cobranza notification setting if missing (so admins can configure CC internos)
@@ -34071,6 +34256,26 @@ Instrucciones extra:
       toolsUsed: result.toolsUsed,
       tokensUsed: result.tokensUsed,
     });
+  }));
+
+  // POST /api/tomador/parse-order — Interpreta un pedido por voz/texto y resuelve cliente + productos
+  app.post('/api/tomador/parse-order', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { text, currentIntent } = req.body || {};
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ error: 'El texto del pedido no puede estar vacío.' });
+    }
+
+    try {
+      const result = await parseAndResolveOrder(
+        text.trim(),
+        (currentIntent as ParsedOrderIntent) || null,
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error('[parse-order] error:', error);
+      res.status(500).json({ error: error?.message || 'No se pudo interpretar el pedido.' });
+    }
   }));
 
   // GET /api/chat/history — Get chat history for current user

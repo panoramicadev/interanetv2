@@ -3,11 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Barcode, Loader2, Package, Plus, Minus, X, Zap,
   Check, Send, MessageSquare, ArrowRight, ArrowLeft, Image as ImageIcon,
-  Sparkles, Wrench, AlertCircle, ShoppingCart, Trash2, Mail, FileText, Users,
+  Sparkles, Wrench, AlertCircle, ShoppingCart, Trash2, Mail, FileText, Users, CreditCard,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { getFormatQuantityRules } from "@shared/format-utils";
+import SuggestedOrderPayment, { type SuggestedPaymentValue } from "@/components/panoramica-market/suggested-order-payment";
 
 const PRESET_EMAIL_CONTACTS = [
   { name: "Jefferson", email: "jperdomo@pinturaspanoramica.cl" },
@@ -258,12 +259,17 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customForm, setCustomForm] = useState<CustomProductForm>(INITIAL_CUSTOM);
 
-  // Flujo de 2 pasos: armar (build) → revisar PDF + destinatarios (review)
-  const [step, setStep] = useState<"build" | "review">("build");
+  // Flujo de pasos:
+  //  - create (equipo): armar (build) → revisar PDF + destinatarios (review)
+  //  - modify (cliente): armar (build) → pago (pay): forma de pago + OC, igual que el checkout
+  const [step, setStep] = useState<"build" | "review" | "pay">("build");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [teamRecipient, setTeamRecipient] = useState("");
   const [teamCc, setTeamCc] = useState("");
   const [teamMessage, setTeamMessage] = useState("");
+  // Checkout del sugerido modificado (solo modo cliente).
+  const [payment, setPayment] = useState<SuggestedPaymentValue>({ paymentMethod: "transfer", purchaseOrderPdfUrl: null, purchaseOrderFileName: null });
+  const [payValid, setPayValid] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -278,6 +284,8 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
       setTeamRecipient(user?.email || "");
       setTeamCc("");
       setTeamMessage("");
+      setPayment({ paymentMethod: "transfer", purchaseOrderPdfUrl: null, purchaseOrderFileName: null });
+      setPayValid(true);
 
       if (isModify && existingOrder) {
         const raw = typeof existingOrder.items === "string"
@@ -538,6 +546,9 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
   };
 
   const subtotal = items.reduce((s, it) => s + it.totalPrice, 0);
+  // Total estimado con IVA para el desglose de crédito del paso de pago. El backend
+  // recalcula con la lista de precios del cliente; esto es solo referencial.
+  const estimatedTotal = Math.round(subtotal * 1.19);
 
   const buildItemsPayload = () =>
     items.map((it) => {
@@ -659,7 +670,12 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ items: buildItemsPayload(), notes: notes.trim() || null }),
+        body: JSON.stringify({
+          items: buildItemsPayload(),
+          notes: notes.trim() || null,
+          paymentMethod: payment.paymentMethod,
+          purchaseOrderPdfUrl: payment.purchaseOrderPdfUrl,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -667,11 +683,9 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
       }
       return res.json();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
-      qc.invalidateQueries({ queryKey: ["/api/ecommerce/orders"] });
-      toast({ title: "✓ Pedido modificado enviado", description: "Tu pedido quedó en revisión del equipo." });
-      onClose();
+    onSuccess: (updated: any) => {
+      // Misma experiencia post-checkout del ecommerce (subir comprobante / pedido en proceso).
+      window.location.href = `/pedido-confirmado?id=${updated?.id || existingOrder?.id || ""}`;
     },
     onError: (err: any) => {
       toast({ title: "Error al enviar tu pedido", description: err?.message, variant: "destructive" });
@@ -1251,6 +1265,35 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
         </div>
         )}
 
+        {/* PASO PAGO (modo cliente) — forma de pago + OC, igual que el checkout del ecommerce */}
+        {step === "pay" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          <div className="p-5 w-full max-w-xl mx-auto space-y-4">
+            <div className="rounded-xl bg-orange-50/60 border border-orange-100 p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#E55E13]">
+                <ShoppingCart className="h-4 w-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Tu pedido</span>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest">Total estimado</p>
+                <p className="text-lg font-black text-[#FF6E23] leading-none">{formatPrice(estimatedTotal) || "$0"}</p>
+              </div>
+            </div>
+
+            <SuggestedOrderPayment
+              total={estimatedTotal}
+              value={payment}
+              onChange={setPayment}
+              onValidityChange={setPayValid}
+            />
+
+            <p className="text-[10px] text-gray-400 leading-snug">
+              El total final se recalcula con tu lista de precios (IVA incluido).
+            </p>
+          </div>
+        </div>
+        )}
+
         {/* Footer */}
         <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between flex-shrink-0 bg-gray-50 gap-3">
           {step === "build" ? (
@@ -1269,14 +1312,12 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                 </div>
                 {isModify ? (
                   <button
-                    onClick={() => modifyMutation.mutate()}
-                    disabled={items.length === 0 || modifyMutation.isPending}
+                    onClick={() => setStep("pay")}
+                    disabled={items.length === 0}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                   >
-                    {modifyMutation.isPending
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Send className="h-4 w-4" />}
-                    Enviar pedido modificado{items.length > 0 ? ` (${items.length})` : ""}
+                    <CreditCard className="h-4 w-4" />
+                    Continuar al pago{items.length > 0 ? ` (${items.length})` : ""}
                   </button>
                 ) : (
                   <button
@@ -1292,7 +1333,7 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                 )}
               </div>
             </>
-          ) : (
+          ) : step === "review" ? (
             <>
               <button
                 onClick={() => setStep("build")}
@@ -1310,6 +1351,26 @@ export function SuggestedOrderModal({ open, client, onClose, mode = "create", ex
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Send className="h-4 w-4" />}
                 Enviar sugerido
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setStep("build")}
+                disabled={modifyMutation.isPending}
+                className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors flex items-center gap-1.5"
+              >
+                <ArrowLeft className="h-4 w-4" /> Volver a editar
+              </button>
+              <button
+                onClick={() => modifyMutation.mutate()}
+                disabled={items.length === 0 || modifyMutation.isPending || !payValid}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white text-sm font-bold transition-all shadow-lg shadow-orange-200/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+              >
+                {modifyMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Check className="h-4 w-4" />}
+                Confirmar pedido
               </button>
             </>
           )}

@@ -23,10 +23,11 @@ import { useAuth } from "@/hooks/useAuth";
 import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
 import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-taker/ecommerce-orders-list";
+import VoiceOrderDialog, { VoiceOrderConfirmPayload } from "@/components/order-taker/voice-order-dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck, Mic } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -995,6 +996,7 @@ export default function TomadorPedidos() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [showClientSearch, setShowClientSearch] = useState(false); // Control client search visibility in mobile
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
+  const [showVoiceOrder, setShowVoiceOrder] = useState(false);
   const [selectedClientForQuote, setSelectedClientForQuote] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
@@ -3030,6 +3032,60 @@ export default function TomadorPedidos() {
     return tiers;
   };
 
+  // Open the quote builder pre-filled from a voice/text order draft
+  const handleVoiceOrderConfirm = (payload: VoiceOrderConfirmPayload) => {
+    const { client, clientName, notes, items } = payload;
+
+    const builtCart: CartItem[] = items.map((it, idx) => {
+      const product = it.product;
+      const availableTiers = getAvailableTiers(product);
+      const tierOption = availableTiers.find((t) => t.key === it.tier) || availableTiers[0];
+      const unitPrice = tierOption?.price || 0;
+      const quantity = it.quantity;
+      return {
+        id: `${product.codigo}-${Date.now()}-${idx}`,
+        type: "standard",
+        productName: product.producto,
+        productCode: product.codigo,
+        quantity,
+        unitPrice,
+        totalPrice: unitPrice * quantity,
+        priceTier: (tierOption?.key || "lista") as PriceTier,
+        tierPrices: availableTiers,
+        productUnit: product.unidad || "UN",
+      };
+    });
+
+    if (client) {
+      setSelectedClientForQuote(client);
+      setQuoteForm({
+        ...INITIAL_QUOTE_FORM,
+        clientName: client.nokoen,
+        clientId: client.id,
+        clientRut: client.rten || "",
+        clientEmail: client.email || "",
+        clientPhone: client.foen || "",
+        clientAddress: `${client.dien || ""} ${client.comuna || ""}`.trim(),
+        notes: notes || "",
+      });
+    } else {
+      setSelectedClientForQuote(null);
+      setQuoteForm({
+        ...INITIAL_QUOTE_FORM,
+        clientName: clientName || "",
+        notes: notes || "",
+      });
+    }
+
+    setCart(builtCart);
+    setEditingQuoteId(null);
+    setSavedQuoteId(null);
+    setHasUnsavedChanges(false);
+    setDefaultMobileTab("products");
+    setShowVoiceOrder(false);
+    setShowQuoteBuilder(true);
+  };
+
   // Get best available price for display (first non-zero price)
   const getBestDisplayPrice = (product: PriceList): { price: number; tier: PriceTier; label: string } => {
     // Calculate lista from desc10 if missing (desc10 = lista * 0.90)
@@ -3107,6 +3163,16 @@ export default function TomadorPedidos() {
         {/* Action Buttons in Header */}
         {!(isMobile && showClientSearch) && (
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowVoiceOrder(true)}
+              variant="outline"
+              className={`border-orange-200 text-orange-700 bg-white hover:bg-orange-50 hover:text-orange-800 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+              size="sm"
+              data-testid="button-voice-order"
+            >
+              <Mic className="w-4 h-4" />
+              {isMobile ? "Por Voz" : "Presupuesto por Voz"}
+            </Button>
             <Button
               onClick={handleCreateQuoteForNewClient}
               className={`bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
@@ -5085,6 +5151,13 @@ export default function TomadorPedidos() {
       )}
 
       {/* Custom Product Modal */}
+      <VoiceOrderDialog
+        open={showVoiceOrder}
+        onOpenChange={setShowVoiceOrder}
+        getAvailableTiers={getAvailableTiers}
+        onConfirm={handleVoiceOrderConfirm}
+      />
+
       <Dialog open={showCustomProductModal} onOpenChange={setShowCustomProductModal}>
         <DialogContent className="max-w-xl mx-4 sm:mx-auto rounded-xl border-0 shadow-xl">
           <DialogHeader>
