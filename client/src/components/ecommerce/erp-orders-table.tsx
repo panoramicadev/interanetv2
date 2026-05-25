@@ -278,16 +278,6 @@ export default function ErpOrdersTable() {
     enabled: !!detail,
   });
 
-  // KPIs
-  const nvvCount = data?.nvvCount ?? 0;
-  const fcvCount = data?.fcvCount ?? 0;
-  const nvvPendingTotal = orders
-    .filter((o) => o.docType === "NVV")
-    .reduce((s, o) => s + (o.totalPending || o.total || 0), 0);
-  const fcvTotal = orders
-    .filter((o) => o.docType === "FCV")
-    .reduce((s, o) => s + (o.total || 0), 0);
-
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (tipo === "nvv" && o.docType !== "NVV") return false;
@@ -308,6 +298,24 @@ export default function ErpOrdersTable() {
       );
     });
   }, [orders, tipo, searchTerm, vendedor, cliente, anio, mes, dia]);
+
+  // KPIs — se calculan sobre el conjunto filtrado para que las tarjetas reflejen los filtros activos
+  const nvvOrders = filtered.filter((o) => o.docType === "NVV");
+  const fcvOrders = filtered.filter((o) => o.docType === "FCV");
+  const nvvCount = nvvOrders.length;
+  const fcvCount = fcvOrders.length;
+  const nvvPendingTotal = nvvOrders.reduce((s, o) => s + (o.totalPending || o.total || 0), 0);
+  const fcvTotal = fcvOrders.reduce((s, o) => s + (o.total || 0), 0);
+
+  // Etiqueta del período activo para el subtítulo de "FACTURADO"
+  const periodoLabel = (() => {
+    if (anio === "all" && mes === "all" && dia === "all") return "últimos 90 días";
+    const parts: string[] = [];
+    if (dia !== "all") parts.push(String(parseInt(dia, 10)));
+    if (mes !== "all") parts.push(MONTH_NAMES[parseInt(mes, 10)] || mes);
+    if (anio !== "all") parts.push(anio);
+    return parts.join(" ");
+  })();
 
   // Reset pagination when the filtered set changes
   useEffect(() => {
@@ -348,7 +356,7 @@ export default function ErpOrdersTable() {
             </div>
             <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">TOTAL</span>
           </div>
-          <div className="text-2xl font-black text-gray-900">{orders.length}</div>
+          <div className="text-2xl font-black text-gray-900">{filtered.length}</div>
           <div className="text-xs text-gray-500 mt-0.5">pedidos ERP</div>
         </div>
 
@@ -360,7 +368,7 @@ export default function ErpOrdersTable() {
             <span className="text-[10px] font-bold text-[#FF6E23] bg-orange-50 px-2 py-0.5 rounded-full">FACTURADO</span>
           </div>
           <div className="text-2xl font-black text-gray-900">{formatPrice(fcvTotal)}</div>
-          <div className="text-xs text-gray-500 mt-0.5">últimos 90 días</div>
+          <div className="text-xs text-gray-500 mt-0.5">{periodoLabel}</div>
         </div>
       </div>
 
