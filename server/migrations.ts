@@ -88,6 +88,18 @@ export async function bootstrapDatabase(): Promise<void> {
       )
     `);
     
+    // Cartera / cuentas por cobrar: abonado + primer vencimiento (saldo = vabrdo - vaabdo).
+    // El ETL ya trae estas columnas desde MAEEDO via SELECT *; antes se descartaban.
+    // Tolerante a fallos: stg_maeedo/fact_ventas se gestionan vía drizzle push; esto es red de seguridad.
+    try {
+      await db.execute(sql`ALTER TABLE ventas.stg_maeedo ADD COLUMN IF NOT EXISTS vaabdo NUMERIC(18, 4)`);
+      await db.execute(sql`ALTER TABLE ventas.stg_maeedo ADD COLUMN IF NOT EXISTS fe01vedo DATE`);
+      await db.execute(sql`ALTER TABLE ventas.fact_ventas ADD COLUMN IF NOT EXISTS vaabdo NUMERIC(20, 0)`);
+      await db.execute(sql`ALTER TABLE ventas.fact_ventas ADD COLUMN IF NOT EXISTS fe01vedo DATE`);
+    } catch (e: any) {
+      console.warn('  ⚠️  Columnas de cartera no agregadas (se crearán vía drizzle push):', e?.message);
+    }
+
     // Agregar índices importantes para fact_ventas
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_feemdo ON ventas.fact_ventas(feemdo)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_nokoen ON ventas.fact_ventas(nokoen)`);

@@ -516,6 +516,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       vanedo: cleanNumeric(row.VANEDO),
       vaivdo: cleanNumeric(row.VAIVDO),
       vabrdo: cleanNumeric(row.VABRDO),
+      vaabdo: cleanNumeric(row.VAABDO),
+      fe01vedo: row.FE01VEDO || null,
       lilg: row.LILG?.trim() || null,
       modo: row.MODO?.trim() || null,
       timodo: row.TIMODO?.trim() || null,
@@ -759,6 +761,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         fmpr, mrpr, zona, ruen, recaprre, pfpr, hfpr, monto, ocdo,
         nokoprct, nokozo, nosudo, nokofu, nokofudo, nobosuli, nokoen, noruen,
         nomrpr, nofmpr, nopfpr, nohfpr, devol1, devol2, stockfis, listacost, liscosmod,
+        vaabdo, fe01vedo,
         last_etl_sync
       )
       SELECT 
@@ -843,6 +846,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         dd.stockfis,
         pp.listacost,
         pp.liscosmod,
+        ed.vaabdo,
+        ed.fe01vedo,
         ${sql.raw(`'${currentWatermark.toISOString()}'::timestamp`)}
       FROM ventas.stg_maeddo dd
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
