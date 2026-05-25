@@ -21671,7 +21671,9 @@ export class DatabaseStorage implements IStorage {
             e.VANEDO,
             e.VAIVDO,
             e.VABRDO,
-            
+            e.VAABDO,
+            e.FE01VEDO,
+
             -- DETALLE (MAEDDO - 40 campos)
             d.IDMAEDDO,
             d.LILG,
@@ -21853,6 +21855,7 @@ export class DatabaseStorage implements IStorage {
               vanedo: toNumeric(row.VANEDO),
               vaivdo: toNumeric(row.VAIVDO),
               vabrdo: toNumeric(row.VABRDO),
+              vaabdo: toNumeric(row.VAABDO),
               nulido: toNumeric(row.NULIDO),
               sulido: toNumeric(row.SULIDO),
               luvtlido: toNumeric(row.LUVTLIDO),
@@ -21898,6 +21901,7 @@ export class DatabaseStorage implements IStorage {
               // Date fields
               feemdo: row.FEEMDO || null,
               feulvedo: row.FEULVEDO || null,
+              fe01vedo: row.FE01VEDO || null,
               feemli: row.FEEMLI || null,
               feerli: row.FEERLI || null,
               // Metadata

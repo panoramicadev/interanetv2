@@ -5791,6 +5791,8 @@ export const stgMaeedo = ventasSchema.table("stg_maeedo", {
   vanedo: numeric("vanedo", { precision: 18, scale: 4 }),
   vaivdo: numeric("vaivdo", { precision: 18, scale: 4 }),
   vabrdo: numeric("vabrdo", { precision: 18, scale: 4 }),
+  vaabdo: numeric("vaabdo", { precision: 18, scale: 4 }), // Abonado (pagos/NCV aplicados). Saldo doc = vabrdo - vaabdo
+  fe01vedo: date("fe01vedo"), // Primer vencimiento (cuota 1) — cartera/vencido
   lilg: text("lilg"),
   modo: text("modo"),
   timodo: text("timodo"),
@@ -5948,6 +5950,8 @@ export const factVentas = ventasSchema.table("fact_ventas", {
   vanedo: numeric("vanedo", { precision: 20, scale: 0 }),
   vaivdo: numeric("vaivdo", { precision: 18, scale: 6 }),
   vabrdo: numeric("vabrdo", { precision: 20, scale: 0 }),
+  vaabdo: numeric("vaabdo", { precision: 20, scale: 0 }), // Abonado (pagos/NCV aplicados). Saldo doc = vabrdo - vaabdo
+  fe01vedo: date("fe01vedo"), // Primer vencimiento (cuota 1) — cartera/vencido
   lilg: text("lilg"),
   nulido: numeric("nulido", { precision: 20, scale: 0 }),
   sulido: numeric("sulido", { precision: 20, scale: 0 }),
