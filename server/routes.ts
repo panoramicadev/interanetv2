@@ -9204,11 +9204,68 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Cliente acepta el sugerido tal cual → pasa a flujo normal (pending) para revisión admin
+  // ── Helpers para el "checkout" de un sugerido (aceptar/modificar) ──────────
+  // Detecta si el cliente pertenece al segmento MCT (nombre del cliente, su giro
+  // o el de la casa matriz contienen el token "MCT"). Para MCT la OC es obligatoria.
+  const detectMCTClient = async (clientRecord: any): Promise<boolean> => {
+    if (!clientRecord) return false;
+    let names = `${clientRecord.nokoen || ''} ${clientRecord.gien || ''}`;
+    if (clientRecord.parentClientId) {
+      try {
+        const { clients: clientsTbl } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const { db: dbLookup } = await import('./db');
+        const [parent] = await dbLookup
+          .select({ nokoen: clientsTbl.nokoen, gien: clientsTbl.gien })
+          .from(clientsTbl)
+          .where(eqOp(clientsTbl.id, clientRecord.parentClientId))
+          .limit(1);
+        if (parent) names += ` ${parent.nokoen || ''} ${parent.gien || ''}`;
+      } catch (e) {
+        console.warn('Warning: could not load parent client for MCT detection:', e);
+      }
+    }
+    return /\bMCT\b/i.test(names);
+  };
+
+  // Consume cupo de crédito del cliente (por userId) al aprobar un pedido a crédito.
+  // Mantiene la misma semántica que el checkout: crsd = usado/deuda, cren = disponible.
+  const consumeClientCreditForUser = async (userId: string, orderTotal: number): Promise<void> => {
+    try {
+      const { clients: clientsTbl } = await import('@shared/schema');
+      const { eq: eqOp } = await import('drizzle-orm');
+      const { db: dbLookup } = await import('./db');
+      const [rec] = await dbLookup.select().from(clientsTbl).where(eqOp(clientsTbl.userId, userId)).limit(1);
+      if (!rec || !rec.crlt) return;
+      const limit = parseFloat(rec.crlt as any) || 0;
+      const used = parseFloat((rec.crsd as any) || '0') || 0;
+      const newUsed = used + (Number(orderTotal) || 0);
+      const newAvailable = Math.max(0, limit - newUsed);
+      await dbLookup.update(clientsTbl)
+        .set({ crsd: newUsed.toString(), cren: newAvailable.toString() })
+        .where(eqOp(clientsTbl.id, rec.id));
+    } catch (e) {
+      console.error('Error consuming client credit (suggested order):', e);
+    }
+  };
+
+  // Cliente acepta el sugerido → elige forma de pago (transferencia/crédito) y, si
+  // corresponde, adjunta la OC. Igual que el checkout del ecommerce: a crédito se
+  // aprueba y se consume cupo; por transferencia queda pendiente para subir el
+  // comprobante en la pantalla de pedido confirmado.
   app.post('/api/ecommerce/orders/:id/suggested-accept', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const orderId = req.params.id;
+      const schema = z.object({
+        paymentMethod: z.enum(['transfer', 'credit']).optional(),
+        purchaseOrderPdfUrl: z.string().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      const paymentMethod = parsed.data.paymentMethod || 'transfer';
+      const purchaseOrderPdfUrl = parsed.data.purchaseOrderPdfUrl || null;
+
       const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
       if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
       if (order.clientId !== user.id) return res.status(403).json({ message: 'No autorizado' });
@@ -9216,14 +9273,31 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Este pedido no está en estado de sugerido pendiente.' });
       }
 
+      // OC obligatoria para clientes MCT (igual que el checkout del ecommerce).
+      const clientRecord = await storage.getClientByUserId(order.clientId).catch(() => null);
+      const finalOcUrl = purchaseOrderPdfUrl || order.purchaseOrderPdfUrl || null;
+      if (await detectMCTClient(clientRecord) && !finalOcUrl) {
+        return res.status(400).json({ message: 'Los clientes MCT deben adjuntar la Orden de Compra (PDF) para confirmar el pedido.' });
+      }
+
+      const isCreditMethod = paymentMethod === 'credit';
+      const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
-          status: 'pending',
-          suggestedResponseAt: new Date(),
-          updatedAt: new Date(),
+          status: isCreditMethod ? 'approved' : 'pending',
+          paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
+          purchaseOrderPdfUrl: finalOcUrl,
+          suggestedResponseAt: now,
+          updatedAt: now,
+          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
+
+      // A crédito: aprobación inmediata y consumo de cupo (igual que el checkout).
+      if (isCreditMethod) {
+        await consumeClientCreditForUser(order.clientId, Number(order.total) || 0);
+      }
 
       // Notificar al vendedor asignado / supervisor / admin
       try {
@@ -9233,7 +9307,7 @@ export function registerRoutes(app: Express): Server {
             userId: notifyTo,
             type: 'ecommerce_order',
             title: 'Sugerido aceptado por cliente',
-            message: `${order.clientName} aceptó el sugerido por $${Number(order.total).toFixed(0)}`,
+            message: `${order.clientName} aceptó el sugerido por $${Number(order.total).toFixed(0)} (${isCreditMethod ? 'Crédito' : 'Transferencia'})`,
             relatedOrderId: order.id,
             read: false,
           });
@@ -9324,9 +9398,13 @@ export function registerRoutes(app: Express): Server {
           pricingMode: z.enum(['calculated', 'direct']).optional(),
         }).passthrough()).min(1),
         notes: z.string().optional().nullable(),
+        paymentMethod: z.enum(['transfer', 'credit']).optional(),
+        purchaseOrderPdfUrl: z.string().optional().nullable(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+      const paymentMethod = parsed.data.paymentMethod || 'transfer';
+      const purchaseOrderPdfUrl = parsed.data.purchaseOrderPdfUrl || null;
 
       const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, orderId)).limit(1);
       if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
@@ -9389,6 +9467,13 @@ export function registerRoutes(app: Express): Server {
 
       const resolved = await resolveItemsPricing(lockedItems, clientRecord || null);
 
+      // OC obligatoria para clientes MCT (igual que el checkout del ecommerce).
+      const finalOcUrl = purchaseOrderPdfUrl || order.purchaseOrderPdfUrl || null;
+      if (await detectMCTClient(clientRecord) && !finalOcUrl) {
+        return res.status(400).json({ message: 'Los clientes MCT deben adjuntar la Orden de Compra (PDF) para confirmar el pedido.' });
+      }
+
+      const isCreditMethod = paymentMethod === 'credit';
       const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
@@ -9399,14 +9484,22 @@ export function registerRoutes(app: Express): Server {
           branchDiscountPercent: String(resolved.branchDiscountPct || 0),
           priceListUsed: resolved.priceListUsed,
           notes: parsed.data.notes ?? order.notes,
-          status: 'pending',
+          status: isCreditMethod ? 'approved' : 'pending',
+          paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
+          purchaseOrderPdfUrl: finalOcUrl,
           modifiedAt: now,
           modifiedById: user.id,
           suggestedResponseAt: now,
           updatedAt: now,
+          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
+
+      // A crédito: aprobación inmediata y consumo de cupo (con el total recalculado).
+      if (isCreditMethod) {
+        await consumeClientCreditForUser(order.clientId, Number(resolved.total) || 0);
+      }
 
       try {
         const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
