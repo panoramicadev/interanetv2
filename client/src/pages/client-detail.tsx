@@ -99,6 +99,7 @@ interface FichaInfo {
   creditLimit: number | null;
   creditAvailable: number | null;
   creditUsed: number | null;
+  creditOverdue: number | null;
 }
 
 interface AccountStatus {
@@ -847,17 +848,18 @@ export default function ClientDetail() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-1">
-                    {[
+                    {([
                       { label: "Condición de Pago", value: ficha?.paymentCondition },
                       { label: "Vendedor", value: vendedor },
                       { label: "Lista de Precios", value: ficha?.priceList },
                       { label: "Límite de Crédito", value: ficha?.creditLimit != null ? formatCurrency(ficha.creditLimit) : null },
                       { label: "Crédito Usado", value: ficha?.creditUsed != null ? formatCurrency(ficha.creditUsed) : null },
+                      { label: "Vencido", value: ficha?.creditOverdue != null ? formatCurrency(ficha.creditOverdue) : null, valueClassName: (ficha?.creditOverdue ?? 0) > 0 ? "text-red-600 font-semibold" : undefined },
                       { label: "Crédito Disponible", value: ficha?.creditAvailable != null ? formatCurrency(ficha.creditAvailable) : null },
-                    ].map(({ label, value }) => (
+                    ] as { label: string; value: any; valueClassName?: string }[]).map(({ label, value, valueClassName }) => (
                       <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0">
                         <span className="text-sm text-muted-foreground">{label}</span>
-                        <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
+                        <span className={`text-sm font-medium text-right max-w-[60%] truncate ${valueClassName ?? ""}`}>{value || "—"}</span>
                       </div>
                     ))}
                   </CardContent>
