@@ -4818,7 +4818,22 @@ export class DatabaseStorage implements IStorage {
     };
     if (!parentName) return empty;
 
-    // 1. Resolve all fact_ventas product names that roll up to this parent.
+    // 1a. Resolve variant SKUs from the curated catalog (ecommerce_products → price_list).
+    // The selector sends the catalog's genericName (variant_generic_display_name, which admins
+    // can rename), so matching it against regex-stripped ERP names is unreliable — a renamed
+    // parent or a product whose variants use non-basic color words never matches. Matching by
+    // product code (fact_ventas.koprct = price_list.codigo) is exact.
+    const skuRows = await db.execute(sql`
+      SELECT DISTINCT pl.codigo AS sku
+      FROM ecommerce_products ep
+      JOIN price_list pl ON ep.price_list_id = pl.id
+      WHERE UPPER(TRIM(COALESCE(ep.variant_generic_display_name, pl.producto))) = ${parentName.trim().toUpperCase()}
+        AND pl.codigo IS NOT NULL AND pl.codigo <> ''
+    `);
+    const skuList: string[] = (((skuRows as any).rows || skuRows) as any[]).map(r => r.sku).filter(Boolean);
+
+    // 1b. Fallback name resolution — covers products selected via the free-text search that
+    // have no catalog entry, and widens to ERP variants whose name rolls up to this parent.
     const allProducts = await db
       .select({ name: factVentas.nokoprct })
       .from(factVentas)
@@ -4836,16 +4851,22 @@ export class DatabaseStorage implements IStorage {
         return upper === targetUpper || this.extractParentProductName(name).toUpperCase() === targetUpper;
       });
 
-    if (matchingNames.length === 0) return empty;
+    if (skuList.length === 0 && matchingNames.length === 0) return empty;
+
+    // Match a sale if its product code is a catalog variant OR its name rolls up to the parent.
+    const productMatchOrs: any[] = [];
+    if (skuList.length) productMatchOrs.push(inArray(factVentas.koprct, skuList));
+    if (matchingNames.length) productMatchOrs.push(inArray(factVentas.nokoprct, matchingNames));
+    const productMatch = productMatchOrs.length === 1 ? productMatchOrs[0] : or(...productMatchOrs);
 
     // Period-scoped conditions (KPIs, breakdowns, clients, salespeople).
     const periodConditions: any[] = [sql`${factVentas.tido} != 'GDV'`];
     if (filters.startDate) periodConditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     if (filters.endDate) periodConditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
-    const productWhere = and(...periodConditions, inArray(factVentas.nokoprct, matchingNames));
+    const productWhere = and(...periodConditions, productMatch);
 
     // Trend-scoped conditions (seasonality window, independent of selected period).
-    const trendConditions: any[] = [sql`${factVentas.tido} != 'GDV'`, inArray(factVentas.nokoprct, matchingNames)];
+    const trendConditions: any[] = [sql`${factVentas.tido} != 'GDV'`, productMatch];
     if (filters.trendStartDate) trendConditions.push(sql`${factVentas.feemdo} >= ${filters.trendStartDate}::date`);
     if (filters.trendEndDate) trendConditions.push(sql`${factVentas.feemdo} <= ${filters.trendEndDate}::date`);
     const trendWhere = and(...trendConditions);
