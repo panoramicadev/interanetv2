@@ -66,24 +66,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
-          href: "/productos",
-          label: "Productos",
-          icon: Package,
-        },
-        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
         },
         {
-          href: "/logistica-rutas",
-          label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
         },
         {
           href: "/clientes",
@@ -91,10 +81,22 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Users,
         },
         {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
+          href: "/logistica-rutas",
+          label: "Logística",
+          icon: Truck,
         },
+        // Cotizaciones oculta del sidebar (ruta /cotizaciones-b2c sigue activa)
+        // {
+        //   href: "/cotizaciones-b2c",
+        //   label: "Cotizaciones",
+        //   icon: FileText,
+        // },
+        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
+        // {
+        //   href: "/seguimiento-clientes",
+        //   label: "Seguimiento",
+        //   icon: UserCheck,
+        // },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -393,24 +395,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
-          href: "/productos",
-          label: "Productos",
-          icon: Package,
-        },
-        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
         },
         {
-          href: "/logistica-rutas",
-          label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
         },
         {
           href: "/clientes",
@@ -418,10 +410,22 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Users,
         },
         {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
+          href: "/logistica-rutas",
+          label: "Logística",
+          icon: Truck,
         },
+        // Cotizaciones oculta del sidebar (ruta /cotizaciones-b2c sigue activa)
+        // {
+        //   href: "/cotizaciones-b2c",
+        //   label: "Cotizaciones",
+        //   icon: FileText,
+        // },
+        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
+        // {
+        //   href: "/seguimiento-clientes",
+        //   label: "Seguimiento",
+        //   icon: UserCheck,
+        // },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -576,24 +580,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
-          href: "/productos",
-          label: "Productos",
-          icon: Package,
-        },
-        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
         },
         {
-          href: "/logistica-rutas",
-          label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
         },
         {
           href: "/clientes",
@@ -601,10 +595,22 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Users,
         },
         {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
+          href: "/logistica-rutas",
+          label: "Logística",
+          icon: Truck,
         },
+        // Cotizaciones oculta del sidebar (ruta /cotizaciones-b2c sigue activa)
+        // {
+        //   href: "/cotizaciones-b2c",
+        //   label: "Cotizaciones",
+        //   icon: FileText,
+        // },
+        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
+        // {
+        //   href: "/seguimiento-clientes",
+        //   label: "Seguimiento",
+        //   icon: UserCheck,
+        // },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -792,30 +798,31 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       isPremium: true,
       children: [
         {
-          href: "/productos",
-          label: "Productos",
-          icon: Package,
-        },
-        {
           href: "/ecommerce-pedidos",
           label: "Pedidos",
           icon: PackageSearch,
         },
         {
-          href: "/logistica-rutas",
-          label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/cotizaciones-b2c",
-          label: "Cotizaciones",
-          icon: FileText,
+          href: "/productos",
+          label: "Productos",
+          icon: Package,
         },
         {
           href: "/clientes",
           label: "Clientes",
           icon: Users,
         },
+        {
+          href: "/logistica-rutas",
+          label: "Logística",
+          icon: Truck,
+        },
+        // Cotizaciones oculta del sidebar (ruta /cotizaciones-b2c sigue activa)
+        // {
+        //   href: "/cotizaciones-b2c",
+        //   label: "Cotizaciones",
+        //   icon: FileText,
+        // },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
