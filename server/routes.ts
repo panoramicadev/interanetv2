@@ -462,6 +462,29 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   });
 }
 
+// ficha_overrides es JSONB y puede llegar como string (según el driver) u objeto.
+function parseFichaOverrides(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) || {}; } catch { return {}; }
+  }
+  if (typeof raw === 'object') return raw;
+  return {};
+}
+
+// Lista de precios efectiva de un cliente: el override manual guardado en
+// ficha_overrides.priceList (que el ETL nunca sobrescribe) prevalece sobre el
+// lcen sincronizado desde Softland. Devuelve null si no hay ninguno.
+// Acepta tanto la fila camelCase de Drizzle (fichaOverrides) como la cruda
+// de db.execute (ficha_overrides).
+function effectivePriceList(client: any): string | null {
+  const ov = parseFichaOverrides(client?.fichaOverrides ?? client?.ficha_overrides);
+  const override = typeof ov.priceList === 'string' ? ov.priceList.trim() : '';
+  if (override) return override;
+  const lcen = (client?.lcen && typeof client.lcen === 'string') ? client.lcen.trim() : '';
+  return lcen || null;
+}
+
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
@@ -2281,7 +2304,12 @@ export function registerRoutes(app: Express): Server {
               email: fichaOv.email ?? ficha.email,
               paymentCondition: ficha.cpen,
               salesRepCode: ficha.kofuen,
-              priceList: ficha.lcen,
+              // Lista efectiva (override manual > lcen del ERP). priceListOverride indica
+              // si fue fijada a mano, y priceListErp es el valor crudo de Softland, para que
+              // el editor sepa qué mostrar por defecto.
+              priceList: effectivePriceList(ficha),
+              priceListOverride: (typeof fichaOv.priceList === 'string' && fichaOv.priceList.trim()) ? fichaOv.priceList.trim() : null,
+              priceListErp: ficha.lcen ?? null,
               creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
@@ -2335,6 +2363,8 @@ export function registerRoutes(app: Express): Server {
         phone: z.string().trim().max(50).optional(),
         address: z.string().trim().max(300).optional(),
         commune: z.string().trim().max(100).optional(),
+        // Lista de precios asignada manualmente. Vacío => quitar override (vuelve al lcen del ERP).
+        priceList: z.string().trim().max(50).optional(),
       });
       const body = fichaSchema.parse(req.body ?? {});
 
@@ -2356,7 +2386,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Merge: valor con texto => override; vacío => quitar override (vuelve al ERP).
-      const fields: Array<keyof typeof body> = ['clientName', 'email', 'phone', 'address', 'commune'];
+      const fields: Array<keyof typeof body> = ['clientName', 'email', 'phone', 'address', 'commune', 'priceList'];
       for (const f of fields) {
         if (!(f in body)) continue; // campo no enviado: no tocar
         const v = (body[f] ?? '').toString().trim();
@@ -2726,7 +2756,9 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      res.json({ ...client, parentNokoen, parentGien });
+      // El storefront (tienda/carrito) usa client.lcen como lista de precios. Exponemos
+      // la lista efectiva (override manual > ERP) para que coincida con lo que cobra el checkout.
+      res.json({ ...client, lcen: effectivePriceList(client), parentNokoen, parentGien });
     } catch (error) {
       console.error('Error al obtener datos del cliente:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
@@ -8318,7 +8350,7 @@ export function registerRoutes(app: Express): Server {
   //     instead of the client's lcen, and convenio discount is NOT applied (the salesperson
   //     already chose the final tier).
   async function resolveItemsPricing(items: any[], client: any | null) {
-    const priceListCode = (client?.lcen && typeof client.lcen === 'string' && client.lcen.trim()) ? client.lcen.trim().toUpperCase() : 'LP01';
+    const priceListCode = (effectivePriceList(client) || 'LP01').toUpperCase();
     const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
     const useCustomList = priceListCode !== 'LP01';
 
@@ -18978,7 +19010,7 @@ export function registerRoutes(app: Express): Server {
         isRoot: !b.parentClientId,
         address: b.dien || null,
         discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
-        priceList: b.lcen || null,
+        priceList: effectivePriceList(b),
       }));
 
       res.json({

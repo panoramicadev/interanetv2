@@ -100,6 +100,8 @@ interface FichaInfo {
   paymentCondition: string | null;
   salesRepCode: string | null;
   priceList: string | null;
+  priceListOverride: string | null;
+  priceListErp: string | null;
   creditLimit: number | null;
   creditAvailable: number | null;
   creditUsed: number | null;
@@ -180,6 +182,8 @@ export default function ClientDetail() {
   const [suggestedOpen, setSuggestedOpen] = useState(false);
   const [editingFicha, setEditingFicha] = useState(false);
   const [fichaForm, setFichaForm] = useState({ clientName: "", email: "", phone: "", address: "", commune: "" });
+  const [editingComercial, setEditingComercial] = useState(false);
+  const [priceListForm, setPriceListForm] = useState<string>("__erp__");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean } | null>(null);
 
@@ -289,6 +293,12 @@ export default function ClientDetail() {
     enabled: !!decodedClientName,
   });
 
+  // Listas de precios disponibles para el selector de "Lista de Precios".
+  const { data: customPriceLists = [] } = useQuery<{ code: string; name: string }[]>({
+    queryKey: ["/api/custom-price-lists"],
+    enabled: canManage,
+  });
+
   // Detalle de cuentas por cobrar (facturas pendientes con vencimiento + saldo)
   const { data: carteraData, isLoading: isLoadingCartera } = useQuery<{ docs: CarteraDoc[] }>({
     queryKey: [`/api/clients/cartera?name=${encodeURIComponent(decodedClientName)}`],
@@ -366,6 +376,39 @@ export default function ClientDetail() {
       commune: ficha?.commune || "",
     });
     setEditingFicha(true);
+  };
+
+  // Guarda la lista de precios como override manual (sobrevive al ETL) y refresca
+  // la ficha. Esa lista pasa a regir presupuestos y el panel de Panorámica Market.
+  const savePriceList = useMutation({
+    mutationFn: async () => {
+      if (!ficha?.id) throw new Error("Este cliente no tiene ficha.");
+      const priceList = priceListForm === "__erp__" ? "" : priceListForm;
+      const res = await apiRequest("PATCH", `/api/clients/${ficha.id}/ficha`, { priceList });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      setEditingComercial(false);
+      toast({ title: "Lista de precios actualizada", description: "Se aplicará a presupuestos y al panel de Panorámica Market." });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo guardar", description: e?.message || "Error al guardar la lista de precios", variant: "destructive" });
+    },
+  });
+
+  const startEditComercial = () => {
+    // El override manual manda; si no hay, arranca en "ERP por defecto".
+    setPriceListForm(ficha?.priceListOverride || "__erp__");
+    setEditingComercial(true);
+  };
+
+  // Nombre legible de una lista a partir de su código (LP01 = lista comercial general).
+  const getListName = (code: string | null | undefined) => {
+    if (!code) return "—";
+    if (code === "LP01") return "Lista Comercial (Por defecto)";
+    const found = customPriceLists.find((l) => l.code === code);
+    return found ? `${found.name} (${found.code})` : code;
   };
 
   const approveRequest = useMutation({
@@ -1032,9 +1075,27 @@ export default function ClientDetail() {
 
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-emerald-500" /> Información Comercial
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-emerald-500" /> Información Comercial
+                      </CardTitle>
+                      {canManage && (
+                        editingComercial ? (
+                          <div className="flex items-center gap-1.5">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingComercial(false)} disabled={savePriceList.isPending} data-testid="button-cancel-comercial">
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" className="h-7 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => savePriceList.mutate()} disabled={savePriceList.isPending} data-testid="button-save-comercial">
+                              <Save className="h-3.5 w-3.5 mr-1.5" /> {savePriceList.isPending ? "Guardando…" : "Guardar"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-7 px-3 rounded-lg" onClick={startEditComercial} data-testid="button-edit-comercial">
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-1">
                     {([
@@ -1049,9 +1110,31 @@ export default function ClientDetail() {
                       { label: "Próximo vencimiento", value: ficha?.nextDueDate ? formatDate(ficha.nextDueDate) : null },
                       { label: "Crédito Disponible", value: ficha?.creditAvailable != null ? formatCurrency(ficha.creditAvailable) : null },
                     ] as { label: string; value: any; valueClassName?: string }[]).map(({ label, value, valueClassName }) => (
-                      <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0">
-                        <span className="text-sm text-muted-foreground">{label}</span>
-                        <span className={`text-sm font-medium text-right max-w-[60%] truncate ${valueClassName ?? ""}`}>{value || "—"}</span>
+                      <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-muted/50 last:border-0">
+                        <span className="text-sm text-muted-foreground shrink-0">{label}</span>
+                        {label === "Lista de Precios" ? (
+                          editingComercial ? (
+                            <Select value={priceListForm} onValueChange={setPriceListForm}>
+                              <SelectTrigger className="h-8 max-w-[65%] text-sm" data-testid="select-price-list">
+                                <SelectValue placeholder="Seleccionar lista" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__erp__">Por defecto del ERP{ficha?.priceListErp ? ` (${ficha.priceListErp})` : ""}</SelectItem>
+                                <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
+                                {customPriceLists.map((l) => (
+                                  <SelectItem key={l.code} value={l.code}>{l.name} ({l.code})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-sm font-medium text-right max-w-[60%] truncate flex items-center gap-1.5 justify-end">
+                              {ficha?.priceListOverride && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">manual</Badge>}
+                              {getListName(ficha?.priceList)}
+                            </span>
+                          )
+                        ) : (
+                          <span className={`text-sm font-medium text-right max-w-[60%] truncate ${valueClassName ?? ""}`}>{value || "—"}</span>
+                        )}
                       </div>
                     ))}
 
