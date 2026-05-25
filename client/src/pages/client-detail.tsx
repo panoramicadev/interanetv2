@@ -5,10 +5,13 @@ import {
   ArrowLeft, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save,
+  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -173,12 +176,26 @@ export default function ClientDetail() {
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isLastPurchaseActive, setIsLastPurchaseActive] = useState(false);
   const [periodInitializedFor, setPeriodInitializedFor] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("resumen");
+  const [activeTab, setActiveTab] = useState<string>("info");
   const [suggestedOpen, setSuggestedOpen] = useState(false);
   const [editingFicha, setEditingFicha] = useState(false);
   const [fichaForm, setFichaForm] = useState({ clientName: "", email: "", phone: "", address: "", commune: "" });
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean } | null>(null);
+
+  // Estado del diálogo "Enviar cobranza"
+  const [cobranzaOpen, setCobranzaOpen] = useState(false);
+  const [cobranzaMode, setCobranzaMode] = useState<"vencidas" | "porvencer">("vencidas");
+  const [cobranzaEmail, setCobranzaEmail] = useState("");
+  const [cobranzaMonto, setCobranzaMonto] = useState("");
+  const [cobranzaFecha, setCobranzaFecha] = useState("");
+  const [cobranzaDoc, setCobranzaDoc] = useState("");
+  const [cobranzaSubject, setCobranzaSubject] = useState("");
+  const [cobranzaMensaje, setCobranzaMensaje] = useState("");
+  const [cobranzaCcInternal, setCobranzaCcInternal] = useState(true);
+  const [cobranzaExtraCc, setCobranzaExtraCc] = useState("");
+  const [cobranzaPreview, setCobranzaPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [cobranzaPreviewLoading, setCobranzaPreviewLoading] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -367,6 +384,117 @@ export default function ClientDetail() {
     },
   });
 
+  // Listado público "Dónde Comprar" — ver si el cliente ya está publicado y poder agregarlo.
+  // Los endpoints de retail-locations requieren admin o supervisor.
+  const canManageRetail = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
+  const { data: publicLocations = [] } = useQuery<{ id: string; name: string | null; address: string | null; active: boolean }[]>({
+    queryKey: ['/api/admin/retail-locations'],
+    enabled: canManageRetail && !!accountStatus?.hasFicha,
+  });
+
+  const addToRetail = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/retail-locations", {
+        name: ficha?.clientName || decodedClientName,
+        address: ficha?.address,
+        comuna: ficha?.commune || undefined,
+        phone: ficha?.phone || undefined,
+        email: ficha?.email || undefined,
+        type: "distribuidor",
+        active: true,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/retail-locations'] });
+      toast({ title: "Agregado al listado público", description: 'Ahora aparece en "Dónde Comprar" como distribuidor.' });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo agregar", description: e?.message || "Error al agregar al listado", variant: "destructive" });
+    },
+  });
+
+  // ── Enviar cobranza por correo ───────────────────────────────────────────
+  const applyCobranzaMode = (mode: "vencidas" | "porvencer") => {
+    setCobranzaMode(mode);
+    if (mode === "vencidas") {
+      setCobranzaMonto(ficha?.creditOverdue != null ? String(Math.round(ficha.creditOverdue)) : "");
+      setCobranzaFecha((ficha?.overdueSince || "").slice(0, 10));
+      setCobranzaMensaje("Le escribimos para recordarle que mantiene facturas vencidas con Pinturas Panorámica. Le agradeceremos regularizar el pago a la brevedad. Si ya realizó el pago, por favor omita este mensaje.");
+    } else {
+      setCobranzaMonto(ficha?.creditUpcoming != null ? String(Math.round(ficha.creditUpcoming)) : "");
+      setCobranzaFecha((ficha?.nextDueDate || "").slice(0, 10));
+      setCobranzaMensaje("Le escribimos para recordarle que tiene documentos próximos a vencer con Pinturas Panorámica. Le agradeceremos considerar el pago dentro del plazo indicado.");
+    }
+  };
+
+  const openCobranza = () => {
+    applyCobranzaMode((ficha?.creditOverdue ?? 0) > 0 ? "vencidas" : "porvencer");
+    setCobranzaEmail(ficha?.email || "");
+    setCobranzaDoc("");
+    setCobranzaSubject("");
+    setCobranzaCcInternal(true);
+    setCobranzaExtraCc("");
+    setCobranzaPreview(null);
+    setCobranzaOpen(true);
+  };
+
+  const fetchCobranzaPreview = useCallback(async () => {
+    if (!cobranzaMonto || Number(cobranzaMonto) <= 0 || !cobranzaFecha) {
+      setCobranzaPreview(null);
+      return;
+    }
+    setCobranzaPreviewLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/mailing/cobranza-preview", {
+        clientName: ficha?.clientName || decodedClientName,
+        clientRut: ficha?.rut || undefined,
+        montoAdeudado: cobranzaMonto,
+        fechaVencimiento: cobranzaFecha,
+        numeroDocumento: cobranzaDoc || undefined,
+        mensajeAdicional: cobranzaMensaje || undefined,
+        subjectOverride: cobranzaSubject || undefined,
+      });
+      setCobranzaPreview(await res.json());
+    } catch {
+      setCobranzaPreview(null);
+    } finally {
+      setCobranzaPreviewLoading(false);
+    }
+  }, [cobranzaMonto, cobranzaFecha, cobranzaDoc, cobranzaMensaje, cobranzaSubject, ficha?.clientName, ficha?.rut, decodedClientName]);
+
+  useEffect(() => {
+    if (!cobranzaOpen) return;
+    const t = setTimeout(() => { fetchCobranzaPreview(); }, 500);
+    return () => clearTimeout(t);
+  }, [cobranzaOpen, fetchCobranzaPreview]);
+
+  const sendCobranza = useMutation({
+    mutationFn: async () => {
+      if (!ficha?.clientCode) throw new Error("Este cliente no tiene código SAP para registrar la cobranza.");
+      const res = await apiRequest("POST", "/api/admin/mailing/send-cobranza", {
+        koen: ficha.clientCode,
+        clientEmailOverride: cobranzaEmail || undefined,
+        montoAdeudado: cobranzaMonto,
+        fechaVencimiento: cobranzaFecha,
+        numeroDocumento: cobranzaDoc || undefined,
+        mensajeAdicional: cobranzaMensaje || undefined,
+        subjectOverride: cobranzaSubject || undefined,
+        sendToClient: true,
+        ccInternal: cobranzaCcInternal,
+        extraCc: cobranzaExtraCc || undefined,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Cobranza enviada", description: `Para: ${data.to}${data.cc ? ` · CC: ${data.cc}` : ""}` });
+      setCobranzaOpen(false);
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo enviar", description: e?.message || "Error al enviar la cobranza", variant: "destructive" });
+    },
+  });
+
   if (!decodedClientName) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -410,6 +538,18 @@ export default function ClientDetail() {
     : null;
 
   const vendedor = lastOrder?.nokofu || ficha?.salesRepCode || null;
+
+  const normalizeRetail = (s?: string | null) => (s || "").toLowerCase().trim();
+  const retailEntry = ficha?.address
+    ? publicLocations.find(
+        (loc) =>
+          normalizeRetail(loc.name) === normalizeRetail(ficha?.clientName || decodedClientName) &&
+          normalizeRetail(loc.address) === normalizeRetail(ficha?.address),
+      )
+    : undefined;
+  const canAddToRetail = !!(ficha?.address && (ficha?.clientName || decodedClientName));
+
+  const canSendCobranza = !!ficha?.clientCode && !!cobranzaEmail.trim() && Number(cobranzaMonto) > 0 && !!cobranzaFecha;
 
   return (
     <div className="min-h-screen bg-background">
@@ -719,22 +859,22 @@ export default function ClientDetail() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
-            <TabsTrigger value="resumen" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <ShoppingBag className="h-4 w-4" /> Resumen
-            </TabsTrigger>
             <TabsTrigger value="info" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="h-4 w-4" /> Información
             </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <FileText className="h-4 w-4" /> Pedidos
             </TabsTrigger>
+            <TabsTrigger value="productos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ShoppingBag className="h-4 w-4" /> Productos
+            </TabsTrigger>
             <TabsTrigger value="despachos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Truck className="h-4 w-4" /> Despachos
             </TabsTrigger>
           </TabsList>
 
-          {/* Resumen tab — products bought */}
-          <TabsContent value="resumen" className="mt-4">
+          {/* Productos tab — products bought */}
+          <TabsContent value="productos" className="mt-4">
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -857,6 +997,36 @@ export default function ClientDetail() {
                         )}
                       </div>
                     ))}
+
+                    {canManageRetail && (
+                      <div className="pt-3 mt-1 border-t border-muted/50">
+                        {retailEntry ? (
+                          <div className="flex items-center justify-center gap-2 text-sm text-emerald-700 py-1">
+                            <Check className="h-4 w-4 shrink-0" />
+                            <span>En el listado público de distribuidores{retailEntry.active === false ? " (oculto)" : ""}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full rounded-lg border-[#FF6E23]/40 text-[#FF6E23] hover:bg-[#FF6E23]/5 hover:text-[#FF6E23]"
+                              onClick={() => addToRetail.mutate()}
+                              disabled={!canAddToRetail || addToRetail.isPending}
+                              data-testid="button-add-retail-location"
+                            >
+                              <MapPin className="h-4 w-4 mr-2" />
+                              {addToRetail.isPending ? "Agregando…" : "Agregar a listado público de distribuidores"}
+                            </Button>
+                            {!canAddToRetail && (
+                              <p className="text-[11px] text-muted-foreground mt-1.5 text-center">
+                                Agregá una dirección en la ficha para poder publicarla en "Dónde Comprar".
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -884,6 +1054,20 @@ export default function ClientDetail() {
                         <span className={`text-sm font-medium text-right max-w-[60%] truncate ${valueClassName ?? ""}`}>{value || "—"}</span>
                       </div>
                     ))}
+
+                    {canManage && (
+                      <div className="pt-3 mt-1 border-t border-muted/50">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-lg border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                          onClick={openCobranza}
+                          data-testid="button-enviar-cobranza"
+                        >
+                          <Send className="h-4 w-4 mr-2" /> Enviar cobranza
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1184,6 +1368,126 @@ export default function ClientDetail() {
                   Listo
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Enviar cobranza — vista previa + edición antes de enviar */}
+        <Dialog open={cobranzaOpen} onOpenChange={(open) => { if (!open) setCobranzaOpen(false); }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-rose-600" /> Enviar cobranza
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              {/* Formulario */}
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo de cobranza</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={cobranzaMode === "porvencer" ? "default" : "outline"}
+                      size="sm"
+                      className={`rounded-lg text-xs ${cobranzaMode === "porvencer" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                      onClick={() => applyCobranzaMode("porvencer")}
+                    >
+                      <Clock className="h-3.5 w-3.5 mr-1.5" /> Recordatorio de vencimiento
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={cobranzaMode === "vencidas" ? "default" : "outline"}
+                      size="sm"
+                      className={`rounded-lg text-xs ${cobranzaMode === "vencidas" ? "bg-rose-600 hover:bg-rose-700 text-white" : ""}`}
+                      onClick={() => applyCobranzaMode("vencidas")}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Facturas vencidas
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Correo del cliente</Label>
+                  <Input className="mt-1.5" value={cobranzaEmail} onChange={(e) => setCobranzaEmail(e.target.value)} placeholder={ficha?.email || "cliente@correo.cl"} data-testid="input-cobranza-email" />
+                  {!ficha?.email && (
+                    <p className="text-[11px] text-amber-600 mt-1">La ficha no tiene correo registrado. Ingresá uno para poder enviar.</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Monto (CLP)</Label>
+                    <Input className="mt-1.5" type="number" value={cobranzaMonto} onChange={(e) => setCobranzaMonto(e.target.value)} placeholder="0" data-testid="input-cobranza-monto" />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">{cobranzaMode === "vencidas" ? "Vencido desde" : "Fecha de vencimiento"}</Label>
+                    <Input className="mt-1.5" type="date" value={cobranzaFecha} onChange={(e) => setCobranzaFecha(e.target.value)} data-testid="input-cobranza-fecha" />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">N° documento (opcional)</Label>
+                  <Input className="mt-1.5" value={cobranzaDoc} onChange={(e) => setCobranzaDoc(e.target.value)} placeholder="Ej: FCV 12345" />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Asunto (opcional)</Label>
+                  <Input className="mt-1.5" value={cobranzaSubject} onChange={(e) => setCobranzaSubject(e.target.value)} placeholder="Se genera automáticamente si lo dejás vacío" />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Mensaje</Label>
+                  <Textarea className="mt-1.5" rows={4} value={cobranzaMensaje} onChange={(e) => setCobranzaMensaje(e.target.value)} data-testid="textarea-cobranza-mensaje" />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch id="cob-cc" checked={cobranzaCcInternal} onCheckedChange={setCobranzaCcInternal} />
+                  <Label htmlFor="cob-cc" className="text-sm cursor-pointer">Copia al equipo interno de cobranzas</Label>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">CC adicional (opcional)</Label>
+                  <Input className="mt-1.5" value={cobranzaExtraCc} onChange={(e) => setCobranzaExtraCc(e.target.value)} placeholder="cobranzas@empresa.cl, ..." />
+                </div>
+              </div>
+
+              {/* Vista previa */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium text-muted-foreground">Vista previa del correo</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => fetchCobranzaPreview()} disabled={cobranzaPreviewLoading}>
+                    {cobranzaPreviewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Actualizar"}
+                  </Button>
+                </div>
+                {cobranzaPreview?.subject && (
+                  <p className="text-xs text-muted-foreground truncate"><span className="font-medium">Asunto:</span> {cobranzaPreview.subject}</p>
+                )}
+                <div className="rounded-lg border bg-muted/20 overflow-hidden h-[440px]">
+                  {cobranzaPreview?.html ? (
+                    <iframe title="Vista previa cobranza" srcDoc={cobranzaPreview.html} sandbox="" className="w-full h-full border-0 bg-white" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground p-4 text-center">
+                      {cobranzaPreviewLoading
+                        ? "Generando vista previa…"
+                        : (Number(cobranzaMonto) > 0 && cobranzaFecha ? "—" : "Completá monto y fecha para ver la vista previa.")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 mt-1 border-t">
+              <Button variant="outline" onClick={() => setCobranzaOpen(false)} disabled={sendCobranza.isPending}>Cancelar</Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={() => sendCobranza.mutate()}
+                disabled={!canSendCobranza || sendCobranza.isPending}
+                data-testid="button-confirm-cobranza"
+              >
+                {sendCobranza.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                {sendCobranza.isPending ? "Enviando…" : "Enviar cobranza"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

@@ -21480,6 +21480,7 @@ export function registerRoutes(app: Express): Server {
     fechaVencimiento: z.string().min(1),
     numeroDocumento: z.string().optional(),
     mensajeAdicional: z.string().optional(),
+    subjectOverride: z.string().optional(),
     sendToClient: z.boolean().optional().default(true),
     ccInternal: z.boolean().optional().default(true),
     extraCc: z.string().optional(),
@@ -21500,7 +21501,7 @@ export function registerRoutes(app: Express): Server {
         console.warn(`${TAG} ❌ validación falló`, parsed.error.errors);
         return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
       }
-      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, sendToClient, ccInternal, extraCc } = parsed.data;
+      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, subjectOverride, sendToClient, ccInternal, extraCc } = parsed.data;
 
       const montoNum = Number(montoAdeudado);
       if (!isFinite(montoNum) || montoNum <= 0) {
@@ -21559,7 +21560,7 @@ export function registerRoutes(app: Express): Server {
           numeroDocumento,
           mensajeAdicional,
         });
-        subject = built.subject;
+        subject = (subjectOverride && subjectOverride.trim()) || built.subject;
         html = built.html;
         console.log(`${TAG} 📝 template OK`, { subjectLen: subject.length, htmlLen: html.length });
       } catch (e: any) {
@@ -21620,6 +21621,41 @@ export function registerRoutes(app: Express): Server {
         res.status(500).json({ message: `Error al enviar correo: ${outerError?.message || 'desconocido'}`, error: outerError?.message });
       }
     }
+  }));
+
+  // Vista previa del correo de cobranza (sin enviar ni registrar) — para revisar/editar antes de enviar.
+  app.post('/api/admin/mailing/cobranza-preview', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
+    const previewSchema = z.object({
+      clientName: z.string().min(1),
+      clientRut: z.string().optional(),
+      montoAdeudado: z.union([z.number(), z.string()]),
+      fechaVencimiento: z.string().min(1),
+      numeroDocumento: z.string().optional(),
+      mensajeAdicional: z.string().optional(),
+      subjectOverride: z.string().optional(),
+    }).strict();
+    const parsed = previewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const montoNum = Number(parsed.data.montoAdeudado);
+    if (!isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ message: 'Monto adeudado inválido' });
+    }
+    const venc = new Date(parsed.data.fechaVencimiento);
+    if (isNaN(venc.getTime())) {
+      return res.status(400).json({ message: 'Fecha de vencimiento inválida' });
+    }
+    const built = buildCobranzaEmail({
+      clientName: parsed.data.clientName,
+      clientRut: parsed.data.clientRut || undefined,
+      montoAdeudado: montoNum,
+      fechaVencimiento: venc,
+      numeroDocumento: parsed.data.numeroDocumento,
+      mensajeAdicional: parsed.data.mensajeAdicional,
+    });
+    const subject = (parsed.data.subjectOverride && parsed.data.subjectOverride.trim()) || built.subject;
+    res.json({ subject, html: built.html });
   }));
 
   // Auto-create cobranza notification setting if missing (so admins can configure CC internos)
