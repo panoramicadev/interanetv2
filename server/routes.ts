@@ -2167,6 +2167,9 @@ export function registerRoutes(app: Express): Server {
       // Cartera real (cuentas por cobrar) calculada desde fact_ventas, NO desde clients.crsd
       // (que viene vacío/no fidedigno). Saldo del documento = vabrdo - vaabdo; vencido = fe01vedo < hoy.
       // fact_ventas es por línea → deduplicar por idmaeedo. Se liga por endo = koen del cliente.
+      // IMPORTANTE: solo documentos PENDIENTES de pago (espgdo='P'), igual que el reporte oficial
+      // de Softland. Sin este filtro, facturas pagadas con vaabdo nulo (sincronizadas antes de
+      // existir la columna) se cuentan como deuda e inflan el saldo.
       const companyKoens = Array.from(new Set(fichaRows.map((f: any) => f.koen).filter(Boolean)));
       let carteraUsado: number | null = null;
       let carteraVencido: number | null = null;
@@ -2182,6 +2185,7 @@ export function registerRoutes(app: Express): Server {
               FROM ventas.fact_ventas
               WHERE endo IN (${sql.join(companyKoens.map((k: string) => sql`${k}`), sql`, `)})
                 AND tido IN ('FCV', 'FDV')
+                AND espgdo = 'P'
               GROUP BY idmaeedo
             )
             SELECT
