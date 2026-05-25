@@ -170,6 +170,7 @@ function Router() {
           {/* Account management pages use eCommerce layout */}
           <Route path="/mi-cuenta">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          <Route path="/mi-credito">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/seguimiento">{() => <ClientEcommerceLayout><ClientOrderTracking /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-documentos">{() => <ClientEcommerceLayout><ClientDocumentos /></ClientEcommerceLayout>}</Route>
           <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>

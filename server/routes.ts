@@ -9463,9 +9463,11 @@ export function registerRoutes(app: Express): Server {
       
       const cleanRut = user.clientRut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
 
-      // Fetch Transactions (invoices) and GDV from the last year strictly for performance
+      // Ventana de historial (meses). Por defecto 12 (perf), ampliable vía ?months=
+      // para vistas que necesitan más historial (p.ej. el listado de pedidos). Acotado a 60.
+      const months = Math.min(Math.max(Number(req.query.months) || 12, 1), 60);
       const now = new Date();
-      const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString().split("T")[0];
+      const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString().split("T")[0];
 
       // Fetch NVV (Pending orders, generally small list)
       const nvvData = await db.select().from(nvvPendingSales)
@@ -9501,6 +9503,248 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+
+  // Resuelve el "scope" del cliente logueado para acotar cartera/facturas a lo que él
+  // puede ver, SIN confiar en parámetros del request. Devuelve su ficha + todos los
+  // códigos de cliente (koen) de la empresa (casa matriz + sucursales que comparten RUT).
+  // La cartera vive en ventas.fact_ventas donde endo = koen (NO el RUT), por eso necesitamos
+  // los koen y no alcanza con user.clientRut.
+  const resolveClientScope = async (userId: string) => {
+    const client = await storage.getClientByUserId(userId);
+    if (!client) return null;
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
+    const cleanRut = normalizeRut(client.rten);
+    const koens = new Set<string>();
+    if (client.koen) koens.add(String(client.koen).trim());
+    if (cleanRut) {
+      try {
+        const r = await db.execute(sql`
+          SELECT koen FROM clients
+          WHERE REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut}
+        `);
+        const rows = Array.isArray(r) ? r : (r as any).rows || [];
+        for (const row of rows) if (row.koen) koens.add(String(row.koen).trim());
+      } catch (e) {
+        console.warn('[client-scope] sibling koen lookup failed:', e);
+      }
+    }
+    return {
+      client,
+      koens: Array.from(koens),
+      cleanRut,
+      clientName: (client.nokoen || '') as string,
+      rut: (client.rten || '') as string,
+    };
+  };
+
+  // Estado de cuenta del cliente logueado: línea de crédito + cartera REAL (cuentas por
+  // cobrar) calculada desde ventas.fact_ventas — el mismo cálculo validado de
+  // /api/clients/account-status, pero acotado a la empresa del cliente por su sesión
+  // (no por parámetros). Saldo doc = vabrdo - vaabdo; vencido = fe01vedo < hoy; solo
+  // pendientes (espgdo='P'); dedup por idmaeedo. NO usa clients.crsd (vacío/no fidedigno).
+  app.get('/api/ecommerce/client/account-status', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (user.role !== 'client') {
+      return res.status(403).json({ message: 'No autorizado.' });
+    }
+    const emptyPayload = {
+      hasFicha: false, clientName: null, rut: null, paymentCondition: null,
+      creditLimit: null, creditUsed: null, creditOverdue: null, creditUpcoming: null,
+      creditAvailable: null, nextDueDate: null, overdueSince: null,
+      hasCredit: false, hasDebt: false, hasOverdue: false,
+    };
+    const scope = await resolveClientScope(user.id);
+    if (!scope) return res.json(emptyPayload);
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const { client, koens } = scope;
+
+    let usado = 0, vencido = 0, porVencer = 0;
+    let proxVenc: string | null = null, vencidoDesde: string | null = null;
+    if (koens.length > 0) {
+      try {
+        const r = await db.execute(sql`
+          WITH docs AS (
+            SELECT idmaeedo,
+                   MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                   MAX(fe01vedo) AS venc
+            FROM ventas.fact_ventas
+            WHERE endo IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})
+              AND tido IN ('FCV', 'FDV')
+              AND espgdo = 'P'
+            GROUP BY idmaeedo
+          )
+          SELECT
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
+            MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc,
+            MIN(venc) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE) AS vencido_desde
+          FROM docs
+        `);
+        const row = (Array.isArray(r) ? r : (r as any).rows || [])[0];
+        if (row) {
+          const fmt = (v: any) => v == null ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+          usado = Number(row.usado) || 0;
+          vencido = Number(row.vencido) || 0;
+          porVencer = Number(row.por_vencer) || 0;
+          proxVenc = fmt(row.proximo_venc);
+          vencidoDesde = fmt(row.vencido_desde);
+        }
+      } catch (e) {
+        console.error('[client account-status] cartera lookup failed:', e);
+      }
+    }
+
+    const creditLimit = client.crlt != null ? Number(client.crlt) : null;
+    const cpen = (client.cpen || '') as string;
+    const hasCredit = /CR[EÉ]DITO/i.test(cpen) || (creditLimit != null && creditLimit > 0);
+
+    res.json({
+      hasFicha: true,
+      clientName: scope.clientName || null,
+      rut: scope.rut || null,
+      paymentCondition: cpen || null,
+      creditLimit,
+      creditUsed: usado,
+      creditOverdue: vencido,
+      creditUpcoming: porVencer,
+      creditAvailable: creditLimit != null ? creditLimit - usado : null,
+      nextDueDate: proxVenc,
+      overdueSince: vencidoDesde,
+      hasCredit,
+      hasDebt: usado > 0,
+      hasOverdue: vencido > 0,
+    });
+  }));
+
+  // Detalle de la cartera (cuentas por cobrar) del cliente logueado: una fila por documento
+  // pendiente (idmaeedo), con saldo, vencimiento, total e idmaeedo para descargar la factura.
+  app.get('/api/ecommerce/client/cartera', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (user.role !== 'client') {
+      return res.status(403).json({ message: 'No autorizado.' });
+    }
+    const scope = await resolveClientScope(user.id);
+    if (!scope || scope.koens.length === 0) return res.json({ docs: [] });
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    try {
+      const r = await db.execute(sql`
+        SELECT idmaeedo,
+               MAX(nudo) AS nudo,
+               MAX(tido) AS tido,
+               MAX(feemdo) AS emision,
+               MAX(fe01vedo) AS vencimiento,
+               MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+               MAX(COALESCE(vabrdo, 0)) AS total,
+               (MAX(fe01vedo) < CURRENT_DATE) AS vencida
+        FROM ventas.fact_ventas
+        WHERE endo IN (${sql.join(scope.koens.map((k) => sql`${k}`), sql`, `)})
+          AND tido IN ('FCV', 'FDV')
+          AND espgdo = 'P'
+        GROUP BY idmaeedo
+        HAVING (MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0))) > 0
+        ORDER BY MAX(fe01vedo) ASC NULLS LAST
+      `);
+      const rows = Array.isArray(r) ? r : (r as any).rows || [];
+      const fmt = (v: any) => v == null ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+      res.json({
+        docs: rows.map((d: any) => ({
+          idmaeedo: d.idmaeedo != null ? String(d.idmaeedo).replace(/\.0+$/, '') : null,
+          nudo: d.nudo != null ? String(d.nudo) : null,
+          tido: d.tido ? String(d.tido).trim() : null,
+          emision: fmt(d.emision),
+          vencimiento: fmt(d.vencimiento),
+          saldo: Number(d.saldo) || 0,
+          total: Number(d.total) || 0,
+          vencida: d.vencida === true || d.vencida === 't',
+        })),
+      });
+    } catch (e) {
+      console.error('[client cartera] error:', e);
+      res.json({ docs: [] });
+    }
+  }));
+
+  // Factura oficial (DTE timbrado SII) de una FCV del cliente logueado. Reusa el MISMO
+  // pipeline que la ficha admin (/api/erp/facturas/:idmaeedo/pdf) pero verifica que el
+  // idmaeedo pertenezca al cliente ANTES de servir el PDF (evita enumeración de facturas
+  // ajenas). Ownership: el documento debe estar en ventas.fact_ventas con endo en sus koen
+  // o, como respaldo, en sales_transactions con endo = su RUT.
+  app.get('/api/ecommerce/client/facturas/:idmaeedo/pdf', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'client') {
+        return res.status(403).json({ message: 'No autorizado.' });
+      }
+      const idmaeedo = parseInt(String(req.params.idmaeedo), 10);
+      if (!Number.isFinite(idmaeedo) || idmaeedo <= 0) {
+        return res.status(400).json({ message: 'idmaeedo inválido' });
+      }
+      const scope = await resolveClientScope(user.id);
+      if (!scope) return res.status(403).json({ message: 'No autorizado para descargar esta factura' });
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      let owned = false;
+      if (scope.koens.length > 0) {
+        try {
+          const r = await db.execute(sql`
+            SELECT 1 FROM ventas.fact_ventas
+            WHERE idmaeedo = ${idmaeedo}
+              AND endo IN (${sql.join(scope.koens.map((k) => sql`${k}`), sql`, `)})
+              AND tido IN ('FCV', 'FDV')
+            LIMIT 1
+          `);
+          owned = (Array.isArray(r) ? r : (r as any).rows || []).length > 0;
+        } catch (e) {
+          console.warn('[client factura pdf] fact_ventas ownership check failed:', e);
+        }
+      }
+      if (!owned && scope.cleanRut) {
+        try {
+          const r = await db.execute(sql`
+            SELECT 1 FROM sales_transactions
+            WHERE idmaeedo = ${idmaeedo}
+              AND REPLACE(REPLACE(REPLACE(UPPER(endo), '.', ''), '-', ''), ' ', '') = ${scope.cleanRut}
+            LIMIT 1
+          `);
+          owned = (Array.isArray(r) ? r : (r as any).rows || []).length > 0;
+        } catch (e) {
+          console.warn('[client factura pdf] sales_transactions ownership check failed:', e);
+        }
+      }
+      if (!owned) {
+        return res.status(403).json({ message: 'No autorizado para descargar esta factura' });
+      }
+
+      const { getDteByIdmaeedo } = await import('./utils/erp-dte');
+      const { parseDte } = await import('./utils/dte-parse');
+      const { renderFacturaHtml } = await import('./services/factura-dte-template');
+      const { renderHtmlToPdf } = await import('./utils/quote-pdf-renderer');
+
+      const dteRow = await getDteByIdmaeedo(idmaeedo);
+      if (!dteRow || !dteRow.xml) {
+        return res.status(404).json({ message: 'No se encontró el DTE de esta factura en el ERP' });
+      }
+      const parsed = parseDte(dteRow.xml);
+      const html = renderFacturaHtml(parsed, { timbreBase64: dteRow.pdf417, logoUrl: null });
+      const pdf = await renderHtmlToPdf(html, { waitUntil: 'load' });
+      const folio = parsed.folio || dteRow.nudo || String(idmaeedo);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Factura_${folio}.pdf"`);
+      res.send(pdf);
+    } catch (error: any) {
+      console.error('[GET /api/ecommerce/client/facturas/:idmaeedo/pdf] error:', error);
+      res.status(500).json({ message: 'Error al generar el PDF de la factura', detail: error?.message || 'Unknown error' });
+    }
+  });
 
   // Get ecommerce orders for salesperson/admin (order taker view)
   app.get('/api/ecommerce/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
