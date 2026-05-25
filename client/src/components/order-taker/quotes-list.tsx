@@ -317,11 +317,22 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   });
 
   // Supervisores y encargados de área (selección rápida en "Para" y "CC").
-  // Si no hay ninguno cargado, se usa la lista predefinida como respaldo.
   const supervisorContacts = salespeople
     .filter((u) => (u.role === "supervisor" || u.role === "encargado_area") && !!u.email)
     .map((u) => ({ name: u.salespersonName || u.email!, email: u.email! }));
-  const quickContacts = supervisorContacts.length > 0 ? supervisorContacts : presetEmailContacts;
+  // Mezclamos predefinidos + supervisores (API) deduplicando por email: si hay
+  // supervisores cargados, los contactos predefinidos NO deben desaparecer.
+  const quickContacts = (() => {
+    const seen = new Set<string>();
+    const merged: Array<{ name: string; email: string }> = [];
+    for (const c of [...presetEmailContacts, ...supervisorContacts]) {
+      const key = c.email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(c);
+    }
+    return merged;
+  })();
 
   const resetEmailForm = () => {
     setEmailRecipient("fparra@pinturaspanoramica.cl");
