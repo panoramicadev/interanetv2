@@ -8378,6 +8378,22 @@ export function registerRoutes(app: Express): Server {
     const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
     const useCustomList = priceListCode !== 'LP01';
 
+    // Targeting de ofertas: una oferta aplica si es para todos (all_clients) o si
+    // este cliente está en su lista. Matcheamos por id exacto o por mismo RUT (para
+    // cubrir todas las sucursales de una empresa al elegir la casa matriz). Cliente
+    // nulo/anónimo => solo aplican las ofertas all_clients.
+    const offerClientId = (client?.id || '').toString();
+    const offerClientRut = (client?.rten || '').toString().trim();
+    const offerAudienceClause = sql`(
+      offers.all_clients = true
+      OR EXISTS (
+        SELECT 1 FROM price_list_offer_clients oc
+        JOIN clients oc_c ON oc_c.id = oc.client_id
+        WHERE oc.offer_id = offers.id
+          AND (oc_c.id = ${offerClientId} OR (${offerClientRut} <> '' AND oc_c.rten = ${offerClientRut}))
+      )
+    )`;
+
     const VALID_TIERS = new Set(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'mix', 'oferta']);
 
     const skus = Array.from(new Set(
@@ -8415,7 +8431,7 @@ export function registerRoutes(app: Express): Server {
               ON UPPER(cpli.codigo) = UPPER(pl.codigo)
              AND cpli.list_code = ${priceListCode}
             LEFT JOIN price_list_offers offers
-              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
+              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}
             WHERE UPPER(pl.codigo) IN (${skuList})
           `)
         : await db.execute(sql`
@@ -8424,7 +8440,7 @@ export function registerRoutes(app: Express): Server {
                    COALESCE(offers.precio, pl.offer_price) AS offer_price
             FROM price_list pl
             LEFT JOIN price_list_offers offers
-              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
+              ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}
             WHERE UPPER(pl.codigo) IN (${skuList})
           `);
       const rows = Array.isArray(result) ? result : (result.rows || []);
@@ -8447,7 +8463,7 @@ export function registerRoutes(app: Express): Server {
           LEFT JOIN price_list_mix mix
             ON UPPER(mix.codigo) = UPPER(pl.codigo)
           LEFT JOIN price_list_offers offers
-            ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
+            ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}
           WHERE UPPER(pl.codigo) IN (${skuList})
         `);
         const tierRows = Array.isArray(tierRes) ? tierRes : (tierRes.rows || []);
@@ -18286,17 +18302,40 @@ export function registerRoutes(app: Express): Server {
       const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
       
       const items = await db.execute(sql.raw(
-        `SELECT o.id, o.codigo, o.precio, o.paused, o.created_at, o.updated_at,
+        `SELECT o.id, o.codigo, o.precio, o.paused, o.all_clients as "allClients", o.created_at, o.updated_at,
                 pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
-         FROM price_list_offers o 
+         FROM price_list_offers o
          LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo)
          ${whereClause}
          ORDER BY pl.producto NULLS LAST, o.codigo
          LIMIT ${validatedLimit} OFFSET ${validatedOffset}`
       ));
-      
+
+      // Adjuntar los clientes específicos de cada oferta (solo cuando all_clients=false)
+      const offerIds = (items.rows as any[]).map((r) => r.id).filter(Boolean);
+      const targetsByOffer: Record<string, Array<{ id: string; name: string | null; rut: string | null }>> = {};
+      if (offerIds.length > 0) {
+        const idList = sql.join(offerIds.map((id) => sql`${id}`), sql`, `);
+        const targets = await db.execute(sql`
+          SELECT oc.offer_id AS "offerId", c.id AS "clientId", c.nokoen AS "name", c.rten AS "rut"
+          FROM price_list_offer_clients oc
+          JOIN clients c ON c.id = oc.client_id
+          WHERE oc.offer_id IN (${idList})
+          ORDER BY c.nokoen
+        `);
+        for (const row of (targets.rows as any[])) {
+          (targetsByOffer[row.offerId] ||= []).push({ id: row.clientId, name: row.name, rut: row.rut });
+        }
+      }
+
+      const itemsWithTargets = (items.rows as any[]).map((r) => ({
+        ...r,
+        targetClients: targetsByOffer[r.id] || [],
+        clientCount: (targetsByOffer[r.id] || []).length,
+      }));
+
       res.json({
-        items: items.rows,
+        items: itemsWithTargets,
         totalCount,
         hasMore: (validatedOffset + items.rows.length) < totalCount
       });
@@ -18357,9 +18396,21 @@ export function registerRoutes(app: Express): Server {
       if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
-      const { priceListOffers, insertPriceListOffersSchema } = await import('@shared/schema');
+      const { priceListOffers, priceListOfferClients, insertPriceListOffersSchema } = await import('@shared/schema');
       const validatedData = insertPriceListOffersSchema.parse(req.body);
-      const [item] = await db.insert(priceListOffers).values(validatedData).returning();
+      const allClients = validatedData.allClients !== false;
+      const clientIds: string[] = Array.isArray(req.body.clientIds)
+        ? req.body.clientIds.filter((c: any) => typeof c === 'string' && c.trim())
+        : [];
+      if (!allClients && clientIds.length === 0) {
+        return res.status(400).json({ message: "Selecciona al menos un cliente o marca 'Todos los clientes'" });
+      }
+      const [item] = await db.insert(priceListOffers).values({ ...validatedData, allClients }).returning();
+      if (!allClients && clientIds.length > 0) {
+        await db.insert(priceListOfferClients).values(
+          clientIds.map((cid) => ({ offerId: item.id, clientId: cid }))
+        );
+      }
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating price list offers item:", error);
@@ -18375,12 +18426,41 @@ export function registerRoutes(app: Express): Server {
       if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
         return res.status(403).json({ message: "Not authorized" });
       }
-      const { priceListOffers } = await import('@shared/schema');
+      const { priceListOffers, priceListOfferClients } = await import('@shared/schema');
+
+      // Whitelist de columnas actualizables (clientIds se maneja aparte en la tabla junction)
+      const updateData: any = { updatedAt: new Date() };
+      if (req.body.precio !== undefined) updateData.precio = req.body.precio;
+      if (req.body.paused !== undefined) updateData.paused = req.body.paused;
+      if (req.body.allClients !== undefined) updateData.allClients = req.body.allClients === true;
+
+      const clientIdsProvided = Array.isArray(req.body.clientIds);
+      const clientIds: string[] = clientIdsProvided
+        ? req.body.clientIds.filter((c: any) => typeof c === 'string' && c.trim())
+        : [];
+
+      // Solo validamos/sincronizamos audiencia si vino allClients o clientIds en el body
+      // (un toggle de "pausa" no debe tocar la lista de clientes existente).
+      const touchingAudience = req.body.allClients !== undefined || clientIdsProvided;
+      if (touchingAudience && updateData.allClients === false && clientIds.length === 0) {
+        return res.status(400).json({ message: "Selecciona al menos un cliente o marca 'Todos los clientes'" });
+      }
+
       const [item] = await db.update(priceListOffers)
-        .set({ ...req.body, updatedAt: new Date() })
+        .set(updateData)
         .where(eq(priceListOffers.id, req.params.id))
         .returning();
       if (!item) return res.status(404).json({ message: "Not found" });
+
+      if (touchingAudience) {
+        await db.delete(priceListOfferClients).where(eq(priceListOfferClients.offerId, item.id));
+        if (item.allClients === false && clientIds.length > 0) {
+          await db.insert(priceListOfferClients).values(
+            clientIds.map((cid) => ({ offerId: item.id, clientId: cid }))
+          );
+        }
+      }
+
       res.json(item);
     } catch (error) {
       console.error("Error updating price list offers item:", error);
@@ -19170,7 +19250,10 @@ export function registerRoutes(app: Express): Server {
       ${useCustomList 
         ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}` 
         : sql``}
-      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false)
+      -- Catálogo compartido/cacheado: solo ofertas globales (all_clients). Las ofertas
+      -- dirigidas a clientes específicos se aplican al precio en el carrito/checkout
+      -- (resolveItemsPricing), que es la fuente autoritativa de precio.
+      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND offers.all_clients = true
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock

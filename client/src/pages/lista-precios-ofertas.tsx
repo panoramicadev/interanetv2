@@ -6,20 +6,162 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag, Pause, Play } from "lucide-react";
+import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag, Pause, Play, Users, X, UserCheck } from "lucide-react";
+
+interface SelectedClient {
+  id: string;
+  name: string;
+  rut?: string | null;
+}
 
 interface OffersItem {
   id: string;
   codigo: string;
   precio: string | null;
   paused: boolean;
+  allClients: boolean;
+  clientCount: number;
+  targetClients: Array<{ id: string; name: string | null; rut: string | null }>;
   producto: string | null;
   unidad: string | null;
   costoProduccion: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Selector reutilizable de audiencia de una oferta: todos los clientes o una lista
+// específica buscable. Matchea por cliente (y todas las sucursales con el mismo RUT).
+function AudienceSelector({
+  allClients,
+  onAllClientsChange,
+  selected,
+  onSelectedChange,
+}: {
+  allClients: boolean;
+  onAllClientsChange: (v: boolean) => void;
+  selected: SelectedClient[];
+  onSelectedChange: (v: SelectedClient[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const { data: results = [], isFetching } = useQuery<any[]>({
+    queryKey: ["/api/clients/search", query],
+    queryFn: () => apiRequest("GET", `/api/clients/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+    enabled: open && query.trim().length >= 2,
+  });
+
+  const toggleClient = (c: any) => {
+    const id = c.id as string;
+    if (selected.some((s) => s.id === id)) {
+      onSelectedChange(selected.filter((s) => s.id !== id));
+    } else {
+      onSelectedChange([...selected, { id, name: c.nokoen || c.name || "Sin nombre", rut: c.rten ?? c.rut ?? null }]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-muted-foreground">¿A qué clientes aplica esta oferta?</label>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onAllClientsChange(true)}
+          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+            allClients
+              ? "bg-red-100 text-red-800 border-2 border-red-400 shadow-sm"
+              : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          <Users className="h-3.5 w-3.5" />
+          Todos los clientes
+        </button>
+        <button
+          type="button"
+          onClick={() => onAllClientsChange(false)}
+          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+            !allClients
+              ? "bg-red-100 text-red-800 border-2 border-red-400 shadow-sm"
+              : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Clientes específicos
+        </button>
+      </div>
+
+      {!allClients && (
+        <div className="space-y-2">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" size="sm" className="w-full justify-between text-xs">
+                <span className="flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5 opacity-50" />
+                  Buscar y agregar clientes...
+                </span>
+                {selected.length > 0 && <Badge variant="secondary" className="text-[10px]">{selected.length}</Badge>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[360px] p-0" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput placeholder="Nombre, código o RUT..." value={query} onValueChange={setQuery} />
+                <CommandList>
+                  {query.trim().length < 2 ? (
+                    <div className="py-4 px-3 text-xs text-muted-foreground">Escribe al menos 2 caracteres para buscar.</div>
+                  ) : isFetching ? (
+                    <div className="py-4 px-3 text-xs text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando...
+                    </div>
+                  ) : (
+                    <>
+                      <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                      <CommandGroup>
+                        {results.map((c) => {
+                          const isSel = selected.some((s) => s.id === c.id);
+                          return (
+                            <CommandItem key={c.id} value={c.id} onSelect={() => toggleClient(c)} className="text-xs">
+                              <Check className={`mr-2 h-3.5 w-3.5 ${isSel ? "opacity-100 text-red-600" : "opacity-0"}`} />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{c.nokoen || "Sin nombre"}</span>
+                                <span className="text-[10px] text-muted-foreground">{c.rten || c.koen || ""}</span>
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          {selected.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 bg-muted/40 rounded-lg border">
+              {selected.map((s) => (
+                <Badge key={s.id} variant="secondary" className="text-[10px] gap-1 pr-1">
+                  {s.name}
+                  <button
+                    type="button"
+                    onClick={() => onSelectedChange(selected.filter((x) => x.id !== s.id))}
+                    className="ml-0.5 rounded-full hover:bg-gray-300/60 p-0.5"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-amber-600">Selecciona al menos un cliente.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface OffersResponse {
@@ -38,6 +180,10 @@ export default function ListaPreciosOfertas() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ codigo: "", precio: "" });
+  const [newAllClients, setNewAllClients] = useState(true);
+  const [newClients, setNewClients] = useState<SelectedClient[]>([]);
+  const [editAllClients, setEditAllClients] = useState(true);
+  const [editClients, setEditClients] = useState<SelectedClient[]>([]);
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -82,7 +228,12 @@ export default function ListaPreciosOfertas() {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-offers"] });
       setIsAddOpen(false);
       setNewProduct({ codigo: "", precio: "" });
+      setNewAllClients(true);
+      setNewClients([]);
       toast({ title: "Creado", description: "SKU agregado correctamente a ofertas" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "No se pudo crear la oferta", variant: "destructive" });
     },
   });
 
@@ -92,7 +243,10 @@ export default function ListaPreciosOfertas() {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-offers"] });
       setIsEditOpen(false);
       setEditItem(null);
-      toast({ title: "Actualizado", description: "Precio de oferta actualizado correctamente" });
+      toast({ title: "Actualizado", description: "Oferta actualizada correctamente" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "No se pudo actualizar la oferta", variant: "destructive" });
     },
   });
 
@@ -326,6 +480,7 @@ export default function ListaPreciosOfertas() {
                     <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
+                    <TableHead className="text-xs">Clientes</TableHead>
                     <TableHead className="text-right text-xs font-semibold text-red-600 dark:text-red-400">
                       <span className="flex items-center justify-end gap-1"><Tag className="h-3 w-3" />Precio Oferta</span>
                     </TableHead>
@@ -363,6 +518,21 @@ export default function ListaPreciosOfertas() {
                           {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
                         </TableCell>
                         <TableCell className="text-xs py-2">{item.unidad || "-"}</TableCell>
+                        <TableCell className="text-xs py-2">
+                          {item.allClients ? (
+                            <Badge variant="outline" className="text-[10px] gap-1 border-gray-300">
+                              <Users className="h-2.5 w-2.5" />Todos
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] gap-1 border-red-300 text-red-700 dark:text-red-400"
+                              title={(item.targetClients || []).map((c) => c.name).join(", ")}
+                            >
+                              <UserCheck className="h-2.5 w-2.5" />{item.clientCount} {item.clientCount === 1 ? "cliente" : "clientes"}
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-red-600 dark:text-red-400">
                           <div className="flex flex-col items-end gap-0.5">
                             {formatCurrency(item.precio)}
@@ -416,8 +586,13 @@ export default function ListaPreciosOfertas() {
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => { setEditItem(item); setIsEditOpen(true); }}
-                              title="Editar precio"
+                              onClick={() => {
+                                setEditItem(item);
+                                setEditAllClients(item.allClients !== false);
+                                setEditClients((item.targetClients || []).map((c) => ({ id: c.id, name: c.name || "Sin nombre", rut: c.rut })));
+                                setIsEditOpen(true);
+                              }}
+                              title="Editar oferta"
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -472,7 +647,7 @@ export default function ListaPreciosOfertas() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Precio de Oferta</DialogTitle>
+            <DialogTitle>Editar Oferta</DialogTitle>
           </DialogHeader>
           {editItem && (
             <div className="space-y-3">
@@ -484,13 +659,24 @@ export default function ListaPreciosOfertas() {
                 <label className="text-xs font-medium text-muted-foreground">Precio Oferta</label>
                 <Input type="number" value={editItem.precio || ""} onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })} className="h-8 text-sm" />
               </div>
+              <AudienceSelector
+                allClients={editAllClients}
+                onAllClientsChange={setEditAllClients}
+                selected={editClients}
+                onSelectedChange={setEditClients}
+              />
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
             <Button
-              onClick={() => editItem && updateMutation.mutate({ id: editItem.id, precio: editItem.precio })}
-              disabled={updateMutation.isPending}
+              onClick={() => editItem && updateMutation.mutate({
+                id: editItem.id,
+                precio: editItem.precio,
+                allClients: editAllClients,
+                clientIds: editAllClients ? [] : editClients.map((c) => c.id),
+              })}
+              disabled={updateMutation.isPending || (!editAllClients && editClients.length === 0)}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Guardar
@@ -499,7 +685,13 @@ export default function ListaPreciosOfertas() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog
+        open={isAddOpen}
+        onOpenChange={(o) => {
+          setIsAddOpen(o);
+          if (!o) { setNewProduct({ codigo: "", precio: "" }); setNewAllClients(true); setNewClients([]); }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Agregar SKU a Lista de Ofertas</DialogTitle>
@@ -518,12 +710,23 @@ export default function ListaPreciosOfertas() {
                 <Input type="number" value={newProduct.precio} onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })} className="h-8 text-sm" placeholder="Ej: 12500" />
               </div>
             </div>
+            <AudienceSelector
+              allClients={newAllClients}
+              onAllClientsChange={setNewAllClients}
+              selected={newClients}
+              onSelectedChange={setNewClients}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
             <Button
-              onClick={() => createMutation.mutate(newProduct)}
-              disabled={!newProduct.codigo || !newProduct.precio || createMutation.isPending}
+              onClick={() => createMutation.mutate({
+                codigo: newProduct.codigo,
+                precio: newProduct.precio,
+                allClients: newAllClients,
+                clientIds: newAllClients ? [] : newClients.map((c) => c.id),
+              })}
+              disabled={!newProduct.codigo || !newProduct.precio || (!newAllClients && newClients.length === 0) || createMutation.isPending}
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Agregar

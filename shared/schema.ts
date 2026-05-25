@@ -1979,6 +1979,7 @@ export const priceListOffers = pgTable("price_list_offers", {
   codigo: varchar("codigo").notNull().unique(),
   precio: numeric("precio", { precision: 15, scale: 2 }),
   paused: boolean("paused").default(false),
+  allClients: boolean("all_clients").notNull().default(true), // true = aplica a todos; false = solo los listados en price_list_offer_clients
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1994,6 +1995,19 @@ export const insertPriceListOffersSchema = createInsertSchema(priceListOffers, {
   createdAt: true,
   updatedAt: true,
 });
+
+// Clientes específicos a los que aplica una oferta (cuando all_clients=false)
+export const priceListOfferClients = pgTable("price_list_offer_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  offerId: varchar("offer_id").notNull().references(() => priceListOffers.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueOfferClient: unique().on(table.offerId, table.clientId),
+}));
+
+export type PriceListOfferClient = typeof priceListOfferClients.$inferSelect;
+export type InsertPriceListOfferClient = typeof priceListOfferClients.$inferInsert;
 
 // Custom Price Lists - Multiple price lists (LP02, LP03, LP04...) that can be assigned to clients
 export const customPriceLists = pgTable("custom_price_lists", {
