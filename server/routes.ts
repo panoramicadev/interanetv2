@@ -2159,6 +2159,49 @@ export function registerRoutes(app: Express): Server {
         [...fichaRows.map((f: any) => normalizeRut(f.rten)), cleanRut].filter(Boolean)
       ));
 
+      // Cartera real (cuentas por cobrar) calculada desde fact_ventas, NO desde clients.crsd
+      // (que viene vacío/no fidedigno). Saldo del documento = vabrdo - vaabdo; vencido = fe01vedo < hoy.
+      // fact_ventas es por línea → deduplicar por idmaeedo. Se liga por endo = koen del cliente.
+      const companyKoens = Array.from(new Set(fichaRows.map((f: any) => f.koen).filter(Boolean)));
+      let carteraUsado: number | null = null;
+      let carteraVencido: number | null = null;
+      let carteraPorVencer: number | null = null;
+      let carteraProximoVenc: string | null = null;
+      if (companyKoens.length > 0) {
+        try {
+          const carteraResult = await db.execute(sql`
+            WITH docs AS (
+              SELECT idmaeedo,
+                     MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                     MAX(fe01vedo) AS venc
+              FROM ventas.fact_ventas
+              WHERE endo IN (${sql.join(companyKoens.map((k: string) => sql`${k}`), sql`, `)})
+                AND tido IN ('FCV', 'FDV')
+              GROUP BY idmaeedo
+            )
+            SELECT
+              COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
+              COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
+              COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
+              MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc
+            FROM docs
+          `);
+          const crow = (Array.isArray(carteraResult) ? carteraResult : (carteraResult as any).rows || [])[0];
+          if (crow) {
+            carteraUsado = Number(crow.usado) || 0;
+            carteraVencido = Number(crow.vencido) || 0;
+            carteraPorVencer = Number(crow.por_vencer) || 0;
+            carteraProximoVenc = crow.proximo_venc
+              ? (crow.proximo_venc instanceof Date
+                  ? crow.proximo_venc.toISOString().slice(0, 10)
+                  : String(crow.proximo_venc).slice(0, 10))
+              : null;
+          }
+        } catch (e) {
+          console.error('[account-status] cartera lookup failed:', e);
+        }
+      }
+
       // 2. eCommerce account (salespeople_users role=client) — by any company id, RUT or name.
       // Prefer a linked account (client_id set) so `linked`/`ecommerceUserId` are accurate.
       let ecommerceAccount: any = null;
@@ -2221,8 +2264,12 @@ export function registerRoutes(app: Express): Server {
               salesRepCode: ficha.kofuen,
               priceList: ficha.lcen,
               creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
-              creditAvailable: ficha.cren != null ? Number(ficha.cren) : null,
-              creditUsed: ficha.crsd != null ? Number(ficha.crsd) : null,
+              // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
+              creditUsed: carteraUsado,
+              creditOverdue: carteraVencido,
+              creditUpcoming: carteraPorVencer,
+              nextDueDate: carteraProximoVenc,
+              creditAvailable: ficha.crlt != null ? Number(ficha.crlt) - (carteraUsado ?? 0) : null,
             }
           : null,
         inEcommerce: !!ecommerceAccount,
