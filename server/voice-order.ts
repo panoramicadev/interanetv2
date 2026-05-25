@@ -14,6 +14,7 @@
  */
 import { getOpenAI } from "./ai-agent";
 import { storage } from "./storage";
+import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 // Tiers de precio válidos (deben coincidir con PriceTier del frontend). "" = no especificado.
@@ -75,7 +76,8 @@ Tu tarea: extraer del texto el CLIENTE, los PRODUCTOS (con cantidad y lista de p
 }
 
 Reglas:
-- "productQuery": el nombre/pista del producto tal como lo dice el vendedor (ej: "stain", "latex satinado blanco galón"). No inventes productos ni códigos; mantén el término cercano a lo dicho.
+- "productQuery": el nombre/pista del producto tal como lo dice el vendedor, INCLUYENDO SIEMPRE el formato/envase si se menciona (ej: "stain caoba galón", "latex satinado blanco 1/4", "esmalte balde 5 galones"). No inventes productos ni códigos; mantén el término cercano a lo dicho.
+- Formatos/envases posibles (consérvalos textualmente en "productQuery", no los traduzcas a otro): "1/4 galón" (cuarto), "galón", "balde 4 galones", "balde 5 galones", "unidad". Ojo: el vendedor suele llamar "tonel" al balde (ej: "tonel de 5" = "balde 5 galones"); déjalo escrito tal cual lo diga.
 - "quantity": número entero. Convierte números en palabras: "un"/"una"/"uno" = 1, "dos" = 2, "tres" = 3, "medio"/"media" = 1, etc. Si no se indica cantidad, usa 1.
 - "priceTier": normaliza la lista de precio a uno de estos valores EXACTOS:
     "lista"        ← "precio lista", "a lista", "lista"
@@ -169,6 +171,31 @@ async function resolveClient(query: string): Promise<ResolvedClient> {
   }
 }
 
+/**
+ * Detecta el formato/envase canónico pedido en el texto del producto
+ * (ej: "stain caoba galón" → "Galon", "latex 1/4" → "1/4 Galon", "esmalte tonel 5" → "Balde 5 Galones").
+ * Devuelve null si no se menciona un formato reconocible.
+ */
+function detectRequestedFormat(query: string): string | null {
+  const canonical = normalizeFormat(query);
+  return canonical && PRODUCT_FORMATS[canonical] ? canonical : null;
+}
+
+/**
+ * Quita del texto las palabras de formato/envase para buscar sólo por el nombre del
+ * producto. El vendedor usa sinónimos que no existen en la base (ej: "tonel"=balde,
+ * "cuarto"=1/4), que como término de búsqueda harían que no matchee ninguna fila.
+ */
+function stripFormatTokens(query: string): string {
+  let s = ` ${query} `;
+  s = s.replace(/\s(?:balde|tonel|bd)(?:\s+de)?(?:\s+[45])?(?:\s+(?:galones|gal[oó]n|gl))?\b/gi, " ");
+  s = s.replace(/\s1\s*[\/\-]\s*4(?:\s+de)?(?:\s+(?:galones|gal[oó]n|gl))?\b/gi, " ");
+  s = s.replace(/\scuarto(?:\s+de)?(?:\s+(?:galones|gal[oó]n|gl))?\b/gi, " ");
+  s = s.replace(/\s(?:galones|gal[oó]n|gl)\b/gi, " ");
+  s = s.replace(/\s(?:unidad|und)\b/gi, " ");
+  return s.replace(/\s+/g, " ").trim();
+}
+
 async function resolveItem(item: ParsedOrderItemIntent): Promise<ResolvedItem> {
   const base: ResolvedItem = {
     query: item.productQuery,
@@ -179,8 +206,32 @@ async function resolveItem(item: ParsedOrderItemIntent): Promise<ResolvedItem> {
   };
   if (item.productQuery.trim().length < 2) return base;
   try {
-    const result = await storage.getPriceList({ search: item.productQuery, limit: 8, offset: 0 });
-    const list = result?.items || [];
+    const requestedFormat = detectRequestedFormat(item.productQuery);
+
+    // Si se pidió un envase, buscamos sólo por el nombre del producto (sin la palabra
+    // de formato) para traer todas las variantes; luego elegimos la del envase pedido.
+    let searchQuery = item.productQuery;
+    if (requestedFormat) {
+      const nameOnly = stripFormatTokens(item.productQuery);
+      if (nameOnly.length >= 2) searchQuery = nameOnly;
+    }
+
+    const result = await storage.getPriceList({ search: searchQuery, limit: 12, offset: 0 });
+    let list = result?.items || [];
+
+    // getPriceList ordena siempre el formato 1/4 primero, así que el envase pedido
+    // por el vendedor (galón, balde/tonel, etc.) se pierde. Priorizamos la variante
+    // cuyo `unidad` coincide con el envase solicitado.
+    if (requestedFormat && list.length > 1) {
+      const matchIdx = list.findIndex(
+        (p: any) => normalizeFormat(p?.unidad) === requestedFormat,
+      );
+      if (matchIdx > 0) {
+        const [matched] = list.splice(matchIdx, 1);
+        list = [matched, ...list];
+      }
+    }
+
     return { ...base, product: list[0] || null, alternatives: list.slice(0, 8) };
   } catch (error) {
     console.error("[voice-order] resolveItem error:", error);

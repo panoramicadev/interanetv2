@@ -140,6 +140,16 @@ const FORMAT_ALIASES: Record<string, string> = {
   'balde5galones': 'Balde 5 Galones',
   'balde 5': 'Balde 5 Galones',
 
+  // Tonel — término del vendedor para los baldes de 4 / 5 galones
+  'tonel 4': 'Balde 4 Galones',
+  'tonel 4 gl': 'Balde 4 Galones',
+  'tonel 4 galones': 'Balde 4 Galones',
+  'tonel de 4 galones': 'Balde 4 Galones',
+  'tonel 5': 'Balde 5 Galones',
+  'tonel 5 gl': 'Balde 5 Galones',
+  'tonel 5 galones': 'Balde 5 Galones',
+  'tonel de 5 galones': 'Balde 5 Galones',
+
   // Unidad variations
   'unidad': 'Unidad',
   'un': 'Unidad',
@@ -180,12 +190,12 @@ export function normalizeFormat(raw: string | null | undefined): string | null {
   // 1/4 Galón patterns — check BEFORE Galón to avoid false match
   if (/1\s*[\/\-]\s*4|CUARTO/i.test(upper)) return '1/4 Galon';
 
-  // Balde patterns — check BEFORE Galón to avoid false match on "4 GALONES"
-  if (/BD\s*[-_\s]*4|BALDE\s*[-_\s]*4/i.test(upper)) return 'Balde 4 Galones';
-  if (/BD\s*[-_\s]*5|BALDE\s*[-_\s]*5/i.test(upper)) return 'Balde 5 Galones';
+  // Balde / Tonel patterns — check BEFORE Galón to avoid false match on "4 GALONES"
+  if (/BD\s*[-_\s]*4|BALDE\s*[-_\s]*4|TONEL\s*(?:DE\s*)?4/i.test(upper)) return 'Balde 4 Galones';
+  if (/BD\s*[-_\s]*5|BALDE\s*[-_\s]*5|TONEL\s*(?:DE\s*)?5/i.test(upper)) return 'Balde 5 Galones';
 
-  // Galón patterns (only if not matched as 1/4 or Balde above)
-  if (/\bGL\b|\bGAL[ÓO]N(?:ES)?\b/i.test(upper) && !/BD|BALDE|1\s*\/\s*4|CUARTO/i.test(upper)) {
+  // Galón patterns (only if not matched as 1/4, Balde or Tonel above)
+  if (/\bGL\b|\bGAL[ÓO]N(?:ES)?\b/i.test(upper) && !/BD|BALDE|TONEL|1\s*\/\s*4|CUARTO/i.test(upper)) {
     return 'Galon';
   }
 
