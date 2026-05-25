@@ -221,8 +221,8 @@ export default function Clients() {
   const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>("");
   const [selectedMarketAccess, setSelectedMarketAccess] = useState<string>("");
 
-  const [filterBySales, setFilterBySales] = useState(false);
-  const [salesPeriod, setSalesPeriod] = useState<string>("today");
+  const [filterBySales, setFilterBySales] = useState(true);
+  const [salesPeriod, setSalesPeriod] = useState<string>("this_month");
   const activeTab = "clientes";
 
   const isMobile = useIsMobile();
@@ -413,7 +413,7 @@ export default function Clients() {
     setSelectedOrderStatus("");
     setSelectedMarketAccess("");
     setFilterBySales(false);
-    setSalesPeriod("today");
+    setSalesPeriod("this_month");
     setSearch("");
     setCurrentPage(1);
   }, []);
