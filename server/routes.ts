@@ -2175,6 +2175,7 @@ export function registerRoutes(app: Express): Server {
       let carteraVencido: number | null = null;
       let carteraPorVencer: number | null = null;
       let carteraProximoVenc: string | null = null;
+      let carteraVencidoDesde: string | null = null;
       if (companyKoens.length > 0) {
         try {
           const carteraResult = await db.execute(sql`
@@ -2192,7 +2193,8 @@ export function registerRoutes(app: Express): Server {
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
               COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
-              MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc
+              MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc,
+              MIN(venc) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE) AS vencido_desde
             FROM docs
           `);
           const crow = (Array.isArray(carteraResult) ? carteraResult : (carteraResult as any).rows || [])[0];
@@ -2204,6 +2206,11 @@ export function registerRoutes(app: Express): Server {
               ? (crow.proximo_venc instanceof Date
                   ? crow.proximo_venc.toISOString().slice(0, 10)
                   : String(crow.proximo_venc).slice(0, 10))
+              : null;
+            carteraVencidoDesde = crow.vencido_desde
+              ? (crow.vencido_desde instanceof Date
+                  ? crow.vencido_desde.toISOString().slice(0, 10)
+                  : String(crow.vencido_desde).slice(0, 10))
               : null;
           }
         } catch (e) {
@@ -2276,6 +2283,7 @@ export function registerRoutes(app: Express): Server {
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
               creditOverdue: carteraVencido,
+              overdueSince: carteraVencidoDesde,
               creditUpcoming: carteraPorVencer,
               nextDueDate: carteraProximoVenc,
               creditAvailable: ficha.crlt != null ? Number(ficha.crlt) - (carteraUsado ?? 0) : null,
