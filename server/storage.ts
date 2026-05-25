@@ -4741,20 +4741,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   /** Extract packaging format from a product name (heuristic). */
-  private extractFormatFromName(name: string): string {
-    const ln = (name || '').toLowerCase();
-    if (ln.includes('4 galones') || ln.includes('4gal')) return '4 Galones';
-    if (ln.includes('1/4') || ln.includes('cuarto')) return '1/4 Galón';
-    if (ln.includes('galón') || ln.includes('galon') || ln.includes(' gl') || ln.endsWith(' gl') || ln.includes(' gal ') || ln.endsWith(' gal')) return 'Galón';
-    if (ln.includes('balde') || ln.includes('bd') || ln.includes('bld')) return 'Balde';
-    if (ln.includes('tineta')) return 'Tineta';
-    if (ln.includes('kilo') || ln.includes(' kg') || ln.endsWith(' kg')) return 'Kilo';
-    if (ln.includes('litro') || ln.includes(' lt') || ln.endsWith(' lt') || ln.includes(' lts')) return 'Litro';
-    if (ln.includes('onza') || ln.includes(' oz')) return 'Onza';
-    if (ln.includes('metro') || ln.includes(' mt') || ln.includes(' m ')) return 'Metro';
-    return 'Otro';
-  }
-
   /** Extract color from a product name (heuristic). */
   private extractColorFromName(name: string): string {
     const ln = (name || '').toLowerCase();
@@ -4776,6 +4762,57 @@ export class DatabaseStorage implements IStorage {
     if (ln.includes('marfil')) return 'Marfil';
     if (ln.includes('celeste')) return 'Celeste';
     return 'Sin especificar';
+  }
+
+  /**
+   * Canonical Spanish format label from any raw string (catalog format_unit,
+   * price_list unidad, or a product name). Returns null when nothing can be
+   * identified — never the junk bucket "Otro".
+   */
+  private normalizeFormatLabel(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const s = raw.toString().trim().replace(/\s+/g, ' ');
+    if (!s) return null;
+    const ln = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (/4\s*gal|4gal|cuatro\s*gal/.test(ln)) return '4 Galones';
+    if (/1\s*\/\s*4|cuarto|\bq4\b/.test(ln)) return '1/4 Galón';
+    if (/1\s*\/\s*2|medio\s*gal/.test(ln)) return '1/2 Galón';
+    if (/galon|\bgl\b|\bgl\.|\bgal\b/.test(ln)) return 'Galón';
+    if (/balde|\bbld\b|\bbd\b/.test(ln)) return 'Balde';
+    if (/tineta/.test(ln)) return 'Tineta';
+    if (/tambor/.test(ln)) return 'Tambor';
+    if (/bidon|garrafa/.test(ln)) return 'Bidón';
+    if (/kilo|\bkg\b/.test(ln)) return 'Kilo';
+    if (/litro|\blts?\b|\bl\b/.test(ln)) return 'Litro';
+    if (/onza|\boz\b/.test(ln)) return 'Onza';
+    if (/metro|\bmts?\b|\bm2\b|m²/.test(ln)) return 'Metro';
+    if (/saco/.test(ln)) return 'Saco';
+    if (/caja/.test(ln)) return 'Caja';
+    if (/rollo/.test(ln)) return 'Rollo';
+    if (/pliego/.test(ln)) return 'Pliego';
+    if (/\bkit\b|juego/.test(ln)) return 'Kit';
+    if (/unidad|\bun\b|\bunid\b/.test(ln)) return 'Unidad';
+    // No known pattern: a short clean token is likely a real unit from the
+    // catalog (e.g. a new packaging name) — title-case it instead of "Otro".
+    if (s.length <= 18 && /^[a-zA-Z0-9 ./²-]+$/.test(s)) {
+      return s.toLowerCase().split(' ').map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' ');
+    }
+    return null;
+  }
+
+  /**
+   * Title-cased Spanish color label. Returns null for empty values and for
+   * genuine "unknown" markers, so callers can bucket those as a custom color.
+   * "Sin Color" (a real catalog value, e.g. thinners) is preserved.
+   */
+  private normalizeColorLabel(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const s = raw.toString().trim().replace(/\s+/g, ' ');
+    if (!s) return null;
+    const ln = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (/^sin\s*especificar$/.test(ln) || ln === 'n/a' || ln === 's/c' || ln === 'sc') return null;
+    if (/^sin\s*color$/.test(ln)) return 'Sin Color';
+    return s.toLowerCase().split(' ').map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' ');
   }
 
   /**
@@ -4857,6 +4894,7 @@ export class DatabaseStorage implements IStorage {
       salespersonResults,
       universeSalespeople,
       trendResults,
+      catalogRows,
     ] = await Promise.all([
       // Overall KPIs
       db.select({
@@ -4866,14 +4904,15 @@ export class DatabaseStorage implements IStorage {
         uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
       }).from(factVentas).where(productWhere),
 
-      // Per-variant breakdown
+      // Per-variant breakdown (by SKU, so color/format can be resolved from the catalog)
       db.select({
+        sku: factVentas.koprct,
         fullName: factVentas.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       }).from(factVentas).where(productWhere)
-        .groupBy(factVentas.nokoprct)
+        .groupBy(factVentas.koprct, factVentas.nokoprct)
         .orderBy(sql`SUM(${factVentas.monto}) DESC`),
 
       // Top clients
@@ -4913,19 +4952,63 @@ export class DatabaseStorage implements IStorage {
       }).from(factVentas).where(trendWhere)
         .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
         .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`),
+
+      // Catalog (agrupación comercial): defines the official "line" colors and the
+      // authoritative color/format per SKU.
+      db.select({
+        codigo: priceList.codigo,
+        unidad: priceList.unidad,
+        color: ecommerceProducts.color,
+        formatUnit: ecommerceProducts.formatUnit,
+        activo: ecommerceProducts.activo,
+      }).from(priceList).leftJoin(ecommerceProducts, eq(ecommerceProducts.priceListId, priceList.id)),
     ]);
 
     const metrics = metricsResult[0];
     const totalSales = Number(metrics?.totalSales || 0);
 
-    const variants = variantResults.map(r => ({
-      fullName: r.fullName || '',
-      format: this.extractFormatFromName(r.fullName || ''),
-      color: this.extractColorFromName(r.fullName || ''),
-      totalSales: Number(r.totalSales),
-      totalUnits: Number(r.totalUnits),
-      transactionCount: Number(r.transactionCount),
-    }));
+    // SKU → official color/format, plus the set of "line" colors defined in the
+    // commercial grouping (active catalog). These drive color/format resolution.
+    const skuColor = new Map<string, string>();
+    const skuFormat = new Map<string, string>();
+    const skuUnit = new Map<string, string>();
+    const officialColors = new Set<string>();
+    for (const row of catalogRows) {
+      const code = (row.codigo || '').trim();
+      if (!code) continue;
+      const c = this.normalizeColorLabel(row.color);
+      const f = this.normalizeFormatLabel(row.formatUnit) || this.normalizeFormatLabel(row.unidad);
+      if (c && !skuColor.has(code)) skuColor.set(code, c);
+      if (f && !skuFormat.has(code)) skuFormat.set(code, f);
+      if (row.unidad && !skuUnit.has(code)) skuUnit.set(code, row.unidad);
+      if (row.activo && c) officialColors.add(c);
+    }
+    const hasOfficialColors = officialColors.size > 0;
+
+    const variants = variantResults.map(r => {
+      const sku = (r.sku || '').trim();
+      const name = r.fullName || '';
+      // Color: prefer the catalog (by SKU), fall back to a name heuristic. Keep it
+      // only if it's a defined line color; anything else → "Color personalizado".
+      const hc = this.extractColorFromName(name);
+      const candidateColor = (sku && skuColor.get(sku)) || (hc !== 'Sin especificar' ? this.normalizeColorLabel(hc) : null);
+      const color = candidateColor && (!hasOfficialColors || officialColors.has(candidateColor))
+        ? candidateColor
+        : 'Color personalizado';
+      // Format: catalog (by SKU) → price_list unidad → name heuristic. Never "Otro".
+      const format = (sku ? skuFormat.get(sku) : undefined)
+        || (sku ? this.normalizeFormatLabel(skuUnit.get(sku)) : null)
+        || this.normalizeFormatLabel(name)
+        || 'Sin formato';
+      return {
+        fullName: name,
+        format,
+        color,
+        totalSales: Number(r.totalSales),
+        totalUnits: Number(r.totalUnits),
+        transactionCount: Number(r.transactionCount),
+      };
+    });
 
     // Aggregate by format / color / (color,format)
     const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
