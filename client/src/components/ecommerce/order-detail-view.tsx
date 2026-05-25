@@ -29,7 +29,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EcommerceQuoteModal } from "./ecommerce-quote-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -303,6 +303,20 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const erpDocument = (currentOrder as any)._document as ClientDocument | undefined;
   const [viewingDoc, setViewingDoc] = useState<ClientDocument | null>(null);
   const [isDownloadingDoc, setIsDownloadingDoc] = useState(false);
+
+  // Factura (FCV) oficial asociada al pedido. Solo para la vista interna (admin) y pedidos web:
+  // el backend la infiere por RUT + monto + fecha y devuelve el idmaeedo para descargar el mismo
+  // PDF oficial que el botón de la ficha del cliente (/api/erp/facturas/:idmaeedo/pdf).
+  const { data: facturaData } = useQuery<{ factura: { idmaeedo: string; nudo: string | null; fecha: string | null; total: number } | null }>({
+    queryKey: [`/api/ecommerce/orders/${order.id}/factura`],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/orders/${order.id}/factura`, { credentials: "include" });
+      if (!res.ok) return { factura: null };
+      return res.json();
+    },
+    enabled: !isClientView && isWebOrder,
+  });
+  const systemFactura = facturaData?.factura ?? null;
 
   const liveSubtotal = isEditingPrices
     ? editedItems.reduce((sum, i) => sum + Math.round((Number(i.unitPrice) || 0) * (Number(i.quantity) || 0)), 0)
@@ -1622,15 +1636,38 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-[#FF6E23]" />
                   <h3 className="font-bold text-gray-900">Facturas</h3>
-                  {invoices.length > 0 && (
+                  {(invoices.length > 0 || systemFactura) && (
                     <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                      {invoices.length}
+                      {invoices.length + (systemFactura ? 1 : 0)}
                     </span>
                   )}
                 </div>
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
+              {/* Factura oficial del sistema (DTE) — vista interna, cuando hay una FCV asociada al
+                  pedido. Mismo PDF oficial que el botón de la ficha del cliente. */}
+              {!isClientView && systemFactura && (
+                <button
+                  type="button"
+                  onClick={() => window.open(`/api/erp/facturas/${systemFactura.idmaeedo}/pdf`, "_blank", "noopener")}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 hover:border-emerald-300 hover:shadow-sm transition-all text-left group"
+                  title="Descargar factura oficial en PDF"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 transition-colors">
+                    <FileText className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">Factura N° {systemFactura.nudo ?? "—"}</p>
+                    <p className="text-[10px] text-emerald-700/80">Documento tributario · descargar PDF oficial</p>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/70 border border-emerald-200 group-hover:bg-white transition-colors flex-shrink-0">
+                    <Download className="w-3.5 h-3.5" />
+                    PDF
+                  </span>
+                </button>
+              )}
+
               {/* Existing invoices list */}
               {invoices.length > 0 ? (
                 <div className="space-y-2">
@@ -1691,7 +1728,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : systemFactura ? null : (
                 <div className="text-center py-3">
                   <FileText className="w-8 h-8 text-gray-200 mx-auto mb-1" />
                   <p className="text-xs text-gray-400">
