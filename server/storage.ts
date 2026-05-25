@@ -4776,9 +4776,16 @@ export class DatabaseStorage implements IStorage {
     const s = raw.toString().trim().replace(/\s+/g, ' ');
     if (!s) return null;
     const ln = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    if (/4\s*gal|4gal|cuatro\s*gal/.test(ln)) return '4 Galones';
+    // Fractions first: "1/4 galón" contains "4 gal", so it must win before the integer-gallon rule.
     if (/1\s*\/\s*4|cuarto|\bq4\b/.test(ln)) return '1/4 Galón';
     if (/1\s*\/\s*2|medio\s*gal/.test(ln)) return '1/2 Galón';
+    if (/cuatro\s*gal/.test(ln)) return '4 Galones';
+    // "balde N galones" / "N gal" → keep the size as its own bucket (5 ≠ Galón).
+    const galMatch = ln.match(/(\d+)\s*gal/);
+    if (galMatch) {
+      const n = parseInt(galMatch[1], 10);
+      return n >= 2 ? `${n} Galones` : 'Galón';
+    }
     if (/galon|\bgl\b|\bgl\.|\bgal\b/.test(ln)) return 'Galón';
     if (/balde|\bbld\b|\bbd\b/.test(ln)) return 'Balde';
     if (/tineta/.test(ln)) return 'Tineta';
