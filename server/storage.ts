@@ -4996,6 +4996,10 @@ export class DatabaseStorage implements IStorage {
     const skuFormat = new Map<string, string>();
     const skuUnit = new Map<string, string>();
     const officialColors = new Set<string>();
+    // Every format this product offers in the active catalog (1/4, Galón, 4 Galones…),
+    // so the breakdown lists the full lineup even when a format had no sales in the period.
+    const skuSet = new Set(skuList);
+    const productCatalogFormats = new Set<string>();
     for (const row of catalogRows) {
       const code = (row.codigo || '').trim();
       if (!code) continue;
@@ -5005,6 +5009,7 @@ export class DatabaseStorage implements IStorage {
       if (f && !skuFormat.has(code)) skuFormat.set(code, f);
       if (row.unidad && !skuUnit.has(code)) skuUnit.set(code, row.unidad);
       if (row.activo && c) officialColors.add(c);
+      if (row.activo && f && skuSet.has(code)) productCatalogFormats.add(f);
     }
     const hasOfficialColors = officialColors.size > 0;
 
@@ -5046,6 +5051,12 @@ export class DatabaseStorage implements IStorage {
       const m = matrixMap.get(key) || { color: v.color, format: v.format, totalSales: 0, totalUnits: 0, transactionCount: 0 };
       matrixMap.set(key, { color: v.color, format: v.format, totalSales: m.totalSales + v.totalSales, totalUnits: m.totalUnits + v.totalUnits, transactionCount: m.transactionCount + v.transactionCount });
     }
+
+    // Surface formats the product offers but didn't sell in the period, so the
+    // lineup is complete (they appear at $0 / 0%, sorted to the bottom).
+    productCatalogFormats.forEach((f) => {
+      if (!formatMap.has(f)) formatMap.set(f, { totalSales: 0, totalUnits: 0, transactionCount: 0 });
+    });
 
     const formatBreakdown = Array.from(formatMap.entries())
       .map(([format, data]) => ({ format, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
