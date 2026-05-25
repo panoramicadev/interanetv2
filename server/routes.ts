@@ -13357,6 +13357,7 @@ export function registerRoutes(app: Express): Server {
           source: 'sap',
           docType: 'FCV',
           id: `fcv-${r.doc_id}`,
+          idmaeedo: Number(r.doc_id) || null,
           orderNumber: r.nudo,
           date: r.fecha,
           items: Number(r.items) || 0,
@@ -13417,6 +13418,45 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error fetching client ERP orders:', error);
       res.status(500).json({ message: 'Error al consultar pedidos ERP', detail: error?.message || 'Unknown error' });
+    }
+  });
+
+  // Descarga del PDF oficial (representación impresa del DTE) de una factura FCV.
+  // El DTE (XML legal + timbre PDF417 como imagen) vive en el SQL Server de Softland
+  // (dbo.FMAEDTE). Se lee en vivo por IDMAEEDO y se arma el PDF con Chromium headless.
+  app.get('/api/erp/facturas/:idmaeedo/pdf', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const idmaeedo = parseInt(String(req.params.idmaeedo), 10);
+      if (!Number.isFinite(idmaeedo) || idmaeedo <= 0) {
+        return res.status(400).json({ message: 'idmaeedo inválido' });
+      }
+
+      const { getDteByIdmaeedo } = await import('./utils/erp-dte');
+      const { parseDte } = await import('./utils/dte-parse');
+      const { renderFacturaHtml } = await import('./services/factura-dte-template');
+      const { renderHtmlToPdf } = await import('./utils/quote-pdf-renderer');
+
+      const dteRow = await getDteByIdmaeedo(idmaeedo);
+      if (!dteRow || !dteRow.xml) {
+        return res.status(404).json({ message: 'No se encontró el DTE de esta factura en el ERP' });
+      }
+
+      const parsed = parseDte(dteRow.xml);
+      const html = renderFacturaHtml(parsed, { timbreBase64: dteRow.pdf417, logoUrl: null });
+      // El timbre va embebido (data: URI) → no hay recursos externos que esperar.
+      const pdf = await renderHtmlToPdf(html, { waitUntil: 'load' });
+
+      const folio = parsed.folio || dteRow.nudo || String(idmaeedo);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Factura_${folio}.pdf"`);
+      res.send(pdf);
+    } catch (error: any) {
+      console.error('[GET /api/erp/facturas/:idmaeedo/pdf] error:', error);
+      res.status(500).json({ message: 'Error al generar el PDF de la factura', detail: error?.message || 'Unknown error' });
     }
   });
 

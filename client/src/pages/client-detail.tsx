@@ -67,6 +67,7 @@ interface ErpDocument {
   source: string;
   docType: "FCV" | "NVV";
   id: string;
+  idmaeedo?: number | null;
   orderNumber: string | number | null;
   date: string | null;
   items: number;
@@ -934,7 +935,20 @@ export default function ClientDetail() {
                                   <span>{formatNumber(d.items)} ítems</span>
                                 </div>
                               </div>
-                              <p className="text-sm font-semibold text-gray-900 ml-4 shrink-0">{formatCurrency(d.total)}</p>
+                              <div className="flex items-center gap-3 ml-4 shrink-0">
+                                <p className="text-sm font-semibold text-gray-900">{formatCurrency(d.total)}</p>
+                                {d.idmaeedo ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1.5 text-xs"
+                                    onClick={() => window.open(`/api/erp/facturas/${d.idmaeedo}/pdf`, "_blank", "noopener")}
+                                    title="Descargar factura en PDF"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" /> PDF
+                                  </Button>
+                                ) : null}
+                              </div>
                             </div>
                           ))}
                         </div>

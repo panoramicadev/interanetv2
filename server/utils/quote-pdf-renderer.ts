@@ -61,13 +61,13 @@ async function getBrowser(): Promise<Browser> {
       console.log(`[pdf-renderer] Launching Chromium from ${executablePath}`);
 
       // Use sparticuz args when on Linux container, otherwise minimal args.
+      // NOTE: --single-process / --no-zygote hang headless desktop Chrome on macOS,
+      // so they're omitted in local dev (Linux containers get them via chromium.args).
       let args: string[] = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
       ];
       if (process.platform === 'linux') {
         try {
@@ -86,6 +86,30 @@ async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
+type PdfMargin = { top?: string; right?: string; bottom?: string; left?: string };
+
+/** Render genérico HTML → PDF (A4) reutilizando el Chromium headless singleton.
+ *  `waitUntil` por defecto 'networkidle0' (espera recursos externos, p.ej. un logo
+ *  remoto). Para HTML autocontenido (recursos inline / data: URIs) usar 'load'. */
+export async function renderHtmlToPdf(
+  html: string,
+  options?: { margin?: PdfMargin; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2' },
+): Promise<Buffer> {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: options?.waitUntil ?? 'networkidle0', timeout: 30000 });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: options?.margin ?? { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close();
+  }
+}
+
 export async function renderQuotePdf(
   quote: any,
   items: any[],
@@ -93,20 +117,7 @@ export async function renderQuotePdf(
   pdfOptions?: Omit<QuotePdfOptions, 'logoUrl' | 'autoPrint'>,
 ): Promise<Buffer> {
   const html = renderQuoteHtml(quote, items, { logoUrl: logoUrl ?? null, autoPrint: false, ...pdfOptions });
-
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  return renderHtmlToPdf(html);
 }
 
 process.on('SIGINT', async () => {
