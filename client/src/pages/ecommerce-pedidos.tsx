@@ -39,6 +39,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   EcommerceOrder, OrderDetailView, formatPrice, statusConfig, timeAgo, getOrderItems
 } from "@/components/ecommerce/order-detail-view";
+import ErpOrdersTable from "@/components/ecommerce/erp-orders-table";
 import { useLocation } from "wouter";
 // ==================== MAIN PAGE ====================
 export default function EcommercePedidos() {
@@ -85,6 +86,12 @@ export default function EcommercePedidos() {
     (q) => q.status === "sent" || q.sentToFinanceAt
   ).length;
 
+  // Conteo de pedidos ERP para el selector (comparte cache con ErpOrdersTable)
+  const { data: erpData } = useQuery<{ count: number }>({
+    queryKey: ["/api/ecommerce/erp-orders"],
+  });
+  const erpCount = erpData?.count ?? 0;
+
   // Detail view
   if (selectedOrder) {
     return (
@@ -108,9 +115,21 @@ export default function EcommercePedidos() {
         </div>
       </div>
 
-      <Tabs defaultValue="tienda" className="w-full space-y-6">
-        {/* Selector de modo — dos opciones claras de ingreso */}
-        <TabsList className="grid grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
+      <Tabs defaultValue="erp" className="w-full space-y-6">
+        {/* Selector de modo — Pedidos ERP primero, luego tienda y cotizaciones */}
+        <TabsList className="grid grid-cols-3 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
+          <TabsTrigger
+            value="erp"
+            className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
+              <Database className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
+            </div>
+            <div className="text-left min-w-0">
+              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Pedidos ERP</div>
+              <div className="text-xs text-gray-500 font-normal truncate">{erpCount} pedido{erpCount !== 1 ? "s" : ""} en ERP</div>
+            </div>
+          </TabsTrigger>
           <TabsTrigger
             value="tienda"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
@@ -136,6 +155,10 @@ export default function EcommercePedidos() {
             </div>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="erp" className="mt-0 space-y-6">
+          <ErpOrdersTable />
+        </TabsContent>
 
         <TabsContent value="tienda" className="mt-0 space-y-6">
 
