@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
-  ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
+  ArrowLeft, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send, Truck, Receipt, Copy, Check,
+  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -161,6 +162,8 @@ export default function ClientDetail() {
   const [periodInitializedFor, setPeriodInitializedFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("resumen");
   const [suggestedOpen, setSuggestedOpen] = useState(false);
+  const [editingFicha, setEditingFicha] = useState(false);
+  const [fichaForm, setFichaForm] = useState({ clientName: "", email: "", phone: "", address: "", commune: "" });
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean } | null>(null);
 
@@ -281,13 +284,6 @@ export default function ClientDetail() {
   const nvvDocs = erpDocuments.filter((d) => d.docType === "NVV");
   const fcvDocs = erpDocuments.filter((d) => d.docType === "FCV");
 
-  const marketStats = {
-    pedidos: marketOrders.length,
-    comprado: marketOrders.reduce((acc, o: any) => acc + (parseFloat(o?.total) || 0), 0),
-    pendientes: marketOrders.filter((o: any) => ["pending", "Pendiente", "suggested_pending"].includes(o?.status)).length,
-    aprobados: marketOrders.filter((o: any) => ["approved", "Aprobado", "confirmed", "completed"].includes(o?.status)).length,
-  };
-
   const activateMarket = useMutation({
     mutationFn: async () => {
       if (!fichaIdForActivation) throw new Error("Este cliente no tiene ficha SAP para activar.");
@@ -307,6 +303,33 @@ export default function ClientDetail() {
       toast({ title: "No se pudo activar", description: e?.message || "Error al activar acceso", variant: "destructive" });
     },
   });
+
+  const saveFicha = useMutation({
+    mutationFn: async () => {
+      if (!ficha?.id) throw new Error("Este cliente no tiene ficha.");
+      const res = await apiRequest("PATCH", `/api/clients/${ficha.id}/ficha`, fichaForm);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      setEditingFicha(false);
+      toast({ title: "Ficha actualizada", description: "Los cambios se guardaron correctamente." });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo guardar", description: e?.message || "Error al guardar la ficha", variant: "destructive" });
+    },
+  });
+
+  const startEditFicha = () => {
+    setFichaForm({
+      clientName: ficha?.clientName || decodedClientName || "",
+      email: ficha?.email || "",
+      phone: ficha?.phone || "",
+      address: ficha?.address || "",
+      commune: ficha?.commune || "",
+    });
+    setEditingFicha(true);
+  };
 
   const approveRequest = useMutation({
     mutationFn: async () => {
@@ -356,13 +379,6 @@ export default function ClientDetail() {
     return new Date(dateString).toLocaleDateString('es-CL');
   };
 
-  const getFrequencyDescription = (days: number) => {
-    if (days < 1) return 'Diario';
-    if (days < 7) return `Cada ${Math.round(days)} dias`;
-    if (days < 30) return `Cada ${Math.round(days / 7)} semanas`;
-    return `Cada ${Math.round(days / 30)} meses`;
-  };
-
   const getDaysColor = (days: number) => {
     if (days <= 7) return 'text-green-600';
     if (days <= 30) return 'text-yellow-600';
@@ -410,6 +426,28 @@ export default function ClientDetail() {
               </div>
               <div className="flex flex-col items-start md:items-end gap-3">
                 <div className="flex items-center gap-2 flex-wrap md:justify-end">
+                  {canManage && accountStatus?.inEcommerce && (
+                    <Button
+                      onClick={() => setSuggestedOpen(true)}
+                      size="sm"
+                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                      data-testid="button-enviar-sugerido"
+                    >
+                      <Send className="mr-2 h-4 w-4" /> Enviar sugerido
+                    </Button>
+                  )}
+                  {canManage && !accountStatus?.inEcommerce && fichaIdForActivation && (
+                    <Button
+                      onClick={() => activateMarket.mutate()}
+                      disabled={activateMarket.isPending}
+                      size="sm"
+                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                      data-testid="button-activate-market"
+                    >
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      {activateMarket.isPending ? "Activando…" : "Activar Market"}
+                    </Button>
+                  )}
                   <Link href="/">
                     <Button variant="outline" size="sm" className="rounded-xl border-slate-600 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white" data-testid="button-back-dashboard">
                       <ArrowLeft className="mr-2 h-4 w-4" />
@@ -583,7 +621,7 @@ export default function ClientDetail() {
         )}
 
         {/* KPI Cards — compactas */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
             <CardContent className="p-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -597,19 +635,6 @@ export default function ClientDetail() {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider truncate">Transacciones</p>
-                  <p className="text-sm lg:text-base font-bold text-purple-900 truncate" data-testid="text-transaction-count">
-                    {isLoadingDetails ? '…' : formatNumber(details?.transactionCount || 0)}
-                  </p>
-                </div>
-                <ShoppingBag className="h-5 w-5 text-purple-400/60 shrink-0" />
-              </div>
-            </CardContent>
-          </Card>
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
             <CardContent className="p-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -620,33 +645,6 @@ export default function ClientDetail() {
                   </p>
                 </div>
                 <Package className="h-5 w-5 text-blue-400/60 shrink-0" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
-            <CardContent className="p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider truncate">Ticket Promedio</p>
-                  <p className="text-sm lg:text-base font-bold text-indigo-900 truncate" data-testid="text-average-ticket">
-                    {isLoadingDetails ? '…' : formatCurrency(details?.averageTicket || 0)}
-                  </p>
-                </div>
-                <TrendingUp className="h-5 w-5 text-indigo-400/60 shrink-0" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-orange-600 uppercase tracking-wider truncate">Frecuencia</p>
-                  <p className="text-sm lg:text-base font-bold text-orange-900 truncate" data-testid="text-purchase-frequency">
-                    {isLoadingDetails ? '…' : getFrequencyDescription(details?.purchaseFrequency || 0)}
-                  </p>
-                  <p className="text-[10px] text-orange-700/70 truncate">{isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} dias prom.`}</p>
-                </div>
-                <Clock className="h-5 w-5 text-orange-400/60 shrink-0" />
               </div>
             </CardContent>
           </Card>
@@ -697,80 +695,6 @@ export default function ClientDetail() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Panorámica Market */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Store className="h-4 w-4 text-[#FF6E23]" /> Panorámica Market
-              {accountStatus?.inEcommerce ? (
-                <Badge className="ml-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-200 gap-1 text-[10px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Acceso activo
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="ml-1 text-muted-foreground gap-1 text-[10px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" /> Sin acceso
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!accountStatus?.inEcommerce ? (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
-                  Este cliente aún no tiene acceso a Panorámica Market.
-                </p>
-                {canManage && (
-                  fichaIdForActivation ? (
-                    <Button
-                      onClick={() => activateMarket.mutate()}
-                      disabled={activateMarket.isPending}
-                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white shrink-0"
-                      data-testid="button-activate-market"
-                    >
-                      <KeyRound className="h-4 w-4 mr-2" />
-                      {activateMarket.isPending ? "Activando…" : "Activar acceso Panorámica Market"}
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-amber-600 shrink-0">Requiere ficha SAP para activar.</span>
-                  )
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="rounded-xl bg-blue-50 p-3">
-                    <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Pedidos eCommerce</p>
-                    <p className="text-lg font-bold text-blue-900">{formatNumber(marketStats.pedidos)}</p>
-                  </div>
-                  <div className="rounded-xl bg-green-50 p-3">
-                    <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Comprado eCommerce</p>
-                    <p className="text-lg font-bold text-green-900">{formatCurrency(marketStats.comprado)}</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-50 p-3">
-                    <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wider">Pendientes</p>
-                    <p className="text-lg font-bold text-amber-900">{formatNumber(marketStats.pendientes)}</p>
-                  </div>
-                  <div className="rounded-xl bg-violet-50 p-3">
-                    <p className="text-[10px] font-medium text-violet-600 uppercase tracking-wider">Aprobados</p>
-                    <p className="text-lg font-bold text-violet-900">{formatNumber(marketStats.aprobados)}</p>
-                  </div>
-                </div>
-                {canManage && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() => setSuggestedOpen(true)}
-                      className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
-                      data-testid="button-enviar-sugerido"
-                    >
-                      <Send className="h-4 w-4 mr-2" /> Enviar sugerido
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -867,23 +791,50 @@ export default function ClientDetail() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <UserCircle className="h-4 w-4 text-blue-500" /> Información General
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <UserCircle className="h-4 w-4 text-blue-500" /> Información General
+                      </CardTitle>
+                      {canManage && (
+                        editingFicha ? (
+                          <div className="flex items-center gap-1.5">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingFicha(false)} disabled={saveFicha.isPending} data-testid="button-cancel-ficha">
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" className="h-7 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white" onClick={() => saveFicha.mutate()} disabled={saveFicha.isPending} data-testid="button-save-ficha">
+                              <Save className="h-3.5 w-3.5 mr-1.5" /> {saveFicha.isPending ? "Guardando…" : "Guardar"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-7 px-3 rounded-lg" onClick={startEditFicha} data-testid="button-edit-ficha">
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-1">
                     {[
-                      { label: "Nombre", value: ficha?.clientName || decodedClientName, icon: UserCircle },
-                      { label: "Email", value: ficha?.email, icon: Mail },
-                      { label: "RUT", value: ficha?.rut, icon: Building2 },
-                      { label: "Código", value: ficha?.clientCode, icon: Hash },
-                      { label: "Teléfono", value: ficha?.phone, icon: Phone },
-                      { label: "Dirección", value: ficha?.address, icon: MapPin },
-                      { label: "Comuna", value: ficha?.commune, icon: MapPin },
-                    ].map(({ label, value, icon: Icon }) => (
-                      <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0">
-                        <span className="text-sm text-muted-foreground flex items-center gap-2"><Icon className="h-3.5 w-3.5" /> {label}</span>
-                        <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
+                      { label: "Nombre", field: "clientName", value: ficha?.clientName || decodedClientName, icon: UserCircle, editable: true },
+                      { label: "Email", field: "email", value: ficha?.email, icon: Mail, editable: true },
+                      { label: "RUT", field: null, value: ficha?.rut, icon: Building2, editable: false },
+                      { label: "Código", field: null, value: ficha?.clientCode, icon: Hash, editable: false },
+                      { label: "Teléfono", field: "phone", value: ficha?.phone, icon: Phone, editable: true },
+                      { label: "Dirección", field: "address", value: ficha?.address, icon: MapPin, editable: true },
+                      { label: "Comuna", field: "commune", value: ficha?.commune, icon: MapPin, editable: true },
+                    ].map(({ label, value, icon: Icon, field, editable }) => (
+                      <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-muted/50 last:border-0">
+                        <span className="text-sm text-muted-foreground flex items-center gap-2 shrink-0"><Icon className="h-3.5 w-3.5" /> {label}</span>
+                        {editingFicha && editable && field ? (
+                          <Input
+                            value={(fichaForm as any)[field]}
+                            onChange={(e) => setFichaForm((s) => ({ ...s, [field]: e.target.value }))}
+                            className="h-8 max-w-[65%] text-sm"
+                            data-testid={`input-ficha-${field}`}
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-right max-w-[60%] truncate">{value || "—"}</span>
+                        )}
                       </div>
                     ))}
                   </CardContent>

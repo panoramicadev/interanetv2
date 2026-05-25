@@ -665,6 +665,11 @@ export const clients = pgTable("clients", {
 
   // Beneficios comerciales
   freeShipping: boolean("free_shipping").notNull().default(false), // Envío gratis permanente para este cliente
+
+  // Ediciones manuales de la ficha (solo campos de contacto) que sobreviven al ETL.
+  // El ETL de clientes (etl-clients.ts) nunca escribe esta columna, así que los
+  // overrides prevalecen sobre los valores de Softland al construir la ficha.
+  fichaOverrides: jsonb("ficha_overrides"), // { clientName?, email?, phone?, address?, commune? }
 }, (table) => ({
   // Indexes for performance
   clientCodeIdx: index("IDX_clients_koen").on(table.koen),
