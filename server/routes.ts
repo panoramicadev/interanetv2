@@ -13226,7 +13226,8 @@ export function registerRoutes(app: Express): Server {
   // parametrized by the clients.id being viewed and returns real SAP documents:
   //   - FCV (facturas de venta) → already invoiced orders
   //   - NVV (notas de venta) still pending invoicing → eslido open + qty pendiente > 0
-  // Matched by client name (nokoen), consistent with the SAP totals shown on the same page.
+  // Matched by fuzzy client name OR client code (fact.endo = clients.koen), mirroring
+  // buildClientSalesMatch so this list stays consistent with the SAP totals on the same page.
   app.get('/api/users/clients/:clientId/erp-orders', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
@@ -13238,13 +13239,26 @@ export function registerRoutes(app: Express): Server {
       const { sql } = await import('drizzle-orm');
       const { db } = await import('./db');
 
-      // Resolve the SAP client record to get its canonical name (join key for fact tables)
+      // Resolve the SAP client record to get its canonical name + code (join keys for fact tables)
       const clientResult = await db.execute(sql`SELECT id, koen, nokoen FROM clients WHERE id = ${clientId} LIMIT 1`);
       const clientRow = (Array.isArray(clientResult) ? clientResult : (clientResult as any).rows || [])[0];
-      if (!clientRow || !clientRow.nokoen) {
+      if (!clientRow || (!clientRow.nokoen && !clientRow.koen)) {
         return res.json({ documents: [], fcvCount: 0, nvvPendingCount: 0 });
       }
-      const clientName = clientRow.nokoen as string;
+      const clientName = (clientRow.nokoen || '') as string;
+      const clientCode = clientRow.koen ? String(clientRow.koen).trim() : '';
+
+      // Match SAP documents the same way the rest of the client page does (see
+      // buildClientSalesMatch in storage.ts): fuzzy client name OR the reliable
+      // client code (fact.endo = clients.koen). An exact nokoen match misses rows
+      // whose stored name differs from the ficha (suffixes, encoding, whitespace,
+      // case) — which is why the KPIs showed sales but this list came up empty.
+      const nameForSearch = clientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+      const nameCond = sql`(nokoen ILIKE ${nameForSearch} OR REPLACE(nokoen, '-', ' ') ILIKE ${nameForSearch} OR nokoen ILIKE ${'%' + nameForSearch + '%'})`;
+      const codeCond = sql`TRIM(endo) = ${clientCode}`;
+      const clientMatch = nameForSearch && clientCode
+        ? sql`(${nameCond} OR ${codeCond})`
+        : (nameForSearch ? nameCond : sql`(${codeCond})`);
 
       // FCV invoices (facturas), aggregated per document
       let invoices: any[] = [];
@@ -13258,7 +13272,7 @@ export function registerRoutes(app: Express): Server {
             COUNT(*)::int AS items,
             MAX(nokofu) AS vendedor
           FROM ventas.fact_ventas
-          WHERE nokoen = ${clientName} AND tido = 'FCV'
+          WHERE ${clientMatch} AND tido = 'FCV'
           GROUP BY idmaeedo
           ORDER BY MAX(feemdo) DESC
           LIMIT 300
@@ -13294,7 +13308,7 @@ export function registerRoutes(app: Express): Server {
             COUNT(*)::int AS items,
             MAX(nombre_vendedor) AS vendedor
           FROM nvv.fact_nvv
-          WHERE nokoen = ${clientName}
+          WHERE ${clientMatch}
             AND (eslido IS NULL OR TRIM(eslido) = '')
             AND COALESCE(cantidad_pendiente_ud2, 0) > 0
           GROUP BY idmaeedo
