@@ -11728,6 +11728,40 @@ export class DatabaseStorage implements IStorage {
     return { ids: await this.getEcommerceOrderClientIds(group), mode: 'include' };
   }
 
+  // Resuelve el filtro "crédito vencido" a un conjunto de IDs de cliente.
+  // El vencido se calcula desde la cartera real (ventas.fact_ventas), igual que el
+  // badge del listado (POST /api/clients/credit-overdue): documentos FCV/FDV
+  // pendientes (espgdo='P') con saldo > 0 y fecha de vencimiento ya pasada.
+  // 'overdue' = clientes con vencido > 0; 'current' = clientes con código (koen) y
+  // al día. Clientes sin koen no entran en cartera y quedan fuera de ambos conjuntos.
+  async getClientIdsByCreditOverdue(mode: 'overdue' | 'current'): Promise<{ ids: string[]; mode: 'include' | 'exclude' }> {
+    const res: any = await db.execute(sql`
+      WITH docs AS (
+        SELECT endo,
+               idmaeedo,
+               MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+               MAX(fe01vedo) AS venc
+        FROM ventas.fact_ventas
+        WHERE tido IN ('FCV', 'FDV')
+          AND espgdo = 'P'
+        GROUP BY endo, idmaeedo
+      ),
+      overdue_koens AS (
+        SELECT endo
+        FROM docs
+        GROUP BY endo
+        HAVING COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) > 0
+      )
+      SELECT c.id
+      FROM clients c
+      WHERE ${mode === 'overdue'
+        ? sql`TRIM(c.koen) IN (SELECT TRIM(endo::text) FROM overdue_koens)`
+        : sql`c.koen IS NOT NULL AND TRIM(c.koen) <> '' AND TRIM(c.koen) NOT IN (SELECT TRIM(endo::text) FROM overdue_koens)`}
+    `);
+    const rows = (Array.isArray(res) ? res : res.rows) || [];
+    return { ids: rows.map((r: any) => String(r.id)).filter(Boolean), mode: 'include' };
+  }
+
   async getClients(filters?: {
     search?: string;
     segment?: string;
