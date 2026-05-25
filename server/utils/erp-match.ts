@@ -7,7 +7,7 @@
 // RUT del cliente + fecha + monto neto, de forma conservadora (ante ambigüedad o
 // duda, no asignamos: es preferible un pedido sin idmaeedo a un idmaeedo errado).
 
-import { sql, inArray } from 'drizzle-orm';
+import { sql, inArray, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { clients } from '@shared/schema';
 
@@ -160,4 +160,107 @@ export async function matchEcommerceOrdersToErp(
   }
 
   return result;
+}
+
+export interface FcvMatch {
+  idmaeedo: string;   // id de cabecera de la FCV → se pasa a /api/erp/facturas/:idmaeedo/pdf
+  nudo: string | null; // número/folio de la factura
+  fecha: string | null;
+  total: number;       // bruto (con IVA)
+}
+
+/**
+ * Busca la FACTURA (FCV) del ERP que corresponde a un pedido del Market.
+ *
+ * El espejo no tiene el vínculo exacto pedido→factura (la cadena NVV→GDV→FCV de
+ * Softland no está en `fact_ventas`), así que lo inferimos igual que la NVV: por
+ * RUT del cliente + ventana de fecha + monto neto, de forma conservadora. Ante
+ * ambigüedad o duda devolvemos null (preferible no mostrar factura a mostrar una
+ * equivocada, que es un documento tributario). Mientras no exista el link exacto,
+ * esto habilita el botón "Descargar factura" en el detalle del pedido.
+ */
+export async function findFcvForOrder(order: OrderToMatch): Promise<FcvMatch | null> {
+  if (!order.clientId) return null;
+
+  // 1. RUT del cliente (clients.rten vía clients.userId = pedido.clientId).
+  let rut = '';
+  try {
+    const rows = await db
+      .select({ rten: clients.rten })
+      .from(clients)
+      .where(eq(clients.userId, String(order.clientId)))
+      .limit(1);
+    rut = normalizeRut(rows[0]?.rten as any);
+  } catch (err: any) {
+    console.error('[ERP-MATCH/FCV] error resolviendo RUT:', err?.message || err);
+    return null;
+  }
+  if (!rut) return null;
+
+  // 2. FCV de ese RUT, agregadas por documento. vanedo/vabrdo son a nivel de
+  //    documento (se repiten por línea) → MAX devuelve el total del documento.
+  let docs: { idmaeedo: string; nudo: string | null; fecha: number | null; neto: number; bruto: number }[] = [];
+  try {
+    const rutExpr = sql`REPLACE(REPLACE(REPLACE(UPPER(TRIM(endo)), '.', ''), '-', ''), ' ', '')`;
+    const res: any = await db.execute(sql`
+      SELECT
+        idmaeedo::text AS idmaeedo,
+        MAX(nudo)::text AS nudo,
+        MAX(feemdo)::text AS fecha,
+        COALESCE(SUM(monto), MAX(vanedo), 0)::numeric AS neto,
+        MAX(vabrdo)::numeric AS bruto
+      FROM ventas.fact_ventas
+      WHERE tido = 'FCV'
+        AND idmaeedo IS NOT NULL
+        AND ${rutExpr} = ${rut}
+      GROUP BY idmaeedo
+    `);
+    const rows = Array.isArray(res) ? res : res?.rows || [];
+    docs = rows.map((r: any) => ({
+      idmaeedo: String(r.idmaeedo),
+      nudo: r.nudo != null ? String(r.nudo) : null,
+      fecha: toTime(r.fecha),
+      neto: Number(r.neto) || 0,
+      bruto: Number(r.bruto) || 0,
+    }));
+  } catch (err: any) {
+    console.error('[ERP-MATCH/FCV] error consultando FCV:', err?.message || err);
+    return null;
+  }
+  if (docs.length === 0) return null;
+
+  // 3. Mejor candidata por monto neto (tolerancia) dentro de la ventana de fecha.
+  const orderNeto = Number(order.subtotal) || (Number(order.total) ? Number(order.total) / 1.19 : 0);
+  if (orderNeto <= 0) return null;
+  const ref = toTime(order.ingresadoAt) ?? toTime(order.createdAt);
+
+  let best: { doc: (typeof docs)[number]; montoDiff: number; fechaDiff: number } | null = null;
+  for (const doc of docs) {
+    if (doc.neto <= 0) continue;
+    const montoDiff = Math.abs(doc.neto - orderNeto) / orderNeto;
+    if (montoDiff > MONTO_TOLERANCE) continue;
+
+    let fechaDiff = 0;
+    if (ref != null && doc.fecha != null) {
+      const delta = doc.fecha - ref;
+      if (delta < -WINDOW_BEFORE || delta > WINDOW_AFTER) continue;
+      fechaDiff = Math.abs(delta);
+    }
+
+    if (
+      !best ||
+      montoDiff < best.montoDiff ||
+      (montoDiff === best.montoDiff && fechaDiff < best.fechaDiff)
+    ) {
+      best = { doc, montoDiff, fechaDiff };
+    }
+  }
+
+  if (!best) return null;
+  return {
+    idmaeedo: best.doc.idmaeedo,
+    nudo: best.doc.nudo,
+    fecha: best.doc.fecha != null ? new Date(best.doc.fecha).toISOString() : null,
+    total: best.doc.bruto || Math.round(best.doc.neto * 1.19),
+  };
 }

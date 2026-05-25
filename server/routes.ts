@@ -13597,6 +13597,38 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Factura (FCV) asociada a un pedido del Market. Devuelve { factura: { idmaeedo, nudo, ... } }
+  // o { factura: null } si no hay una coincidencia segura. El detalle del pedido usa el idmaeedo
+  // para mostrar el botón "Descargar factura" contra /api/erp/facturas/:idmaeedo/pdf (mismo PDF
+  // oficial que la ficha del cliente). El vínculo se infiere por RUT + monto + fecha (ver
+  // findFcvForOrder) porque el espejo aún no trae el link exacto pedido→factura.
+  app.get('/api/ecommerce/orders/:id/factura', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const result = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, req.params.id));
+      const order = result[0];
+      if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+
+      const { findFcvForOrder } = await import('./utils/erp-match');
+      const factura = await findFcvForOrder({
+        id: order.id,
+        clientId: order.clientId,
+        subtotal: order.subtotal as any,
+        total: order.total as any,
+        createdAt: order.createdAt as any,
+        ingresadoAt: order.ingresadoAt as any,
+      });
+      res.json({ factura });
+    } catch (error: any) {
+      console.error('[GET /api/ecommerce/orders/:id/factura] error:', error);
+      // No es un error fatal para la UI: degradamos a "sin factura" para no romper el detalle.
+      res.json({ factura: null });
+    }
+  }));
+
   // Global "Pedidos ERP" — unified NVV (pendientes de facturación) + FCV (facturadas) across ALL
   // clients, last 90 days. The ERP splits a document once it passes the 30-line cap, so a 35-item
   // order shows up as e.g. NVV 30 + NVV 5. We re-group those back into one logical pedido when they
