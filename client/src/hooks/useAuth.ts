@@ -56,9 +56,15 @@ export function useAuth() {
         title: "¡Bienvenido!",
         description: "Has iniciado sesión correctamente.",
       });
-      // Navigate to dashboard immediately after successful login
+      // Navigate to dashboard immediately after successful login.
+      // Preserva el deep-link de un pedido (correo "pedido modificado") si se entró por él.
       setTimeout(() => {
-        setLocation("/");
+        const { pathname, search } = window.location;
+        if (pathname === "/mis-pedidos" && new URLSearchParams(search).get("pedido")) {
+          setLocation(`/mis-pedidos${search}`);
+        } else {
+          setLocation("/");
+        }
       }, 100);
     },
     onError: (error: any) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
@@ -205,6 +205,8 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   const [showPaymentConditionDialog, setShowPaymentConditionDialog] = useState(false);
   const [paymentConditionValue, setPaymentConditionValue] = useState('');
   const [isSavingPaymentCondition, setIsSavingPaymentCondition] = useState(false);
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
+  const [isNotifying, setIsNotifying] = useState(false);
   const { user } = useAuth();
   const canIngresar = !!user && ['reception', 'admin', 'supervisor', 'encargado_area'].includes((user as any).role);
   const canEditPaymentCondition = !!user && ['reception', 'admin', 'supervisor', 'encargado_area'].includes((user as any).role);
@@ -296,6 +298,14 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
   }
   const isDespachoItem = (it: OrderItem) =>
     despachoSkuToRate.has(String(it.sku || it.productCode || '').toUpperCase());
+
+  // Las líneas de despacho (flete) van siempre al final, agrupadas aparte de los productos.
+  // Conservamos el índice original porque los handlers de edición operan por posición en `items`.
+  const orderedItems = items
+    .map((item, index) => ({ item, index, isDespacho: isDespachoItem(item) }))
+    .sort((a, b) => Number(a.isDespacho) - Number(b.isDespacho));
+  const firstDespachoPos = orderedItems.findIndex((o) => o.isDespacho);
+  const hasProductsBeforeDespacho = firstDespachoPos > 0;
 
   // Seguimiento + documento (vista del cliente).
   // Un pedido web tiene UUID (con guiones); los pedidos ERP traen su documento adjunto.
@@ -706,6 +716,27 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
     }
   };
 
+  // Envía al cliente el correo de "pedido modificado / listo para pago" con link
+  // directo a su pedido en el portal. El backend fuerza el envío (ignora el toggle global).
+  const handleNotifyModified = async () => {
+    if (isNotifying) return;
+    setIsNotifying(true);
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${order.id}/notify-modified`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el correo');
+      toast({ title: 'Correo enviado', description: `Se notificó al cliente${data?.to ? ` (${data.to})` : ''}.` });
+      setShowNotifyDialog(false);
+    } catch (e: any) {
+      toast({ title: 'No se pudo enviar', description: e?.message || 'Error al enviar el correo', variant: 'destructive' });
+    } finally {
+      setIsNotifying(false);
+    }
+  };
+
   // One-click quote generation: server resolves the main-branch client by RUT,
   // creates the quote + items, and we download the PDF here.
   const handleAutoGenerateQuote = async () => {
@@ -981,6 +1012,23 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {isModified && isWebOrder && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 shadow-sm"
+                onClick={() => setShowNotifyDialog(true)}
+                disabled={isNotifying}
+                data-testid="button-notify-modified"
+              >
+                {isNotifying ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Mail className="w-4 h-4 mr-2" />
+                )}
+                <span className="hidden sm:inline">Notificar al cliente</span>
+              </Button>
+            )}
             {canIngresar && statusKey !== 'ingresado' && (
               <Button
                 size="sm"
@@ -1045,6 +1093,30 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                   disabled={isIngresando}
                 >
                   {isIngresando ? 'Marcando...' : 'Marcar como ingresado'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Notify client: order modified / ready for payment */}
+        {!isClientView && (
+          <AlertDialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Notificar al cliente</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se enviará un correo a <strong>{currentOrder.clientEmail || 'el cliente'}</strong> avisando que el pedido #{getNumericOrderId(order.id)} fue modificado y está listo para pago, con un enlace directo a su pedido en el portal.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isNotifying}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleNotifyModified(); }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={isNotifying}
+                >
+                  {isNotifying ? 'Enviando...' : 'Enviar correo'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1375,14 +1447,20 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
               )}
             </div>
             <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
-              {items.map((item, index) => {
+              {orderedItems.map(({ item, index, isDespacho }, pos) => {
                 const itemPrice = Number(item.unitPrice ?? item.price ?? 0);
                 const itemTotal = isEditingPrices
                   ? Math.round(itemPrice * (Number(item.quantity) || 0))
                   : (item.subtotal ?? item.totalPrice ?? itemPrice * item.quantity);
-                const isDespacho = isDespachoItem(item);
                 return (
-                  <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
+                  <Fragment key={index}>
+                  {pos === firstDespachoPos && hasProductsBeforeDespacho && (
+                    <div className="flex items-center gap-2 px-5 py-2 bg-gray-50/70">
+                      <Truck className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Despacho</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
                     {/* Product Image */}
                     <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 overflow-hidden border border-gray-100 hidden sm:flex">
                       {item.imageUrl ? (
@@ -1516,6 +1594,7 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, onGenerateQuote
                       <span className="text-sm font-bold text-gray-900">{formatPrice(itemTotal)}</span>
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
             </div>

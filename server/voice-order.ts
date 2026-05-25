@@ -219,6 +219,12 @@ async function resolveItem(item: ParsedOrderItemIntent): Promise<ResolvedItem> {
     const result = await storage.getPriceList({ search: searchQuery, limit: 12, offset: 0 });
     let list = result?.items || [];
 
+    // Fallback difuso: si la búsqueda exacta no encuentra nada, tolera errores
+    // de tipeo / voz (ej: "stein" -> "stain") buscando por similitud.
+    if (list.length === 0) {
+      list = await storage.getPriceListFuzzy(searchQuery, 12);
+    }
+
     // getPriceList ordena siempre el formato 1/4 primero, así que el envase pedido
     // por el vendedor (galón, balde/tonel, etc.) se pierde. Priorizamos la variante
     // cuyo `unidad` coincide con el envase solicitado.

@@ -10743,6 +10743,43 @@ export function registerRoutes(app: Express): Server {
     res.json(updated);
   }));
 
+  // Reenvía manualmente al cliente el correo de "pedido modificado / listo para pago",
+  // con link directo a su pedido en el portal. Es un envío explícito: ignora el toggle
+  // global de notificaciones (force=true) para que el botón siempre dispare el correo.
+  app.post('/api/ecommerce/orders/:id/notify-modified', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+    if (!['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id)).limit(1);
+    if (!order) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+    if (!order.clientEmail) {
+      return res.status(400).json({ message: 'El pedido no tiene un email de cliente para notificar.' });
+    }
+
+    const sent = await NotifyHelper.notifyOrderModified({
+      orderId: order.id,
+      orderNumber: order.id,
+      clientEmail: order.clientEmail,
+      clientName: order.clientName,
+      newTotal: Number(order.total) || 0,
+      paymentCondition: order.paymentCondition,
+    }, true);
+
+    if (!sent) {
+      return res.status(502).json({ message: 'No se pudo enviar el correo. Revisá la configuración de correo.' });
+    }
+    res.json({ ok: true, to: order.clientEmail });
+  }));
+
   // Update order payment condition (admin/supervisor/reception).
   // If order is pending:
   //   - "Transferencia": auto-approve, NO consume credit
