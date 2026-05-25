@@ -6,6 +6,7 @@ import {
 import {
   Package, Palette, Users, UserCheck, TrendingUp, DollarSign, ShoppingBag,
   Layers, ArrowUp, ArrowDown, ChevronDown, Grid3x3, AlertCircle,
+  PaintBucket, CupSoda, Droplet, Weight, Ruler, Container, Boxes,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,15 +43,64 @@ const fmtCurrency = (n: number) =>
 const fmtNumber = (n: number) => new Intl.NumberFormat("es-CL").format(Math.round(n || 0));
 
 const COLOR_MAP: Record<string, string> = {
-  Blanco: "#F3F4F6", Negro: "#1F2937", Rojo: "#DC2626", Azul: "#2563EB", "Azul Pacífico": "#0891B2",
-  Verde: "#16A34A", Amarillo: "#EAB308", Gris: "#6B7280", Café: "#92400E", Rosa: "#EC4899",
-  Naranja: "#EA580C", Violeta: "#7C3AED", Incoloro: "#E5E7EB", Beige: "#D4A574", Crema: "#FFF8DC",
-  Marfil: "#FFFFF0", Celeste: "#7DD3FC", "Sin especificar": "#9CA3AF",
+  "Blanco": "#F9FAFB", "Negro": "#1F2937", "Gris": "#6B7280", "Gris Perla": "#D1D5DB", "Gris Plomo": "#4B5563",
+  "Rojo": "#DC2626", "Rojo Teja": "#B91C1C", "Burdeo": "#7F1D1D",
+  "Azul": "#2563EB", "Azul Pacífico": "#0891B2", "Azul Rey": "#1D4ED8", "Azul Marino": "#1E3A8A", "Celeste": "#7DD3FC", "Turquesa": "#14B8A6",
+  "Verde": "#16A34A", "Verde Limón": "#84CC16", "Verde Agua": "#5EEAD4", "Verde Militar": "#4D7C0F",
+  "Amarillo": "#EAB308", "Amarillo Oro": "#D4A017", "Mostaza": "#CA8A04", "Dorado": "#C79A3A",
+  "Naranja": "#EA580C", "Naranjo": "#EA580C", "Damasco": "#F4C28A", "Terracota": "#C2613A",
+  "Café": "#92400E", "Café Claro": "#B45309", "Marrón": "#78350F", "Ocre": "#B8860B",
+  "Rosa": "#EC4899", "Rosado": "#F472B6", "Fucsia": "#D946EF",
+  "Violeta": "#7C3AED", "Morado": "#6D28D9", "Púrpura": "#7E22CE", "Lila": "#C4B5FD",
+  "Beige": "#D4A574", "Crema": "#F5EFE0", "Marfil": "#FAF7EC", "Arena": "#E3D5B8",
+  "Incoloro": "#E5E7EB", "Transparente": "#E5E7EB", "Sin Color": "#E5E7EB",
+  "Aluminio": "#9CA3AF", "Plateado": "#C0C5CE", "Cobre": "#B87333", "Bronce": "#8C7853",
 };
-const FORMAT_ICONS: Record<string, string> = {
-  Galón: "🪣", "4 Galones": "🪣", "1/4 Galón": "🥤", Balde: "🪣", Tineta: "🫙",
-  Kilo: "⚖️", Litro: "🧴", Onza: "💧", Metro: "📏", Otro: "📦",
+
+const CUSTOM_COLOR_LABEL = "Color personalizado";
+const CUSTOM_COLOR_GRADIENT =
+  "conic-gradient(from 210deg, #ef4444, #f59e0b, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)";
+
+/** Stable swatch hex for any color label (known map first, deterministic hue fallback). */
+function colorHex(name: string): string {
+  if (COLOR_MAP[name]) return COLOR_MAP[name];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 52% 56%)`;
+}
+
+/** Color dot. "Color personalizado" gets a rainbow swatch to flag non-line colors. */
+function ColorSwatch({ color, className }: { color: string; className?: string }) {
+  if (color === CUSTOM_COLOR_LABEL) {
+    return (
+      <div
+        className={cn("rounded-full border border-gray-200 shrink-0", className)}
+        style={{ background: CUSTOM_COLOR_GRADIENT }}
+        title="Color personalizado (fuera de las líneas definidas)"
+      />
+    );
+  }
+  return (
+    <div
+      className={cn("rounded-full border border-gray-300 shrink-0", className)}
+      style={{ backgroundColor: colorHex(color) }}
+    />
+  );
+}
+
+const FORMAT_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  "Galón": PaintBucket, "4 Galones": PaintBucket, "1/2 Galón": PaintBucket, "1/4 Galón": CupSoda,
+  "Balde": PaintBucket, "Tineta": Container, "Tambor": Container, "Bidón": Container,
+  "Kilo": Weight, "Saco": Weight, "Litro": Droplet, "Onza": Droplet,
+  "Metro": Ruler, "Caja": Boxes, "Kit": Boxes,
+  "Unidad": Package, "Rollo": Package, "Pliego": Package, "Sin formato": Package,
 };
+
+/** SVG format icon (replaces emoji). Falls back to a generic package icon. */
+function FormatIcon({ format, className }: { format: string; className?: string }) {
+  const Icon = FORMAT_ICON[format] || Package;
+  return <Icon className={className} />;
+}
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const monthLabel = (period: string) => {
   const [y, m] = period.split("-");
@@ -224,7 +274,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
             <div className="space-y-2.5">
               {data.colorBreakdown.slice(0, 10).map((c) => (
                 <div key={c.color} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-gray-200 shrink-0" style={{ backgroundColor: COLOR_MAP[c.color] || "#9CA3AF" }} />
+                  <ColorSwatch color={c.color} className="w-5 h-5 border-2 border-gray-200" />
                   <span className="text-sm font-medium text-gray-700 w-28 truncate">{c.color}</span>
                   <div className="flex-1">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -245,7 +295,9 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
             <div className="space-y-2.5">
               {data.formatBreakdown.map((f) => (
                 <div key={f.format} className="flex items-center gap-3">
-                  <span className="text-lg shrink-0">{FORMAT_ICONS[f.format] || "📦"}</span>
+                  <span className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center shrink-0">
+                    <FormatIcon format={f.format} className="w-4 h-4" />
+                  </span>
                   <span className="text-sm font-medium text-gray-700 w-28 truncate">{f.format}</span>
                   <div className="flex-1">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -279,7 +331,9 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                   <TableHead className="text-left sticky left-0 bg-white">Color</TableHead>
                   {matrixFormats.map((f) => (
                     <TableHead key={f} className="text-right whitespace-nowrap">
-                      <span className="mr-1">{FORMAT_ICONS[f] || "📦"}</span>{f}
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <FormatIcon format={f} className="w-3.5 h-3.5 text-gray-400" />{f}
+                      </span>
                     </TableHead>
                   ))}
                 </TableRow>
@@ -289,7 +343,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                   <TableRow key={color}>
                     <TableCell className="font-medium text-sm sticky left-0 bg-white">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full border border-gray-300 shrink-0" style={{ backgroundColor: COLOR_MAP[color] || "#9CA3AF" }} />
+                        <ColorSwatch color={color} className="w-4 h-4" />
                         {color}
                       </div>
                     </TableCell>
@@ -405,10 +459,14 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                   {data.variants.map((v, idx) => (
                     <TableRow key={`${v.fullName}-${idx}`}>
                       <TableCell className="font-medium text-sm max-w-[260px] truncate">{v.fullName}</TableCell>
-                      <TableCell><span className="text-sm">{FORMAT_ICONS[v.format] || "📦"} {v.format}</span></TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1.5 text-sm">
+                          <FormatIcon format={v.format} className="w-4 h-4 text-gray-500" />{v.format}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full border border-gray-300 shrink-0" style={{ backgroundColor: COLOR_MAP[v.color] || "#9CA3AF" }} />
+                          <ColorSwatch color={v.color} className="w-4 h-4" />
                           <span className="text-sm">{v.color}</span>
                         </div>
                       </TableCell>
