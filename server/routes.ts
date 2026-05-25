@@ -2461,6 +2461,79 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Crédito vencido por cliente para la vista rápida del listado. Recibe la página
+  // visible y devuelve, por cada cliente con código (koen), el monto vencido de su
+  // cartera. Reproduce el mismo cálculo validado de /api/clients/account-status
+  // (saldo del documento = vabrdo - vaabdo; vencido = fe01vedo < hoy; solo pendientes
+  // espgdo='P'; dedup por idmaeedo) pero agregando por cliente en una sola consulta.
+  // Es por código de cliente: una casa matriz colapsada no suma la deuda de sucursales
+  // (eso lo muestra la ficha). Endpoint aislado y tolerante a fallos.
+  app.post('/api/clients/credit-overdue', requireAuth, async (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (items.length === 0) return res.json({ overdue: {} });
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+
+      const page = items.slice(0, 200);
+      // koen -> ids de cliente que comparten ese código (normalmente 1).
+      const koenToIds = new Map<string, string[]>();
+      for (const c of page as any[]) {
+        const koen = (c?.koen ?? '').toString().trim();
+        const id = c?.id ? String(c.id) : null;
+        if (!koen || !id) continue;
+        if (!koenToIds.has(koen)) koenToIds.set(koen, []);
+        koenToIds.get(koen)!.push(id);
+      }
+
+      const koens = Array.from(koenToIds.keys());
+      // Pre-poblar en 0 a todo cliente con código: tras cargar, la ausencia de fila
+      // significa "sin deuda vencida" (al día), no "desconocido". Clientes sin koen
+      // quedan fuera del mapa (no se puede calcular cartera sin código).
+      const overdue: Record<string, number> = {};
+      koenToIds.forEach((ids) => {
+        for (const id of ids) overdue[id] = 0;
+      });
+
+      if (koens.length > 0) {
+        try {
+          const result: any = await db.execute(sql`
+            WITH docs AS (
+              SELECT endo,
+                     idmaeedo,
+                     MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                     MAX(fe01vedo) AS venc
+              FROM ventas.fact_ventas
+              WHERE endo IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})
+                AND tido IN ('FCV', 'FDV')
+                AND espgdo = 'P'
+              GROUP BY endo, idmaeedo
+            )
+            SELECT endo,
+                   COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido
+            FROM docs
+            GROUP BY endo
+          `);
+          const rows = (Array.isArray(result) ? result : result.rows) || [];
+          for (const r of rows as any[]) {
+            const ids = koenToIds.get(String(r.endo)) || [];
+            const vencido = Number(r.vencido) || 0;
+            for (const id of ids) overdue[id] = vencido;
+          }
+        } catch (e) {
+          console.warn('[credit-overdue] cartera lookup failed:', e);
+        }
+      }
+
+      res.json({ overdue });
+    } catch (error) {
+      console.error('Error fetching client credit overdue:', error);
+      // Non-blocking: return empty map so the list still renders.
+      res.json({ overdue: {} });
+    }
+  });
+
   // Check if RUT exists in clients database
   app.get('/api/clients/check-rut', requireAuth, async (req, res) => {
     try {
