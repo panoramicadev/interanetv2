@@ -180,7 +180,12 @@ async function resolveItem(item: ParsedOrderItemIntent): Promise<ResolvedItem> {
   if (item.productQuery.trim().length < 2) return base;
   try {
     const result = await storage.getPriceList({ search: item.productQuery, limit: 8, offset: 0 });
-    const list = result?.items || [];
+    let list = result?.items || [];
+    // Fallback difuso: si la búsqueda exacta no encuentra nada, tolera errores
+    // de tipeo / voz (ej: "stein" -> "stain") buscando por similitud.
+    if (list.length === 0) {
+      list = await storage.getPriceListFuzzy(item.productQuery, 8);
+    }
     return { ...base, product: list[0] || null, alternatives: list.slice(0, 8) };
   } catch (error) {
     console.error("[voice-order] resolveItem error:", error);
