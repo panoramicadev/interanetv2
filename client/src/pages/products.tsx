@@ -22,6 +22,7 @@ import { PriceList } from "@shared/schema";
 import { PRODUCT_FORMATS } from "@shared/format-utils";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
+import ListaPrecios from "@/pages/lista-precios";
 import BulkImageUpload from "@/components/products/bulk-image-upload";
 
 // Fletes (Shipping rates) component
@@ -2583,6 +2584,11 @@ export default function ProductsPage() {
       {/* Modern Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
+          <TabsTrigger value="lista-precios" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <DollarSign className="h-4 w-4" />
+            <span className="hidden sm:inline">Lista de Precios</span>
+            <span className="sm:hidden">Precios</span>
+          </TabsTrigger>
           <TabsTrigger value="sap" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Catálogo SAP</span>
@@ -2610,6 +2616,11 @@ export default function ProductsPage() {
           </TabsTrigger>
           {/* Tab Orden oculta — ya se gestiona desde Catálogo Agrupado */}
         </TabsList>
+
+        {/* Tab de Lista de Precios */}
+        <TabsContent value="lista-precios" className="space-y-4 mt-4">
+          <ListaPrecios />
+        </TabsContent>
 
         {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
         <TabsContent value="sap" className="space-y-4 mt-4">
