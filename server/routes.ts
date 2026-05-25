@@ -91,6 +91,7 @@ import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAu
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
+import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
 
@@ -33988,6 +33989,26 @@ Instrucciones extra:
       toolsUsed: result.toolsUsed,
       tokensUsed: result.tokensUsed,
     });
+  }));
+
+  // POST /api/tomador/parse-order — Interpreta un pedido por voz/texto y resuelve cliente + productos
+  app.post('/api/tomador/parse-order', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { text, currentIntent } = req.body || {};
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ error: 'El texto del pedido no puede estar vacío.' });
+    }
+
+    try {
+      const result = await parseAndResolveOrder(
+        text.trim(),
+        (currentIntent as ParsedOrderIntent) || null,
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error('[parse-order] error:', error);
+      res.status(500).json({ error: error?.message || 'No se pudo interpretar el pedido.' });
+    }
   }));
 
   // GET /api/chat/history — Get chat history for current user
