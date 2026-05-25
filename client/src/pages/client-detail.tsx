@@ -106,6 +106,14 @@ interface FichaInfo {
   nextDueDate: string | null;
 }
 
+interface CarteraDoc {
+  nudo: string | null;
+  tido: string | null;
+  vencimiento: string | null;
+  saldo: number;
+  vencida: boolean;
+}
+
 interface AccountStatus {
   hasFicha: boolean;
   ficha: FichaInfo | null;
@@ -263,6 +271,13 @@ export default function ClientDetail() {
     queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`],
     enabled: !!decodedClientName,
   });
+
+  // Detalle de cuentas por cobrar (facturas pendientes con vencimiento + saldo)
+  const { data: carteraData, isLoading: isLoadingCartera } = useQuery<{ docs: CarteraDoc[] }>({
+    queryKey: [`/api/clients/cartera?name=${encodeURIComponent(decodedClientName)}`],
+    enabled: !!decodedClientName,
+  });
+  const carteraDocs = carteraData?.docs ?? [];
 
   // Purchase history (recent transactions) for the "Pedidos" tab
   const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery<PurchaseItem[]>({
@@ -869,6 +884,50 @@ export default function ClientDetail() {
                         <span className={`text-sm font-medium text-right max-w-[60%] truncate ${valueClassName ?? ""}`}>{value || "—"}</span>
                       </div>
                     ))}
+                  </CardContent>
+                </Card>
+
+                {/* Cuentas por Cobrar — detalle de facturas pendientes */}
+                <Card className="border-0 shadow-sm md:col-span-2">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-emerald-500" /> Cuentas por Cobrar
+                      {carteraDocs.length > 0 && (
+                        <Badge variant="outline" className="ml-auto text-[10px] font-bold">{carteraDocs.length} pend.</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingCartera ? (
+                      <div className="space-y-2">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="animate-pulse h-12 bg-gray-100 rounded-lg" />
+                        ))}
+                      </div>
+                    ) : carteraDocs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-6">Sin facturas pendientes de pago.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {carteraDocs.map((d) => (
+                          <div key={`${d.tido}-${d.nudo}`} className="flex items-center justify-between gap-3 py-2 border-b border-muted/50 last:border-0">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{d.tido} N° {d.nudo}</span>
+                                {d.vencida ? (
+                                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 text-[10px] font-bold">Vencida</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] font-bold text-muted-foreground">Por vencer</Badge>
+                                )}
+                              </div>
+                              <p className={`text-xs mt-0.5 ${d.vencida ? "text-red-600" : "text-muted-foreground"}`}>
+                                Vence {d.vencimiento ? formatDate(d.vencimiento) : "—"}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-semibold shrink-0 ${d.vencida ? "text-red-600" : ""}`}>{formatCurrency(d.saldo)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

@@ -2461,6 +2461,64 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Detalle de cuentas por cobrar: facturas pendientes con su vencimiento y saldo.
+  // Mismo criterio que el resumen del panel: tido FCV/FDV, espgdo='P', saldo = vabrdo - vaabdo > 0.
+  // fact_ventas es por línea → deduplicar por idmaeedo. Ligado por endo = koen del cliente.
+  app.get('/api/clients/cartera', requireAuth, async (req, res) => {
+    try {
+      const name = ((req.query.name as string) || '').trim();
+      const rut = ((req.query.rut as string) || '').trim();
+      if (!name && !rut) {
+        return res.status(400).json({ message: 'name o rut es requerido' });
+      }
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
+      const upperName = name.toUpperCase();
+      const cleanRut = normalizeRut(rut);
+
+      // koen(s) del cliente (casa matriz + sucursales que comparten nombre/RUT)
+      const fichaResult = await db.execute(sql`
+        SELECT koen FROM clients
+        WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
+           OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
+      `);
+      const fichaRows = Array.isArray(fichaResult) ? fichaResult : (fichaResult as any).rows || [];
+      const koens = Array.from(new Set(fichaRows.map((f: any) => f.koen).filter(Boolean)));
+      if (koens.length === 0) return res.json({ docs: [] });
+
+      const result = await db.execute(sql`
+        SELECT idmaeedo,
+               MAX(nudo) AS nudo,
+               MAX(tido) AS tido,
+               MAX(fe01vedo) AS vencimiento,
+               MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+               (MAX(fe01vedo) < CURRENT_DATE) AS vencida
+        FROM ventas.fact_ventas
+        WHERE endo IN (${sql.join(koens.map((k: string) => sql`${k}`), sql`, `)})
+          AND tido IN ('FCV', 'FDV')
+          AND espgdo = 'P'
+        GROUP BY idmaeedo
+        HAVING (MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0))) > 0
+        ORDER BY MAX(fe01vedo) ASC NULLS LAST
+      `);
+      const rows = Array.isArray(result) ? result : (result as any).rows || [];
+      const fmtDate = (v: any) => v == null ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+      res.json({
+        docs: rows.map((d: any) => ({
+          nudo: d.nudo != null ? String(d.nudo) : null,
+          tido: d.tido ? String(d.tido).trim() : null,
+          vencimiento: fmtDate(d.vencimiento),
+          saldo: Number(d.saldo) || 0,
+          vencida: d.vencida === true || d.vencida === 't',
+        })),
+      });
+    } catch (error) {
+      console.error('[cartera] error:', error);
+      res.status(500).json({ message: 'Error al obtener la cartera del cliente' });
+    }
+  });
+
   // Crédito vencido por cliente para la vista rápida del listado. Recibe la página
   // visible y devuelve, por cada cliente con código (koen), el monto vencido de su
   // cartera. Reproduce el mismo cálculo validado de /api/clients/account-status
