@@ -401,7 +401,7 @@ import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
-import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL } from "./utils/tms-logistica";
+import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
@@ -9737,10 +9737,13 @@ export function registerRoutes(app: Express): Server {
         clienteIdErp = resolved;
       }
 
+      // ?fresh=<algo> saltea el cache en memoria del TMS (botón "Actualizar" del panel).
+      const fresh = req.query.fresh != null && String(req.query.fresh) !== '' && String(req.query.fresh) !== '0';
+
       const base = { clienteIdErp, fechaDesde, fechaHasta };
       const [counts, page] = await Promise.all([
-        fetchTmsEstadoCounts(base),
-        fetchTmsOrders({ ...base, estado, limit, offset }),
+        fetchTmsEstadoCounts(base, fresh),
+        fetchTmsOrders({ ...base, estado, limit, offset }, fresh),
       ]);
 
       const completadas = counts.porEstado['Entregado'] || 0;
@@ -9829,6 +9832,53 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error en /api/logistica/tms/:idErp:', error);
       res.status(500).json({ message: 'Error al obtener el detalle de la orden' });
+    }
+  }));
+
+  // ==========================================================================
+  // GET /api/logistica/rutas → espejo de "Gestión de Rutas" del TMS. Lista de
+  // rutas con filtro por estado (Pendiente/Cargando/En Ruta/Completada) y
+  // paginación. Devuelve los objetos CRUDOS del TMS para no perder campos.
+  // ==========================================================================
+  app.get('/api/logistica/rutas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!TMS_ROLES_INTERNOS.includes(req.user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const tmsEnabled = isTmsConfigured();
+      const estado = typeof req.query.estado === 'string' && req.query.estado ? String(req.query.estado) : undefined;
+      const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? '10'), 10) || 10, 1), 100);
+      const offset = Math.max(Number.parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+      const fresh = req.query.fresh != null && String(req.query.fresh) !== '' && String(req.query.fresh) !== '0';
+
+      if (!tmsEnabled) {
+        return res.json({ tmsEnabled: false, estados: TMS_RUTA_ESTADOS, data: [], total: 0, limit, offset });
+      }
+
+      const result = await fetchTmsRutas({ estado, limit, offset }, fresh);
+      res.json({ tmsEnabled: true, estados: TMS_RUTA_ESTADOS, ...result });
+    } catch (error) {
+      console.error('Error en /api/logistica/rutas:', error);
+      res.status(500).json({ message: 'Error al obtener las rutas del TMS' });
+    }
+  }));
+
+  // GET /api/logistica/rutas/:id → detalle de una ruta (con entregas[]).
+  app.get('/api/logistica/rutas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!TMS_ROLES_INTERNOS.includes(req.user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      if (!isTmsConfigured()) {
+        return res.status(503).json({ message: 'El TMS no está conectado en este entorno.' });
+      }
+      const fresh = req.query.fresh != null && String(req.query.fresh) !== '' && String(req.query.fresh) !== '0';
+      const ruta = await fetchTmsRutaDetail(String(req.params.id || '').trim(), fresh);
+      if (!ruta) return res.status(404).json({ message: 'Ruta no encontrada.' });
+      res.json(ruta);
+    } catch (error) {
+      console.error('Error en /api/logistica/rutas/:id:', error);
+      res.status(500).json({ message: 'Error al obtener el detalle de la ruta' });
     }
   }));
 

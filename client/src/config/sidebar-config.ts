@@ -76,13 +76,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/logistica",
+          href: "/logistica-rutas",
           label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/logistica-tms",
-          label: "Despachos (TMS)",
           icon: Truck,
         },
         {
@@ -408,13 +403,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/logistica",
+          href: "/logistica-rutas",
           label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/logistica-tms",
-          label: "Despachos (TMS)",
           icon: Truck,
         },
         {
@@ -596,13 +586,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/logistica",
+          href: "/logistica-rutas",
           label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/logistica-tms",
-          label: "Despachos (TMS)",
           icon: Truck,
         },
         {
@@ -817,13 +802,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/logistica",
+          href: "/logistica-rutas",
           label: "Logística",
-          icon: Truck,
-        },
-        {
-          href: "/logistica-tms",
-          label: "Despachos (TMS)",
           icon: Truck,
         },
         {

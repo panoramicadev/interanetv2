@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   Truck,
   Package,
@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   X,
   Loader2,
+  RefreshCw,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -233,21 +234,24 @@ export default function TmsOrdersPanel({ clienteIdErp, defaultDays }: { clienteI
   const [rutInput, setRutInput] = useState<string>("");
   const [rutFilter, setRutFilter] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [bust, setBust] = useState<number>(0); // > 0 fuerza traer lo último del TMS (saltea cache)
 
   const effectiveRut = scoped ? String(clienteIdErp) : rutFilter;
 
-  // Cualquier cambio de filtro vuelve a la primera página.
-  useEffect(() => { setOffset(0); }, [days, estado, rutFilter, clienteIdErp]);
+  // Cualquier cambio de filtro vuelve a la primera página y a modo cacheado.
+  useEffect(() => { setOffset(0); setBust(0); }, [days, estado, rutFilter, clienteIdErp]);
 
   const params = useMemo(() => {
     const p: Record<string, any> = { days, limit: LIMIT, offset };
     if (estado !== "all") p.estado = estado;
     if (effectiveRut) p.clienteIdErp = effectiveRut;
+    if (bust) p.fresh = bust; // saltea el cache del cliente (queryKey nuevo) y del servidor (?fresh)
     return p;
-  }, [days, estado, offset, effectiveRut]);
+  }, [days, estado, offset, effectiveRut, bust]);
 
-  const { data, isLoading, isError, error, isFetching } = useQuery<BoardResponse>({
+  const { data, isLoading, isError, error, isFetching, dataUpdatedAt } = useQuery<BoardResponse>({
     queryKey: ["/api/logistica/tms", params],
+    placeholderData: keepPreviousData,
   });
 
   const kpis = data?.kpis ?? { total: 0, completadas: 0, fallidas: 0, pendientes: 0, porEstado: {} };
@@ -304,7 +308,23 @@ export default function TmsOrdersPanel({ clienteIdErp, defaultDays }: { clienteI
           <option value="180">Últimos 180 días</option>
           <option value="0">Todo el historial</option>
         </select>
-        {isFetching && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+        <div className="ml-auto flex items-center gap-2">
+          {data && dataUpdatedAt > 0 && (
+            <span className="text-xs text-slate-400 whitespace-nowrap">
+              Actualizado {new Date(dataUpdatedAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setBust(Date.now())}
+            disabled={isFetching}
+            title="Traer el estado más reciente del TMS (saltea el cache)"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Tabla */}

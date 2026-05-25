@@ -72,6 +72,7 @@ import CmmsMantencionesPlanificadas from "@/pages/cmms-mantenciones-planificadas
 import PanoramicaMarketPage from "@/pages/panoramica-market";
 import Logistica from "@/pages/logistica";
 import LogisticaTms from "@/pages/logistica-tms";
+import LogisticaRutas from "@/pages/logistica-rutas";
 import CMmsCalendario from "@/pages/cmms-calendario";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
@@ -236,6 +237,7 @@ function Router() {
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
             <Route path="/logistica" component={Logistica} />
             <Route path="/logistica-tms" component={LogisticaTms} />
+            <Route path="/logistica-rutas" component={LogisticaRutas} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/mailing" component={MailingPage} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
