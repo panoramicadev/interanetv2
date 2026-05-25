@@ -16684,7 +16684,7 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
-      const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;
+      const { search, unidad, tipoProducto, color, limit = 50, offset = 0, withImages } = req.query;
 
       // Validate and clamp pagination parameters (allow up to 10000 for bulk operations like reception file export)
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
@@ -16700,8 +16700,34 @@ export function registerRoutes(app: Express): Server {
         offset: validatedOffset,
       });
 
+      let items = result.items;
+
+      // Opt-in image enrichment (kept out of the default lightweight query).
+      // Image priority: ecommerce_products.imagen_url (store image) → product_content.imagen_destacada.
+      if (withImages && items.length) {
+        const ids = items.map((it: any) => it.id).filter(Boolean);
+        const codigos = items.map((it: any) => it.codigo).filter(Boolean);
+        const { productContent } = await import('@shared/schema');
+        const [ecomRows, contentRows] = await Promise.all([
+          ids.length
+            ? db.select({ priceListId: ecommerceProducts.priceListId, imagenUrl: ecommerceProducts.imagenUrl })
+                .from(ecommerceProducts).where(inArray(ecommerceProducts.priceListId, ids))
+            : Promise.resolve([] as any[]),
+          codigos.length
+            ? db.select({ codigo: productContent.codigo, imagenDestacada: productContent.imagenDestacada })
+                .from(productContent).where(inArray(productContent.codigo, codigos))
+            : Promise.resolve([] as any[]),
+        ]);
+        const imgById = new Map(ecomRows.map((r: any) => [r.priceListId, r.imagenUrl]));
+        const imgByCode = new Map(contentRows.map((r: any) => [r.codigo, r.imagenDestacada]));
+        items = items.map((it: any) => ({
+          ...it,
+          imageUrl: imgById.get(it.id) || imgByCode.get(it.codigo) || null,
+        }));
+      }
+
       res.json({
-        items: result.items,
+        items,
         totalCount: result.totalCount,
         hasMore: (validatedOffset + result.items.length) < result.totalCount
       });
