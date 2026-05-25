@@ -210,8 +210,9 @@ export default function ErpOrdersTable() {
   const [tipo, setTipo] = useState<"all" | "nvv" | "fcv">("all");
   const [vendedor, setVendedor] = useState("all");
   const [cliente, setCliente] = useState("all");
-  const [anio, setAnio] = useState("all");
-  const [mes, setMes] = useState("all");
+  // Por defecto el filtro arranca en el mes en curso
+  const [anio, setAnio] = useState(() => String(new Date().getFullYear()));
+  const [mes, setMes] = useState(() => String(new Date().getMonth() + 1).padStart(2, "0"));
   const [dia, setDia] = useState("all");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [detail, setDetail] = useState<ErpOrder | null>(null);
