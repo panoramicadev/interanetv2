@@ -29,6 +29,7 @@ import {
   ArrowDownAZ,
   ArrowUp,
   ArrowDown,
+  Download,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -110,6 +111,7 @@ export default function MargenPage() {
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedFormato, setSelectedFormato] = useState<string>("");
   const [marginSort, setMarginSort] = useState<MargenSort>("family");
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState<boolean>(false);
   const productsPerPage = 50;
 
   const { data: costosStatus, isLoading: loadingStatus } = useQuery<CostosStatus>({
@@ -215,6 +217,121 @@ export default function MargenPage() {
   const lastExec = costosStatus?.lastExecution;
   const isRunning = costosStatus?.isRunning ?? false;
   const stats = parseStats(lastExec?.statistics ?? null);
+
+  const handleDownloadCsv = async () => {
+    setIsDownloadingCsv(true);
+    try {
+      const params = new URLSearchParams({ limit: "10000", offset: "0" });
+      if (productsSearch) params.set("search", productsSearch);
+      if (selectedFamily) params.set("family", selectedFamily);
+      if (selectedColor) params.set("color", selectedColor);
+      if (selectedFormato) params.set("formato", selectedFormato);
+      const res = await apiRequest("GET", `/api/margen/products?${params}`);
+      const data: MargenProductsResponse = await res.json();
+
+      const rows = data.items.map(item => {
+        const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+        const costoValue = griEntry?.price ?? (item.costoProduccion as any);
+        const costoDate = griEntry?.date ?? null;
+        const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
+        const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
+        const listaNum = item.lista == null ? null : (typeof item.lista === "string" ? parseFloat(item.lista as any) : (item.lista as any));
+        const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
+        const formato = item.formatUnit || item.unidad || "";
+        return {
+          codigo: item.codigo ?? "",
+          producto: item.producto ?? "",
+          agrupacion: item.productFamily ?? "",
+          color: item.color ?? "",
+          formato,
+          lista: listaNum,
+          minimo: minimoNum,
+          costo: costoNum,
+          fechaCosto: costoDate ?? "",
+          margenPct,
+        };
+      });
+
+      if (marginSort !== "family") {
+        rows.sort((a, b) => {
+          const av = a.margenPct;
+          const bv = b.margenPct;
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          return marginSort === "margin-asc" ? av - bv : bv - av;
+        });
+      }
+
+      const headers = [
+        "Código",
+        "Producto",
+        "Agrupación",
+        "Color",
+        "Formato",
+        "Lista",
+        "Mínimo",
+        "Costo",
+        "Fecha Costo",
+        "Margen vs Mínimo (%)",
+      ];
+
+      const numberToEs = (n: number | null, decimals = 0) => {
+        if (n == null || Number.isNaN(n)) return "";
+        return n.toLocaleString("es-CL", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      };
+
+      const escape = (val: string) => {
+        if (val.includes(";") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
+          return '"' + val.replace(/"/g, '""') + '"';
+        }
+        return val;
+      };
+
+      const lines: string[] = [];
+      lines.push(headers.map(escape).join(";"));
+      for (const r of rows) {
+        lines.push([
+          r.codigo,
+          r.producto,
+          r.agrupacion,
+          r.color,
+          r.formato,
+          numberToEs(r.lista),
+          numberToEs(r.minimo),
+          numberToEs(r.costo),
+          r.fechaCosto,
+          numberToEs(r.margenPct, 1),
+        ].map(v => escape(String(v))).join(";"));
+      }
+
+      const csvContent = lines.join("\r\n");
+      const blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `margen_productos_${dateStr}.csv`;
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "CSV descargado",
+        description: `${rows.length} producto${rows.length === 1 ? "" : "s"} exportado${rows.length === 1 ? "" : "s"}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error al descargar",
+        description: error?.message || "No se pudo generar el CSV",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingCsv(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
@@ -328,39 +445,62 @@ export default function MargenPage() {
                       {productsData ? ` ${formatInt(productsData.totalCount)} productos.` : ""}
                     </p>
                   </div>
-                  <form
-                    className="flex items-center gap-2"
-                    onSubmit={e => {
-                      e.preventDefault();
-                      setProductsSearch(productsSearchInput);
-                      setProductsPage(0);
-                    }}
-                  >
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                      <Input
-                        value={productsSearchInput}
-                        onChange={e => setProductsSearchInput(e.target.value)}
-                        placeholder="Buscar código o producto..."
-                        className="pl-7 h-9 w-64 text-sm"
-                      />
-                    </div>
-                    <Button type="submit" size="sm" variant="secondary">Buscar</Button>
-                    {productsSearch && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setProductsSearch("");
-                          setProductsSearchInput("");
-                          setProductsPage(0);
-                        }}
-                      >
-                        Limpiar
-                      </Button>
-                    )}
-                  </form>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <form
+                      className="flex items-center gap-2"
+                      onSubmit={e => {
+                        e.preventDefault();
+                        setProductsSearch(productsSearchInput);
+                        setProductsPage(0);
+                      }}
+                    >
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                        <Input
+                          value={productsSearchInput}
+                          onChange={e => setProductsSearchInput(e.target.value)}
+                          placeholder="Buscar código o producto..."
+                          className="pl-7 h-9 w-64 text-sm"
+                        />
+                      </div>
+                      <Button type="submit" size="sm" variant="secondary">Buscar</Button>
+                      {productsSearch && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setProductsSearch("");
+                            setProductsSearchInput("");
+                            setProductsPage(0);
+                          }}
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </form>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadCsv}
+                      disabled={isDownloadingCsv}
+                      data-testid="button-margen-export-csv"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      {isDownloadingCsv ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Descargar CSV
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Filtros por agrupación comercial */}
