@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +28,7 @@ import {
   Calendar,
   ShoppingBag,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
@@ -186,11 +188,13 @@ function DeltaIcon({ delta }: { delta: number | null }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function MarginDashboard() {
+  const { toast } = useToast();
   const [view, setView] = useState<"general" | "segment" | "salesperson">("general");
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
   const [periodSel, setPeriodSel] = useState<YearMonthSelection | null>(defaultSelection);
   const [topProductsLimit, setTopProductsLimit] = useState<number>(10);
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState<boolean>(false);
 
   const period = selectionToApiPeriod(periodSel);
   const threshold = FIXED_THRESHOLD;
@@ -291,6 +295,179 @@ export function MarginDashboard() {
     return { min, max, minLabel: minRow?.salesperson, maxLabel: maxRow?.salesperson };
   }, [data, filterActive, view]);
 
+  // ─── Descarga del CSV ──────────────────────────────────────────────────────
+  const handleDownloadCsv = () => {
+    if (!data || !ov) {
+      toast({
+        title: "Sin datos",
+        description: "Esperá a que termine de cargar el dashboard.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsDownloadingCsv(true);
+    try {
+      const numEs = (n: number | null | undefined, decimals = 0) => {
+        if (n == null || !Number.isFinite(n)) return "";
+        return n.toLocaleString("es-CL", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      };
+      const pctEs = (n: number | null | undefined, decimals = 1) => {
+        if (n == null || !Number.isFinite(n)) return "";
+        return `${numEs(n, decimals)}%`;
+      };
+
+      const periodLabel = periodSel?.display ?? period;
+      const viewLabel = view === "general" ? "General" : view === "segment" ? "Por segmento" : "Por vendedor";
+      const segmentFilter = view === "segment" ? (selectedSegment || "Todos los segmentos") : "";
+      const salespersonFilter = view === "salesperson" ? (selectedSalesperson || "Todos los vendedores") : "";
+
+      const rows: Array<Array<string>> = [];
+
+      // Cabecera de contexto
+      rows.push(["DASHBOARD DE MARGEN"]);
+      rows.push(["Generado", new Date().toLocaleString("es-CL")]);
+      rows.push(["Período", periodLabel]);
+      rows.push(["Vista", viewLabel]);
+      if (segmentFilter) rows.push(["Segmento", segmentFilter]);
+      if (salespersonFilter) rows.push(["Vendedor", salespersonFilter]);
+      rows.push([]);
+
+      // KPIs
+      rows.push(["KPIs"]);
+      rows.push(["Indicador", "Valor"]);
+      rows.push(["Ingresos FCV", numEs(ov.revenue)]);
+      rows.push(["Costo total", numEs(ov.cost)]);
+      rows.push(["Margen $", numEs(ov.margin)]);
+      rows.push(["Margen %", pctEs(ov.marginPct)]);
+      rows.push(["SKUs vendidos", numEs(ov.skuCount)]);
+      rows.push([`SKUs en riesgo (margen < ${threshold}%)`, numEs(alerts.length)]);
+      rows.push(["Δ Ingresos vs período anterior (%)", pctEs(ov.deltas.revenuePct)]);
+      rows.push(["Δ Margen $ vs período anterior (%)", pctEs(ov.deltas.marginPct)]);
+      rows.push(["Δ Margen % vs período anterior (pp)", numEs(ov.deltas.marginPctPoints, 1)]);
+      if (filterActive && marginStats) {
+        rows.push(["Margen mínimo (en filtro)", pctEs(marginStats.min)]);
+        if (marginStats.minLabel) rows.push(["  ↳", marginStats.minLabel]);
+        rows.push(["Margen máximo (en filtro)", pctEs(marginStats.max)]);
+        if (marginStats.maxLabel) rows.push(["  ↳", marginStats.maxLabel]);
+      }
+      rows.push([]);
+
+      // Alertas de margen bajo
+      if (alerts.length > 0) {
+        rows.push([`ALERTAS DE MARGEN BAJO (umbral ${threshold}%)`]);
+        rows.push(["SKU", "Producto", "Unidades", "Ingresos", "Costo total", "Margen $", "Margen %"]);
+        for (const a of alerts) {
+          rows.push([
+            a.sku,
+            a.producto ?? "",
+            numEs(a.qty),
+            numEs(a.revenue),
+            numEs(a.cost),
+            numEs(a.marginAmount),
+            pctEs(a.marginPct),
+          ]);
+        }
+        rows.push([]);
+      }
+
+      // Top productos
+      if (topProductos.length > 0) {
+        rows.push([`TOP PRODUCTOS (${topProductos.length})`]);
+        rows.push(["SKU", "Producto", "Unidades", "Ingresos", "Costo total", "Margen $", "Margen %", "% del total"]);
+        for (const p of topProductos) {
+          rows.push([
+            p.sku,
+            p.producto ?? "",
+            numEs(p.qty),
+            numEs(p.revenue),
+            numEs(p.cost),
+            numEs(p.marginAmount),
+            pctEs(p.marginPct),
+            pctEs(p.pctOfTotal),
+          ]);
+        }
+        rows.push([]);
+      }
+
+      // Por segmento
+      if (data.bySegment.length > 0) {
+        rows.push(["MARGEN POR SEGMENTO"]);
+        rows.push(["Segmento", "Ingresos", "Costo", "Margen $", "Margen %", "Δ vs prev (pp)"]);
+        for (const s of data.bySegment) {
+          rows.push([
+            s.segment,
+            numEs(s.revenue),
+            numEs(s.cost),
+            numEs(s.marginAmount),
+            pctEs(s.marginPct),
+            numEs(s.marginPctDelta, 1),
+          ]);
+        }
+        rows.push([]);
+      }
+
+      // Por vendedor
+      if (data.bySalesperson.length > 0) {
+        rows.push(["MARGEN POR VENDEDOR"]);
+        rows.push(["Vendedor", "Segmento", "Ingresos", "Costo", "Margen $", "Margen %", "Δ vs prev (pp)"]);
+        for (const sp of data.bySalesperson) {
+          rows.push([
+            sp.salesperson,
+            sp.segment ?? "",
+            numEs(sp.revenue),
+            numEs(sp.cost),
+            numEs(sp.marginAmount),
+            pctEs(sp.marginPct),
+            numEs(sp.marginPctDelta, 1),
+          ]);
+        }
+      }
+
+      // Serializar
+      const escape = (val: string) => {
+        if (/[;"\n\r]/.test(val)) {
+          return '"' + val.replace(/"/g, '""') + '"';
+        }
+        return val;
+      };
+      const csv = rows.map(r => r.map(c => escape(String(c))).join(";")).join("\r\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "").trim().replace(/\s+/g, "-");
+      const filterSuffix =
+        view === "segment" && selectedSegment
+          ? `_segmento-${safe(selectedSegment)}`
+          : view === "salesperson" && selectedSalesperson
+          ? `_vendedor-${safe(selectedSalesperson)}`
+          : "";
+      const periodSuffix = safe(periodLabel || "");
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dashboard_margen${filterSuffix}_${periodSuffix}_${dateStr}.csv`;
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "CSV descargado",
+        description: "Dashboard exportado correctamente.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error al descargar",
+        description: error?.message || "No se pudo generar el CSV",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingCsv(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Filtros ────────────────────────────────────────────────────────── */}
@@ -362,11 +539,34 @@ export function MarginDashboard() {
           </div>
         )}
 
-        {/* Período */}
-        <div className="flex items-center gap-2 ml-auto">
-          <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Período:</span>
-          <YearMonthSelector value={periodSel} onChange={setPeriodSel} />
+        {/* Período + Descarga */}
+        <div className="flex items-center gap-3 ml-auto flex-wrap">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Período:</span>
+            <YearMonthSelector value={periodSel} onChange={setPeriodSel} />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleDownloadCsv}
+            disabled={isDownloadingCsv || isLoading || !data}
+            data-testid="button-margin-dashboard-export-csv"
+            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          >
+            {isDownloadingCsv ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-1.5" />
+                Descargar CSV
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
