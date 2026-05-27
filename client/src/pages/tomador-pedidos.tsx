@@ -817,17 +817,58 @@ export default function TomadorPedidos() {
         notes: quote.notes || '',
       });
 
-      // Convert quote items to cart items with proper types
-      const cartItems: CartItem[] = items.map((item: any) => ({
-        id: item.id || nanoid(),
-        type: 'standard' as const,
-        productName: item.productName,
-        productCode: item.productCode || '',
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice),
-        productUnit: item.productUnit || item.unit || 'UN',
-      }));
+      // Convert quote items to cart items, re-hydrating tierPrices from price_list
+      // so the "Precio" dropdown remains usable after reopening a saved quote.
+      // quote_items only persists unitPrice, so we look up the product by code and
+      // infer the selected priceTier by matching unitPrice against the available tiers.
+      const cartItems: CartItem[] = await Promise.all(
+        items.map(async (item: any): Promise<CartItem> => {
+          const base: CartItem = {
+            id: item.id || nanoid(),
+            type: 'standard' as const,
+            productName: item.productName,
+            productCode: item.productCode || '',
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            totalPrice: Number(item.totalPrice),
+            productUnit: item.productUnit || item.unit || 'UN',
+          };
+
+          const isShipping =
+            (typeof base.productName === 'string' && base.productName.startsWith('Despacho')) ||
+            base.productCode === 'DESPACHO';
+          if (!base.productCode || isShipping) return base;
+
+          try {
+            const response = await fetch(
+              `/api/price-list?search=${encodeURIComponent(base.productCode)}&limit=10`,
+              { credentials: 'include' }
+            );
+            if (!response.ok) return base;
+            const data = await response.json();
+            const products: PriceList[] = data.items || [];
+            const product = products.find(
+              (p) => (p.codigo || '').toUpperCase() === base.productCode.toUpperCase()
+            );
+            if (!product) return base;
+
+            const tierPrices = getAvailableTiers(product);
+            if (tierPrices.length === 0) return base;
+
+            const matchedTier = tierPrices.find(
+              (t) => Math.round(t.price) === Math.round(base.unitPrice)
+            );
+
+            return {
+              ...base,
+              tierPrices,
+              priceTier: matchedTier?.key,
+            };
+          } catch {
+            return base;
+          }
+        })
+      );
 
       // Check if quote had shipping enabled (by looking for shipping items)
       const hasShippingItems = items.some((item: any) =>
@@ -3577,7 +3618,11 @@ export default function TomadorPedidos() {
             </SheetHeader>
             <div className="flex flex-col h-[calc(100vh-60px)]">
               {/* Mobile Content */}
-              <Tabs defaultValue={defaultMobileTab} className="flex flex-col flex-1 overflow-hidden">
+              <Tabs
+                value={defaultMobileTab}
+                onValueChange={(v) => setDefaultMobileTab(v as "client" | "products" | "cart")}
+                className="flex flex-col flex-1 overflow-hidden"
+              >
                 <div className="sticky top-0 z-10 bg-background border-b px-4">
                   <TabsList className="bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50 w-full grid grid-cols-3">
                     <TabsTrigger
