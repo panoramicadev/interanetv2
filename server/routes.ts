@@ -29299,13 +29299,13 @@ Instrucciones extra:
     try {
       const user = req.user;
 
-      // Only salesperson, supervisor, admin and recursos_humanos can create expenses
-      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
+      // Gastos disponibles para todos los perfiles internos (todo rol autenticado salvo client)
+      if (user.role === 'client') {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
 
-      // Admin and supervisor can create expenses on behalf of other users
-      // Salesperson can only create their own expenses
+      // Admin, supervisor y encargado_area pueden crear gastos en nombre de otros usuarios.
+      // El resto sólo puede crear los propios.
       let targetUserId = user.id;
       if (['admin', 'supervisor', 'encargado_area'].includes(user.role) && req.body.userId) {
         targetUserId = req.body.userId;
@@ -29389,9 +29389,11 @@ Instrucciones extra:
 
       const filters: any = {};
 
-      // Salesperson can only see their own expenses
-      // Supervisor, recursos_humanos and admin can see all and filter by userId
-      if (user.role === 'salesperson') {
+      // Roles privilegiados (admin, supervisor, encargado_area, recursos_humanos)
+      // ven todos los gastos y pueden filtrar por userId.
+      // El resto sólo ve los propios.
+      const privilegedRoles = ['admin', 'supervisor', 'encargado_area', 'recursos_humanos'];
+      if (!privilegedRoles.includes(user.role)) {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;

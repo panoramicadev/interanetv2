@@ -1106,3 +1106,20 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
   ],
 };
+
+const GASTOS_SIDEBAR_ITEM: SidebarItem = {
+  href: "/gastos-empresariales",
+  label: "Rendición de Gastos",
+  icon: Banknote,
+};
+
+for (const role of Object.keys(SIDEBAR_CONFIG)) {
+  if (role === "client") continue;
+  const items = SIDEBAR_CONFIG[role];
+  const alreadyHasGastos = items.some(
+    (item) => item.href === "/gastos-empresariales"
+  );
+  if (!alreadyHasGastos) {
+    items.push({ ...GASTOS_SIDEBAR_ITEM });
+  }
+}
