@@ -66,6 +66,7 @@ export default function DondeComprar() {
   const [filter, setFilter] = useState<"todo" | RetailLocation["type"]>("todo");
   const [focus, setFocus] = useState<[number, number] | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const embed = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
 
   const { data: locations = [], isLoading } = useQuery<RetailLocation[]>({
     queryKey: ["/api/public/retail-locations"],
@@ -92,28 +93,30 @@ export default function DondeComprar() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Top nav */}
-      <header className="border-b border-gray-100 bg-white sticky top-0 z-[1000]">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <Link href="/tienda" className="flex items-center gap-3">
-            <img src="/panoramica-logo.png" alt="Panorámica" className="h-8 w-auto" />
-            <span className="sr-only">Panorámica</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
-            <Link href="/tienda" className="hover:text-[#ff7f33]">Productos</Link>
-            <Link href="/donde-comprar" className="text-[#ff7f33] border-b-2 border-[#ff7f33] pb-1">Dónde Comprar</Link>
-            <Link href="/catalogo" className="hover:text-[#ff7f33]">Cotizador</Link>
-          </nav>
-          <Link href="/tienda" className="bg-[#ff7f33] text-white rounded-full px-5 py-2 text-sm font-semibold hover:bg-[#e66a1f] transition">
-            Tienda Online
-          </Link>
-        </div>
-      </header>
+      {/* Top nav (oculta en modo embed para integrarse en sitios externos vía iframe) */}
+      {!embed && (
+        <header className="border-b border-gray-100 bg-white sticky top-0 z-[1000]">
+          <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+            <Link href="/tienda" className="flex items-center gap-3">
+              <img src="/panoramica-logo.png" alt="Panorámica" className="h-8 w-auto" />
+              <span className="sr-only">Panorámica</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
+              <Link href="/tienda" className="hover:text-[#ff7f33]">Productos</Link>
+              <Link href="/donde-comprar" className="text-[#ff7f33] border-b-2 border-[#ff7f33] pb-1">Dónde Comprar</Link>
+              <Link href="/catalogo" className="hover:text-[#ff7f33]">Cotizador</Link>
+            </nav>
+            <Link href="/tienda" className="bg-[#ff7f33] text-white rounded-full px-5 py-2 text-sm font-semibold hover:bg-[#e66a1f] transition">
+              Tienda Online
+            </Link>
+          </div>
+        </header>
+      )}
 
       {/* Split layout */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Sidebar */}
-        <aside className="lg:w-[420px] xl:w-[480px] lg:border-r border-gray-100 bg-white flex flex-col lg:h-[calc(100vh-64px)]">
+        <aside className={`lg:w-[420px] xl:w-[480px] lg:border-r border-gray-100 bg-white flex flex-col ${embed ? "lg:h-screen" : "lg:h-[calc(100vh-64px)]"}`}>
           <div className="p-6 md:p-8 pb-4 border-b border-gray-100">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 mb-2">
               Dónde comprar
@@ -253,7 +256,7 @@ export default function DondeComprar() {
         </aside>
 
         {/* Map */}
-        <div className="flex-1 h-[55vh] lg:h-[calc(100vh-64px)] relative">
+        <div className={`flex-1 h-[55vh] relative ${embed ? "lg:h-screen" : "lg:h-[calc(100vh-64px)]"}`}>
           <MapContainer
             center={center}
             zoom={11}

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Plus, Pencil, Trash2, Search, Loader2, ExternalLink, Download, CheckCircle2, XCircle } from "lucide-react";
+import { MapPin, Plus, Pencil, Trash2, Search, Loader2, ExternalLink, Download, CheckCircle2, XCircle, Code, Copy, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,6 +75,24 @@ export default function RetailLocationsAdmin() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [geocodeOnImport, setGeocodeOnImport] = useState(false);
   const [geocodingRowId, setGeocodingRowId] = useState<string | null>(null);
+  const [embedOpen, setEmbedOpen] = useState(false);
+  const [embedHeight, setEmbedHeight] = useState(700);
+  const [embedCopied, setEmbedCopied] = useState(false);
+
+  const embedOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const embedSrc = `${embedOrigin}/donde-comprar?embed=1`;
+  const embedCode = `<iframe src="${embedSrc}" width="100%" height="${embedHeight}" style="border:0;border-radius:12px;" loading="lazy" title="Dónde Comprar - Panorámica" allowfullscreen></iframe>`;
+
+  const copyEmbed = async () => {
+    try {
+      await navigator.clipboard.writeText(embedCode);
+      setEmbedCopied(true);
+      toast({ title: "Código copiado" });
+      setTimeout(() => setEmbedCopied(false), 2000);
+    } catch (err: any) {
+      toast({ title: "No se pudo copiar", description: err.message, variant: "destructive" });
+    }
+  };
 
   const { data: locations = [], isLoading } = useQuery<RetailLocation[]>({
     queryKey: ["/api/admin/retail-locations"],
@@ -204,7 +222,13 @@ export default function RetailLocationsAdmin() {
             </a>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setEmbedOpen(true)}
+          >
+            <Code className="w-4 h-4 mr-2" /> Insertar en sitio web
+          </Button>
           <Button
             variant="outline"
             onClick={() => { setImportResult(null); setImportOpen(true); }}
@@ -683,6 +707,88 @@ export default function RetailLocationsAdmin() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Embed dialog: snippet de iframe para insertar en sitio externo */}
+      <Dialog open={embedOpen} onOpenChange={(v) => { setEmbedOpen(v); if (!v) setEmbedCopied(false); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Code className="w-5 h-5 text-[#ff7f33]" />
+              Insertar Dónde Comprar en sitio web
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600">
+              Copiá este código HTML y pegalo en tu sitio donde quieras mostrar el mapa con sucursales,
+              distribuidores y ferreterías. Se actualiza solo cuando edites las ubicaciones desde acá.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <Label className="text-sm whitespace-nowrap">Alto (px)</Label>
+              <Input
+                type="number"
+                min={400}
+                max={1600}
+                value={embedHeight}
+                onChange={(e) => setEmbedHeight(Math.max(400, parseInt(e.target.value) || 700))}
+                className="w-28"
+              />
+              <span className="text-xs text-gray-500">Recomendado: 600–800 px</span>
+            </div>
+
+            <div className="relative">
+              <Textarea
+                value={embedCode}
+                readOnly
+                rows={5}
+                className="font-mono text-xs bg-gray-50 pr-12"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="absolute top-2 right-2"
+                onClick={copyEmbed}
+                title="Copiar al portapapeles"
+              >
+                {embedCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+              <div className="font-semibold">Tips de integración</div>
+              <ul className="list-disc list-inside space-y-1">
+                <li>El iframe es responsive: el ancho se adapta al contenedor.</li>
+                <li>En WordPress / Wix / Webflow, pegalo en un bloque "HTML personalizado" o "Embed".</li>
+                <li>El parámetro <code className="bg-amber-100 px-1 rounded">?embed=1</code> oculta la cabecera de Panorámica para que se integre limpio.</li>
+              </ul>
+            </div>
+
+            <div>
+              <Label className="text-xs text-gray-500">Vista previa</Label>
+              <div className="border rounded-lg overflow-hidden mt-1">
+                <iframe
+                  src={embedSrc}
+                  width="100%"
+                  height={320}
+                  style={{ border: 0, display: "block" }}
+                  title="Preview Dónde Comprar"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmbedOpen(false)}>Cerrar</Button>
+            <Button onClick={copyEmbed} className="bg-[#ff7f33] hover:bg-[#e66a1f]">
+              {embedCopied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+              {embedCopied ? "Copiado" : "Copiar código"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
