@@ -17,6 +17,7 @@ import {
   clients,
   salesTransactions,
   pedidoBitacora,
+  retailLocations,
 } from '@shared/schema';
 import { desc, eq, and, or, sql, ilike, inArray, getTableColumns } from 'drizzle-orm';
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
@@ -188,6 +189,17 @@ const OPENAPI_SPEC = {
           { $ref: '#/components/parameters/offset' },
         ],
         responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/puntos-de-venta': {
+      get: {
+        summary: 'Lista puntos de venta activos (sucursales, distribuidores, ferreterías) para integrar el mapa "Dónde Comprar" en sitios externos',
+        parameters: [
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['sucursal_propia', 'distribuidor', 'ferreteria'] } },
+          { name: 'region', in: 'query', schema: { type: 'string' }, description: 'Case-insensitive (ILIKE)' },
+          { name: 'comuna', in: 'query', schema: { type: 'string' }, description: 'Case-insensitive (ILIKE)' },
+        ],
+        responses: { '200': { description: 'Array de puntos de venta con id, name, type, address, comuna, region, latitude, longitude, phone, email, website, schedule, logoUrl, active' } },
       },
     },
     '/usuarios': {
@@ -921,6 +933,53 @@ router.get('/clientes', async (req: ApiAuthRequest, res) => {
     res.json(clients);
   } catch (error) {
     console.error('Error fetching clients:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Puntos de Venta (Read) — sucursales, distribuidores, ferreterías
+// ============================================
+// Para integrar el mapa "Dónde Comprar" en el sitio web público en PHP u otros sistemas
+// usando la misma key de API. Devuelve solo ubicaciones activas. CORS abierto por si el
+// consumidor lo pide desde JavaScript.
+router.get('/puntos-de-venta', async (req: ApiAuthRequest, res) => {
+  try {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+
+    const { type, region, comuna } = req.query as { type?: string; region?: string; comuna?: string };
+    const filters = [eq(retailLocations.active, true)];
+    if (type && ['ferreteria', 'distribuidor', 'sucursal_propia'].includes(type)) {
+      filters.push(eq(retailLocations.type, type));
+    }
+    if (region && region.trim()) filters.push(ilike(retailLocations.region, region.trim()));
+    if (comuna && comuna.trim()) filters.push(ilike(retailLocations.comuna, comuna.trim()));
+
+    const rows = await db
+      .select({
+        id: retailLocations.id,
+        name: retailLocations.name,
+        type: retailLocations.type,
+        address: retailLocations.address,
+        comuna: retailLocations.comuna,
+        region: retailLocations.region,
+        latitude: retailLocations.latitude,
+        longitude: retailLocations.longitude,
+        phone: retailLocations.phone,
+        email: retailLocations.email,
+        website: retailLocations.website,
+        schedule: retailLocations.schedule,
+        logoUrl: retailLocations.logoUrl,
+        active: retailLocations.active,
+      })
+      .from(retailLocations)
+      .where(and(...filters))
+      .orderBy(retailLocations.name);
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching puntos de venta:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

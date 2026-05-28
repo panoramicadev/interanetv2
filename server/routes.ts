@@ -6597,10 +6597,58 @@ export function registerRoutes(app: Express): Server {
   // RETAIL LOCATIONS - Dónde Comprar (público + admin)
   // ==================================================================================
 
-  // Public: listado de ubicaciones activas para el mapa
-  app.get('/api/public/retail-locations', async (_req, res) => {
+  // ─── PUBLIC API: PUNTOS DE VENTA ───────────────────────────────────────────────
+  // Endpoint público para consumir desde el sitio web de Panorámica (PHP) u otros sistemas.
+  // - CORS abierto: cualquier dominio puede llamarlo (server-side o desde JS).
+  // - Sin autenticación: solo devuelve ubicaciones activas.
+  // - Cache-Control 5 min: alivia DB y permite cachear en CDN/proxy.
+  // - Filtros opcionales: ?type=ferreteria|distribuidor|sucursal_propia, ?region=..., ?comuna=...
+  // - El campo `notes` (notas internas) NO se expone.
+  // - Mantiene el path /api/public/retail-locations (lo consume la página /donde-comprar de la intranet).
+  const setRetailLocationsCors = (res: any) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+  };
+
+  app.options('/api/public/retail-locations', (_req, res) => {
+    setRetailLocationsCors(res);
+    res.status(204).end();
+  });
+
+  app.get('/api/public/retail-locations', async (req, res) => {
     try {
-      const rows = await db.select().from(retailLocations).where(eq(retailLocations.active, true));
+      setRetailLocationsCors(res);
+      const { type, region, comuna } = req.query as { type?: string; region?: string; comuna?: string };
+      const filters = [eq(retailLocations.active, true)];
+      if (type && ['ferreteria', 'distribuidor', 'sucursal_propia'].includes(type)) {
+        filters.push(eq(retailLocations.type, type));
+      }
+      if (region && region.trim()) filters.push(ilike(retailLocations.region, region.trim()));
+      if (comuna && comuna.trim()) filters.push(ilike(retailLocations.comuna, comuna.trim()));
+
+      const rows = await db
+        .select({
+          id: retailLocations.id,
+          name: retailLocations.name,
+          type: retailLocations.type,
+          address: retailLocations.address,
+          comuna: retailLocations.comuna,
+          region: retailLocations.region,
+          latitude: retailLocations.latitude,
+          longitude: retailLocations.longitude,
+          phone: retailLocations.phone,
+          email: retailLocations.email,
+          website: retailLocations.website,
+          schedule: retailLocations.schedule,
+          logoUrl: retailLocations.logoUrl,
+          active: retailLocations.active,
+        })
+        .from(retailLocations)
+        .where(and(...filters))
+        .orderBy(retailLocations.name);
+
       res.json(rows);
     } catch (error: any) {
       console.error('Error fetching public retail locations:', error);
