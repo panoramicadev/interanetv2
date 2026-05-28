@@ -21321,28 +21321,72 @@ export function registerRoutes(app: Express): Server {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Determine grouping expression
-    let groupExpr: string;
+    // Bucket expression and label format per granularity
+    let bucketExpr: string;
+    let labelExpr: string;
+    let intervalStr: string;
+    let truncUnit: string;
     if (period === 'daily') {
-      groupExpr = "TO_CHAR(feemdo::date, 'YYYY-MM-DD')";
+      bucketExpr = "feemdo::date";
+      labelExpr = "TO_CHAR(s.bucket, 'YYYY-MM-DD')";
+      intervalStr = "'1 day'";
+      truncUnit = 'day';
     } else if (period === 'weekly') {
-      groupExpr = "TO_CHAR(DATE_TRUNC('week', feemdo::date), 'YYYY-\"W\"IW')";
+      bucketExpr = "DATE_TRUNC('week', feemdo::date)::date";
+      labelExpr = "TO_CHAR(s.bucket, 'YYYY-\"W\"IW')";
+      intervalStr = "'1 week'";
+      truncUnit = 'week';
     } else {
-      groupExpr = "TO_CHAR(feemdo::date, 'YYYY-MM')";
+      bucketExpr = "DATE_TRUNC('month', feemdo::date)::date";
+      labelExpr = "TO_CHAR(s.bucket, 'YYYY-MM')";
+      intervalStr = "'1 month'";
+      truncUnit = 'month';
     }
 
-    const query = `
-      SELECT ${groupExpr} as period, COALESCE(SUM(CAST(monto AS numeric)), 0) as sales
-      FROM nvv.fact_nvv
-      ${whereClause}
-      GROUP BY ${groupExpr}
-      ORDER BY period ASC
-    `;
+    // When we have a date range, zero-fill missing buckets via generate_series + LEFT JOIN
+    // so the chart shows $0 for days/weeks/months with no documents instead of skipping them.
+    let query: string;
+    if (dateRange.startDate && dateRange.endDate) {
+      const startParam = `$1`;
+      const endParam = `$2`;
+      query = `
+        WITH series AS (
+          SELECT generate_series(
+            DATE_TRUNC('${truncUnit}', ${startParam}::date),
+            DATE_TRUNC('${truncUnit}', ${endParam}::date),
+            ${intervalStr}::interval
+          )::date AS bucket
+        ),
+        agg AS (
+          SELECT ${bucketExpr} AS bucket,
+                 COALESCE(SUM(CAST(monto AS numeric)), 0) AS sales
+          FROM nvv.fact_nvv
+          ${whereClause}
+          GROUP BY ${bucketExpr}
+        )
+        SELECT ${labelExpr} AS period,
+               COALESCE(agg.sales, 0) AS sales
+        FROM series s
+        LEFT JOIN agg ON s.bucket = agg.bucket
+        ORDER BY s.bucket ASC
+      `;
+    } else {
+      query = `
+        SELECT ${labelExpr.replace('s.bucket', bucketExpr)} as period,
+               COALESCE(SUM(CAST(monto AS numeric)), 0) as sales
+        FROM nvv.fact_nvv
+        ${whereClause}
+        GROUP BY ${bucketExpr}
+        ORDER BY ${bucketExpr} ASC
+      `;
+    }
 
-    // Use raw SQL with parameter interpolation (safe — params are validated strings)
-    let finalQuery = query;
-    params.forEach((p, i) => {
-      finalQuery = finalQuery.replace(`$${i + 1}`, `'${p.replace(/'/g, "''")}'`);
+    // Use raw SQL with parameter interpolation (safe — params are validated strings).
+    // Regex avoids $1-vs-$10 collisions when there are 10+ params, and replaces
+    // every occurrence (CTE references $1/$2 twice — in series and in agg).
+    const finalQuery = query.replace(/\$(\d+)/g, (_, idx) => {
+      const p = params[parseInt(idx, 10) - 1];
+      return `'${p.replace(/'/g, "''")}'`;
     });
 
     const result = await db.execute(sql.raw(finalQuery));

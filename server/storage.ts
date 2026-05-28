@@ -5463,46 +5463,74 @@ export class DatabaseStorage implements IStorage {
       conditions.push(...DatabaseStorage.getBranchConditions(branch));
     }
 
-    let query: any;
-
+    // When a date range is set, zero-fill missing buckets via generate_series + LEFT JOIN
+    // so the chart shows $0 for empty days/weeks/months instead of drawing misleading
+    // straight lines between sparse data points.
+    // Bucket = date_trunc'd date used for grouping. Label format takes the bucket date
+    // (either s.bucket in the CTE branch or the bucket expression directly).
+    let bucketExpr: any;
+    let labelFromBucket: (bucket: any) => any;
+    let intervalSql: any;
+    let truncUnit: string;
     switch (period) {
       case 'daily':
-        query = db
-          .select({
-            period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`,
-            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-          })
-          .from(factVentas)
-          .where(and(...conditions))
-          .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`)
-          .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`);
+        bucketExpr = sql`${factVentas.feemdo}::date`;
+        labelFromBucket = (b) => sql`TO_CHAR(${b}, 'YYYY-MM-DD')`;
+        intervalSql = sql`'1 day'::interval`;
+        truncUnit = 'day';
         break;
       case 'weekly':
-        query = db
-          .select({
-            period: sql<string>`'Semana ' || EXTRACT(week FROM ${factVentas.feemdo})`,
-            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-          })
-          .from(factVentas)
-          .where(and(...conditions))
-          .groupBy(sql`EXTRACT(week FROM ${factVentas.feemdo})`)
-          .orderBy(sql`EXTRACT(week FROM ${factVentas.feemdo})`);
+        bucketExpr = sql`DATE_TRUNC('week', ${factVentas.feemdo})::date`;
+        labelFromBucket = (b) => sql`'Semana ' || EXTRACT(week FROM ${b})`;
+        intervalSql = sql`'1 week'::interval`;
+        truncUnit = 'week';
         break;
       case 'monthly':
       default:
-        query = db
-          .select({
-            period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`,
-            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-          })
-          .from(factVentas)
-          .where(and(...conditions))
-          .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
-          .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`);
+        bucketExpr = sql`DATE_TRUNC('month', ${factVentas.feemdo})::date`;
+        labelFromBucket = (b) => sql`TO_CHAR(${b}, 'YYYY-MM')`;
+        intervalSql = sql`'1 month'::interval`;
+        truncUnit = 'month';
         break;
     }
 
-    const results = await query;
+    const whereClause = sql.join(conditions, sql` AND `);
+    let chartQuery: any;
+    if (startDate && endDate) {
+      chartQuery = sql`
+        WITH series AS (
+          SELECT generate_series(
+            DATE_TRUNC(${truncUnit}, ${startDate}::date),
+            DATE_TRUNC(${truncUnit}, ${endDate}::date),
+            ${intervalSql}
+          )::date AS bucket
+        ),
+        agg AS (
+          SELECT ${bucketExpr} AS bucket,
+                 COALESCE(SUM(${factVentas.monto}), 0) AS sales
+          FROM ${factVentas}
+          WHERE ${whereClause}
+          GROUP BY ${bucketExpr}
+        )
+        SELECT ${labelFromBucket(sql`s.bucket`)} AS period,
+               COALESCE(agg.sales, 0)::numeric AS sales
+        FROM series s
+        LEFT JOIN agg ON s.bucket = agg.bucket
+        ORDER BY s.bucket ASC
+      `;
+    } else {
+      chartQuery = sql`
+        SELECT ${labelFromBucket(bucketExpr)} AS period,
+               COALESCE(SUM(${factVentas.monto}), 0) AS sales
+        FROM ${factVentas}
+        WHERE ${whereClause}
+        GROUP BY ${bucketExpr}
+        ORDER BY ${bucketExpr} ASC
+      `;
+    }
+
+    const rawResults = await db.execute(chartQuery);
+    const results = (rawResults as any).rows || rawResults;
 
     const chartResult = results.map((r: any) => ({
       period: r.period,
