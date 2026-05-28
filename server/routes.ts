@@ -6928,7 +6928,23 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get grouped products for public catalog
+  // - CORS abierto: cualquier dominio puede consumirlo desde JS (igual que /api/public/retail-locations).
+  // - Sin autenticación.
+  // - Cache-Control 5 min para alivianar DB y permitir cacheo en CDN/proxy.
+  const setPublicProductsCors = (res: any) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+  };
+
+  app.options('/api/public/products/grouped', (_req, res) => {
+    setPublicProductsCors(res);
+    res.status(204).end();
+  });
+
   app.get('/api/public/products/grouped', async (req: any, res) => {
+    setPublicProductsCors(res);
     try {
       const { search } = req.query;
       const result = await db.execute(sql`
