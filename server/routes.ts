@@ -19577,57 +19577,108 @@ export function registerRoutes(app: Express): Server {
       // Strip internal _searchText field before sending
       let cleanCatalog = filtered.map(({ _searchText, ...rest }: any) => rest);
 
-      // ─── Apply branch discount for authenticated client users ───
+      // ─── Resolve client context (for branch discount and targeted offers) ───
       let branchDiscountApplied = 0;
+      let targetedOffersApplied = 0;
       if (req.user && req.user.role === 'client') {
         try {
           const { branchId } = req.query;
-          let clientRecord;
+          let clientRecord: any;
 
           if (branchId) {
-            // Explicit branch selection — look up directly
             const { clients: clientsLookup } = await import('@shared/schema');
             const { eq: eqLookup } = await import('drizzle-orm');
             const { db: dbLookup } = await import('./db');
             const [explicitBranch] = await dbLookup.select().from(clientsLookup).where(eqLookup(clientsLookup.id, branchId as string)).limit(1);
-            if (explicitBranch) {
-              clientRecord = explicitBranch;
-            }
+            if (explicitBranch) clientRecord = explicitBranch;
           } else {
-            // Auto-resolve from user
             clientRecord = await storage.getClientByUserId(req.user.id);
           }
 
-          if (clientRecord && clientRecord.branchDiscountPercent) {
-            const discountPct = parseFloat(clientRecord.branchDiscountPercent as string);
-            if (discountPct > 0 && discountPct <= 100) {
-              branchDiscountApplied = discountPct;
-              const factor = 1 - discountPct / 100;
-              // Branch (convenio) discount applies only to LIST price, never to offer prices.
-              // Offers already carry their own promotional discount — stacking them would
-              // double-discount the customer. Deep-copy to avoid polluting shared cache.
-              cleanCatalog = cleanCatalog.map((product: any) => {
-                const newColors: Record<string, any[]> = {};
-                for (const [color, variants] of Object.entries(product.colors)) {
-                  newColors[color] = (variants as any[]).map((v: any) => ({
+          // Look up offers targeted to this client (by id or same RUT — to cover all
+          // branches of a company even when the user is on the parent). The catalog
+          // already includes all_clients=true offers; we layer the targeted ones on top.
+          const targetedOfferMap = new Map<string, number>();
+          if (clientRecord) {
+            const targetClientId = (clientRecord.id || '').toString();
+            const targetClientRut = (clientRecord.rten || '').toString().trim();
+            try {
+              const offerRes: any = await db.execute(sql`
+                SELECT UPPER(o.codigo) AS codigo, o.precio
+                FROM price_list_offers o
+                WHERE (o.paused IS NULL OR o.paused = false)
+                  AND o.all_clients = false
+                  AND EXISTS (
+                    SELECT 1 FROM price_list_offer_clients oc
+                    JOIN clients oc_c ON oc_c.id = oc.client_id
+                    WHERE oc.offer_id = o.id
+                      AND (oc_c.id = ${targetClientId} OR (${targetClientRut} <> '' AND oc_c.rten = ${targetClientRut}))
+                  )
+              `);
+              const offerRows = Array.isArray(offerRes) ? offerRes : (offerRes.rows || []);
+              for (const r of offerRows as any[]) {
+                if (!r.codigo) continue;
+                const p = parseFloat(r.precio?.toString() || '0');
+                if (p > 0) targetedOfferMap.set(r.codigo, p);
+              }
+            } catch (offerErr) {
+              console.warn('[STORE] Error resolving targeted offers, serving catalog without them:', offerErr);
+            }
+          }
+
+          const branchDiscountPct = clientRecord?.branchDiscountPercent
+            ? parseFloat(clientRecord.branchDiscountPercent as string) : 0;
+          const hasBranchDiscount = branchDiscountPct > 0 && branchDiscountPct <= 100;
+          const hasTargetedOffers = targetedOfferMap.size > 0;
+
+          if (hasBranchDiscount || hasTargetedOffers) {
+            const factor = hasBranchDiscount ? 1 - branchDiscountPct / 100 : 1;
+            if (hasBranchDiscount) branchDiscountApplied = branchDiscountPct;
+
+            // Single deep-copy pass: patch targeted offerPrice and apply convenio to list.
+            // Convenio discount applies only to LIST price, never to offers (double-discount).
+            cleanCatalog = cleanCatalog.map((product: any) => {
+              const newColors: Record<string, any[]> = {};
+              for (const [color, variants] of Object.entries(product.colors)) {
+                newColors[color] = (variants as any[]).map((v: any) => {
+                  const skuUpper = (v.sku || '').toString().toUpperCase();
+                  const targetedOffer = targetedOfferMap.get(skuUpper);
+                  let nextOfferPrice = v.offerPrice;
+                  if (targetedOffer != null) {
+                    // Targeted offer beats catalog offer if cheaper (or if catalog has none).
+                    if (nextOfferPrice == null || targetedOffer < nextOfferPrice) {
+                      nextOfferPrice = targetedOffer;
+                      targetedOffersApplied++;
+                    }
+                  }
+                  return {
                     ...v,
                     originalPrice: v.price,
-                    price: v.price != null ? Math.max(0, Math.round(v.price * factor)) : v.price,
-                    offerPrice: v.offerPrice,
-                  }));
-                }
-                return { ...product, colors: newColors };
-              });
-              console.log(`[STORE] Applied convenio discount ${discountPct}% to list prices (offers untouched) for client user ${req.user.id}${branchId ? ` (branch: ${branchId})` : ''}`);
+                    price: hasBranchDiscount && v.price != null
+                      ? Math.max(0, Math.round(v.price * factor))
+                      : v.price,
+                    offerPrice: nextOfferPrice,
+                  };
+                });
+              }
+              return { ...product, colors: newColors };
+            });
+
+            if (hasBranchDiscount) {
+              console.log(`[STORE] Applied convenio discount ${branchDiscountPct}% to list prices (offers untouched) for client user ${req.user.id}${branchId ? ` (branch: ${branchId})` : ''}`);
+            }
+            if (hasTargetedOffers) {
+              console.log(`[STORE] Applied ${targetedOffersApplied} targeted offer price(s) for client user ${req.user.id} (client ${clientRecord?.id}, rut ${clientRecord?.rten})`);
             }
           }
         } catch (discountError) {
-          console.warn('[STORE] Error resolving branch discount, serving without discount:', discountError);
+          console.warn('[STORE] Error resolving client pricing context, serving without overrides:', discountError);
         }
       }
 
-      // Cache control: disable cache when client has custom price list OR branch discount
-      if ((priceList && priceList !== 'LP01') || branchDiscountApplied > 0) {
+      // Cache control: disable cache when client has custom price list, branch discount,
+      // or per-client targeted offers (any of these makes the response client-specific).
+      if ((priceList && priceList !== 'LP01') || branchDiscountApplied > 0 || targetedOffersApplied > 0) {
         res.set('Cache-Control', 'no-store');
       } else {
         res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
