@@ -857,11 +857,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const totalCustomers = metrics?.activeCustomers || 0;
     const totalUnits = metrics?.totalUnits || 0;
     const totalOrders = metrics?.totalOrders || 0;
-    const prevNewClients = metrics?.previousNewClients;
     const currentNew = metrics?.newClients || 0;
-
-    const newClientsDiff = prevNewClients !== undefined ? currentNew - prevNewClients : null;
-    const diffSign = newClientsDiff !== null && newClientsDiff >= 0 ? '+' : '';
+    const yearlyNewClients = gdvYearlyMetrics?.newClients || 0;
 
     const totalNewClientsSales = newClientsList?.reduce((sum, c) => sum + c.totalSales, 0) || 0;
 
@@ -886,27 +883,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  {kpi.change.percentage !== "Sin datos previos" && (
-                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                      {kpi.change.percentage}
-                    </span>
-                  )}
-                  {newClientsDiff !== null && (
-                    <span className={`text-xs sm:text-sm font-semibold ${newClientsDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {diffSign}{formatNumber(newClientsDiff)}
-                    </span>
-                  )}
-                  {kpi.change.percentage === "Sin datos previos" && (
-                    <span className="text-xs sm:text-sm font-semibold text-gray-500">
-                      Sin datos previos
-                    </span>
-                  )}
-                </div>
-                {kpi.change.comparisonText && (
-                  <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
-                    {kpi.change.comparisonText}
+                  <span className="text-xs sm:text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {formatNumber(yearlyNewClients)}
                   </span>
-                )}
+                  <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
+                    acumulado año {currentYearStr}
+                  </span>
+                </div>
               </div>
               <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                 <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
