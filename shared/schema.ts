@@ -2261,6 +2261,13 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   packagingPalletName: varchar("packaging_pallet_name"),
   packagingPalletUnit: varchar("packaging_pallet_unit"),
   packagingAmountPerPallet: integer("packaging_amount_per_pallet"),
+
+  // ── Venta por pallet (configuración comercial, editable en admin) ──
+  // packagingAmountPerPallet (arriba) = unidades por pallet, viene de SAP/Softland
+  // pero también es editable manualmente desde el admin para overrides.
+  palletEnabled: boolean("pallet_enabled").default(false), // Habilitar botón "Pallet completo" en tienda
+  palletDiscountPct: numeric("pallet_discount_pct", { precision: 5, scale: 2 }), // 0..100; descuento aplicado al precio unitario al comprar pallet completo. REEMPLAZA cualquier oferta activa (no se suman).
+
   slug: varchar("slug"), // Slug único legible para URL pública /p/:slug (ej: "esmalte-copper-blanco-a3f2")
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2738,6 +2745,15 @@ export interface CartItem {
   imageUrl?: string; // Primary product image
   category?: string; // Product category
 
+  // Pallet purchase metadata (Opción B: línea normal con qty=N y unitPrice ya rebajado)
+  // Cuando isPalletPurchase=true:
+  //   - quantity = unidades por pallet (ej 144 galones)
+  //   - unitPrice = listPrice × (1 − palletDiscountPct/100)  ← ya pre-rebajado
+  //   - originalPrice = listPrice  ← para mostrar tachado
+  // El descuento por pallet REEMPLAZA cualquier oferta activa (no se suman).
+  isPalletPurchase?: boolean;     // True si la línea fue agregada vía botón "Pallet completo"
+  palletDiscountPct?: number;     // 0..100; descuento aplicado (sólo para UI/badge)
+
   // Metadata
   addedAt: string; // ISO timestamp when added to cart
   updatedAt: string; // ISO timestamp when last modified
@@ -2858,6 +2874,8 @@ export const cartItemSchema = z.object({
   subtotalAfterDiscount: z.number().min(0).optional(),
   imageUrl: z.string().optional(),
   category: z.string().optional(),
+  isPalletPurchase: z.boolean().optional(),
+  palletDiscountPct: z.number().min(0).max(100).optional(),
   addedAt: z.string(),
   updatedAt: z.string(),
   minQuantity: z.number().int().min(1),

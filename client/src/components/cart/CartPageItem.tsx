@@ -356,10 +356,14 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                   <div className="text-sm text-gray-400 line-through" data-testid={`text-unit-price-original-${item.productId}`}>
                     {formatPrice(item.originalPrice)}
                   </div>
-                  <div className={`text-xl font-bold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-unit-price-${item.productId}`}>
+                  <div className={`text-xl font-bold ${item.isPalletPurchase ? 'text-blue-700' : item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-unit-price-${item.productId}`}>
                     {formatPrice(item.unitPrice)}
                   </div>
-                  {item.isOffer ? (
+                  {item.isPalletPurchase ? (
+                    <div className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md" title={`Pallet completo: ${item.quantity} unidades${item.palletDiscountPct ? ` con ${item.palletDiscountPct}% off` : ''}`}>
+                      🟦 Pallet completo {item.palletDiscountPct ? `-${item.palletDiscountPct}%` : ''}
+                    </div>
+                  ) : item.isOffer ? (
                     <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
                       🔥 Precio oferta
                     </div>
@@ -465,7 +469,7 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
                     <div className="text-sm text-gray-400 line-through">
                       {formatPrice(item.originalPrice * item.quantity)}
                     </div>
-                    <div className={`text-2xl font-bold ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-subtotal-${item.productId}`}>
+                    <div className={`text-2xl font-bold ${item.isPalletPurchase ? 'text-blue-700' : item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-subtotal-${item.productId}`}>
                       {formatPrice(item.subtotal)}
                     </div>
                     <div className="text-xs text-gray-400">
