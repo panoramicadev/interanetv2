@@ -49,6 +49,7 @@ interface KPICardsProps {
   client?: string;
   product?: string;
   comparePeriod?: string;
+  onShowNewClients?: () => void;
 }
 
 interface NewClientItem {
@@ -60,7 +61,7 @@ interface NewClientItem {
   salesperson: string;
 }
 
-export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod }: KPICardsProps) {
+export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod, onShowNewClients }: KPICardsProps) {
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   const [isProjectionModalOpen, setIsProjectionModalOpen] = useState(false);
   const [showCombined, setShowCombined] = useState(false);
@@ -867,7 +868,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         <div
           key={kpi.title}
           className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden cursor-pointer ring-purple-300 hover:ring-2 transition-all"
-          onClick={() => setShowNewClientsModal(true)}
+          onClick={() => {
+            if (onShowNewClients) {
+              onShowNewClients();
+            } else {
+              setShowNewClientsModal(true);
+            }
+          }}
         >
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">

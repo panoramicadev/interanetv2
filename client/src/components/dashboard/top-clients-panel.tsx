@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Search, X } from "lucide-react";
+import { Users, Search, X, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,17 @@ interface SearchClient {
   transactionCount: number;
 }
 
+interface NewClientItem {
+  clientName: string;
+  totalSales: number;
+  totalUnits: number;
+  orderCount: number;
+  firstPurchaseDate: string;
+  salesperson: string;
+}
+
+export type ClientsPanelView = "top" | "new";
+
 interface TopClientsPanelProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -30,42 +41,100 @@ interface TopClientsPanelProps {
   salesperson?: string;
   client?: string;
   product?: string;
+  view?: ClientsPanelView;
+  onViewChange?: (view: ClientsPanelView) => void;
 }
 
-export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson, client, product }: TopClientsPanelProps) {
+export const TOP_CLIENTS_PANEL_ID = "top-clients-panel";
+
+export default function TopClientsPanel({
+  selectedPeriod,
+  filterType,
+  segment,
+  salesperson,
+  client,
+  product,
+  view: viewProp,
+  onViewChange,
+}: TopClientsPanelProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [limit, setLimit] = useState(10);
-  
+  const [internalView, setInternalView] = useState<ClientsPanelView>("top");
+  const view = viewProp ?? internalView;
+  const setView = (v: ClientsPanelView) => {
+    setInternalView(v);
+    onViewChange?.(v);
+  };
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchTerm]);
-  
+
   // Query for paginated top clients (default view)
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
     queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}${product ? `&product=${encodeURIComponent(product)}` : ''}`],
-    enabled: !debouncedSearchTerm,
+    enabled: view === "top" && !debouncedSearchTerm,
   });
 
-  // Query for search results (when typing)
+  // Query for search results (when typing) — only in top view
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchClient[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}${product ? `&product=${encodeURIComponent(product)}` : ''}`],
-    enabled: debouncedSearchTerm.length >= 2,
+    enabled: view === "top" && debouncedSearchTerm.length >= 2,
   });
 
-  // Use search results if searching, otherwise use paginated clients
-  const displayClients = debouncedSearchTerm.length >= 2 && searchResults
-    ? searchResults.map(c => ({ clientName: c.name, totalSales: c.totalSales, transactionCount: c.transactionCount }))
-    : topClientsResponse?.items || [];
-  
-  const periodTotal = topClientsResponse?.periodTotalSales || 0;
-  const currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
+  // Query for new clients
+  const { data: newClientsList, isLoading: isLoadingNewClients } = useQuery<NewClientItem[]>({
+    queryKey: ['/api/sales/new-clients', selectedPeriod, filterType, segment, salesperson, client],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/sales/new-clients?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: view === "new",
+  });
+
+  // Filter new clients by search term (client-side, since /api/sales/new-clients returns the full list)
+  const filteredNewClients = (newClientsList || []).filter((c) =>
+    debouncedSearchTerm.length < 2 ? true : c.clientName.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+  );
+
+  // Items + period total depending on view
+  let displayClients: { clientName: string; totalSales: number; transactionCount: number }[] = [];
+  let periodTotal = 0;
+  let currentLoading = false;
+  let totalCount = 0;
+
+  if (view === "new") {
+    const visible = filteredNewClients.slice(0, limit);
+    displayClients = visible.map((c) => ({
+      clientName: c.clientName,
+      totalSales: c.totalSales,
+      transactionCount: c.orderCount,
+    }));
+    periodTotal = (newClientsList || []).reduce((sum, c) => sum + c.totalSales, 0);
+    currentLoading = isLoadingNewClients;
+    totalCount = filteredNewClients.length;
+  } else {
+    displayClients = debouncedSearchTerm.length >= 2 && searchResults
+      ? searchResults.map((c) => ({ clientName: c.name, totalSales: c.totalSales, transactionCount: c.transactionCount }))
+      : topClientsResponse?.items || [];
+    periodTotal = topClientsResponse?.periodTotalSales || 0;
+    currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
+    totalCount = topClientsResponse?.totalCount || 0;
+  }
 
   const formatCurrency = (amount: number | string | null) => {
     if (!amount) return "CLP $0";
@@ -93,17 +162,38 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
     setIsSearchExpanded(false);
   };
 
+  // Reset pagination when switching views
+  useEffect(() => {
+    setLimit(10);
+  }, [view]);
+
+  const isNewView = view === "new";
+  const accentBg = isNewView ? "bg-purple-100" : "bg-blue-100";
+  const accentText = isNewView ? "text-purple-600" : "text-blue-600";
+  const barColor = isNewView ? "bg-purple-500" : "bg-blue-500";
+  const totalRowBg = isNewView ? "bg-purple-50" : "bg-blue-50";
+  const totalRowText = isNewView ? "text-purple-900" : "text-blue-900";
+  const totalRowTextMuted = isNewView ? "text-purple-700" : "text-blue-700";
+  const totalRowBarBg = isNewView ? "bg-purple-200" : "bg-blue-200";
+  const totalRowBarFill = isNewView ? "bg-purple-600" : "bg-blue-600";
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" id={TOP_CLIENTS_PANEL_ID} data-testid="top-clients-panel">
       {/* Header con búsqueda expandible */}
       {!isSearchExpanded ? (
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 ${accentBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+              {isNewView ? (
+                <Sparkles className={`h-4 w-4 sm:h-5 sm:w-5 ${accentText}`} />
+              ) : (
+                <Users className={`h-4 w-4 sm:h-5 sm:w-5 ${accentText}`} />
+              )}
             </div>
-            <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Clientes</h2>
-            
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">
+              {isNewView ? "Clientes Nuevos" : "Clientes"}
+            </h2>
+
             {/* Botón de lupa para expandir búsqueda */}
             <button
               onClick={() => setIsSearchExpanded(true)}
@@ -114,37 +204,73 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
               <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-600" />
             </button>
           </div>
-          
-          <Link href="/clientes">
-            <Button
-              variant="default"
-              size="sm"
-              className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 flex-shrink-0"
-              data-testid="button-view-all-clients"
-            >
-              <span className="hidden sm:inline">Ver todos</span>
-              <span className="sm:hidden">Ver</span>
-            </Button>
-          </Link>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Switch Top / Nuevos */}
+            <div className="inline-flex items-center rounded-lg bg-gray-100 p-0.5" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isNewView}
+                onClick={() => setView("top")}
+                className={`px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${
+                  !isNewView ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                }`}
+                data-testid="button-clients-view-top"
+              >
+                Top
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isNewView}
+                onClick={() => setView("new")}
+                className={`px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${
+                  isNewView ? "bg-white text-purple-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                }`}
+                data-testid="button-clients-view-new"
+              >
+                Nuevos
+              </button>
+            </div>
+
+            <Link href="/clientes">
+              <Button
+                variant="default"
+                size="sm"
+                className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700"
+                data-testid="button-view-all-clients"
+              >
+                <span className="hidden sm:inline">Ver todos</span>
+                <span className="sm:hidden">Ver</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
           {/* Búsqueda expandida a ancho completo */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600" />
+              <div className={`w-8 h-8 ${accentBg} rounded-lg flex items-center justify-center`}>
+                {isNewView ? (
+                  <Sparkles className={`h-5 w-5 ${accentText}`} />
+                ) : (
+                  <Users className={`h-5 w-5 ${accentText}`} />
+                )}
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Clientes</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isNewView ? "Clientes Nuevos" : "Clientes"}
+              </h2>
             </div>
-            
+
             {debouncedSearchTerm && (
               <span className="text-sm text-gray-500">
                 {clientsWithPercentage.length} resultado{clientsWithPercentage.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
-          
+
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <Input
@@ -168,7 +294,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
           </div>
         </div>
       )}
-      
+
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
         {currentLoading ? (
           <div className="space-y-4">
@@ -186,7 +312,11 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
         ) : clientsWithPercentage.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 text-sm">
-              {debouncedSearchTerm ? 'No se encontraron clientes con ese nombre' : 'No hay clientes para mostrar'}
+              {debouncedSearchTerm
+                ? 'No se encontraron clientes con ese nombre'
+                : isNewView
+                  ? 'No hay clientes nuevos en este período'
+                  : 'No hay clientes para mostrar'}
             </p>
           </div>
         ) : (
@@ -198,7 +328,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                   href={`/client/${encodeURIComponent(client.clientName)}`}
                   className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3 px-1 sm:px-0"
                 >
-                  <div 
+                  <div
                     className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full"
                     data-testid={`client-${index}`}
                   >
@@ -208,24 +338,24 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                         {client.clientName}
                       </p>
                     </div>
-                    
+
                     {/* Barra, porcentaje y monto - mobile: row below name */}
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                       {/* Porcentaje */}
                       <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
                         {client.percentage.toFixed(1)}%
                       </span>
-                      
+
                       {/* Barra de progreso */}
                       <div className="flex-1 sm:flex-none sm:w-32">
                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                          <div
+                            className={`h-full ${barColor} rounded-full transition-all duration-500 ease-out`}
                             style={{ width: `${client.percentage}%` }}
                           ></div>
                         </div>
                       </div>
-                      
+
                       {/* Monto */}
                       <span className="text-xs sm:text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">
                         {formatCurrency(client.totalSales)}
@@ -235,9 +365,9 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                 </Link>
               ))}
             </div>
-            
+
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más clientes */}
-            {!debouncedSearchTerm && topClientsResponse && displayClients.length < topClientsResponse.totalCount && (
+            {!debouncedSearchTerm && displayClients.length < totalCount && (
               <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
@@ -246,40 +376,40 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                   className="text-xs px-6 transition-all duration-200 ease-in-out hover:scale-105"
                   data-testid="button-load-more-clients"
                 >
-                  Ver más ({displayClients.length} de {topClientsResponse.totalCount})
+                  Ver más ({displayClients.length} de {totalCount})
                 </Button>
               </div>
             )}
-            
+
             {/* Total Row - solo si no hay búsqueda activa */}
             {!debouncedSearchTerm && clientsWithPercentage.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
-                <div 
-                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full bg-blue-50 rounded-lg py-3 px-2"
+                <div
+                  className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full ${totalRowBg} rounded-lg py-3 px-2`}
                   data-testid="clients-total"
                 >
                   {/* Nombre TOTAL */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm text-blue-900 font-bold">
-                      TOTAL ({clientsWithPercentage.length} clientes)
+                    <p className={`text-xs sm:text-sm ${totalRowText} font-bold`}>
+                      TOTAL ({clientsWithPercentage.length} {isNewView ? "clientes nuevos" : "clientes"})
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     {/* Porcentaje */}
-                    <span className="text-xs text-blue-700 font-semibold w-10 text-right flex-shrink-0">
+                    <span className={`text-xs ${totalRowTextMuted} font-semibold w-10 text-right flex-shrink-0`}>
                       100.0%
                     </span>
-                    
+
                     {/* Barra completa */}
                     <div className="flex-1 sm:flex-none sm:w-32">
-                      <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-600 rounded-full w-full"></div>
+                      <div className={`h-2 ${totalRowBarBg} rounded-full overflow-hidden`}>
+                        <div className={`h-full ${totalRowBarFill} rounded-full w-full`}></div>
                       </div>
                     </div>
-                    
+
                     {/* Monto total */}
-                    <span className="text-xs sm:text-sm font-bold text-blue-900 w-20 sm:w-28 text-right flex-shrink-0">
+                    <span className={`text-xs sm:text-sm font-bold ${totalRowText} w-20 sm:w-28 text-right flex-shrink-0`}>
                       {formatCurrency(periodTotal)}
                     </span>
                   </div>

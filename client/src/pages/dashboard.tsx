@@ -208,6 +208,19 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
 
+  // Clients panel view (top vs nuevos)
+  const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
+  const handleShowNewClientsInPanel = () => {
+    setClientsPanelView("new");
+    // Scroll to the clients panel after state update + render
+    requestAnimationFrame(() => {
+      const el = document.getElementById("top-clients-panel");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  };
+
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
     // Multiple months selected
@@ -1799,6 +1812,7 @@ export default function Dashboard() {
                 client={selectedClient}
                 product={globalFilter.type === "product" ? globalFilter.value : undefined}
                 comparePeriod={comparePeriod}
+                onShowNewClients={handleShowNewClientsInPanel}
               />
             </div>
 
@@ -1900,6 +1914,8 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                   product={globalFilter.type === "product" ? globalFilter.value : undefined}
+                  view={clientsPanelView}
+                  onViewChange={setClientsPanelView}
                 />
               </CardWrapper>
             )}
