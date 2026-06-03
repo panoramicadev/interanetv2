@@ -34,8 +34,8 @@ interface ErpOrderDoc {
 export interface ErpOrder {
   id: string;
   source: string;
-  docType: "FCV" | "NVV";
-  status: "facturado" | "pendiente_facturacion";
+  docType: "FCV" | "NVV" | "GDV";
+  status: "facturado" | "pendiente_facturacion" | "despachada";
   clientName: string;
   clientCode: string;
   salesperson: string | null;
@@ -53,6 +53,7 @@ interface ErpOrdersResponse {
   orders: ErpOrder[];
   count: number;
   nvvCount: number;
+  gdvCount: number;
   fcvCount: number;
 }
 
@@ -188,13 +189,20 @@ function StatusBadge({ docType }: { docType: ErpOrder["docType"] }) {
   if (docType === "FCV") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
-        <CheckCircle className="w-3 h-3" /> Facturado
+        <CheckCircle className="w-3 h-3" /> Facturada
+      </span>
+    );
+  }
+  if (docType === "GDV") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-blue-50 text-blue-700 border-blue-200">
+        <Truck className="w-3 h-3" /> GDV · Despachada
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
-      <Clock className="w-3 h-3" /> Pend. facturación
+      <Clock className="w-3 h-3" /> NVV · Pendiente
     </span>
   );
 }
@@ -207,7 +215,7 @@ export default function ErpOrdersTable() {
   const orders = data?.orders ?? [];
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [tipo, setTipo] = useState<"all" | "nvv" | "fcv">("all");
+  const [tipo, setTipo] = useState<"all" | "nvv" | "gdv" | "fcv">("all");
   const [vendedor, setVendedor] = useState("all");
   const [cliente, setCliente] = useState("all");
   // Por defecto el filtro arranca en el mes en curso
@@ -281,6 +289,7 @@ export default function ErpOrdersTable() {
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (tipo === "nvv" && o.docType !== "NVV") return false;
+      if (tipo === "gdv" && o.docType !== "GDV") return false;
       if (tipo === "fcv" && o.docType !== "FCV") return false;
       if (vendedor !== "all" && (o.salesperson || "") !== vendedor) return false;
       if (cliente !== "all" && o.clientName !== cliente) return false;
@@ -301,10 +310,13 @@ export default function ErpOrdersTable() {
 
   // KPIs — se calculan sobre el conjunto filtrado para que las tarjetas reflejen los filtros activos
   const nvvOrders = filtered.filter((o) => o.docType === "NVV");
+  const gdvOrders = filtered.filter((o) => o.docType === "GDV");
   const fcvOrders = filtered.filter((o) => o.docType === "FCV");
   const nvvCount = nvvOrders.length;
+  const gdvCount = gdvOrders.length;
   const fcvCount = fcvOrders.length;
   const nvvPendingTotal = nvvOrders.reduce((s, o) => s + (o.totalPending || o.total || 0), 0);
+  const gdvTotal = gdvOrders.reduce((s, o) => s + (o.total || 0), 0);
   const fcvTotal = fcvOrders.reduce((s, o) => s + (o.total || 0), 0);
 
   // Etiqueta del período activo para el subtítulo de "FACTURADO"
@@ -352,12 +364,12 @@ export default function ErpOrdersTable() {
         <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              <Truck className="w-5 h-5 text-blue-600" />
             </div>
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">TOTAL</span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">GDV ABIERTAS</span>
           </div>
-          <div className="text-2xl font-black text-gray-900">{filtered.length}</div>
-          <div className="text-xs text-gray-500 mt-0.5">pedidos ERP</div>
+          <div className="text-2xl font-black text-gray-900">{gdvCount}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{formatPrice(gdvTotal)}</div>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
@@ -392,6 +404,7 @@ export default function ErpOrdersTable() {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="nvv">NVV (pendientes)</SelectItem>
+              <SelectItem value="gdv">GDV (despachadas)</SelectItem>
               <SelectItem value="fcv">FCV (facturadas)</SelectItem>
             </SelectContent>
           </Select>
@@ -568,11 +581,13 @@ export default function ErpOrdersTable() {
       {/* Detalle — abre al click en fila, muestra documentos del pedido */}
       <Dialog open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className={`px-6 pt-6 pb-4 border-b shrink-0 bg-gradient-to-r ${detail?.docType === "FCV" ? "from-emerald-50" : "from-amber-50"} to-white`}>
+          <DialogHeader className={`px-6 pt-6 pb-4 border-b shrink-0 bg-gradient-to-r ${detail?.docType === "FCV" ? "from-emerald-50" : detail?.docType === "GDV" ? "from-blue-50" : "from-amber-50"} to-white`}>
             <DialogTitle className="flex items-center gap-2">
               {detail?.docType === "FCV"
                 ? <Receipt className="h-5 w-5 text-emerald-600" />
-                : <FileText className="h-5 w-5 text-amber-600" />}
+                : detail?.docType === "GDV"
+                  ? <Truck className="h-5 w-5 text-blue-600" />
+                  : <FileText className="h-5 w-5 text-amber-600" />}
               Pedido ERP · {detail?.docType}
               {detail?.isGrouped && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-[#FF6E23]">
@@ -714,7 +729,7 @@ export default function ErpOrdersTable() {
                 {detail?.documents.map((d) => (
                   <div key={d.docId} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${detail.docType === "FCV" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${detail.docType === "FCV" ? "bg-emerald-100 text-emerald-700" : detail.docType === "GDV" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
                         {detail.docType}
                       </span>
                       <span className="font-bold text-gray-900 text-sm">N° {d.orderNumber}</span>

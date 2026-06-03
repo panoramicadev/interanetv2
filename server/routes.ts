@@ -14302,6 +14302,7 @@ export function registerRoutes(app: Express): Server {
       const isSales = user.role === 'salesperson';
       const fcvVendorCond = isSales ? (salesName ? sql`AND nokofu ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
       const nvvVendorCond = isSales ? (salesName ? sql`AND nombre_vendedor ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+      const gdvVendorCond = isSales ? (salesName ? sql`AND nokofu ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
 
       // FCV (facturas), one row per document
       let fcvDocs: any[] = [];
@@ -14384,11 +14385,51 @@ export function registerRoutes(app: Express): Server {
         console.warn('[GET /api/ecommerce/erp-orders] NVV query failed:', e);
       }
 
+      // GDV (guías de despacho) abiertas — ya despachadas, pendientes de facturación.
+      // Cuando la GDV se factura, esdo='C' → la cuenta queda en FCV, así evitamos duplicar fila.
+      let gdvDocs: any[] = [];
+      try {
+        const r = await db.execute(sql`
+          SELECT
+            idmaeedo::text AS doc_id,
+            MAX(nudo)::text AS nudo,
+            MAX(feemdo)::text AS fecha,
+            MAX(nokoen) AS cliente,
+            MAX(endo) AS cliente_codigo,
+            COALESCE(SUM(monto), 0)::numeric AS total,
+            COUNT(*)::int AS items,
+            MAX(nokofu) AS vendedor
+          FROM gdv.fact_gdv
+          WHERE (esdo IS NULL OR TRIM(esdo) = '')
+            AND feemdo >= (CURRENT_DATE - INTERVAL '90 days')
+            ${gdvVendorCond}
+          GROUP BY idmaeedo
+          ORDER BY MAX(feemdo) DESC
+          LIMIT 4000
+        `);
+        const rows = Array.isArray(r) ? r : (r as any).rows || [];
+        gdvDocs = rows.map((x: any) => ({
+          docType: 'GDV',
+          docId: x.doc_id,
+          orderNumber: x.nudo,
+          date: x.fecha,
+          deliveryDate: null,
+          clientName: (x.cliente || 'Sin nombre').trim(),
+          clientCode: x.cliente_codigo ? String(x.cliente_codigo).trim() : '',
+          total: Number(x.total) || 0,
+          totalPending: 0,
+          items: Number(x.items) || 0,
+          salesperson: x.vendedor || null,
+        }));
+      } catch (e) {
+        console.warn('[GET /api/ecommerce/erp-orders] GDV query failed:', e);
+      }
+
       // Re-group split documents into one logical pedido.
       const norm = (s: string | null | undefined) => (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
       const dayOf = (d: string | null) => (d || '').slice(0, 10);
       const buckets = new Map<string, any[]>();
-      for (const d of [...nvvDocs, ...fcvDocs]) {
+      for (const d of [...nvvDocs, ...gdvDocs, ...fcvDocs]) {
         const key = `${d.docType}|${norm(d.clientCode) || norm(d.clientName)}|${dayOf(d.date)}|${norm(d.salesperson)}`;
         const arr = buckets.get(key);
         if (arr) arr.push(d); else buckets.set(key, [d]);
@@ -14400,7 +14441,11 @@ export function registerRoutes(app: Express): Server {
           id: `erp-${head.docType.toLowerCase()}-${docs.map((x) => x.docId).join('-')}`,
           source: 'sap',
           docType: head.docType,
-          status: head.docType === 'FCV' ? 'facturado' : 'pendiente_facturacion',
+          status: head.docType === 'FCV'
+            ? 'facturado'
+            : head.docType === 'GDV'
+              ? 'despachada'
+              : 'pendiente_facturacion',
           clientName: head.clientName,
           clientCode: head.clientCode,
           salesperson: head.salesperson,
@@ -14443,6 +14488,7 @@ export function registerRoutes(app: Express): Server {
         orders,
         count: orders.length,
         nvvCount: orders.filter((o) => o.docType === 'NVV').length,
+        gdvCount: orders.filter((o) => o.docType === 'GDV').length,
         fcvCount: orders.filter((o) => o.docType === 'FCV').length,
       });
     } catch (error: any) {
@@ -14459,7 +14505,9 @@ export function registerRoutes(app: Express): Server {
       const { sql } = await import('drizzle-orm');
       const { db } = await import('./db');
 
-      const docType = String(req.query.docType || '').toUpperCase() === 'FCV' ? 'FCV' : 'NVV';
+      const rawDocType = String(req.query.docType || '').toUpperCase();
+      const docType: 'FCV' | 'NVV' | 'GDV' =
+        rawDocType === 'FCV' ? 'FCV' : rawDocType === 'GDV' ? 'GDV' : 'NVV';
       const ids = String(req.query.ids || '')
         .split(',')
         .map((s) => s.trim())
@@ -14506,7 +14554,7 @@ export function registerRoutes(app: Express): Server {
             total: Number(x.total) || 0,
             pending: null,
           }));
-        } else {
+        } else if (docType === 'NVV') {
           const vendorCond = isSales ? (salesName ? sql`AND nombre_vendedor ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
           const r = await db.execute(sql`
             SELECT
@@ -14535,6 +14583,36 @@ export function registerRoutes(app: Express): Server {
             unitPrice: Number(x.precio) || 0,
             total: Number(x.total) || 0,
             pending: Number(x.pendiente) || 0,
+          }));
+        } else {
+          // GDV: guía de despacho. Ya despachada; no hay "pendiente" como en NVV.
+          const vendorCond = isSales ? (salesName ? sql`AND nokofu ILIKE ${salesName}` : sql`AND 1=0`) : sql``;
+          const r = await db.execute(sql`
+            SELECT
+              idmaeedo::text AS doc_id,
+              nudo::text AS nudo,
+              koprct AS codigo,
+              nokoprct AS nombre,
+              COALESCE(caprco2, 0)::numeric AS cantidad,
+              ud02pr AS unidad,
+              COALESCE(ppprne, 0)::numeric AS precio,
+              COALESCE(monto, 0)::numeric AS total
+            FROM gdv.fact_gdv
+            WHERE idmaeedo::text IN (${inClause})
+              ${vendorCond}
+            ORDER BY idmaeedo, idmaeddo
+          `);
+          const rows = Array.isArray(r) ? r : (r as any).rows || [];
+          items = rows.map((x: any) => ({
+            docId: x.doc_id,
+            orderNumber: x.nudo,
+            code: x.codigo ? String(x.codigo).trim() : '',
+            name: (x.nombre || '').trim() || (x.codigo ? String(x.codigo).trim() : 'Producto'),
+            quantity: Number(x.cantidad) || 0,
+            unit: x.unidad ? String(x.unidad).trim() : null,
+            unitPrice: Number(x.precio) || 0,
+            total: Number(x.total) || 0,
+            pending: null,
           }));
         }
       } catch (e) {
