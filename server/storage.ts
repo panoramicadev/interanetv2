@@ -4113,14 +4113,11 @@ export class DatabaseStorage implements IStorage {
     if (endDate) {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
-    // Segmento/vendedor: doc-level (idmaeedo IN docs of that segment/vendor)
-    // Las líneas de cargos (flete, despacho) suelen tener noruen/nokofu en NULL,
-    // pero pertenecen al mismo documento que las líneas de venta.
     if (salesperson) {
-      conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE nokofu = ${salesperson})`);
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE noruen = ${segment})`);
+      conditions.push(eq(factVentas.noruen, segment));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
