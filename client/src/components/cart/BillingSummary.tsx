@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
+import { getAttachedOc, setAttachedOc, clearAttachedOc, OC_ATTACHED_EVENT, type AttachedOcMetadata } from "@/lib/attached-oc";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -66,9 +67,53 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'transfer' | 'credit'>('transfer');
   const [paymentMethodTouched, setPaymentMethodTouched] = useState(false);
-  const [purchaseOrderPdfUrl, setPurchaseOrderPdfUrl] = useState<string | null>(null);
-  const [purchaseOrderFileName, setPurchaseOrderFileName] = useState<string | null>(null);
+  const [purchaseOrderPdfUrl, setPurchaseOrderPdfUrl] = useState<string | null>(() => {
+    const attached = getAttachedOc(user?.id);
+    return attached?.url || null;
+  });
+  const [purchaseOrderFileName, setPurchaseOrderFileName] = useState<string | null>(() => {
+    const attached = getAttachedOc(user?.id);
+    return attached?.fileName || null;
+  });
+  const [attachedOcMetadata, setAttachedOcMetadata] = useState<AttachedOcMetadata | null>(() => {
+    const attached = getAttachedOc(user?.id);
+    return attached?.metadata || null;
+  });
+  const [attachedOcSource, setAttachedOcSource] = useState<string | null>(() => {
+    const attached = getAttachedOc(user?.id);
+    return attached?.source || null;
+  });
   const [isUploadingOC, setIsUploadingOC] = useState(false);
+
+  // Keep local state in sync with localStorage updates (e.g. user attaches an OC from
+  // the SKU quick-order modal while sitting on the cart page).
+  useEffect(() => {
+    const sync = () => {
+      const attached = getAttachedOc(user?.id);
+      setPurchaseOrderPdfUrl(attached?.url || null);
+      setPurchaseOrderFileName(attached?.fileName || null);
+      setAttachedOcMetadata(attached?.metadata || null);
+      setAttachedOcSource(attached?.source || null);
+    };
+    window.addEventListener(OC_ATTACHED_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(OC_ATTACHED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, [user?.id]);
+
+  // Pre-fill order notes from OC observaciones (only when user hasn't typed anything yet).
+  useEffect(() => {
+    if (attachedOcMetadata?.observaciones && !orderNotes.trim()) {
+      const parts: string[] = [];
+      if (attachedOcMetadata.ocNumber) parts.push(`OC ${attachedOcMetadata.ocNumber}`);
+      if (attachedOcMetadata.observaciones) parts.push(attachedOcMetadata.observaciones);
+      setOrderNotes(parts.join(' — '));
+    }
+    // Only run when metadata first becomes available; ignore subsequent edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachedOcMetadata?.ocNumber]);
 
   // Delivery method: 'despacho' or 'retiro'
   const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {
@@ -1115,7 +1160,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
               : 'Puedes adjuntar tu OC en formato PDF para que acompañe el pedido.'}
           </p>
           
-          {purchaseOrderPdfUrl ? (
+          {purchaseOrderPdfUrl && (
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
                 <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -1124,12 +1169,27 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                 <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200 truncate">
                   {purchaseOrderFileName || 'Orden de Compra.pdf'}
                 </p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">✓ Adjunto al pedido</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400">✓ Adjunto al pedido</p>
+                  {attachedOcSource === 'sku-modal' && (
+                    <span className="text-[10px] font-semibold text-orange-700 bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 px-1.5 py-0.5 rounded">
+                      desde Pedido Rápido
+                    </span>
+                  )}
+                  {attachedOcMetadata?.ocNumber && (
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                      OC {attachedOcMetadata.ocNumber}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => {
                   setPurchaseOrderPdfUrl(null);
                   setPurchaseOrderFileName(null);
+                  setAttachedOcMetadata(null);
+                  setAttachedOcSource(null);
+                  clearAttachedOc(user?.id);
                 }}
                 className="p-1.5 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-500 hover:text-red-500 transition-colors flex-shrink-0"
                 title="Eliminar archivo"
@@ -1138,7 +1198,19 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-          ) : (
+          )}
+
+          {/* Aviso: OC + crédito → recepción debe revisar antes de aprobar */}
+          {purchaseOrderPdfUrl && selectedPaymentMethod === 'credit' && (
+            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <span>
+                Tu pedido quedará <strong>pendiente de revisión</strong> por recepción para verificar los datos de la OC, aunque sea a crédito. Te avisaremos cuando sea aprobado.
+              </span>
+            </div>
+          )}
+
+          {!purchaseOrderPdfUrl && (
             <>
               <Label
                 htmlFor="purchase-order-upload"
@@ -1192,6 +1264,14 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                     const data = await res.json();
                     setPurchaseOrderPdfUrl(data.url);
                     setPurchaseOrderFileName(file.name);
+                    setAttachedOcSource('checkout');
+                    setAttachedOc({
+                      url: data.url,
+                      fileName: file.name,
+                      attachedAt: new Date().toISOString(),
+                      source: 'checkout',
+                      metadata: null,
+                    }, user?.id);
                     toast({ title: '✓ OC adjuntada', description: `"${file.name}" será incluida en tu pedido.` });
                   } catch (err: any) {
                     toast({ title: 'Error', description: err.message || 'No se pudo subir el archivo', variant: 'destructive' });

@@ -89,6 +89,7 @@ import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
+import { parseOrdenDeCompra } from "./oc-parser";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
@@ -1025,6 +1026,73 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error uploading file:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+    }
+  }));
+
+  // Upload PDF Orden de Compra and parse SKUs + header metadata in one call.
+  // Used by the SKU quick-order modal to pre-fill the cart from an OC PDF.
+  app.post('/api/oc/upload-and-parse', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ message: 'No se subió ningún archivo' });
+    const file = req.file;
+    if (!isPdfFile(file.mimetype, file.originalname)) {
+      return res.status(400).json({ message: 'El archivo debe ser un PDF' });
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({ message: 'El PDF no puede superar 10 MB' });
+    }
+
+    const timestamp = Date.now();
+    const randomId = nanoid(8);
+    const fileExtension = path.extname(file.originalname) || '.pdf';
+    const fileName = `oc-${timestamp}-${randomId}${fileExtension}`;
+    let fileUrl: string;
+
+    try {
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const supabase = await createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+        const { error } = await supabase.storage.from(bucket).upload(`uploads/${fileName}`, file.buffer, {
+          contentType: file.mimetype, upsert: false,
+        });
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(`uploads/${fileName}`);
+        fileUrl = urlData.publicUrl;
+      } else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+        const objectStorageService = new ObjectStorageService();
+        fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      } else {
+        const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+        const fsLocal = await import('fs');
+        if (!fsLocal.existsSync(uploadsDir)) fsLocal.mkdirSync(uploadsDir, { recursive: true });
+        fsLocal.writeFileSync(path.join(uploadsDir, fileName), file.buffer);
+        fileUrl = `/api/uploads/${fileName}`;
+      }
+    } catch (storageErr: any) {
+      console.error('[OC-PARSE] storage error:', storageErr?.message || storageErr);
+      return res.status(500).json({ message: 'Error al guardar el PDF', error: storageErr?.message });
+    }
+
+    try {
+      const result = await parseOrdenDeCompra(file.buffer);
+      res.json({
+        url: fileUrl,
+        fileName: file.originalname,
+        metadata: result.metadata,
+        matched: result.matched,
+        unmatched: result.unmatched,
+        textLength: result.textLength,
+      });
+    } catch (parseErr: any) {
+      console.error('[OC-PARSE] parse error:', parseErr?.message || parseErr);
+      // Still return the upload URL so the user keeps the OC attached even if parsing fails.
+      res.json({
+        url: fileUrl,
+        fileName: file.originalname,
+        metadata: null,
+        matched: [],
+        unmatched: [],
+        parseError: parseErr?.message || 'No se pudo leer el contenido del PDF',
+      });
     }
   }));
 
@@ -8859,6 +8927,10 @@ export function registerRoutes(app: Express): Server {
 
       // Prepare order data with client and salesperson info
       const isCreditMethod = orderData.paymentMethod === 'credit';
+      // Si el pedido trae OC adjunta, queda en pendiente aunque sea a crédito:
+      // la recepcionista debe revisarlo y aprobar antes de consumir el cupo.
+      const hasPurchaseOrder = !!orderData.purchaseOrderPdfUrl;
+      const shouldAutoApprove = isCreditMethod && !hasPurchaseOrder;
 
       const orderToCreate: any = {
         items: resolved.items,
@@ -8877,12 +8949,12 @@ export function registerRoutes(app: Express): Server {
         clientEmail: req.user.email,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null,
-        status: isCreditMethod ? 'approved' : 'pending',
+        status: shouldAutoApprove ? 'approved' : 'pending',
         paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
         purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
-        ...(isCreditMethod ? { approvedAt: new Date(), approvedById: clientId } : {}),
+        ...(shouldAutoApprove ? { approvedAt: new Date(), approvedById: clientId } : {}),
       };
 
       // If there's an assigned salesperson, get their name
@@ -8900,8 +8972,9 @@ export function registerRoutes(app: Express): Server {
       // Create the order
       const order = await storage.createEcommerceOrder(orderToCreate);
 
-      // Process credit updates if the order is automatically approved (credit payment)
-      if (isCreditMethod) {
+      // Process credit updates if the order is automatically approved (credit payment).
+      // OC-attached credit orders stay pending — credit is consumed when the receptionist approves.
+      if (shouldAutoApprove) {
         try {
           const { salespeopleUsers, users, clients } = await import('@shared/schema');
           const { eq, or, desc } = await import('drizzle-orm');
@@ -8955,8 +9028,10 @@ export function registerRoutes(app: Express): Server {
           await storage.createNotification({
             userId: notificationUserId,
             type: 'ecommerce_order',
-            title: 'Nuevo pedido de cliente',
-            message: `${orderToCreate.clientName} ha realizado un pedido por $${resolved.total.toFixed(0)}`,
+            title: hasPurchaseOrder
+              ? 'Pedido con OC — requiere revisión'
+              : 'Nuevo pedido de cliente',
+            message: `${orderToCreate.clientName} ha realizado un pedido por $${resolved.total.toFixed(0)}${hasPurchaseOrder ? ' con OC adjunta. Revisa antes de aprobar.' : ''}`,
             relatedOrderId: order.id,
             read: false
           });
@@ -9417,21 +9492,25 @@ export function registerRoutes(app: Express): Server {
       }
 
       const isCreditMethod = paymentMethod === 'credit';
+      // OC adjunta + crédito → queda pendiente para la recepcionista
+      const hasPurchaseOrder = !!finalOcUrl;
+      const shouldAutoApprove = isCreditMethod && !hasPurchaseOrder;
       const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
-          status: isCreditMethod ? 'approved' : 'pending',
+          status: shouldAutoApprove ? 'approved' : 'pending',
           paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
           purchaseOrderPdfUrl: finalOcUrl,
           suggestedResponseAt: now,
           updatedAt: now,
-          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
+          ...(shouldAutoApprove ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
 
       // A crédito: aprobación inmediata y consumo de cupo (igual que el checkout).
-      if (isCreditMethod) {
+      // Si hay OC, el cupo se consume cuando la recepcionista apruebe.
+      if (shouldAutoApprove) {
         await consumeClientCreditForUser(order.clientId, Number(order.total) || 0);
       }
 
@@ -9610,6 +9689,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const isCreditMethod = paymentMethod === 'credit';
+      // OC adjunta + crédito → queda pendiente para la recepcionista
+      const hasPurchaseOrder = !!finalOcUrl;
+      const shouldAutoApprove = isCreditMethod && !hasPurchaseOrder;
       const now = new Date();
       const [updated] = await db.update(ecommerceOrders)
         .set({
@@ -9620,20 +9702,21 @@ export function registerRoutes(app: Express): Server {
           branchDiscountPercent: String(resolved.branchDiscountPct || 0),
           priceListUsed: resolved.priceListUsed,
           notes: parsed.data.notes ?? order.notes,
-          status: isCreditMethod ? 'approved' : 'pending',
+          status: shouldAutoApprove ? 'approved' : 'pending',
           paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
           purchaseOrderPdfUrl: finalOcUrl,
           modifiedAt: now,
           modifiedById: user.id,
           suggestedResponseAt: now,
           updatedAt: now,
-          ...(isCreditMethod ? { approvedAt: now, approvedById: user.id } : {}),
+          ...(shouldAutoApprove ? { approvedAt: now, approvedById: user.id } : {}),
         })
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
 
       // A crédito: aprobación inmediata y consumo de cupo (con el total recalculado).
-      if (isCreditMethod) {
+      // Si hay OC, el cupo se consume cuando la recepcionista apruebe.
+      if (shouldAutoApprove) {
         await consumeClientCreditForUser(order.clientId, Number(resolved.total) || 0);
       }
 

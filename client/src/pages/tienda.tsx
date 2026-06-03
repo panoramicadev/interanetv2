@@ -50,13 +50,17 @@ import {
   PieChart,
   Rocket,
   Share2,
+  FileUp,
+  AlertTriangle,
+  FileCheck2,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
+import { setAttachedOc } from "@/lib/attached-oc";
 import { FloatingCart, CartToggle } from "@/components/cart";
 import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
 import CustomColorButton from "@/components/shared/CustomColorButton";
@@ -285,11 +289,29 @@ interface SkuQuickOrderModalProps {
 
 function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, selectedBranchId, branchDiscountPct, addItem, setShowFloatingCart }: SkuQuickOrderModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
+  const ocFileInputRef = useRef<HTMLInputElement>(null);
   const [skuSearch, setSkuSearch] = useState('');
   const [debouncedSku, setDebouncedSku] = useState('');
   const [skuQuantities, setSkuQuantities] = useState<Record<string, number>>({});
   const [addedItems, setAddedItems] = useState<Array<{ sku: string; name: string; color: string; format: string; qty: number; price: number }>>([]);
+  const [isParsingOc, setIsParsingOc] = useState(false);
+  const [ocResult, setOcResult] = useState<{
+    fileName: string;
+    metadata: {
+      ocNumber?: string | null;
+      rut?: string | null;
+      razonSocial?: string | null;
+      fecha?: string | null;
+      observaciones?: string | null;
+      total?: string | null;
+    } | null;
+    matchedCount: number;
+    unmatched: Array<{ sku: string; quantity: number; rawLine?: string }>;
+    parseError?: string | null;
+  } | null>(null);
 
   // Auto-focus input on mount
   useEffect(() => {
@@ -431,6 +453,136 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
   // Session total
   const sessionTotal = addedItems.reduce((sum, item) => sum + item.price, 0);
 
+  // Upload an Orden de Compra PDF, parse SKUs + header data, push matched items
+  // to the cart and persist the OC URL so checkout auto-attaches it.
+  const handleOcUpload = async (file: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: 'Archivo muy grande', description: 'El PDF no puede superar 10 MB.', variant: 'destructive' });
+      return;
+    }
+    if (file.type && !file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast({ title: 'Formato no soportado', description: 'Adjunta un PDF de la Orden de Compra.', variant: 'destructive' });
+      return;
+    }
+
+    setIsParsingOc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/oc/upload-and-parse', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'No se pudo procesar la OC');
+      }
+      const data = await res.json();
+
+      // 1) Persist the OC so BillingSummary auto-attaches it at checkout.
+      setAttachedOc({
+        url: data.url,
+        fileName: data.fileName || file.name,
+        attachedAt: new Date().toISOString(),
+        source: 'sku-modal',
+        metadata: data.metadata || null,
+      }, user?.id);
+
+      // 2) Add matched items to cart (skipping items already added in this session).
+      const alreadyAdded = new Set(addedItems.map(it => it.sku));
+      const newlyAdded: Array<{ sku: string; name: string; color: string; format: string; qty: number; price: number }> = [];
+      for (const m of (data.matched || []) as Array<any>) {
+        if (alreadyAdded.has(m.sku)) continue;
+        const basePrice = Number(m.price) || 0;
+        // Apply offers using the same logic as manual SKU adds.
+        const offerPrice = isClient
+          ? 0 // for client users the server already applied discount; offersMap is not used here
+          : (offersMap.get(String(m.sku).toUpperCase()) || 0);
+        const effectivePrice = offerPrice > 0 && offerPrice < basePrice ? offerPrice : basePrice;
+        if (effectivePrice <= 0) continue;
+
+        const validation = validateCartQuantity(m.validQuantity, m.format);
+        const validatedQuantity = validation.validQuantity;
+        const isOfferItem = offerPrice > 0 && offerPrice < basePrice;
+
+        try {
+          addItem({
+            productId: m.sku,
+            productCode: m.sku,
+            productName: m.genericName || m.productName,
+            selectedPackaging: m.format,
+            selectedColor: m.color,
+            unit: m.format,
+            unitPrice: effectivePrice,
+            originalPrice: isOfferItem ? basePrice : undefined,
+            isOffer: isOfferItem,
+            convenioPct: !isOfferItem && branchDiscountPct > 0 ? branchDiscountPct : undefined,
+            quantity: validatedQuantity,
+            minQuantity: validation.minQuantity,
+            quantityStep: validation.stepQuantity,
+            imageUrl: m.imageUrl || undefined,
+          });
+
+          newlyAdded.push({
+            sku: m.sku,
+            name: m.genericName || m.productName,
+            color: m.color,
+            format: m.format,
+            qty: validatedQuantity,
+            price: effectivePrice * validatedQuantity,
+          });
+        } catch {
+          // Skip individual failures; surface aggregate result below.
+        }
+      }
+      if (newlyAdded.length > 0) {
+        setAddedItems(prev => [...prev, ...newlyAdded]);
+      }
+
+      const unmatched = (data.unmatched || []) as Array<{ sku: string; quantity: number; rawLine?: string }>;
+      setOcResult({
+        fileName: data.fileName || file.name,
+        metadata: data.metadata || null,
+        matchedCount: newlyAdded.length,
+        unmatched,
+        parseError: data.parseError || null,
+      });
+
+      const skipped = (data.matched?.length || 0) - newlyAdded.length;
+      const lines: string[] = [];
+      if (newlyAdded.length > 0) lines.push(`${newlyAdded.length} producto${newlyAdded.length !== 1 ? 's' : ''} agregado${newlyAdded.length !== 1 ? 's' : ''}`);
+      if (skipped > 0) lines.push(`${skipped} ya estaba${skipped !== 1 ? 'n' : ''} en el carrito`);
+      if (unmatched.length > 0) lines.push(`${unmatched.length} sin coincidencia`);
+
+      toast({
+        title: data.parseError ? 'OC adjuntada (sin lectura)' : '✓ OC procesada',
+        description: data.parseError
+          ? 'Se adjuntó al pedido. Te llevamos al checkout para que revises y confirmes.'
+          : (lines.join(' · ') ? `${lines.join(' · ')} · Vamos al checkout` : 'OC adjuntada al pedido.'),
+      });
+
+      // Auto-navigate to the cart/checkout when the OC produced at least one item
+      // (or even when parsing failed but the PDF is attached — the user still wants
+      // to confirm the order). Stay in the modal only when nothing useful happened,
+      // so the user can search manually using the unmatched SKU chips as a hint.
+      const shouldGoToCheckout = newlyAdded.length > 0 || skipped > 0 || data.parseError;
+      if (shouldGoToCheckout) {
+        onClose();
+        setTimeout(() => setLocation('/carrito'), 50);
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Error al procesar OC',
+        description: err.message || 'Intenta nuevamente o adjúntala en el checkout.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsParsingOc(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -495,6 +647,129 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
                 <span className="text-emerald-600 font-semibold ml-1">• Coincidencia exacta</span>
               )}
             </p>
+          )}
+
+          {/* Orden de Compra upload — auto-adds matched SKUs and attaches the PDF to checkout */}
+          <div className="mt-3">
+            <input
+              ref={ocFileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              className="hidden"
+              disabled={isParsingOc}
+              data-testid="input-oc-upload"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (file) await handleOcUpload(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => ocFileInputRef.current?.click()}
+              disabled={isParsingOc}
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed transition-all text-sm font-semibold ${
+                isParsingOc
+                  ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
+                  : ocResult
+                  ? 'border-emerald-300 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-50'
+                  : 'border-orange-200 bg-orange-50/60 text-[#FF6E23] hover:bg-orange-50 hover:border-orange-300'
+              }`}
+            >
+              {isParsingOc ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Leyendo Orden de Compra...
+                </>
+              ) : ocResult ? (
+                <>
+                  <FileCheck2 className="h-4 w-4" />
+                  Reemplazar OC adjuntada
+                </>
+              ) : (
+                <>
+                  <FileUp className="h-4 w-4" />
+                  Subir Orden de Compra (PDF)
+                </>
+              )}
+            </button>
+            {!ocResult && !isParsingOc && (
+              <p className="text-[10px] text-gray-400 mt-1.5 pl-1 leading-snug">
+                Detectamos automáticamente SKUs, cantidades y datos del cliente. La OC queda adjunta al checkout.
+              </p>
+            )}
+          </div>
+
+          {/* OC processed summary */}
+          {ocResult && (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <FileCheck2 className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-emerald-800 truncate">{ocResult.fileName}</p>
+                    {ocResult.metadata?.ocNumber && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        OC {ocResult.metadata.ocNumber}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-emerald-700/90 mt-0.5">
+                    {ocResult.parseError
+                      ? 'PDF adjunto al pedido. No pudimos leer los SKUs automáticamente.'
+                      : `${ocResult.matchedCount} producto${ocResult.matchedCount !== 1 ? 's' : ''} agregado${ocResult.matchedCount !== 1 ? 's' : ''} al carrito${ocResult.unmatched.length > 0 ? ` · ${ocResult.unmatched.length} sin coincidencia` : ''}`}
+                  </p>
+                  {ocResult.metadata && (ocResult.metadata.razonSocial || ocResult.metadata.rut || ocResult.metadata.fecha) && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {ocResult.metadata.razonSocial && (
+                        <span className="text-[10px] bg-white border border-emerald-200 text-emerald-700 px-1.5 py-0.5 rounded font-medium truncate max-w-[180px]">
+                          {ocResult.metadata.razonSocial}
+                        </span>
+                      )}
+                      {ocResult.metadata.rut && (
+                        <span className="text-[10px] bg-white border border-emerald-200 text-emerald-700 px-1.5 py-0.5 rounded font-mono">
+                          {ocResult.metadata.rut}
+                        </span>
+                      )}
+                      {ocResult.metadata.fecha && (
+                        <span className="text-[10px] bg-white border border-emerald-200 text-emerald-700 px-1.5 py-0.5 rounded">
+                          {ocResult.metadata.fecha}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {ocResult.unmatched.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-emerald-200/70">
+                      <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        SKUs no encontrados
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {ocResult.unmatched.slice(0, 8).map(u => (
+                          <span
+                            key={u.sku}
+                            title={u.rawLine || u.sku}
+                            className="text-[10px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded"
+                          >
+                            {u.sku}{u.quantity > 1 ? ` ×${u.quantity}` : ''}
+                          </span>
+                        ))}
+                        {ocResult.unmatched.length > 8 && (
+                          <span className="text-[10px] text-amber-600 font-semibold">
+                            +{ocResult.unmatched.length - 8} más
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-amber-700/80 mt-1">
+                        Buscalos en el catálogo o agrégalos manualmente.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

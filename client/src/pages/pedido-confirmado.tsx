@@ -3,6 +3,7 @@ import { Link, useSearch } from "wouter";
 import { getNumericOrderId } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
+import { clearAttachedOc } from "@/lib/attached-oc";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,9 +53,11 @@ export default function PedidoConfirmado() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Clear cart on mount
+  // Clear cart on mount + drop any OC attachment that was carried over from the
+  // SKU quick-order modal or checkout — the order already snapshotted the URL.
   useEffect(() => {
     clearCart();
+    clearAttachedOc(user?.id);
   }, []);
 
   // Fetch order details to check payment condition
