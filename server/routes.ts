@@ -3775,6 +3775,66 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Top fletes endpoint — flete = nokoprct ILIKE '%flete%'
+  app.get('/api/sales/fletes', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { limit, period, filterType, salesperson, segment, client } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const limitNum = limit ? parseInt(limit as string) : 10;
+
+      const conditions = [
+        sql`${factVentas.tido} != 'GDV'`,
+        sql`${factVentas.nokoprct} ILIKE '%flete%'`,
+        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+      ];
+      if (dateRange.startDate) conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate}::date`);
+      if (dateRange.endDate) conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate}::date`);
+      if (salesperson) conditions.push(eq(factVentas.nokofu, salesperson as string));
+      if (segment) conditions.push(eq(factVentas.noruen, segment as string));
+      if (client) conditions.push(eq(factVentas.nokoen, client as string));
+
+      const whereClause = and(...conditions);
+
+      const [totalsRow, items] = await Promise.all([
+        db.select({
+            total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+            transactionCount: sql<number>`COUNT(*)`,
+            uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+          })
+          .from(factVentas)
+          .where(whereClause)
+          .then(r => r[0]),
+        db.select({
+            clientName: factVentas.nokoen,
+            totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+            transactionCount: sql<number>`COUNT(*)`,
+          })
+          .from(factVentas)
+          .where(whereClause)
+          .groupBy(factVentas.nokoen)
+          .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+          .limit(limitNum),
+      ]);
+
+      const periodTotalSales = Number(totalsRow?.total || 0);
+      const totalCount = Number(totalsRow?.uniqueClients || 0);
+
+      res.json({
+        items: items.map(r => ({
+          clientName: r.clientName || '',
+          totalSales: Number(r.totalSales),
+          transactionCount: Number(r.transactionCount),
+        })),
+        periodTotalSales,
+        totalTransactions: Number(totalsRow?.transactionCount || 0),
+        totalCount,
+      });
+    } catch (error) {
+      console.error("Error fetching fletes:", error);
+      res.status(500).json({ message: "Failed to fetch fletes" });
+    }
+  });
+
   // Product search endpoint (AJAX autocomplete)
   app.get('/api/products/search', requireAuth, async (req, res) => {
     try {
