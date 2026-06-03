@@ -14259,14 +14259,23 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Lightweight query: no inventory JOIN, no COUNT(*) OVER()
-    // Fetch limit+1 to determine hasMore without a window function
-    const items = await db
-      .select()
+    // Lightweight query + LEFT JOIN a ecommerce_products SOLO para los 3 campos
+    // de venta por pallet (necesarios en el dialog de Editar Producto del
+    // Catálogo SAP). El resto de fields de ecommerce_products NO se traen acá
+    // para no inflar el payload de listado.
+    // Fetch limit+1 para determinar hasMore sin window function.
+    const rawRows = await db
+      .select({
+        priceList: priceList,
+        palletEnabled: ecommerceProducts.palletEnabled,
+        packagingAmountPerPallet: ecommerceProducts.packagingAmountPerPallet,
+        palletDiscountPct: ecommerceProducts.palletDiscountPct,
+      })
       .from(priceList)
+      .leftJoin(ecommerceProducts, eq(ecommerceProducts.priceListId, priceList.id))
       .where(whereClause)
       .orderBy(
-        sql`CASE 
+        sql`CASE
           WHEN ${priceList.unidad} ILIKE '%1/4%' THEN 1
           WHEN ${priceList.unidad} ILIKE '%balde%' OR ${priceList.unidad} ILIKE '%BD%' THEN 3
           WHEN ${priceList.unidad} ILIKE '%galon%' OR ${priceList.unidad} = 'GL' THEN 2
@@ -14278,6 +14287,16 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(limit + 1)
       .offset(offset);
+
+    // Flatten the joined shape back to PriceList + pallet fields
+    const items = rawRows.map((row: any) => ({
+      ...row.priceList,
+      palletEnabled: row.palletEnabled ?? false,
+      packagingAmountPerPallet: row.packagingAmountPerPallet ?? null,
+      palletDiscountPct: row.palletDiscountPct !== null && row.palletDiscountPct !== undefined
+        ? Number(row.palletDiscountPct)
+        : null,
+    }));
 
     const hasMore = items.length > limit;
     const resultItems = hasMore ? items.slice(0, limit) : items;
