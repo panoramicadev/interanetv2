@@ -23,6 +23,7 @@ import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metric
 import SalesChart from "@/components/dashboard/sales-chart";
 import KPICards from "@/components/dashboard/kpi-cards";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
+import FletesPanel from "@/components/dashboard/fletes-panel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
@@ -1807,6 +1808,14 @@ export default function SalespersonDetail({
                 segment={selectedSegment ?? undefined}
                 view={clientsPanelView}
                 onViewChange={setClientsPanelView}
+              />
+
+              {/* Fletes del vendedor */}
+              <FletesPanel
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+                segment={selectedSegment ?? undefined}
               />
 
 

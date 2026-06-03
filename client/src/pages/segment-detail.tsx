@@ -24,6 +24,7 @@ import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
+import FletesPanel from "@/components/dashboard/fletes-panel";
 import SalesChart from "@/components/dashboard/sales-chart";
 import KPICards from "@/components/dashboard/kpi-cards";
 
@@ -158,6 +159,14 @@ export default function SegmentDetail({
   // State for products
   const [productLimit, setProductLimit] = useState(10);
   const [expandedProduct, setExpandedProduct] = useState<string>("");
+  const [isProductSearchExpanded, setIsProductSearchExpanded] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProductSearch(productSearchTerm), 300);
+    return () => clearTimeout(t);
+  }, [productSearchTerm]);
 
   // Debounce client search
   useEffect(() => {
@@ -523,6 +532,34 @@ export default function SegmentDetail({
     },
     enabled: !!segmentName,
   });
+
+  // Product search (cuando la lupa está activa)
+  const { data: productSearchResults = [], isLoading: isLoadingProductSearch } = useQuery<SegmentProduct[]>({
+    queryKey: ['/api/products/search', debouncedProductSearch, segmentName, selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('q', debouncedProductSearch);
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('segment', segmentName || '');
+      const res = await fetch(`/api/products/search?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : (data.items || []);
+      const maxSales = arr.length > 0 ? Math.max(...arr.map((p: any) => p.totalSales || 0)) : 1;
+      return arr.map((p: any) => ({
+        productName: p.name || p.productName,
+        totalSales: p.totalSales || 0,
+        totalQuantity: p.totalUnits || p.totalQuantity || 0,
+        transactionCount: p.transactionCount || 0,
+        percentage: maxSales > 0 ? ((p.totalSales || 0) / maxSales) * 100 : 0,
+      }));
+    },
+    enabled: !!segmentName && debouncedProductSearch.length >= 2,
+  });
+
+  const displayProducts = debouncedProductSearch.length >= 2 ? productSearchResults : products;
+  const isLoadingDisplayProducts = debouncedProductSearch.length >= 2 ? isLoadingProductSearch : isLoadingProducts;
 
   // Fetch segment goal (only for monthly periods)
   const { data: goalData } = useQuery({
@@ -1583,24 +1620,73 @@ export default function SegmentDetail({
 
                 {/* Top Products Section */}
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <div className="flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                    {!isProductSearchExpanded ? (
+                      <>
+                        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                          </div>
+                          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate">Top Productos del Segmento</h2>
+                          <button
+                            onClick={() => setIsProductSearchExpanded(true)}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
+                            data-testid="button-expand-segment-product-search"
+                            title="Buscar producto"
+                          >
+                            <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-600" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                            </div>
+                            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
+                          </div>
+                          {debouncedProductSearch && (
+                            <span className="text-xs sm:text-sm text-gray-500">
+                              {displayProducts.length} resultado{displayProducts.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="relative w-full">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Filtrar productos por nombre..."
+                            value={productSearchTerm}
+                            onChange={(e) => setProductSearchTerm(e.target.value)}
+                            className="pl-11 pr-10 h-11 text-sm font-medium border-2 border-gray-200 focus:border-green-500 rounded-lg shadow-sm"
+                            data-testid="input-filter-segment-products"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => { setProductSearchTerm(""); setDebouncedProductSearch(""); setIsProductSearchExpanded(false); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            data-testid="button-clear-segment-product-filter"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
                       </div>
-                      <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
-                    </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    {isLoadingProducts ? (
+                    {isLoadingDisplayProducts ? (
                       <div className="space-y-3">
                         {[...Array(5)].map((_, i) => (
                           <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
                         ))}
                       </div>
-                    ) : products.length === 0 ? (
-                      <p className="text-gray-500 text-center py-8">No hay productos en este segmento</p>
+                    ) : displayProducts.length === 0 ? (
+                      <p className="text-gray-500 text-center py-8">
+                        {debouncedProductSearch ? 'No se encontraron productos con ese nombre' : 'No hay productos en este segmento'}
+                      </p>
                     ) : (
                       <>
                         <Accordion
@@ -1610,7 +1696,7 @@ export default function SegmentDetail({
                           onValueChange={setExpandedProduct}
                           className="space-y-2"
                         >
-                          {products.map((product, index) => (
+                          {displayProducts.map((product, index) => (
                             <AccordionItem
                               key={product.productName}
                               value={product.productName}
@@ -1661,7 +1747,7 @@ export default function SegmentDetail({
                             </AccordionItem>
                           ))}
                         </Accordion>
-                        {products.length >= productLimit && (
+                        {!debouncedProductSearch && products.length >= productLimit && (
                           <div className="text-center pt-3">
                             <Button
                               variant="ghost"
@@ -1678,6 +1764,17 @@ export default function SegmentDetail({
                   </div>
                 </div>
               </div>
+
+              {/* Fletes del segmento */}
+              {segmentName && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <FletesPanel
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
+              )}
 
               {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
               {segmentName && (
