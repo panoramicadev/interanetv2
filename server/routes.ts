@@ -14425,6 +14425,26 @@ export function registerRoutes(app: Express): Server {
         console.warn('[GET /api/ecommerce/erp-orders] GDV query failed:', e);
       }
 
+      // Pedidos originados en el Market (tienda) — el ingreso al ERP setea erp_idmaeedo,
+      // así marcamos el documento ERP correspondiente como fromMarket para la UI.
+      let marketIds = new Set<string>();
+      try {
+        const r = await db.execute(sql`
+          SELECT DISTINCT erp_idmaeedo::text AS idmaeedo
+          FROM ecommerce_orders
+          WHERE erp_idmaeedo IS NOT NULL
+        `);
+        const rows = Array.isArray(r) ? r : (r as any).rows || [];
+        marketIds = new Set(rows.map((x: any) => String(x.idmaeedo)).filter(Boolean));
+      } catch (e) {
+        console.warn('[GET /api/ecommerce/erp-orders] Market link query failed:', e);
+      }
+
+      const tagMarket = (d: any) => { d.fromMarket = marketIds.has(String(d.docId)); return d; };
+      for (const d of nvvDocs) tagMarket(d);
+      for (const d of gdvDocs) tagMarket(d);
+      for (const d of fcvDocs) tagMarket(d);
+
       // Re-group split documents into one logical pedido.
       const norm = (s: string | null | undefined) => (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
       const dayOf = (d: string | null) => (d || '').slice(0, 10);
@@ -14455,6 +14475,7 @@ export function registerRoutes(app: Express): Server {
           totalPending: docs.reduce((s, x) => s + (x.totalPending || 0), 0),
           items: docs.reduce((s, x) => s + (x.items || 0), 0),
           isGrouped: docs.length > 1,
+          fromMarket: docs.some((x) => x.fromMarket),
           orderNumbers: docs.map((x) => x.orderNumber).filter(Boolean),
           documents: docs.map((x) => ({
             docId: x.docId,

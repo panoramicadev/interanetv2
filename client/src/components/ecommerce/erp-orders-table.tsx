@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Clock, CheckCircle, ShoppingCart, DollarSign, Search, Filter,
   ChevronRight, Database, Layers, FileText, Receipt, Calendar, User,
-  Users, Building2, Check, ChevronsUpDown, X, Truck, Package,
+  Users, Building2, Check, ChevronsUpDown, X, Truck, Package, Store,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,6 +45,7 @@ export interface ErpOrder {
   totalPending: number;
   items: number;
   isGrouped: boolean;
+  fromMarket?: boolean;
   orderNumbers: string[];
   documents: ErpOrderDoc[];
 }
@@ -188,21 +189,21 @@ function FilterCombobox({
 function StatusBadge({ docType }: { docType: ErpOrder["docType"] }) {
   if (docType === "FCV") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
-        <CheckCircle className="w-3 h-3" /> Facturada
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap">
+        <CheckCircle className="w-3 h-3 shrink-0" /> Facturada
       </span>
     );
   }
   if (docType === "GDV") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-blue-50 text-blue-700 border-blue-200">
-        <Truck className="w-3 h-3" /> GDV · Despachada
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-blue-50 text-blue-700 border-blue-200 whitespace-nowrap">
+        <Truck className="w-3 h-3 shrink-0" /> GDV · Despachada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
-      <Clock className="w-3 h-3" /> NVV · Pendiente
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200 whitespace-nowrap">
+      <Clock className="w-3 h-3 shrink-0" /> NVV · Pendiente
     </span>
   );
 }
@@ -495,7 +496,7 @@ export default function ErpOrdersTable() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            <div className="grid grid-cols-[1fr_150px_145px_100px_90px_40px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
               <span>Cliente</span>
               <span>Vendedor</span>
               <span>Estado</span>
@@ -508,7 +509,7 @@ export default function ErpOrdersTable() {
                 <div
                   key={order.id}
                   onClick={() => setDetail(order)}
-                  className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-4 hover:bg-orange-50/30 cursor-pointer transition-colors items-center group"
+                  className="grid grid-cols-[1fr_150px_145px_100px_90px_40px] gap-4 px-5 py-4 hover:bg-orange-50/30 cursor-pointer transition-colors items-center group"
                 >
                   {/* Cliente */}
                   <div className="flex items-center gap-3 min-w-0">
@@ -516,7 +517,14 @@ export default function ErpOrdersTable() {
                       {(order.clientName || "?").charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-gray-900 truncate">{order.clientName}</h4>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h4 className="text-sm font-bold text-gray-900 truncate">{order.clientName}</h4>
+                        {order.fromMarket && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-[#FF6E23] text-white shrink-0 uppercase tracking-wide">
+                            <Store className="w-3 h-3" /> Market
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-400 truncate flex items-center gap-1">
                         {order.isGrouped ? (
                           <span className="inline-flex items-center gap-1 text-[#FF6E23] font-semibold">
@@ -592,6 +600,11 @@ export default function ErpOrdersTable() {
               {detail?.isGrouped && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-[#FF6E23]">
                   <Layers className="w-3 h-3" /> Agrupado
+                </span>
+              )}
+              {detail?.fromMarket && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FF6E23] text-white uppercase tracking-wide">
+                  <Store className="w-3 h-3" /> Market
                 </span>
               )}
             </DialogTitle>
