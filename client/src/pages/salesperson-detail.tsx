@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus, Menu } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus, Menu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -204,6 +204,14 @@ export default function SalespersonDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+  const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
+  const handleShowNewClientsInPanel = () => {
+    setClientsPanelView("new");
+    requestAnimationFrame(() => {
+      const el = document.getElementById("top-clients-panel");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [localSelection, setLocalSelection] = useState(selection);
 
@@ -676,7 +684,7 @@ export default function SalespersonDetail({
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: showNewClientsModal && !!salespersonName,
+    enabled: (showNewClientsModal || clientsPanelView === "new") && !!salespersonName,
   });
 
   // Close accordions when period or filter changes
@@ -1454,7 +1462,7 @@ export default function SalespersonDetail({
                 <Card
                   className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-purple-50/80 to-purple-100/50 cursor-pointer hover:shadow-md transition-shadow"
                   data-testid="card-clientes-nuevos"
-                  onClick={() => setShowNewClientsModal(true)}
+                  onClick={handleShowNewClientsInPanel}
                 >
                   <CardContent className="pt-6 pb-6">
                     <div className="flex items-start justify-between">
@@ -1875,15 +1883,21 @@ export default function SalespersonDetail({
               )}
 
               {/* Clients Table */}
-              <div className="space-y-4">
+              <div className="space-y-4" id="top-clients-panel">
                 {/* Header con búsqueda expandible */}
                 {!isSearchExpanded ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Users className="h-5 w-5 text-blue-600" />
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 ${clientsPanelView === "new" ? "bg-purple-100" : "bg-blue-100"} rounded-lg flex items-center justify-center`}>
+                        {clientsPanelView === "new" ? (
+                          <Sparkles className="h-5 w-5 text-purple-600" />
+                        ) : (
+                          <Users className="h-5 w-5 text-blue-600" />
+                        )}
                       </div>
-                      <h2 className="text-xl font-bold text-gray-900">Clientes del Vendedor</h2>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {clientsPanelView === "new" ? "Clientes Nuevos del Vendedor" : "Clientes del Vendedor"}
+                      </h2>
 
                       {/* Botón de lupa para expandir búsqueda */}
                       <button
@@ -1895,16 +1909,50 @@ export default function SalespersonDetail({
                         <Search className="h-4 w-4 text-gray-600" />
                       </button>
                     </div>
+
+                    {/* Switch Top / Nuevos */}
+                    <div className="inline-flex items-center rounded-lg bg-gray-100 p-0.5" role="tablist">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={clientsPanelView === "top"}
+                        onClick={() => setClientsPanelView("top")}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                          clientsPanelView === "top" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                        }`}
+                        data-testid="button-clients-view-top"
+                      >
+                        Top
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={clientsPanelView === "new"}
+                        onClick={() => setClientsPanelView("new")}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                          clientsPanelView === "new" ? "bg-white text-purple-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                        }`}
+                        data-testid="button-clients-view-new"
+                      >
+                        Nuevos
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {/* Búsqueda expandida a ancho completo */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <Users className="h-5 w-5 text-blue-600" />
+                        <div className={`w-8 h-8 ${clientsPanelView === "new" ? "bg-purple-100" : "bg-blue-100"} rounded-lg flex items-center justify-center`}>
+                          {clientsPanelView === "new" ? (
+                            <Sparkles className="h-5 w-5 text-purple-600" />
+                          ) : (
+                            <Users className="h-5 w-5 text-blue-600" />
+                          )}
                         </div>
-                        <h2 className="text-xl font-bold text-gray-900">Clientes del Vendedor</h2>
+                        <h2 className="text-xl font-bold text-gray-900">
+                          {clientsPanelView === "new" ? "Clientes Nuevos del Vendedor" : "Clientes del Vendedor"}
+                        </h2>
                       </div>
 
                       {debouncedSearchTerm && (
@@ -1939,7 +1987,80 @@ export default function SalespersonDetail({
                 )}
 
                 <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
-                  {currentLoading ? (
+                  {clientsPanelView === "new" ? (
+                    (() => {
+                      const term = debouncedSearchTerm.toLowerCase();
+                      const filtered = (newClientsList || []).filter((c) =>
+                        term.length < 2 ? true : c.clientName.toLowerCase().includes(term)
+                      );
+                      const totalNew = (newClientsList || []).reduce((sum, c) => sum + c.totalSales, 0);
+                      if (isLoadingNewClients) {
+                        return (
+                          <div className="flex items-center justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                          </div>
+                        );
+                      }
+                      if (!filtered.length) {
+                        return (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500 text-sm">
+                              {debouncedSearchTerm
+                                ? 'No se encontraron clientes con ese nombre'
+                                : 'No hay clientes nuevos en este período'}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <>
+                          <div className="space-y-4">
+                            {filtered.map((c, index) => {
+                              const pct = totalNew > 0 ? (c.totalSales / totalNew) * 100 : 0;
+                              return (
+                                <Link
+                                  key={c.clientName}
+                                  href={`/client/${encodeURIComponent(c.clientName)}`}
+                                  className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3 px-1 sm:px-0"
+                                >
+                                  <div className="flex items-center gap-2 sm:gap-3 w-full" data-testid={`new-client-${index}`}>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-gray-700 font-medium truncate">{c.clientName}</p>
+                                    </div>
+                                    <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">{pct.toFixed(1)}%</span>
+                                    <div className="hidden sm:block w-20 sm:w-32 flex-shrink-0">
+                                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-purple-500 rounded-full transition-all duration-500 ease-out" style={{ width: `${pct}%` }}></div>
+                                      </div>
+                                    </div>
+                                    <span className="text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">{formatCurrency(c.totalSales)}</span>
+                                  </div>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                          {!debouncedSearchTerm && (
+                            <div className="border-t-2 border-gray-300 pt-3 mt-4">
+                              <div className="flex items-center gap-3 w-full bg-purple-50 rounded-lg py-3 px-2" data-testid="new-clients-total">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-purple-900 font-bold">
+                                    TOTAL ({filtered.length} clientes nuevos)
+                                  </p>
+                                </div>
+                                <span className="text-xs text-purple-700 font-semibold w-10 text-right flex-shrink-0">100.0%</span>
+                                <div className="w-20 sm:w-32 flex-shrink-0">
+                                  <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-600 rounded-full w-full"></div>
+                                  </div>
+                                </div>
+                                <span className="text-sm font-bold text-purple-900 w-28 text-right flex-shrink-0">{formatCurrency(totalNew)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : currentLoading ? (
                     <div className="space-y-4">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="flex items-center justify-between animate-pulse">
