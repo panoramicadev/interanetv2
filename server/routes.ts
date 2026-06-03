@@ -28002,7 +28002,7 @@ export function registerRoutes(app: Express): Server {
         WITH fcv AS (
           SELECT DISTINCT UPPER(TRIM(fv."koprct")) AS sku
           FROM ventas.fact_ventas fv
-          WHERE fv."tido" = 'FCV'
+          WHERE fv."tido" <> 'GDV'
             AND fv."koprct" IS NOT NULL
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
@@ -28024,9 +28024,10 @@ export function registerRoutes(app: Express): Server {
             UPPER(TRIM(fv."koprct")) AS sku,
             fv."nokoprct" AS producto_fact,
             fv."monto" AS revenue,
-            COALESCE(fv."caprco2", 0) AS qty
+            CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0)
+                 ELSE COALESCE(fv."caprco2", 0) END AS qty
           FROM ventas.fact_ventas fv
-          WHERE fv."tido" = 'FCV'
+          WHERE fv."tido" <> 'GDV'
             AND fv."koprct" IS NOT NULL
             AND fv."monto" IS NOT NULL
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
@@ -28127,7 +28128,9 @@ export function registerRoutes(app: Express): Server {
         prevEnd = pe.toISOString().split('T')[0];
       }
 
-      // CTE base parametrizada por rango — devuelve líneas FCV con costo enriquecido
+      // CTE base parametrizada por rango — devuelve líneas FCV+NCV (netas, ex-GDV)
+      // con costo enriquecido. Para NCV (notas de crédito) la cantidad se invierte
+      // de modo que tanto el ingreso como el costo asociado descuenten del neto.
       const buildLineas = (s: string | null, e: string | null) => sql`
         SELECT
           UPPER(TRIM(fv."koprct")) AS sku,
@@ -28135,11 +28138,12 @@ export function registerRoutes(app: Express): Server {
           fv."nokofu" AS salesperson,
           fv."noruen" AS segment,
           fv."monto" AS revenue,
-          COALESCE(fv."caprco2", 0) AS qty,
+          CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0)
+               ELSE COALESCE(fv."caprco2", 0) END AS qty,
           gpc."price" AS unit_cost
         FROM ventas.fact_ventas fv
         LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
-        WHERE fv."tido" = 'FCV'
+        WHERE fv."tido" <> 'GDV'
           AND fv."koprct" IS NOT NULL
           AND fv."monto" IS NOT NULL
           ${s ? sql`AND fv."feemdo" >= ${s}::date` : sql``}

@@ -335,7 +335,7 @@ export function MarginDashboard() {
       // KPIs
       rows.push(["KPIs"]);
       rows.push(["Indicador", "Valor"]);
-      rows.push(["Ingresos FCV", numEs(ov.revenue)]);
+      rows.push(["Ingresos netos (FCV − NCV)", numEs(ov.revenue)]);
       rows.push(["Costo total", numEs(ov.cost)]);
       rows.push(["Margen $", numEs(ov.margin)]);
       rows.push(["Margen %", pctEs(ov.marginPct)]);
@@ -581,7 +581,7 @@ export function MarginDashboard() {
       {/* ── KPI Cards principales ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
-          label="Ingresos FCV"
+          label="Ingresos netos"
           icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
           value={isLoading ? null : ov ? fmtCLP(ov.revenue) : "—"}
           delta={ov?.deltas.revenuePct ?? null}
