@@ -25,6 +25,7 @@ import PendingDocumentsUnified from "@/components/dashboard/pending-documents-un
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import SalesChart from "@/components/dashboard/sales-chart";
+import KPICards from "@/components/dashboard/kpi-cards";
 
 interface SegmentClient {
   clientName: string;
@@ -145,6 +146,14 @@ export default function SegmentDetail({
   const [salespersonLimit, setSalespersonLimit] = useState(10);
   const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+  const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
+  const handleShowNewClientsInPanel = () => {
+    setClientsPanelView("new");
+    requestAnimationFrame(() => {
+      const el = document.getElementById("top-clients-panel");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   // State for products
   const [productLimit, setProductLimit] = useState(10);
@@ -1275,76 +1284,15 @@ export default function SegmentDetail({
             </>
           ) : (
             <>
-              {/* KPI Cards Summary */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
-                        {formatCurrency(totalSales)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Clientes / Vendedores</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
-                        {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className="modern-card p-3 sm:p-4 lg:p-6 hover-lift cursor-pointer ring-teal-300 hover:ring-2 transition-all"
-                  onClick={() => setShowNewClientsModal(true)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Recurrentes / Nuevos</p>
-                      {isLoadingRecurrence ? (
-                        <div className="h-6 lg:h-8 bg-gray-200 rounded animate-pulse w-20"></div>
-                      ) : isRecurrenceError ? (
-                        <p className="text-base sm:text-lg lg:text-2xl font-bold text-gray-400" data-testid="text-client-recurrence">
-                          No disponible
-                        </p>
-                      ) : (
-                        <p className="text-base sm:text-lg lg:text-2xl font-bold text-teal-600" data-testid="text-client-recurrence">
-                          {formatNumber(clientRecurrence?.recurringCount || 0)} / {formatNumber(clientRecurrence?.newCount || 0)}
-                        </p>
-                      )}
-                      <p className="text-[9px] text-gray-400 mt-1">Click para ver detalle de nuevos</p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-teal-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Transacciones</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
-                        {formatNumber(totalTransactions)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
-                    </div>
-                  </div>
-                </div>
-              </section>
+              {/* KPI Cards — usa las mismas tarjetas del dashboard principal */}
+              <div>
+                <KPICards
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  segment={segmentName}
+                  onShowNewClients={handleShowNewClientsInPanel}
+                />
+              </div>
 
               {/* Goal Progress Section - Only show for monthly view */}
               {filterType === 'month' && goalData && (
@@ -1462,6 +1410,8 @@ export default function SegmentDetail({
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                     segment={segmentName}
+                    view={clientsPanelView}
+                    onViewChange={setClientsPanelView}
                   />
                 </div>
 
