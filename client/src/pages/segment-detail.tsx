@@ -24,6 +24,7 @@ import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
+import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 
 interface SegmentClient {
@@ -1283,22 +1284,16 @@ export default function SegmentDetail({
             </>
           ) : (
             <>
-              {/* KPI Cards Summary */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
-                        {formatCurrency(totalSales)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-600" />
-                    </div>
-                  </div>
-                </div>
+              {/* KPI Cards Summary — mismas tarjetas del dashboard general, alcance: segmento */}
+              <KPICards
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                segment={segmentName}
+                onShowNewClients={handleShowNewClientsInPanel}
+              />
 
+              {/* Resumen segmento-específico: clientes/vendedores, recurrentes y transacciones */}
+              <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -1313,10 +1308,7 @@ export default function SegmentDetail({
                   </div>
                 </div>
 
-                <div
-                  className="modern-card p-3 sm:p-4 lg:p-6 hover-lift cursor-pointer ring-teal-300 hover:ring-2 transition-all"
-                  onClick={handleShowNewClientsInPanel}
-                >
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Recurrentes / Nuevos</p>
@@ -1331,7 +1323,6 @@ export default function SegmentDetail({
                           {formatNumber(clientRecurrence?.recurringCount || 0)} / {formatNumber(clientRecurrence?.newCount || 0)}
                         </p>
                       )}
-                      <p className="text-[9px] text-gray-400 mt-1">Click para ver detalle de nuevos</p>
                     </div>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
                       <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-teal-600" />
