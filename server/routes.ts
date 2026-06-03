@@ -3789,8 +3789,14 @@ export function registerRoutes(app: Express): Server {
       ];
       if (dateRange.startDate) conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate}::date`);
       if (dateRange.endDate) conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate}::date`);
-      if (salesperson) conditions.push(eq(factVentas.nokofu, salesperson as string));
-      if (segment) conditions.push(eq(factVentas.noruen, segment as string));
+      // Segmento/vendedor: doc-level — las líneas de flete tienen noruen/nokofu en NULL
+      // pero pertenecen al mismo documento que las líneas de venta del segmento/vendedor.
+      if (salesperson) {
+        conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE nokofu = ${salesperson as string})`);
+      }
+      if (segment) {
+        conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE noruen = ${segment as string})`);
+      }
       if (client) conditions.push(eq(factVentas.nokoen, client as string));
 
       const whereClause = and(...conditions);
