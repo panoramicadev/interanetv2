@@ -17207,21 +17207,60 @@ export function registerRoutes(app: Express): Server {
         offset: 0,
       });
 
+      // Load latest GRI costs from persistent cache so the export matches the "Costo"
+      // column shown in the UI (GRI price → fallback to costoProduccion).
+      const griMap: Record<string, { price: number; date: string | null }> = {};
+      try {
+        const griRows = await db.execute(sql`
+          SELECT sku, price, fecha FROM gri_prices_cache
+        `);
+        for (const row of (griRows as any).rows || []) {
+          if (row.sku) {
+            griMap[String(row.sku).toUpperCase()] = {
+              price: Number(row.price),
+              date: row.fecha ? new Date(row.fecha).toISOString().split('T')[0] : null,
+            };
+          }
+        }
+      } catch (griErr) {
+        console.warn('⚠️ [Price List Export] Could not read gri_prices_cache:', griErr);
+      }
+
+      const formatCostDate = (iso: string | null): string => {
+        if (!iso) return '';
+        const d = new Date(iso + 'T00:00:00');
+        return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
+      };
+
       // Prepare data for Excel
-      const excelData = result.items.map(item => ({
-        Codigo: item.codigo || '',
-        Producto: item.producto || '',
-        Formato: item.unidad || '',
-        'Precio Lista': item.lista || '',
-        'Desc 10%': item.desc10 || '',
-        'Desc 10+5%': item.desc10_5 || '',
-        'Desc 10+5+3%': item.desc10_5_3 || '',
-        Minimo: item.minimo || '',
-        'Canal Digital': item.canalDigital || '',
-        'Costo Produccion': (item as any).costoProduccion || '',
-        Rendimiento: (item as any).rendimiento || '',
-        'Unidad Medida': (item as any).unidadMedida || ''
-      }));
+      const excelData = result.items.map(item => {
+        const sku = (item.codigo || '').toUpperCase().trim();
+        const griEntry = griMap[sku];
+        const costoProduccion = (item as any).costoProduccion;
+        const costo = griEntry?.price ?? (costoProduccion != null ? Number(costoProduccion) : null);
+        const costoDate = griEntry?.date ?? null;
+        const minimo = item.minimo != null ? Number(item.minimo) : null;
+        const margen = (costo && minimo && minimo > 0)
+          ? Number((((minimo - costo) / minimo) * 100).toFixed(1))
+          : '';
+        return {
+          Codigo: item.codigo || '',
+          Producto: item.producto || '',
+          Formato: item.unidad || '',
+          'Precio Lista': item.lista || '',
+          'Desc 10%': item.desc10 || '',
+          'Desc 10+5%': item.desc10_5 || '',
+          'Desc 10+5+3%': item.desc10_5_3 || '',
+          Minimo: item.minimo || '',
+          'Canal Digital': item.canalDigital || '',
+          Costo: costo != null ? costo : '',
+          'Fecha Costo': formatCostDate(costoDate),
+          'Margen %': margen,
+          'Costo Produccion': costoProduccion || '',
+          Rendimiento: (item as any).rendimiento || '',
+          'Unidad Medida': (item as any).unidadMedida || ''
+        };
+      });
 
       const XLSX = await import('xlsx');
       const ws = XLSX.utils.json_to_sheet(excelData);
