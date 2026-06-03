@@ -145,6 +145,14 @@ export default function SegmentDetail({
   const [salespersonLimit, setSalespersonLimit] = useState(10);
   const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+  const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
+  const handleShowNewClientsInPanel = () => {
+    setClientsPanelView("new");
+    requestAnimationFrame(() => {
+      const el = document.getElementById("top-clients-panel");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   // State for products
   const [productLimit, setProductLimit] = useState(10);
@@ -1307,7 +1315,7 @@ export default function SegmentDetail({
 
                 <div
                   className="modern-card p-3 sm:p-4 lg:p-6 hover-lift cursor-pointer ring-teal-300 hover:ring-2 transition-all"
-                  onClick={() => setShowNewClientsModal(true)}
+                  onClick={handleShowNewClientsInPanel}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -1462,6 +1470,8 @@ export default function SegmentDetail({
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                     segment={segmentName}
+                    view={clientsPanelView}
+                    onViewChange={setClientsPanelView}
                   />
                 </div>
 
