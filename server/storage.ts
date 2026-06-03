@@ -1027,6 +1027,14 @@ export interface IStorage {
     imagenUrl?: string;
     precioEcommerce?: number;
     activo?: boolean;
+    groupId?: string | null;
+    variantLabel?: string | null;
+    isMainVariant?: boolean;
+    productFamily?: string | null;
+    color?: string | null;
+    palletEnabled?: boolean;
+    packagingAmountPerPallet?: number | null;
+    palletDiscountPct?: number | null;
   }): Promise<{
     id: string;
     codigo: string;
@@ -9440,6 +9448,10 @@ export class DatabaseStorage implements IStorage {
     variantParentSku?: string | null;
     variantGenericDisplayName?: string | null;
     variantIndex?: number;
+    // Venta por pallet
+    palletEnabled?: boolean;
+    packagingAmountPerPallet?: number | null;
+    palletDiscountPct?: number | null;
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
@@ -9468,6 +9480,9 @@ export class DatabaseStorage implements IStorage {
         variantParentSku: ecommerceProducts.variantParentSku,
         variantGenericDisplayName: ecommerceProducts.variantGenericDisplayName,
         variantIndex: ecommerceProducts.variantIndex,
+        palletEnabled: ecommerceProducts.palletEnabled,
+        packagingAmountPerPallet: ecommerceProducts.packagingAmountPerPallet,
+        palletDiscountPct: ecommerceProducts.palletDiscountPct,
       })
       .from(priceList)
       .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
@@ -9549,6 +9564,11 @@ export class DatabaseStorage implements IStorage {
       variantParentSku: row.variantParentSku || null,
       variantGenericDisplayName: row.variantGenericDisplayName || null,
       variantIndex: row.variantIndex ?? 0,
+      palletEnabled: row.palletEnabled ?? false,
+      packagingAmountPerPallet: row.packagingAmountPerPallet ?? null,
+      palletDiscountPct: row.palletDiscountPct !== null && row.palletDiscountPct !== undefined
+        ? Number(row.palletDiscountPct)
+        : null,
     }));
   }
 
@@ -9757,6 +9777,10 @@ export class DatabaseStorage implements IStorage {
     isMainVariant?: boolean;
     productFamily?: string | null;
     color?: string | null;
+    // Venta por pallet (configuración comercial)
+    palletEnabled?: boolean;
+    packagingAmountPerPallet?: number | null;
+    palletDiscountPct?: number | null;
   }): Promise<{
     id: string;
     codigo: string;
@@ -9817,6 +9841,10 @@ export class DatabaseStorage implements IStorage {
           .set({
             ...updates,
             precioEcommerce: updates.precioEcommerce?.toString(),
+            // Numeric pallet discount must be passed as string for Drizzle numeric type
+            palletDiscountPct: updates.palletDiscountPct === null || updates.palletDiscountPct === undefined
+              ? updates.palletDiscountPct as any
+              : updates.palletDiscountPct.toString(),
             updatedAt: new Date()
           })
           .where(eq(ecommerceProducts.id, existingEcomProduct.id))
@@ -9839,6 +9867,9 @@ export class DatabaseStorage implements IStorage {
             priceListId: id,
             ...updates,
             precioEcommerce: updates.precioEcommerce?.toString(),
+            palletDiscountPct: updates.palletDiscountPct === null || updates.palletDiscountPct === undefined
+              ? updates.palletDiscountPct as any
+              : updates.palletDiscountPct.toString(),
           })
           .returning();
 

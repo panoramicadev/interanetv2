@@ -7479,6 +7479,7 @@ export function registerRoutes(app: Express): Server {
         ep.packaging_package_name, ep.packaging_package_unit, ep.packaging_amount_per_package,
         ep.packaging_box_name, ep.packaging_box_unit, ep.packaging_amount_per_box,
         ep.packaging_pallet_name, ep.packaging_pallet_unit, ep.packaging_amount_per_pallet,
+        ep.pallet_enabled, ep.pallet_discount_pct,
         ep.group_id,
         ep.price_list_id,
         ep.imagen_url,
@@ -7600,6 +7601,11 @@ export function registerRoutes(app: Express): Server {
           palletName: row.packaging_pallet_name,
           palletUnit: row.packaging_pallet_unit,
           amountPerPallet: row.packaging_amount_per_pallet,
+          // Venta por pallet (configuración comercial editable en admin)
+          palletEnabled: row.pallet_enabled === true,
+          palletDiscountPct: row.pallet_discount_pct !== null && row.pallet_discount_pct !== undefined
+            ? Number(row.pallet_discount_pct)
+            : null,
         },
       });
     }
@@ -12525,7 +12531,11 @@ export function registerRoutes(app: Express): Server {
   // Update eCommerce product in admin panel
   app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    const { categoria, descripcion, imagenUrl, precio, activo, groupId, variantLabel, isMainVariant, productFamily, color } = req.body;
+    const {
+      categoria, descripcion, imagenUrl, precio, activo, groupId,
+      variantLabel, isMainVariant, productFamily, color,
+      palletEnabled, packagingAmountPerPallet, palletDiscountPct,
+    } = req.body;
 
     console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
       id,
@@ -12534,18 +12544,24 @@ export function registerRoutes(app: Express): Server {
       timestamp: new Date().toISOString()
     });
 
+    // Validate pallet fields if provided (política comercial: 0..100 y unidades > 0)
+    if (palletDiscountPct !== undefined && palletDiscountPct !== null) {
+      const pct = Number(palletDiscountPct);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        return res.status(400).json({ message: 'palletDiscountPct debe estar entre 0 y 100' });
+      }
+    }
+    if (packagingAmountPerPallet !== undefined && packagingAmountPerPallet !== null) {
+      const n = Number(packagingAmountPerPallet);
+      if (!Number.isInteger(n) || n < 1) {
+        return res.status(400).json({ message: 'packagingAmountPerPallet debe ser entero ≥ 1' });
+      }
+    }
+
     console.log('📝 [BACKEND] Datos extraídos para actualización:', {
-      categoria,
-      descripcion,
-      imagenUrl,
-      precio,
-      activo,
-      precioEcommerce: precio,
-      groupId,
-      variantLabel,
-      isMainVariant,
-      productFamily,
-      color
+      categoria, descripcion, imagenUrl, precio, activo,
+      groupId, variantLabel, isMainVariant, productFamily, color,
+      palletEnabled, packagingAmountPerPallet, palletDiscountPct,
     });
 
     try {
@@ -12560,7 +12576,12 @@ export function registerRoutes(app: Express): Server {
         variantLabel,
         isMainVariant,
         productFamily,
-        color
+        color,
+        palletEnabled,
+        packagingAmountPerPallet: packagingAmountPerPallet === undefined ? undefined
+          : (packagingAmountPerPallet === null ? null : Number(packagingAmountPerPallet)),
+        palletDiscountPct: palletDiscountPct === undefined ? undefined
+          : (palletDiscountPct === null ? null : Number(palletDiscountPct)),
       });
 
       console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);

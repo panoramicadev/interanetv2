@@ -107,8 +107,13 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
             {getPackagingDisplay(item.unit, item.selectedPackaging)}
           </p>
           
-          {/* Color/Finish badges if present */}
-          <div className="flex gap-1 mt-1">
+          {/* Color/Finish/Pallet badges if present */}
+          <div className="flex gap-1 mt-1 flex-wrap">
+            {item.isPalletPurchase && (
+              <Badge className="bg-blue-600 text-white text-[10px] h-5 px-1.5" title={`Pallet completo: ${item.quantity} unidades${item.palletDiscountPct ? ` con ${item.palletDiscountPct}% off` : ''}`}>
+                🟦 PALLET ({item.quantity} un)
+              </Badge>
+            )}
             {item.selectedColor && (
               <Badge variant="outline" className="text-xs h-5 px-1">
                 {item.selectedColor}
@@ -126,7 +131,11 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
         <div className="flex flex-col items-end gap-2">
           {item.originalPrice && item.originalPrice > item.unitPrice ? (
             <div className="text-right">
-              {item.isOffer ? (
+              {item.isPalletPurchase ? (
+                <Badge className="bg-blue-600 text-white text-[8px] px-1 py-0 mb-0.5" title={`Descuento por pallet ${item.palletDiscountPct}%`}>
+                  PALLET -{item.palletDiscountPct}%
+                </Badge>
+              ) : item.isOffer ? (
                 <Badge className="bg-rose-500 text-white text-[8px] px-1 py-0 mb-0.5">OFERTA</Badge>
               ) : item.convenioPct ? (
                 <Badge className="bg-emerald-500 text-white text-[8px] px-1 py-0 mb-0.5" title={`Descuento convenio ${item.convenioPct}%`}>
@@ -136,7 +145,7 @@ export default function CartItem({ item, compact = false }: CartItemProps) {
               <span className="text-[10px] text-gray-400 line-through block">
                 {formatPrice(item.originalPrice * item.quantity)}
               </span>
-              <span className={`text-sm font-semibold block ${item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-cart-item-subtotal-${item.productId}`}>
+              <span className={`text-sm font-semibold block ${item.isPalletPurchase ? 'text-blue-700' : item.isOffer ? 'text-rose-600' : 'text-emerald-600'}`} data-testid={`text-cart-item-subtotal-${item.productId}`}>
                 {formatPrice(item.subtotal)}
               </span>
             </div>

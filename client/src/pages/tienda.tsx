@@ -167,6 +167,10 @@ interface StoreFormatVariant {
     packageName?: string | null; packageUnit?: string | null; amountPerPackage?: number | null;
     boxName?: string | null; boxUnit?: string | null; amountPerBox?: number | null;
     palletName?: string | null; palletUnit?: string | null; amountPerPallet?: number | null;
+    // Venta por pallet (Opción B): el botón aparece sólo si palletEnabled && amountPerPallet>0.
+    // palletDiscountPct REEMPLAZA la oferta activa (no se suma).
+    palletEnabled?: boolean;
+    palletDiscountPct?: number | null;
   };
 }
 
@@ -1525,6 +1529,81 @@ export default function TiendaPage() {
   };
 
   // Add grouped variant to cart
+  /**
+   * Agrega un PALLET COMPLETO al carrito (Opción B).
+   *
+   * Política comercial:
+   *   - quantity = packaging.amountPerPallet (ej 144 galones)
+   *   - unitPrice = listPrice × (1 − palletDiscountPct/100) ← ya pre-rebajado
+   *   - originalPrice = listPrice (para mostrar tachado)
+   *   - El descuento por pallet REEMPLAZA cualquier oferta activa (no se suman).
+   *   - convenioPct NO se aplica (el pallet es su propio régimen comercial).
+   *   - Stock: NO bloqueamos — siempre se muestra (decisión de producto, ver memoria).
+   */
+  const addPalletToCart = (variant: StoreFormatVariant, productName: string) => {
+    const pkg = variant.packaging;
+    const units = pkg?.amountPerPallet || 0;
+    if (!pkg?.palletEnabled || units < 1) {
+      toast({
+        title: "Pallet no disponible",
+        description: "Este producto no tiene venta por pallet habilitada",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Precio de lista: usamos `originalPrice` (precio sin convenio) si existe, sino `price`.
+    // Razón: el pallet REEMPLAZA descuentos, así que partimos del precio sin convenio.
+    const listPrice = (variant.originalPrice && variant.originalPrice > 0)
+      ? variant.originalPrice
+      : (variant.price || 0);
+    if (listPrice === 0) {
+      toast({
+        title: "Error",
+        description: "Producto sin precio disponible",
+        variant: "destructive",
+      });
+      return;
+    }
+    const discountPct = Math.max(0, Math.min(100, Number(pkg.palletDiscountPct || 0)));
+    const palletUnitPrice = Math.round(listPrice * (1 - discountPct / 100));
+
+    try {
+      addItem({
+        productId: variant.sku,
+        productCode: variant.sku,
+        productName,
+        selectedPackaging: variant.format,
+        selectedColor: variant.color,
+        unit: variant.format,
+        unitPrice: palletUnitPrice,
+        originalPrice: discountPct > 0 ? listPrice : undefined, // tachado sólo si hay rebaja real
+        isOffer: false,           // No es oferta — es modo pallet
+        convenioPct: undefined,   // No se aplica convenio en modo pallet
+        quantity: units,
+        // Bypaseamos minQuantity/quantityStep estándar: el pallet ya define la cantidad.
+        // Las reglas de empaque (GL=múltiplos de 4) se cumplen igual: 144/36/24 son válidos.
+        minQuantity: 1,
+        quantityStep: 1,
+        imageUrl: variant.imageUrl || undefined,
+        isPalletPurchase: true,
+        palletDiscountPct: discountPct,
+      });
+
+      toast({
+        title: "✓ Pallet agregado al carrito",
+        description: `${units}× ${productName} (${variant.color}, ${variant.format})${discountPct > 0 ? ` — ${discountPct}% off` : ''}`,
+        action: <Check className="h-4 w-4" />,
+      });
+      setShowFloatingCart(true);
+    } catch {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el pallet al carrito",
+        variant: "destructive",
+      });
+    }
+  };
+
   const addGroupedVariantToCart = (variant: StoreFormatVariant, productName: string) => {
     const qty = quantities[variant.sku] || variant.minUnit || 1;
     const basePrice = variant.price || 0;
@@ -2705,6 +2784,48 @@ export default function TiendaPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Venta por pallet — botón Opción B (qty = palletUnits, descuento aplicado a unitPrice) */}
+                  {pkg?.palletEnabled && (pkg?.amountPerPallet || 0) > 0 && (gv.price || 0) > 0 && (() => {
+                    const units = pkg!.amountPerPallet!;
+                    const discPct = Math.max(0, Math.min(100, Number(pkg!.palletDiscountPct || 0)));
+                    const listPrice = (gv.originalPrice && gv.originalPrice > 0) ? gv.originalPrice : (gv.price || 0);
+                    const palletUnitPrice = Math.round(listPrice * (1 - discPct / 100));
+                    const palletTotal = palletUnitPrice * units;
+                    const savings = (listPrice * units) - palletTotal;
+                    return (
+                      <div className="border-t border-gray-100 pt-5">
+                        <div className="bg-gradient-to-r from-blue-500/5 to-indigo-50 rounded-xl p-5 border border-blue-200/40">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="w-4 h-4 text-blue-600" />
+                            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Venta por pallet</span>
+                            {discPct > 0 && (
+                              <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">-{discPct}%</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-700 mb-3">
+                            {units} unidades por pallet
+                            {discPct > 0 && ` — ahorras ${formatPrice(savings)}`}
+                          </p>
+                          <div className="flex items-baseline gap-2 mb-3">
+                            <span className="text-2xl font-black text-blue-700">{formatPrice(palletTotal)}</span>
+                            <span className="text-sm text-gray-500">total pallet</span>
+                          </div>
+                          <Button
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => {
+                              addPalletToCart(gv, gp.genericName);
+                              setShowGroupedDetailDialog(false);
+                            }}
+                            data-testid="button-add-pallet"
+                          >
+                            <ShoppingCart className="h-4 w-4 mr-2" />
+                            Pallet completo ({units} un)
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             );
