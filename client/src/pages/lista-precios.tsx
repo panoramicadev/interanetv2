@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag } from "lucide-react";
+import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag, Package } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import ListaPreciosMix from "./lista-precios-mix";
 import ListaPreciosOfertas from "./lista-precios-ofertas";
@@ -40,6 +41,12 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Venta por pallet — state local del dialog Editar Producto.
+  // Vive separado del editItem porque guarda en ecommerce_products, no en price_list.
+  const [palletEnabled, setPalletEnabled] = useState(false);
+  const [palletUnitsInput, setPalletUnitsInput] = useState("");
+  const [palletDiscountInput, setPalletDiscountInput] = useState("");
+
   const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
   const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
   const [bulkAdjustDirection, setBulkAdjustDirection] = useState<'up' | 'down'>('up');
@@ -357,15 +364,87 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
 
   const handleEdit = (item: PriceList) => {
     setEditItem({ ...item });
+    // Pallet config — pre-llena del item enriquecido (LEFT JOIN ecommerce_products)
+    const anyItem = item as any;
+    setPalletEnabled(!!anyItem.palletEnabled);
+    setPalletUnitsInput(
+      anyItem.packagingAmountPerPallet !== null && anyItem.packagingAmountPerPallet !== undefined
+        ? String(anyItem.packagingAmountPerPallet)
+        : ""
+    );
+    setPalletDiscountInput(
+      anyItem.palletDiscountPct !== null && anyItem.palletDiscountPct !== undefined
+        ? String(anyItem.palletDiscountPct)
+        : ""
+    );
     setIsEditDialogOpen(true);
   };
+
+  // Mutación pallet — guarda en ecommerce_products (no en price_list)
+  // Usa el endpoint existente PATCH /api/ecommerce/admin/productos/:id
+  // (el :id es el priceListId, que coincide con editItem.id).
+  const palletMutation = useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      palletEnabled: boolean;
+      packagingAmountPerPallet: number | null;
+      palletDiscountPct: number | null;
+    }) => {
+      const { id, ...rest } = payload;
+      return apiRequest(`/api/ecommerce/admin/productos/${id}`, {
+        method: "PATCH",
+        data: rest,
+      });
+    },
+    onSuccess: () => {
+      // Refresh price-list (que incluye los campos pallet via LEFT JOIN)
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error al guardar venta por pallet",
+        description: err?.message || "No se pudo guardar la configuración de pallet",
+      });
+    },
+  });
 
   const handleSaveEdit = () => {
     if (!editItem) return;
     const lista = editItem.lista;
     const rendimiento = (editItem as any).rendimiento;
     const costoUnidadMedida = lista && rendimiento ? Math.round(lista / rendimiento) : null;
-    
+
+    // Validación local pallet antes de disparar nada
+    const units = palletUnitsInput.trim() === "" ? null : parseInt(palletUnitsInput, 10);
+    const discount = palletDiscountInput.trim() === "" ? null : parseFloat(palletDiscountInput);
+
+    if (palletEnabled && (units === null || isNaN(units) || units < 1)) {
+      toast({
+        variant: "destructive",
+        title: "Faltan unidades por pallet",
+        description: "Para habilitar la venta por pallet, indica cuántas unidades trae el pallet (ej: 144 galones).",
+      });
+      return;
+    }
+    if (units !== null && (isNaN(units) || units < 1)) {
+      toast({
+        variant: "destructive",
+        title: "Unidades inválidas",
+        description: "Las unidades por pallet deben ser un entero ≥ 1.",
+      });
+      return;
+    }
+    if (discount !== null && (isNaN(discount) || discount < 0 || discount > 100)) {
+      toast({
+        variant: "destructive",
+        title: "Descuento inválido",
+        description: "El descuento por pallet debe estar entre 0 y 100.",
+      });
+      return;
+    }
+
+    // 1) Guardar campos del PriceList (precios, costo, etc.)
     updateMutation.mutate({
       id: editItem.id,
       data: {
@@ -383,6 +462,14 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
         rendimiento: (editItem as any).rendimiento,
         costoUnidadMedida,
       }
+    });
+
+    // 2) Guardar pallet config (ecommerce_products) en paralelo
+    palletMutation.mutate({
+      id: editItem.id,
+      palletEnabled,
+      packagingAmountPerPallet: units,
+      palletDiscountPct: discount,
     });
   };
 
@@ -1066,10 +1153,69 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
                 <div className="flex items-center py-2">
                   <Label className="text-sm font-medium w-1/2">Costo/Unidad Medida</Label>
                   <div className="w-1/2 text-right text-sm py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded">
-                    {editItem.lista && (editItem as any).rendimiento 
+                    {editItem.lista && (editItem as any).rendimiento
                       ? formatNumber(Math.round(editItem.lista / (editItem as any).rendimiento))
                       : '-'}
                   </div>
+                </div>
+
+                {/* ────────── Venta por Pallet ──────────
+                    Guarda en ecommerce_products (vía PATCH /api/ecommerce/admin/productos/:id).
+                    El descuento por pallet REEMPLAZA ofertas activas; no se suman. */}
+                <div className="pt-4 mt-2 border-t border-blue-200/40 bg-blue-50/30 -mx-3 px-3 pb-2 rounded-md">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-blue-600" />
+                      <Label className="text-sm font-semibold text-blue-900">Venta por Pallet</Label>
+                    </div>
+                    <Switch
+                      checked={palletEnabled}
+                      onCheckedChange={setPalletEnabled}
+                      data-testid="switch-pallet-enabled"
+                    />
+                  </div>
+                  <p className="text-[11px] text-blue-700/80 mb-2">
+                    Si está habilitado, la tienda online mostrará un botón "Pallet completo".
+                  </p>
+
+                  <div className="flex items-center py-1.5">
+                    <Label className="text-xs text-blue-900/80 w-1/2">Unidades por pallet</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      placeholder="144 / 36 / 24"
+                      className="w-1/2 text-right h-8 text-xs"
+                      value={palletUnitsInput}
+                      onChange={(e) => setPalletUnitsInput(e.target.value)}
+                      data-testid="input-pallet-units"
+                    />
+                  </div>
+
+                  <div className="flex items-center py-1.5">
+                    <Label className="text-xs text-blue-900/80 w-1/2">Descuento (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      placeholder="0 (opcional)"
+                      className="w-1/2 text-right h-8 text-xs"
+                      value={palletDiscountInput}
+                      onChange={(e) => setPalletDiscountInput(e.target.value)}
+                      data-testid="input-pallet-discount"
+                    />
+                  </div>
+
+                  {palletEnabled && (
+                    <div className="flex gap-2 mt-2 p-2 bg-amber-50 border border-amber-200/60 rounded text-[11px] text-amber-800">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                      <span>
+                        El descuento por pallet <strong>reemplaza</strong> cualquier oferta activa
+                        de este SKU (no se suman).
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
