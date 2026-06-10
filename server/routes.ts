@@ -9149,6 +9149,41 @@ export function registerRoutes(app: Express): Server {
         console.warn('Warning: auto-confirmation email failed:', autoErr);
       }
 
+      // Internal staff notification — pedidos de Panorámica Market.
+      // Va siempre (no depende del toggle de emailNotificationSettings) a
+      // contacto@pinturaspanoramica.cl con copia a fparra@pinturaspanoramica.cl.
+      try {
+        const { buildOrderInternalNotifyEmail } = await import('./email-templates');
+        const itemsForEmail = (resolved.items || []).map((it: any) => ({
+          name: it.productName || it.name || it.sku || 'Producto',
+          quantity: Number(it.quantity) || 1,
+          price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
+        }));
+        const built = buildOrderInternalNotifyEmail({
+          orderNumber: order.id,
+          clientName: orderToCreate.clientName || 'Cliente',
+          clientEmail: orderToCreate.clientEmail || null,
+          clientRut: client?.ruen || null,
+          clientPhone: (client as any)?.foen || (client as any)?.fichaOverrides?.phone || null,
+          total: Number(resolved.total) || 0,
+          subtotal: Number(resolved.subtotal) || 0,
+          tax: Number(resolved.tax) || 0,
+          paymentCondition: orderToCreate.paymentCondition || null,
+          shippingAddress: orderToCreate.shippingAddress || null,
+          notes: orderToCreate.notes || null,
+          status: orderToCreate.status === 'approved' ? 'Aprobado' : 'Pendiente de aprobación',
+          items: itemsForEmail,
+        });
+        await emailService.sendEmail({
+          to: 'contacto@pinturaspanoramica.cl',
+          cc: 'fparra@pinturaspanoramica.cl',
+          subject: built.subject,
+          html: built.html,
+        });
+      } catch (internalErr) {
+        console.warn('Warning: internal order notification email failed:', internalErr);
+      }
+
       res.status(201).json(order);
     } catch (error: any) {
       console.error('Error creating client order:', error);
