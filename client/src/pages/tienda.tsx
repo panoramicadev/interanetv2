@@ -168,9 +168,14 @@ interface StoreFormatVariant {
     boxName?: string | null; boxUnit?: string | null; amountPerBox?: number | null;
     palletName?: string | null; palletUnit?: string | null; amountPerPallet?: number | null;
     // Venta por pallet (Opción B): el botón aparece sólo si palletEnabled && amountPerPallet>0.
-    // palletDiscountPct REEMPLAZA la oferta activa (no se suma).
+    // El precio del pallet se define por UNO de dos modos (mutuamente excluyentes):
+    //   - palletDiscountPct: % de descuento sobre precio de lista (precio unitario rebajado)
+    //   - palletPrice: precio total fijo del pallet en $ (precio unitario = palletPrice/units)
+    // Si ambos vienen (no debería), gana palletPrice.
+    // REEMPLAZA la oferta activa (no se suma).
     palletEnabled?: boolean;
     palletDiscountPct?: number | null;
+    palletPrice?: number | null;
   };
 }
 
@@ -1564,8 +1569,20 @@ export default function TiendaPage() {
       });
       return;
     }
-    const discountPct = Math.max(0, Math.min(100, Number(pkg.palletDiscountPct || 0)));
-    const palletUnitPrice = Math.round(listPrice * (1 - discountPct / 100));
+    // Modo precio fijo gana sobre modo descuento si ambos vinieran de la DB.
+    const hasFixedPrice = pkg.palletPrice != null && Number(pkg.palletPrice) > 0;
+    let palletUnitPrice: number;
+    let discountPct: number;
+    if (hasFixedPrice) {
+      const palletTotal = Math.round(Number(pkg.palletPrice));
+      palletUnitPrice = Math.round(palletTotal / units);
+      const listTotal = listPrice * units;
+      // Derivamos el % implícito sólo para mostrarlo en el badge del carrito.
+      discountPct = listTotal > 0 ? Math.max(0, Math.round((1 - palletTotal / listTotal) * 100)) : 0;
+    } else {
+      discountPct = Math.max(0, Math.min(100, Number(pkg.palletDiscountPct || 0)));
+      palletUnitPrice = Math.round(listPrice * (1 - discountPct / 100));
+    }
 
     try {
       addItem({
@@ -1576,7 +1593,7 @@ export default function TiendaPage() {
         selectedColor: variant.color,
         unit: variant.format,
         unitPrice: palletUnitPrice,
-        originalPrice: discountPct > 0 ? listPrice : undefined, // tachado sólo si hay rebaja real
+        originalPrice: palletUnitPrice < listPrice ? listPrice : undefined, // tachado sólo si hay rebaja real
         isOffer: false,           // No es oferta — es modo pallet
         convenioPct: undefined,   // No se aplica convenio en modo pallet
         quantity: units,
@@ -2788,10 +2805,22 @@ export default function TiendaPage() {
                   {/* Venta por pallet — botón Opción B (qty = palletUnits, descuento aplicado a unitPrice) */}
                   {pkg?.palletEnabled && (pkg?.amountPerPallet || 0) > 0 && (gv.price || 0) > 0 && (() => {
                     const units = pkg!.amountPerPallet!;
-                    const discPct = Math.max(0, Math.min(100, Number(pkg!.palletDiscountPct || 0)));
                     const listPrice = (gv.originalPrice && gv.originalPrice > 0) ? gv.originalPrice : (gv.price || 0);
-                    const palletUnitPrice = Math.round(listPrice * (1 - discPct / 100));
-                    const palletTotal = palletUnitPrice * units;
+                    // Modo precio fijo gana sobre modo descuento si ambos vinieran.
+                    const hasFixedPrice = pkg!.palletPrice != null && Number(pkg!.palletPrice) > 0;
+                    let palletTotal: number;
+                    let palletUnitPrice: number;
+                    let discPct: number;
+                    if (hasFixedPrice) {
+                      palletTotal = Math.round(Number(pkg!.palletPrice));
+                      palletUnitPrice = Math.round(palletTotal / units);
+                      const listTotal = listPrice * units;
+                      discPct = listTotal > 0 ? Math.max(0, Math.round((1 - palletTotal / listTotal) * 100)) : 0;
+                    } else {
+                      discPct = Math.max(0, Math.min(100, Number(pkg!.palletDiscountPct || 0)));
+                      palletUnitPrice = Math.round(listPrice * (1 - discPct / 100));
+                      palletTotal = palletUnitPrice * units;
+                    }
                     const savings = (listPrice * units) - palletTotal;
                     return (
                       <div className="border-t border-gray-100 pt-5">
@@ -2799,18 +2828,21 @@ export default function TiendaPage() {
                           <div className="flex items-center gap-2 mb-2">
                             <Package className="w-4 h-4 text-blue-600" />
                             <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Venta por pallet</span>
-                            {discPct > 0 && (
+                            {hasFixedPrice ? (
+                              <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">PRECIO FIJO</Badge>
+                            ) : discPct > 0 && (
                               <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">-{discPct}%</Badge>
                             )}
                           </div>
                           <p className="text-sm text-gray-700 mb-3">
                             {units} unidades por pallet
-                            {discPct > 0 && ` — ahorras ${formatPrice(savings)}`}
+                            {savings > 0 && ` — ahorras ${formatPrice(savings)}`}
                           </p>
                           <div className="flex items-baseline gap-2 mb-3">
                             <span className="text-2xl font-black text-blue-700">{formatPrice(palletTotal)}</span>
                             <span className="text-sm text-gray-500">total pallet</span>
                           </div>
+                          <p className="text-[11px] text-gray-500 mb-3">Unidad: {formatPrice(palletUnitPrice)}</p>
                           <Button
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => {

@@ -1481,8 +1481,28 @@ export default function TomadorPedidos() {
     const map = new Map<string, number>();
     if (offersPricesResponse?.items) {
       offersPricesResponse.items.forEach((item: any) => {
-        if (item.codigo && !item.paused) {
+        // Sólo ofertas regulares pisan el tier "oferta" (precio unitario).
+        // Las ofertas de pallet se muestran como badge informativo (palletInfoMap).
+        if (item.codigo && !item.paused && item.offerType !== "pallet" && item.precio != null) {
           map.set(item.codigo.toUpperCase(), Number(item.precio));
+        }
+      });
+    }
+    return map;
+  }, [offersPricesResponse]);
+
+  // Info de oferta-pallet por SKU: se muestra como badge en el listado de productos
+  // para que el vendedor sepa que el SKU tiene venta por pallet configurada.
+  const palletInfoMap = useMemo(() => {
+    const map = new Map<string, { units: number; discountPct: number | null; palletPrice: number | null }>();
+    if (offersPricesResponse?.items) {
+      offersPricesResponse.items.forEach((item: any) => {
+        if (item.codigo && !item.paused && item.offerType === "pallet" && item.unitsPerPallet) {
+          map.set(item.codigo.toUpperCase(), {
+            units: Number(item.unitsPerPallet),
+            discountPct: item.discountPct != null ? Number(item.discountPct) : null,
+            palletPrice: item.palletPrice != null ? Number(item.palletPrice) : null,
+          });
         }
       });
     }
@@ -3127,6 +3147,31 @@ export default function TomadorPedidos() {
     setShowQuoteBuilder(true);
   };
 
+  // Badge informativo de venta-por-pallet para los listados de productos.
+  // Muestra "PALLET 144u × −10%" (modo %) o "PALLET 144u → $50.000" (modo precio fijo).
+  // Es sólo informativo; el flujo de carga al carrito sigue siendo por tier estándar.
+  const renderPalletBadge = (codigo: string | null | undefined) => {
+    if (!codigo) return null;
+    const info = palletInfoMap.get(codigo.toUpperCase());
+    if (!info) return null;
+    return (
+      <Badge
+        className="bg-blue-100 text-blue-800 border border-blue-300 text-[10px] gap-1 mt-1 hover:bg-blue-200"
+        title={`Venta por pallet: ${info.units} u${info.palletPrice != null ? ` por ${formatCurrency(info.palletPrice)}` : info.discountPct != null ? ` con ${info.discountPct}% off` : ''}`}
+      >
+        <span className="font-bold">PALLET</span>
+        <span>
+          {info.units}u
+          {info.palletPrice != null
+            ? ` → ${formatCurrency(info.palletPrice)}`
+            : info.discountPct != null
+            ? ` × −${info.discountPct}%`
+            : ''}
+        </span>
+      </Badge>
+    );
+  };
+
   // Get best available price for display (first non-zero price)
   const getBestDisplayPrice = (product: PriceList): { price: number; tier: PriceTier; label: string } => {
     // Calculate lista from desc10 if missing (desc10 = lista * 0.90)
@@ -3978,6 +4023,7 @@ export default function TomadorPedidos() {
                                         Unidad: {(product.unidad || 'UN').toUpperCase()}
                                       </p>
                                       {renderStockBadge(product.codigo)}
+                                      {renderPalletBadge(product.codigo)}
                                     </div>
                                     <div className="text-right ml-2">
                                       {(() => {
@@ -4795,6 +4841,7 @@ export default function TomadorPedidos() {
                                           Unidad: {(product.unidad || "N/A").toUpperCase()}
                                         </p>
                                         {renderStockBadge(product.codigo)}
+                                        {renderPalletBadge(product.codigo)}
                                       </div>
                                       <div className="text-right flex-1">
                                         <div className="space-y-2">
