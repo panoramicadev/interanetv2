@@ -204,7 +204,7 @@ export async function matchSkusToCatalog(items: ParsedOcItem[]): Promise<{ match
       COALESCE(ep.variant_generic_display_name, pl.producto) AS generic_name
     FROM ecommerce_products ep
     INNER JOIN price_list pl ON pl.id = ep.price_list_id
-    WHERE UPPER(pl.codigo) = ANY(${skus}::text[])
+    WHERE UPPER(pl.codigo) IN (${sql.join(skus.map(s => sql`${s}`), sql`, `)})
       AND COALESCE(ep.activo, true) = true
   `);
 

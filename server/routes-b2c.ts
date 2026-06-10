@@ -133,7 +133,7 @@ export function registerB2CRoutes(app: Express) {
           SELECT pl.codigo AS sku, ep.min_unit, ep.step_size, ep.format_unit, ep.color, pl.producto AS product_name
           FROM ecommerce_products ep
           INNER JOIN price_list pl ON pl.id = ep.price_list_id
-          WHERE pl.codigo = ANY(${skuList}::text[])
+          WHERE pl.codigo IN (${sql.join(skuList.map((s: string) => sql`${s}`), sql`, `)})
         `);
         const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
         for (const r of (skuRows as any).rows || []) {
@@ -185,6 +185,31 @@ export function registerB2CRoutes(app: Express) {
         });
       } catch (autoErr) {
         console.warn('[B2C] auto-confirmation email failed:', autoErr);
+      }
+
+      // Internal notification to the commercial team (always sent)
+      try {
+        const { sendAutoCustomerEmail } = await import('./notifications-helper');
+        const { buildQuoteInternalNotifyEmail } = await import('./email-templates');
+        const built = buildQuoteInternalNotifyEmail({
+          visitorName: validationResult.data.visitorName,
+          visitorEmail: validationResult.data.visitorEmail,
+          visitorPhone: validationResult.data.visitorPhone,
+          visitorCompany: validationResult.data.visitorCompany,
+          visitorCity: validationResult.data.visitorCity,
+          visitorRut: validationResult.data.visitorRut,
+          message: validationResult.data.message,
+          items: (validationResult.data.items || []) as any[],
+        });
+        await sendAutoCustomerEmail({
+          notificationType: 'ecommerce_quote_interna',
+          to: 'contacto@pinturaspanoramica.cl, dhermosilla@pinturaspanoramica.cl',
+          subject: built.subject,
+          html: built.html,
+          force: true,
+        });
+      } catch (internalErr) {
+        console.warn('[B2C] internal quote notification failed:', internalErr);
       }
 
       res.status(201).json({

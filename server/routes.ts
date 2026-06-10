@@ -7430,7 +7430,7 @@ export function registerRoutes(app: Express): Server {
           SELECT pl.codigo AS sku, ep.min_unit, ep.step_size, ep.format_unit, ep.color, pl.producto AS product_name
           FROM ecommerce_products ep
           INNER JOIN price_list pl ON pl.id = ep.price_list_id
-          WHERE pl.codigo = ANY(${productIds}::text[]) OR ep.id = ANY(${productIds}::text[])
+          WHERE pl.codigo IN (${sql.join(productIds.map((p) => sql`${p}`), sql`, `)}) OR ep.id IN (${sql.join(productIds.map((p) => sql`${p}`), sql`, `)})
         `);
         const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
         for (const r of (skuRows as any).rows || []) {
@@ -28115,7 +28115,7 @@ export function registerRoutes(app: Express): Server {
       const pricesResult = await db.execute(sql`
         SELECT sku, snapshot_at, price::TEXT AS price, fecha
         FROM gri_price_history
-        WHERE sku = ANY(${skuList})
+        WHERE sku IN (${sql.join(skuList.map((s: any) => sql`${s}`), sql`, `)})
         ORDER BY sku, snapshot_at ASC
       `);
 
