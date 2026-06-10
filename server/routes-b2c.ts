@@ -218,8 +218,19 @@ export function registerB2CRoutes(app: Express) {
         requestId: request.id,
       });
     } catch (error: any) {
-      console.error('[B2C] Error creating quote request:', error?.message || error, error?.stack);
-      res.status(500).json({ message: 'Error al enviar solicitud de cotización' });
+      console.error('[B2C] Error creating quote request:', {
+        message: error?.message || String(error),
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        where: error?.where,
+        stack: error?.stack,
+      });
+      res.status(500).json({
+        message: 'Error al enviar solicitud de cotización',
+        code: error?.code,
+        detail: error?.detail,
+      });
     }
   });
 
