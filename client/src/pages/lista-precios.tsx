@@ -116,6 +116,26 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
     },
   });
 
+  // Lista Mix (LP02): mapa codigo→precio para mostrar como columna extra en la vista de vendedor
+  const { data: mixPricesByCode } = useQuery<Record<string, number>>({
+    queryKey: ['/api/custom-price-lists/LP02/items', 'all-for-comercial'],
+    queryFn: async () => {
+      const response = await fetch('/api/custom-price-lists/LP02/items?limit=5000&offset=0', { credentials: 'include' });
+      if (!response.ok) return {};
+      const json = await response.json();
+      const map: Record<string, number> = {};
+      for (const it of (json.items || [])) {
+        if (it.codigo && it.precio != null) {
+          const n = typeof it.precio === 'string' ? parseFloat(it.precio) : it.precio;
+          if (!isNaN(n)) map[it.codigo.toUpperCase()] = n;
+        }
+      }
+      return map;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: vendorView,
+  });
+
   // Query para obtener precios GRI (costo producción desde SQL Server)
   const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ['/api/inventory/gri-prices'],
@@ -405,7 +425,7 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
     <div className="space-y-4">
       <Tabs defaultValue="comercial" className="w-full">
         <div className="flex items-center gap-2">
-        <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg flex-1">
+        <TabsList className={`h-9 bg-muted/50 p-0.5 rounded-lg flex-1 ${vendorView ? 'hidden' : ''}`}>
           <TabsTrigger value="comercial" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <List className="h-3.5 w-3.5" />
             Lista Comercial
@@ -658,6 +678,9 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
                     <TableHead className="text-right text-xs">Desc10</TableHead>
                     <TableHead className="text-right text-xs">Desc10+5</TableHead>
                     <TableHead className="text-right text-xs">Mínimo</TableHead>
+                    {vendorView && (
+                      <TableHead className="text-right text-xs text-red-600 dark:text-red-400 font-semibold">Lista Mix</TableHead>
+                    )}
                     {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
@@ -738,6 +761,13 @@ export default function ListaPrecios({ vendorView = false }: { vendorView?: bool
                                 {marginBadge(calcMargin(item.minimo))}
                               </div>
                             </TableCell>
+                            {vendorView && (
+                              <TableCell className="text-right py-2 text-red-600 dark:text-red-400 font-semibold" data-testid={`text-mix-${item.id}`}>
+                                <div className="text-xs">
+                                  {formatCurrency(item.codigo ? (mixPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null)}
+                                </div>
+                              </TableCell>
+                            )}
                           </>
                         );
                       })()}
