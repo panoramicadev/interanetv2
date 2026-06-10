@@ -23,7 +23,8 @@ interface PriceListResponse {
   hasMore: boolean;
 }
 
-export default function ListaPrecios() {
+// vendorView: vista de solo lectura para vendedores — sin costos, márgenes, simulador ni acciones de edición
+export default function ListaPrecios({ vendorView = false }: { vendorView?: boolean }) {
   const [search, setSearch] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -124,6 +125,7 @@ export default function ListaPrecios() {
       return response.json();
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: !vendorView,
   });
 
   // Mutación para importar CSV
@@ -420,6 +422,7 @@ export default function ListaPrecios() {
             Ofertas
           </TabsTrigger>
         </TabsList>
+        {!vendorView && (
         <Button
           onClick={() => setIsNewListOpen(true)}
           variant="outline"
@@ -429,22 +432,25 @@ export default function ListaPrecios() {
           <Plus className="h-3.5 w-3.5" />
           Nueva Lista
         </Button>
+        )}
         </div>
 
         <TabsContent value="comercial" className="mt-3">
       {/* Compact Toolbar */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-2">
-          <Button 
+          {!vendorView && (
+          <Button
             onClick={() => setIsAddDialogOpen(true)}
-            size="sm" 
-            className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-sm" 
+            size="sm"
+            className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-sm"
             data-testid="button-add-product"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Agregar</span>
           </Button>
-          <Button 
+          )}
+          <Button
             variant="outline" 
             size="sm" 
             className="flex items-center gap-1.5 text-xs" 
@@ -455,16 +461,19 @@ export default function ListaPrecios() {
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800" 
+          {!vendorView && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
             onClick={() => { setIsBulkAdjustOpen(true); setBulkAdjustConfirm(false); setBulkAdjustPercentage(''); }}
             data-testid="button-bulk-adjust"
           >
             <Percent className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
+          )}
+          {!vendorView && (
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs" data-testid="button-import-csv">
@@ -549,6 +558,7 @@ export default function ListaPrecios() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Search + Filters inline */}
@@ -648,10 +658,12 @@ export default function ListaPrecios() {
                     <TableHead className="text-right text-xs">Desc10</TableHead>
                     <TableHead className="text-right text-xs">Desc10+5</TableHead>
                     <TableHead className="text-right text-xs">Mínimo</TableHead>
+                    {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400"><span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span></TableHead>
                     <TableHead className="w-16 text-xs">Acc.</TableHead>
+                    </>)}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -689,7 +701,7 @@ export default function ListaPrecios() {
                         };
 
                         const marginBadge = (margin: number | null) => {
-                          if (margin === null) return null;
+                          if (vendorView || margin === null) return null;
                           const color = margin >= 0
                             ? 'text-emerald-600/70 dark:text-emerald-400/70'
                             : 'text-red-500/70 dark:text-red-400/70';
@@ -729,6 +741,7 @@ export default function ListaPrecios() {
                           </>
                         );
                       })()}
+                      {!vendorView && (<>
                       <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400" data-testid={`text-costo-${item.id}`}>
                         {(() => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
@@ -791,8 +804,8 @@ export default function ListaPrecios() {
                       </TableCell>
                       <TableCell className="py-2">
                         <div className="flex gap-0.5">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0"
                             onClick={() => handleEdit(item)}
@@ -802,6 +815,7 @@ export default function ListaPrecios() {
                           </Button>
                         </div>
                       </TableCell>
+                      </>)}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1491,12 +1505,12 @@ export default function ListaPrecios() {
 
         {customPriceLists.map(list => (
           <TabsContent key={list.code} value={list.code} className="mt-3">
-            <ListaPreciosMix listCode={list.code} listName={list.name} />
+            <ListaPreciosMix listCode={list.code} listName={list.name} vendorView={vendorView} />
           </TabsContent>
         ))}
 
         <TabsContent value="ofertas" className="mt-3">
-          <ListaPreciosOfertas />
+          <ListaPreciosOfertas vendorView={vendorView} />
         </TabsContent>
       </Tabs>
 

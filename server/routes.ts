@@ -17418,6 +17418,9 @@ export function registerRoutes(app: Express): Server {
         return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
       };
 
+      // Security: salespeople export without cost/margin columns
+      const hideExportCosts = req.user?.role === 'salesperson';
+
       // Prepare data for Excel
       const excelData = result.items.map(item => {
         const sku = (item.codigo || '').toUpperCase().trim();
@@ -17439,10 +17442,12 @@ export function registerRoutes(app: Express): Server {
           'Desc 10+5+3%': item.desc10_5_3 || '',
           Minimo: item.minimo || '',
           'Canal Digital': item.canalDigital || '',
-          Costo: costo != null ? costo : '',
-          'Fecha Costo': formatCostDate(costoDate),
-          'Margen %': margen,
-          'Costo Produccion': costoProduccion || '',
+          ...(hideExportCosts ? {} : {
+            Costo: costo != null ? costo : '',
+            'Fecha Costo': formatCostDate(costoDate),
+            'Margen %': margen,
+            'Costo Produccion': costoProduccion || '',
+          }),
           Rendimiento: (item as any).rendimiento || '',
           'Unidad Medida': (item as any).unidadMedida || ''
         };
@@ -17635,6 +17640,14 @@ export function registerRoutes(app: Express): Server {
           ...it,
           imageUrl: imgById.get(it.id) || imgByCode.get(it.codigo) || null,
         }));
+      }
+
+      // Security: hide cost data from salespeople
+      if ((req as any).user?.role === 'salesperson') {
+        items = items.map((it: any) => {
+          const { costoProduccion, costoUnidadMedida, ...rest } = it;
+          return rest;
+        });
       }
 
       res.json({
@@ -18395,10 +18408,16 @@ export function registerRoutes(app: Express): Server {
          LIMIT ${validatedLimit} OFFSET ${validatedOffset}`
       ));
 
+      // Security: hide cost data from salespeople
+      let rows = items.rows as any[];
+      if ((req as any).user?.role === 'salesperson') {
+        rows = rows.map(({ costoProduccion, ...rest }) => rest);
+      }
+
       res.json({
-        items: items.rows,
+        items: rows,
         totalCount,
-        hasMore: (validatedOffset + items.rows.length) < totalCount
+        hasMore: (validatedOffset + rows.length) < totalCount
       });
     } catch (error) {
       console.error("Error fetching custom price list items:", error);
@@ -18433,7 +18452,7 @@ export function registerRoutes(app: Express): Server {
         Producto: item.producto || '',
         Formato: item.unidad || '',
         'Precio Mix': item.precio || '',
-        'Costo Produccion': item.costoProduccion || ''
+        ...(req.user?.role === 'salesperson' ? {} : { 'Costo Produccion': item.costoProduccion || '' })
       }));
 
       const XLSX = await import('xlsx');
@@ -18700,11 +18719,15 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      const itemsWithTargets = (items.rows as any[]).map((r) => ({
-        ...r,
-        targetClients: targetsByOffer[r.id] || [],
-        clientCount: (targetsByOffer[r.id] || []).length,
-      }));
+      const hideOfferCosts = (req as any).user?.role === 'salesperson';
+      const itemsWithTargets = (items.rows as any[]).map((r) => {
+        const { costoProduccion, ...rest } = r;
+        return {
+          ...(hideOfferCosts ? rest : r),
+          targetClients: targetsByOffer[r.id] || [],
+          clientCount: (targetsByOffer[r.id] || []).length,
+        };
+      });
 
       res.json({
         items: itemsWithTargets,
@@ -18743,7 +18766,7 @@ export function registerRoutes(app: Express): Server {
         Producto: item.producto || '',
         Formato: item.unidad || '',
         'Precio Oferta': item.precio || '',
-        'Costo Produccion': item.costoProduccion || ''
+        ...(req.user?.role === 'salesperson' ? {} : { 'Costo Produccion': item.costoProduccion || '' })
       }));
 
       const XLSX = await import('xlsx');
@@ -27954,6 +27977,11 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/inventory/gri-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      // Security: GRI costs are not visible to salespeople
+      if (req.user?.role === 'salesperson') {
+        return res.json({});
+      }
+
       // Check cache
       if (griPriceCache && (Date.now() - griPriceCache.timestamp) < GRI_CACHE_TTL) {
         return res.json(griPriceCache.data);

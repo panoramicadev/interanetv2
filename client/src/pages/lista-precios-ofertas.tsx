@@ -170,7 +170,7 @@ interface OffersResponse {
   hasMore: boolean;
 }
 
-export default function ListaPreciosOfertas() {
+export default function ListaPreciosOfertas({ vendorView = false }: { vendorView?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -212,6 +212,7 @@ export default function ListaPreciosOfertas() {
       return response.json();
     },
     staleTime: 10 * 60 * 1000,
+    enabled: !vendorView,
   });
 
   const deleteMutation = useMutation({
@@ -356,6 +357,7 @@ export default function ListaPreciosOfertas() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-2">
+          {!vendorView && (<>
           <Button
             onClick={() => setIsAddOpen(true)}
             size="sm"
@@ -373,7 +375,8 @@ export default function ListaPreciosOfertas() {
             <Percent className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
-          <Button 
+          </>)}
+          <Button
             variant="outline" 
             size="sm" 
             className="flex items-center gap-1.5 text-xs" 
@@ -384,6 +387,7 @@ export default function ListaPreciosOfertas() {
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
           </Button>
+          {!vendorView && (
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs">
@@ -434,6 +438,7 @@ export default function ListaPreciosOfertas() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-1">
@@ -484,12 +489,14 @@ export default function ListaPreciosOfertas() {
                     <TableHead className="text-right text-xs font-semibold text-red-600 dark:text-red-400">
                       <span className="flex items-center justify-end gap-1"><Tag className="h-3 w-3" />Precio Oferta</span>
                     </TableHead>
+                    {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-red-600 dark:text-red-400">
                       <span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span>
                     </TableHead>
                     <TableHead className="w-16 text-xs">Acc.</TableHead>
+                    </>)}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -543,6 +550,7 @@ export default function ListaPreciosOfertas() {
                             )}
                           </div>
                         </TableCell>
+                        {!vendorView && (<>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
                           {costoNum ? (
                             <div>
@@ -618,6 +626,7 @@ export default function ListaPreciosOfertas() {
                             </Button>
                           </div>
                         </TableCell>
+                        </>)}
                       </TableRow>
                     );
                   })}
