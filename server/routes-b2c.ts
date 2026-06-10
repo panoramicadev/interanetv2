@@ -133,7 +133,7 @@ export function registerB2CRoutes(app: Express) {
           SELECT pl.codigo AS sku, ep.min_unit, ep.step_size, ep.format_unit, ep.color, pl.producto AS product_name
           FROM ecommerce_products ep
           INNER JOIN price_list pl ON pl.id = ep.price_list_id
-          WHERE pl.codigo = ANY(${skuList}::text[])
+          WHERE pl.codigo IN (${sql.join(skuList.map((s: string) => sql`${s}`), sql`, `)})
         `);
         const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
         for (const r of (skuRows as any).rows || []) {
