@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag, Pause, Play, Users, X, UserCheck } from "lucide-react";
@@ -27,6 +28,7 @@ interface OffersItem {
   precio: string | null;
   unitsPerPallet: number | null;
   discountPct: string | null;
+  palletPrice: string | null;
   paused: boolean;
   allClients: boolean;
   clientCount: number;
@@ -38,6 +40,8 @@ interface OffersItem {
   updated_at: string;
 }
 
+type PalletPriceMode = "discount" | "fixed";
+
 interface PriceListSearchItem {
   id: string;
   codigo: string;
@@ -47,6 +51,7 @@ interface PriceListSearchItem {
 
 // Combobox buscador de SKUs: hits /api/price-list?search=, muestra "CODIGO — Producto".
 // Se selecciona un solo producto. value es el código (string).
+// Permite filtrar por formato (unidad) — útil cuando hay muchos formatos del mismo producto.
 function SkuSearchCombobox({
   value,
   onChange,
@@ -60,15 +65,28 @@ function SkuSearchCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [formato, setFormato] = useState<string>("__all__");
+
+  // Lista de formatos (unidades) disponibles para el filtro del combobox
+  const { data: availableFormats = [] } = useQuery<string[]>({
+    queryKey: ["/api/price-list/units"],
+    queryFn: () => apiRequest("GET", "/api/price-list/units").then((r) => r.json()),
+    enabled: open,
+    staleTime: 5 * 60_000,
+  });
 
   const { data, isFetching } = useQuery<{ items: PriceListSearchItem[] }>({
-    queryKey: ["/api/price-list", "offer-picker", query],
-    queryFn: () =>
-      apiRequest(
-        "GET",
-        `/api/price-list?search=${encodeURIComponent(query)}&limit=20&offset=0`
-      ).then((r) => r.json()),
-    enabled: open && query.trim().length >= 2,
+    queryKey: ["/api/price-list", "offer-picker", query, formato],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        search: query,
+        limit: "20",
+        offset: "0",
+      });
+      if (formato && formato !== "__all__") params.set("unidad", formato);
+      return apiRequest("GET", `/api/price-list?${params.toString()}`).then((r) => r.json());
+    },
+    enabled: open && (query.trim().length >= 2 || (formato !== "__all__" && formato.length > 0)),
     staleTime: 30_000,
   });
 
@@ -91,7 +109,21 @@ function SkuSearchCombobox({
           <Search className="h-3.5 w-3.5 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[420px] p-0" align="start">
+      <PopoverContent className="w-[460px] p-0" align="start">
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b">
+          <span className="text-[10px] font-medium text-muted-foreground shrink-0">Formato</span>
+          <Select value={formato} onValueChange={setFormato}>
+            <SelectTrigger className="h-7 text-xs flex-1" data-testid="select-formato-filter">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos los formatos</SelectItem>
+              {availableFormats.map((f) => (
+                <SelectItem key={f} value={f}>{f}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Escribí 2+ caracteres del código o nombre…"
@@ -100,7 +132,11 @@ function SkuSearchCombobox({
           />
           <CommandList>
             <CommandEmpty>
-              {isFetching ? "Buscando…" : query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
+              {isFetching
+                ? "Buscando…"
+                : query.trim().length < 2 && formato === "__all__"
+                ? "Escribe al menos 2 caracteres o filtra por formato"
+                : "Sin resultados"}
             </CommandEmpty>
             <CommandGroup>
               {items.map((it) => (
@@ -275,11 +311,13 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newOfferType, setNewOfferType] = useState<OfferType>("regular");
+  const [newPalletMode, setNewPalletMode] = useState<PalletPriceMode>("discount");
   const [newProduct, setNewProduct] = useState({
     codigo: "",
     precio: "",
     unitsPerPallet: "",
     discountPct: "",
+    palletPrice: "",
   });
   const [newAllClients, setNewAllClients] = useState(true);
   const [newClients, setNewClients] = useState<SelectedClient[]>([]);
@@ -288,6 +326,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
   // Edits para campos pallet (paralelos a editItem.precio)
   const [editUnitsPerPallet, setEditUnitsPerPallet] = useState("");
   const [editDiscountPct, setEditDiscountPct] = useState("");
+  const [editPalletPrice, setEditPalletPrice] = useState("");
+  const [editPalletMode, setEditPalletMode] = useState<PalletPriceMode>("discount");
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -332,8 +372,9 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-offers"] });
       setIsAddOpen(false);
-      setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "" });
+      setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "", palletPrice: "" });
       setNewOfferType("regular");
+      setNewPalletMode("discount");
       setNewAllClients(true);
       setNewClients([]);
       toast({ title: "Creado", description: "Oferta agregada correctamente" });
@@ -648,11 +689,17 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                         <TableCell className="text-right text-xs py-2 font-semibold text-red-600 dark:text-red-400">
                           <div className="flex flex-col items-end gap-0.5">
                             {item.offerType === "pallet" ? (
-                              <span className="inline-flex items-center gap-1">
+                              <span className="inline-flex items-center gap-1 flex-wrap justify-end">
                                 <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[9px] px-1.5 py-0">PALLET</Badge>
-                                <span>
-                                  {item.unitsPerPallet ?? "?"}u × −{item.discountPct ?? "?"}%
-                                </span>
+                                {item.palletPrice != null ? (
+                                  <span title="Precio total del pallet">
+                                    {item.unitsPerPallet ?? "?"}u → {formatCurrency(item.palletPrice)}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {item.unitsPerPallet ?? "?"}u × −{item.discountPct ?? "?"}%
+                                  </span>
+                                )}
                               </span>
                             ) : (
                               formatCurrency(item.precio)
@@ -714,6 +761,9 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                                 setEditClients((item.targetClients || []).map((c) => ({ id: c.id, name: c.name || "Sin nombre", rut: c.rut })));
                                 setEditUnitsPerPallet(item.unitsPerPallet != null ? String(item.unitsPerPallet) : "");
                                 setEditDiscountPct(item.discountPct != null ? String(item.discountPct) : "");
+                                setEditPalletPrice(item.palletPrice != null ? String(item.palletPrice) : "");
+                                // Si hay palletPrice cargado, entrá al editor en modo "precio fijo".
+                                setEditPalletMode(item.palletPrice != null ? "fixed" : "discount");
                                 setIsEditOpen(true);
                               }}
                               title="Editar oferta"
@@ -798,7 +848,7 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground">Unidades por pallet *</label>
                     <Input
@@ -811,19 +861,71 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                       placeholder="144 / 36 / 24"
                     />
                   </div>
+
+                  {/* Modo de precio del pallet: descuento % vs precio fijo total */}
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      value={editDiscountPct}
-                      onChange={(e) => setEditDiscountPct(e.target.value)}
-                      className="h-8 text-sm"
-                      placeholder="0–100"
-                    />
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Modo de precio del pallet</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditPalletMode("discount")}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          editPalletMode === "discount"
+                            ? "bg-blue-100 text-blue-800 border-2 border-blue-400 shadow-sm"
+                            : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <Percent className="h-3 w-3" />
+                        Descuento %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditPalletMode("fixed")}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          editPalletMode === "fixed"
+                            ? "bg-blue-100 text-blue-800 border-2 border-blue-400 shadow-sm"
+                            : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <Tag className="h-3 w-3" />
+                        Precio fijo $
+                      </button>
+                    </div>
                   </div>
+
+                  {editPalletMode === "discount" ? (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        value={editDiscountPct}
+                        onChange={(e) => setEditDiscountPct(e.target.value)}
+                        className="h-8 text-sm"
+                        placeholder="0–100"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Precio total del pallet ($) *</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={editPalletPrice}
+                        onChange={(e) => setEditPalletPrice(e.target.value)}
+                        className="h-8 text-sm"
+                        placeholder="Ej: 50000"
+                      />
+                      {editPalletPrice && editUnitsPerPallet && parseInt(editUnitsPerPallet, 10) > 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Precio unitario: {formatCurrency(parseFloat(editPalletPrice) / parseInt(editUnitsPerPallet, 10))}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -849,17 +951,28 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                   payload.precio = editItem.precio;
                 } else {
                   const units = parseInt(editUnitsPerPallet, 10);
-                  const pct = parseFloat(editDiscountPct);
                   if (!Number.isInteger(units) || units < 1) {
                     toast({ title: "Unidades inválidas", description: "Debe ser un entero ≥ 1", variant: "destructive" });
                     return;
                   }
-                  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-                    toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
-                    return;
-                  }
                   payload.unitsPerPallet = units;
-                  payload.discountPct = pct;
+                  if (editPalletMode === "discount") {
+                    const pct = parseFloat(editDiscountPct);
+                    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+                      toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
+                      return;
+                    }
+                    payload.discountPct = pct;
+                    payload.palletPrice = null; // limpiar el modo alternativo
+                  } else {
+                    const palletPrice = parseFloat(editPalletPrice);
+                    if (!Number.isFinite(palletPrice) || palletPrice <= 0) {
+                      toast({ title: "Precio inválido", description: "Debe ser un número > 0", variant: "destructive" });
+                      return;
+                    }
+                    payload.palletPrice = palletPrice;
+                    payload.discountPct = null; // limpiar el modo alternativo
+                  }
                 }
                 updateMutation.mutate(payload);
               }}
@@ -877,8 +990,9 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
         onOpenChange={(o) => {
           setIsAddOpen(o);
           if (!o) {
-            setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "" });
+            setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "", palletPrice: "" });
             setNewOfferType("regular");
+            setNewPalletMode("discount");
             setNewAllClients(true);
             setNewClients([]);
           }
@@ -949,7 +1063,7 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Unidades por pallet *</label>
                   <Input
@@ -962,19 +1076,70 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                     placeholder="144 / 36 / 24"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={newProduct.discountPct}
-                    onChange={(e) => setNewProduct({ ...newProduct, discountPct: e.target.value })}
-                    className="h-8 text-sm"
-                    placeholder="0–100"
-                  />
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Modo de precio del pallet</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewPalletMode("discount")}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        newPalletMode === "discount"
+                          ? "bg-blue-100 text-blue-800 border-2 border-blue-400 shadow-sm"
+                          : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                      }`}
+                    >
+                      <Percent className="h-3 w-3" />
+                      Descuento %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewPalletMode("fixed")}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        newPalletMode === "fixed"
+                          ? "bg-blue-100 text-blue-800 border-2 border-blue-400 shadow-sm"
+                          : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                      }`}
+                    >
+                      <Tag className="h-3 w-3" />
+                      Precio fijo $
+                    </button>
+                  </div>
                 </div>
+
+                {newPalletMode === "discount" ? (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={newProduct.discountPct}
+                      onChange={(e) => setNewProduct({ ...newProduct, discountPct: e.target.value })}
+                      className="h-8 text-sm"
+                      placeholder="0–100"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Precio total del pallet ($) *</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={newProduct.palletPrice}
+                      onChange={(e) => setNewProduct({ ...newProduct, palletPrice: e.target.value })}
+                      className="h-8 text-sm"
+                      placeholder="Ej: 50000"
+                    />
+                    {newProduct.palletPrice && newProduct.unitsPerPallet && parseInt(newProduct.unitsPerPallet, 10) > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Precio unitario: {formatCurrency(parseFloat(newProduct.palletPrice) / parseInt(newProduct.unitsPerPallet, 10))}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -999,23 +1164,35 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                   payload.precio = newProduct.precio;
                 } else {
                   const units = parseInt(newProduct.unitsPerPallet, 10);
-                  const pct = parseFloat(newProduct.discountPct);
                   if (!Number.isInteger(units) || units < 1) {
                     toast({ title: "Unidades inválidas", description: "Debe ser un entero ≥ 1", variant: "destructive" });
                     return;
                   }
-                  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-                    toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
-                    return;
-                  }
                   payload.unitsPerPallet = units;
-                  payload.discountPct = pct;
+                  if (newPalletMode === "discount") {
+                    const pct = parseFloat(newProduct.discountPct);
+                    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+                      toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
+                      return;
+                    }
+                    payload.discountPct = pct;
+                  } else {
+                    const palletPrice = parseFloat(newProduct.palletPrice);
+                    if (!Number.isFinite(palletPrice) || palletPrice <= 0) {
+                      toast({ title: "Precio inválido", description: "Debe ser un número > 0", variant: "destructive" });
+                      return;
+                    }
+                    payload.palletPrice = palletPrice;
+                  }
                 }
                 createMutation.mutate(payload);
               }}
               disabled={
                 !newProduct.codigo ||
-                (newOfferType === "regular" ? !newProduct.precio : (!newProduct.unitsPerPallet || !newProduct.discountPct)) ||
+                (newOfferType === "regular"
+                  ? !newProduct.precio
+                  : (!newProduct.unitsPerPallet ||
+                     (newPalletMode === "discount" ? !newProduct.discountPct : !newProduct.palletPrice))) ||
                 (!newAllClients && newClients.length === 0) ||
                 createMutation.isPending
               }

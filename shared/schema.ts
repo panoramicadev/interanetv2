@@ -1975,16 +1975,20 @@ export const insertPriceListMixSchema = createInsertSchema(priceListMix, {
 
 // Price List Offers - Lista de Precios Ofertas
 // Una fila = una oferta para un SKU. offer_type distingue ofertas regulares
-// (precio absoluto) de ofertas de pallet (cantidad + % descuento).
+// (precio absoluto) de ofertas de pallet (cantidad + % descuento o precio fijo total).
 // Un mismo SKU puede tener una oferta regular Y una oferta pallet a la vez,
 // por eso el unique es compuesto (codigo, offer_type).
+// Para offer_type='pallet': debe haber unitsPerPallet + EXACTAMENTE UNO de:
+//   - discountPct (descuento % sobre el precio de lista, calcula unidad y total)
+//   - palletPrice (precio total fijo del pallet completo, calcula precio unitario)
 export const priceListOffers = pgTable("price_list_offers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   codigo: varchar("codigo").notNull(),
   offerType: varchar("offer_type").notNull().default("regular"), // 'regular' | 'pallet'
   precio: numeric("precio", { precision: 15, scale: 2 }), // sólo para offer_type='regular'
   unitsPerPallet: integer("units_per_pallet"), // sólo para offer_type='pallet'
-  discountPct: numeric("discount_pct", { precision: 5, scale: 2 }), // sólo para offer_type='pallet' (0..100)
+  discountPct: numeric("discount_pct", { precision: 5, scale: 2 }), // pallet, modo %: 0..100
+  palletPrice: numeric("pallet_price", { precision: 15, scale: 2 }), // pallet, modo precio fijo: total del pallet en $
   paused: boolean("paused").default(false),
   allClients: boolean("all_clients").notNull().default(true), // true = aplica a todos; false = solo los listados en price_list_offer_clients
   createdAt: timestamp("created_at").defaultNow(),
@@ -2002,6 +2006,7 @@ export const insertPriceListOffersSchema = createInsertSchema(priceListOffers, {
   precio: z.any().optional().transform(flexibleTransform),
   unitsPerPallet: z.coerce.number().int().positive().optional().nullable(),
   discountPct: z.coerce.number().min(0).max(100).optional().nullable(),
+  palletPrice: z.coerce.number().positive().optional().nullable(),
 }).omit({
   id: true,
   createdAt: true,

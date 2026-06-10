@@ -14247,6 +14247,7 @@ export class DatabaseStorage implements IStorage {
         palletEnabled: priceListOffers.id, // si hay fila pallet, está habilitado
         unitsPerPallet: priceListOffers.unitsPerPallet,
         discountPct: priceListOffers.discountPct,
+        palletPrice: priceListOffers.palletPrice,
         palletPaused: priceListOffers.paused,
       })
       .from(priceList)
@@ -14278,6 +14279,9 @@ export class DatabaseStorage implements IStorage {
       packagingAmountPerPallet: row.unitsPerPallet ?? null,
       palletDiscountPct: row.discountPct !== null && row.discountPct !== undefined
         ? Number(row.discountPct)
+        : null,
+      palletPrice: row.palletPrice !== null && row.palletPrice !== undefined
+        ? Number(row.palletPrice)
         : null,
     }));
 

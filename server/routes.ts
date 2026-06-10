@@ -7549,6 +7549,7 @@ export function registerRoutes(app: Express): Server {
         -- Una fila pausada o inexistente significa "no habilitado para venta".
         (po.id IS NOT NULL AND COALESCE(po.paused, false) = false) as pallet_enabled,
         po.discount_pct as pallet_discount_pct,
+        po.pallet_price as pallet_price,
         po.units_per_pallet as pallet_units_per_pallet,
         ep.group_id,
         ep.price_list_id,
@@ -7678,6 +7679,9 @@ export function registerRoutes(app: Express): Server {
           palletEnabled: row.pallet_enabled === true,
           palletDiscountPct: row.pallet_discount_pct !== null && row.pallet_discount_pct !== undefined
             ? Number(row.pallet_discount_pct)
+            : null,
+          palletPrice: row.pallet_price !== null && row.pallet_price !== undefined
+            ? Number(row.pallet_price)
             : null,
         },
       });
@@ -18716,7 +18720,7 @@ export function registerRoutes(app: Express): Server {
       const items = await db.execute(sql.raw(
         `SELECT o.id, o.codigo, o.precio, o.paused, o.all_clients as "allClients",
                 o.offer_type as "offerType", o.units_per_pallet as "unitsPerPallet",
-                o.discount_pct as "discountPct",
+                o.discount_pct as "discountPct", o.pallet_price as "palletPrice",
                 o.created_at, o.updated_at,
                 pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
          FROM price_list_offers o
@@ -18831,8 +18835,19 @@ export function registerRoutes(app: Express): Server {
         if (!validatedData.unitsPerPallet || validatedData.unitsPerPallet < 1) {
           return res.status(400).json({ message: "Unidades por pallet es requerido y debe ser ≥ 1" });
         }
-        if (validatedData.discountPct == null || validatedData.discountPct < 0 || validatedData.discountPct > 100) {
+        const hasDiscount = validatedData.discountPct != null;
+        const hasPalletPrice = validatedData.palletPrice != null;
+        if (!hasDiscount && !hasPalletPrice) {
+          return res.status(400).json({ message: "Debe especificar descuento % o precio fijo del pallet" });
+        }
+        if (hasDiscount && hasPalletPrice) {
+          return res.status(400).json({ message: "Usa descuento % o precio fijo, no ambos" });
+        }
+        if (hasDiscount && (validatedData.discountPct! < 0 || validatedData.discountPct! > 100)) {
           return res.status(400).json({ message: "Descuento debe estar entre 0 y 100" });
+        }
+        if (hasPalletPrice && validatedData.palletPrice! <= 0) {
+          return res.status(400).json({ message: "Precio del pallet debe ser > 0" });
         }
       } else if (offerType === 'regular') {
         if (validatedData.precio == null) {
@@ -18844,6 +18859,9 @@ export function registerRoutes(app: Express): Server {
       // Drizzle numeric() requiere string
       if (validatedData.discountPct != null) {
         valuesToInsert.discountPct = String(validatedData.discountPct);
+      }
+      if (validatedData.palletPrice != null) {
+        valuesToInsert.palletPrice = String(validatedData.palletPrice);
       }
       const [item] = await db.insert(priceListOffers).values(valuesToInsert).returning();
       if (!allClients && clientIds.length > 0) {
@@ -18891,6 +18909,27 @@ export function registerRoutes(app: Express): Server {
         } else {
           updateData.discountPct = null;
         }
+      }
+      if (req.body.palletPrice !== undefined) {
+        if (req.body.palletPrice !== null) {
+          const pp = Number(req.body.palletPrice);
+          if (!Number.isFinite(pp) || pp <= 0) {
+            return res.status(400).json({ message: "palletPrice debe ser > 0" });
+          }
+          updateData.palletPrice = String(pp);
+        } else {
+          updateData.palletPrice = null;
+        }
+      }
+      // Pallet: enforce que discountPct y palletPrice sean mutuamente excluyentes
+      // (sólo cuando ambos campos vienen en el body explícitamente).
+      if (
+        req.body.discountPct !== undefined &&
+        req.body.palletPrice !== undefined &&
+        updateData.discountPct != null &&
+        updateData.palletPrice != null
+      ) {
+        return res.status(400).json({ message: "Usa descuento % o precio fijo del pallet, no ambos" });
       }
       // offer_type es inmutable en updates (cambiar de regular↔pallet borraría datos del otro tipo)
 
@@ -19699,6 +19738,10 @@ export function registerRoutes(app: Express): Server {
         pl.producto as product_name,
         pl.unidad as unit,
         COALESCE(offers.precio, pl.offer_price) as offer_price,
+        pallet_offer.units_per_pallet as pallet_units,
+        pallet_offer.discount_pct as pallet_discount_pct,
+        pallet_offer.pallet_price as pallet_price,
+        (pallet_offer.id IS NOT NULL) as pallet_enabled,
         COALESCE(stk.total_stock, 0) as total_stock,
         pc.breve_resena,
         pc.descripcion,
@@ -19707,13 +19750,14 @@ export function registerRoutes(app: Express): Server {
         pc.imagen_destacada
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
-      ${useCustomList 
-        ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}` 
+      ${useCustomList
+        ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}`
         : sql``}
       -- Catálogo compartido/cacheado: solo ofertas globales (all_clients). Las ofertas
       -- dirigidas a clientes específicos se aplican al precio en el carrito/checkout
       -- (resolveItemsPricing), que es la fuente autoritativa de precio.
-      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND offers.all_clients = true
+      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND offers.all_clients = true AND offers.offer_type = 'regular'
+      LEFT JOIN price_list_offers pallet_offer ON UPPER(pallet_offer.codigo) = UPPER(pl.codigo) AND (pallet_offer.paused IS NULL OR pallet_offer.paused = false) AND pallet_offer.offer_type = 'pallet'
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock
@@ -19818,6 +19862,14 @@ export function registerRoutes(app: Express): Server {
         stepSize: row.step_size || 1,
         description: row.description,
         imageUrl: (row as any).imagen_url || null,
+        packaging: {
+          // Pallet desde price_list_offers (offer_type='pallet'); incluye ambos modos:
+          // discountPct (% sobre precio de lista) o palletPrice (total fijo del pallet).
+          palletEnabled: row.pallet_enabled === true,
+          amountPerPallet: row.pallet_units != null ? Number(row.pallet_units) : null,
+          palletDiscountPct: row.pallet_discount_pct != null ? Number(row.pallet_discount_pct) : null,
+          palletPrice: row.pallet_price != null ? Number(row.pallet_price) : null,
+        },
       });
     }
 
