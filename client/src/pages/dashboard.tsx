@@ -385,12 +385,30 @@ export default function Dashboard() {
   // Poll sync-all status while modal is open
   useEffect(() => {
     if (!showSyncModal) return;
+    let emptyPolls = 0;
     const interval = setInterval(async () => {
       try {
         const res = await apiRequest('/api/etl/sync-all/status');
         const data = await res.json();
-        // Skip if server hasn't initialized status yet
-        if (!data.etls) return;
+        // Sin estado y sin ejecución en curso = el servidor se reinició a mitad
+        // de la sincronización (antes el modal quedaba en 0% para siempre).
+        // Se toleran 3 polls (~6s) porque el POST inicial puede demorar en
+        // inicializar el estado en el servidor.
+        if (!data.etls) {
+          emptyPolls++;
+          if (!data.isRunning && emptyPolls >= 3) {
+            setIsSyncAllRunning(false);
+            clearInterval(interval);
+            toast({
+              title: '❌ Sincronización interrumpida',
+              description: 'El servidor se reinició durante la sincronización. Intenta nuevamente.',
+              variant: 'destructive',
+            });
+            setShowSyncModal(false);
+          }
+          return;
+        }
+        emptyPolls = 0;
         setSyncStatus(data.etls);
         if (!data.isRunning) {
           setIsSyncAllRunning(false);

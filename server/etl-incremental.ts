@@ -31,7 +31,10 @@ const sqlServerConfig: mssql.config = {
     enableArithAbort: true,
   },
   connectionTimeout: 90000,
-  requestTimeout: 180000,
+  // La extracción MAEEDO/MAEDDO es SELECT * por WAN; si el watermark quedó
+  // atrás tras fallos, la ventana crece y 180s no alcanzan (espiral: falla →
+  // ventana más grande → falla). El driver sí cancela server-side al expirar.
+  requestTimeout: 300000,
 };
 
 // Circuit Breaker para SQL Server - protege contra fallas en cascada
