@@ -187,6 +187,31 @@ export function registerB2CRoutes(app: Express) {
         console.warn('[B2C] auto-confirmation email failed:', autoErr);
       }
 
+      // Internal notification to the commercial team (always sent)
+      try {
+        const { sendAutoCustomerEmail } = await import('./notifications-helper');
+        const { buildQuoteInternalNotifyEmail } = await import('./email-templates');
+        const built = buildQuoteInternalNotifyEmail({
+          visitorName: validationResult.data.visitorName,
+          visitorEmail: validationResult.data.visitorEmail,
+          visitorPhone: validationResult.data.visitorPhone,
+          visitorCompany: validationResult.data.visitorCompany,
+          visitorCity: validationResult.data.visitorCity,
+          visitorRut: validationResult.data.visitorRut,
+          message: validationResult.data.message,
+          items: (validationResult.data.items || []) as any[],
+        });
+        await sendAutoCustomerEmail({
+          notificationType: 'ecommerce_quote_interna',
+          to: 'contacto@pinturaspanoramica.cl, dhermosilla@pinturaspanoramica.cl',
+          subject: built.subject,
+          html: built.html,
+          force: true,
+        });
+      } catch (internalErr) {
+        console.warn('[B2C] internal quote notification failed:', internalErr);
+      }
+
       res.status(201).json({
         success: true,
         message: 'Solicitud de cotización recibida. Nos pondremos en contacto pronto.',

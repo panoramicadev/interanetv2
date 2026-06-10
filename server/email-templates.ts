@@ -352,6 +352,68 @@ export function buildQuoteReceivedEmail(data: QuoteReceivedData): { subject: str
   return { subject, html };
 }
 
+interface QuoteInternalNotifyData {
+  visitorName: string;
+  visitorEmail: string;
+  visitorPhone?: string | null;
+  visitorCompany?: string | null;
+  visitorCity?: string | null;
+  visitorRut?: string | null;
+  message?: string | null;
+  items: Array<{ productName: string; color?: string; format?: string; quantity: number }>;
+}
+
+export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { subject: string; html: string } {
+  const subject = `📋 Nueva cotización web: ${data.visitorName} (${data.items.length} producto${data.items.length === 1 ? '' : 's'})`;
+
+  const contactRow = (label: string, value?: string | null) => value ? `
+    <tr>
+      <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">${label}</td>
+      <td style="padding: 6px 12px; font-size: 13px; color: #1a1f2e; font-weight: bold;">${value}</td>
+    </tr>` : '';
+
+  const itemsRows = data.items.slice(0, 50).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.productName}${it.color ? ` — ${it.color}` : ''}${it.format ? ` (${it.format})` : ''}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+    </tr>`).join('');
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 16px 0; font-family: Arial, sans-serif;">Nueva solicitud de cotización</h2>
+    <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+      Llegó una solicitud desde el cotizador web. Datos de contacto:
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
+      ${contactRow('Nombre', data.visitorName)}
+      ${contactRow('Email', data.visitorEmail)}
+      ${contactRow('Teléfono', data.visitorPhone)}
+      ${contactRow('Empresa', data.visitorCompany)}
+      ${contactRow('Ciudad', data.visitorCity)}
+      ${contactRow('RUT', data.visitorRut)}
+    </table>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>
+    ${data.message ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 16px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Mensaje del cliente:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.message}</p>
+    </div>` : ''}
+    <p style="text-align: center; margin: 20px 0 0 0;">
+      <a href="${PUBLIC_BASE_URL.replace(/\/$/, '')}/cotizaciones-b2c" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        Gestionar cotización
+      </a>
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface SuggestedOrderData {
   clientName: string;
   orderNumber: string;
