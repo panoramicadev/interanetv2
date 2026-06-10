@@ -266,6 +266,87 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
   return { subject, html };
 }
 
+interface OrderInternalNotifyData {
+  orderNumber: string;
+  clientName: string;
+  clientEmail?: string | null;
+  clientRut?: string | null;
+  clientPhone?: string | null;
+  total: number;
+  subtotal?: number;
+  tax?: number;
+  paymentCondition?: string | null;
+  shippingAddress?: string | null;
+  notes?: string | null;
+  status?: string | null;
+  items: Array<{ name: string; quantity: number; price?: number }>;
+}
+
+export function buildOrderInternalNotifyEmail(data: OrderInternalNotifyData): { subject: string; html: string } {
+  const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+  const subject = `🛒 Nuevo pedido en Panorámica Market #${data.orderNumber} — ${data.clientName}`;
+
+  const row = (label: string, value?: string | null) => value ? `
+    <tr>
+      <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">${label}</td>
+      <td style="padding: 6px 12px; font-size: 13px; color: #1a1f2e; font-weight: bold;">${value}</td>
+    </tr>` : '';
+
+  const itemsRows = (data.items || []).slice(0, 80).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+      ${typeof it.price === 'number' ? `<td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: right;">${fmt(it.price)}</td>` : '<td style="padding: 8px 12px; border-bottom: 1px solid #eee;"></td>'}
+    </tr>`).join('');
+
+  const orderUrl = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/ecommerce`;
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 16px 0; font-family: Arial, sans-serif;">Nuevo pedido en Panorámica Market</h2>
+    <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+      Se ha registrado un nuevo pedido desde la tienda. Datos del cliente:
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
+      ${row('N° Pedido', data.orderNumber)}
+      ${row('Cliente', data.clientName)}
+      ${row('Email', data.clientEmail)}
+      ${row('RUT', data.clientRut)}
+      ${row('Teléfono', data.clientPhone)}
+      ${row('Condición de pago', data.paymentCondition)}
+      ${row('Estado', data.status)}
+      ${row('Dirección de envío', data.shippingAddress)}
+    </table>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+          <th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRECIO</th>
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+      ${typeof data.subtotal === 'number' ? `<tr><td style="padding: 6px 12px; text-align: right; font-size: 13px; color: #555;">Subtotal: <strong style="color: #1a1f2e;">${fmt(data.subtotal)}</strong></td></tr>` : ''}
+      ${typeof data.tax === 'number' ? `<tr><td style="padding: 6px 12px; text-align: right; font-size: 13px; color: #555;">IVA: <strong style="color: #1a1f2e;">${fmt(data.tax)}</strong></td></tr>` : ''}
+      <tr><td style="padding: 10px 12px; text-align: right; font-size: 15px; color: #1a1f2e; background-color: #fff7ed; border-radius: 4px;">
+        Total: <strong style="color: #fd6301; font-size: 17px;">${fmt(data.total)}</strong>
+      </td></tr>
+    </table>
+    ${data.notes ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 16px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Notas del cliente:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.notes}</p>
+    </div>` : ''}
+    <p style="text-align: center; margin: 20px 0 0 0;">
+      <a href="${orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        Gestionar pedido
+      </a>
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface OrderModifiedData {
   clientName: string;
   orderNumber: string;
