@@ -14,6 +14,7 @@ import {
   orders,
   orderItems,
   priceList,
+  priceListOffers,
   quotes,
   quoteItems,
   storeConfig,
@@ -1032,9 +1033,6 @@ export interface IStorage {
     isMainVariant?: boolean;
     productFamily?: string | null;
     color?: string | null;
-    palletEnabled?: boolean;
-    packagingAmountPerPallet?: number | null;
-    palletDiscountPct?: number | null;
   }): Promise<{
     id: string;
     codigo: string;
@@ -9451,10 +9449,6 @@ export class DatabaseStorage implements IStorage {
     variantParentSku?: string | null;
     variantGenericDisplayName?: string | null;
     variantIndex?: number;
-    // Venta por pallet
-    palletEnabled?: boolean;
-    packagingAmountPerPallet?: number | null;
-    palletDiscountPct?: number | null;
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
@@ -9483,9 +9477,6 @@ export class DatabaseStorage implements IStorage {
         variantParentSku: ecommerceProducts.variantParentSku,
         variantGenericDisplayName: ecommerceProducts.variantGenericDisplayName,
         variantIndex: ecommerceProducts.variantIndex,
-        palletEnabled: ecommerceProducts.palletEnabled,
-        packagingAmountPerPallet: ecommerceProducts.packagingAmountPerPallet,
-        palletDiscountPct: ecommerceProducts.palletDiscountPct,
       })
       .from(priceList)
       .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
@@ -9567,11 +9558,6 @@ export class DatabaseStorage implements IStorage {
       variantParentSku: row.variantParentSku || null,
       variantGenericDisplayName: row.variantGenericDisplayName || null,
       variantIndex: row.variantIndex ?? 0,
-      palletEnabled: row.palletEnabled ?? false,
-      packagingAmountPerPallet: row.packagingAmountPerPallet ?? null,
-      palletDiscountPct: row.palletDiscountPct !== null && row.palletDiscountPct !== undefined
-        ? Number(row.palletDiscountPct)
-        : null,
     }));
   }
 
@@ -9780,10 +9766,6 @@ export class DatabaseStorage implements IStorage {
     isMainVariant?: boolean;
     productFamily?: string | null;
     color?: string | null;
-    // Venta por pallet (configuración comercial)
-    palletEnabled?: boolean;
-    packagingAmountPerPallet?: number | null;
-    palletDiscountPct?: number | null;
   }): Promise<{
     id: string;
     codigo: string;
@@ -9844,10 +9826,6 @@ export class DatabaseStorage implements IStorage {
           .set({
             ...updates,
             precioEcommerce: updates.precioEcommerce?.toString(),
-            // Numeric pallet discount must be passed as string for Drizzle numeric type
-            palletDiscountPct: updates.palletDiscountPct === null || updates.palletDiscountPct === undefined
-              ? updates.palletDiscountPct as any
-              : updates.palletDiscountPct.toString(),
             updatedAt: new Date()
           })
           .where(eq(ecommerceProducts.id, existingEcomProduct.id))
@@ -9870,9 +9848,6 @@ export class DatabaseStorage implements IStorage {
             priceListId: id,
             ...updates,
             precioEcommerce: updates.precioEcommerce?.toString(),
-            palletDiscountPct: updates.palletDiscountPct === null || updates.palletDiscountPct === undefined
-              ? updates.palletDiscountPct as any
-              : updates.palletDiscountPct.toString(),
           })
           .returning();
 
@@ -14262,20 +14237,23 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Lightweight query + LEFT JOIN a ecommerce_products SOLO para los 3 campos
-    // de venta por pallet (necesarios en el dialog de Editar Producto del
-    // Catálogo SAP). El resto de fields de ecommerce_products NO se traen acá
-    // para no inflar el payload de listado.
+    // Lightweight query + LEFT JOIN a price_list_offers para los 3 campos de
+    // venta por pallet. Filtro por offer_type='pallet' (puede haber otra fila
+    // del mismo codigo con offer_type='regular' que NO queremos acá).
     // Fetch limit+1 para determinar hasMore sin window function.
     const rawRows = await db
       .select({
         priceList: priceList,
-        palletEnabled: ecommerceProducts.palletEnabled,
-        packagingAmountPerPallet: ecommerceProducts.packagingAmountPerPallet,
-        palletDiscountPct: ecommerceProducts.palletDiscountPct,
+        palletEnabled: priceListOffers.id, // si hay fila pallet, está habilitado
+        unitsPerPallet: priceListOffers.unitsPerPallet,
+        discountPct: priceListOffers.discountPct,
+        palletPaused: priceListOffers.paused,
       })
       .from(priceList)
-      .leftJoin(ecommerceProducts, eq(ecommerceProducts.priceListId, priceList.id))
+      .leftJoin(
+        priceListOffers,
+        sql`${priceListOffers.codigo} = ${priceList.codigo} AND ${priceListOffers.offerType} = 'pallet'`
+      )
       .where(whereClause)
       .orderBy(
         sql`CASE
@@ -14291,13 +14269,15 @@ export class DatabaseStorage implements IStorage {
       .limit(limit + 1)
       .offset(offset);
 
-    // Flatten the joined shape back to PriceList + pallet fields
+    // Flatten the joined shape back to PriceList + pallet fields.
+    // Mantengo la forma del payload (palletEnabled/packagingAmountPerPallet/
+    // palletDiscountPct) para no romper consumidores (carrito, etc).
     const items = rawRows.map((row: any) => ({
       ...row.priceList,
-      palletEnabled: row.palletEnabled ?? false,
-      packagingAmountPerPallet: row.packagingAmountPerPallet ?? null,
-      palletDiscountPct: row.palletDiscountPct !== null && row.palletDiscountPct !== undefined
-        ? Number(row.palletDiscountPct)
+      palletEnabled: !!row.palletEnabled && row.palletPaused !== true,
+      packagingAmountPerPallet: row.unitsPerPallet ?? null,
+      palletDiscountPct: row.discountPct !== null && row.discountPct !== undefined
+        ? Number(row.discountPct)
         : null,
     }));
 

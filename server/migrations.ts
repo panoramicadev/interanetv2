@@ -696,6 +696,45 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_sent_to_finance_at" ON quotes (sent_to_finance_at) WHERE sent_to_finance_at IS NOT NULL`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_erp_entered" ON quotes (erp_entered) WHERE erp_entered = FALSE AND sent_to_finance_at IS NOT NULL`);
 
+    // Migración 057: pallet como oferta. Extiende price_list_offers para soportar
+    // ofertas de pallet (cantidad + % descuento). Migra los SKUs con
+    // ecommerce_products.pallet_enabled=true a filas de oferta tipo 'pallet'.
+    await db.execute(sql`ALTER TABLE price_list_offers ADD COLUMN IF NOT EXISTS offer_type VARCHAR NOT NULL DEFAULT 'regular'`);
+    await db.execute(sql`ALTER TABLE price_list_offers ADD COLUMN IF NOT EXISTS units_per_pallet INTEGER`);
+    await db.execute(sql`ALTER TABLE price_list_offers ADD COLUMN IF NOT EXISTS discount_pct NUMERIC(5,2)`);
+    await db.execute(sql`ALTER TABLE price_list_offers DROP CONSTRAINT IF EXISTS price_list_offers_offer_type_check`);
+    await db.execute(sql`ALTER TABLE price_list_offers ADD CONSTRAINT price_list_offers_offer_type_check CHECK (offer_type IN ('regular','pallet'))`);
+    await db.execute(sql`ALTER TABLE price_list_offers DROP CONSTRAINT IF EXISTS price_list_offers_discount_pct_range`);
+    await db.execute(sql`ALTER TABLE price_list_offers ADD CONSTRAINT price_list_offers_discount_pct_range CHECK (discount_pct IS NULL OR (discount_pct >= 0 AND discount_pct <= 100))`);
+    // Reemplazar UNIQUE(codigo) por UNIQUE(codigo, offer_type) para permitir
+    // que un SKU tenga una oferta regular y una de pallet en paralelo.
+    await db.execute(sql`ALTER TABLE price_list_offers DROP CONSTRAINT IF EXISTS price_list_offers_codigo_unique`);
+    await db.execute(sql`ALTER TABLE price_list_offers DROP CONSTRAINT IF EXISTS price_list_offers_codigo_key`);
+    await db.execute(sql`ALTER TABLE price_list_offers DROP CONSTRAINT IF EXISTS price_list_offers_codigo_type_unique`);
+    await db.execute(sql`ALTER TABLE price_list_offers ADD CONSTRAINT price_list_offers_codigo_type_unique UNIQUE (codigo, offer_type)`);
+
+    // Backfill idempotente: para cada SKU con pallet_enabled=true en
+    // ecommerce_products que NO tenga ya una fila pallet en offers, crear una.
+    // Hereda all_clients=true (la implementación previa no tenía targeting).
+    await db.execute(sql`
+      INSERT INTO price_list_offers (codigo, offer_type, units_per_pallet, discount_pct, paused, all_clients)
+      SELECT
+        pl.codigo,
+        'pallet',
+        COALESCE(ep.packaging_amount_per_pallet, NULL),
+        ep.pallet_discount_pct,
+        false,
+        true
+      FROM ecommerce_products ep
+      JOIN price_list pl ON pl.id = ep.price_list_id
+      WHERE ep.pallet_enabled = true
+        AND pl.codigo IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM price_list_offers o
+          WHERE o.codigo = pl.codigo AND o.offer_type = 'pallet'
+        )
+    `);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

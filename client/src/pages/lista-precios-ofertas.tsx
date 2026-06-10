@@ -18,10 +18,15 @@ interface SelectedClient {
   rut?: string | null;
 }
 
+type OfferType = "regular" | "pallet";
+
 interface OffersItem {
   id: string;
   codigo: string;
+  offerType: OfferType;
   precio: string | null;
+  unitsPerPallet: number | null;
+  discountPct: string | null;
   paused: boolean;
   allClients: boolean;
   clientCount: number;
@@ -31,6 +36,96 @@ interface OffersItem {
   costoProduccion: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface PriceListSearchItem {
+  id: string;
+  codigo: string;
+  producto: string;
+  unidad: string | null;
+}
+
+// Combobox buscador de SKUs: hits /api/price-list?search=, muestra "CODIGO — Producto".
+// Se selecciona un solo producto. value es el código (string).
+function SkuSearchCombobox({
+  value,
+  onChange,
+  placeholder = "Buscar por código o nombre…",
+  disabled,
+}: {
+  value: string;
+  onChange: (codigo: string, item: PriceListSearchItem | null) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const { data, isFetching } = useQuery<{ items: PriceListSearchItem[] }>({
+    queryKey: ["/api/price-list", "offer-picker", query],
+    queryFn: () =>
+      apiRequest(
+        "GET",
+        `/api/price-list?search=${encodeURIComponent(query)}&limit=20&offset=0`
+      ).then((r) => r.json()),
+    enabled: open && query.trim().length >= 2,
+    staleTime: 30_000,
+  });
+
+  const items = data?.items || [];
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="w-full justify-between h-8 text-sm font-normal"
+        >
+          <span className={value ? "" : "text-muted-foreground"}>
+            {value || placeholder}
+          </span>
+          <Search className="h-3.5 w-3.5 opacity-50 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[420px] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Escribí 2+ caracteres del código o nombre…"
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            <CommandEmpty>
+              {isFetching ? "Buscando…" : query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
+            </CommandEmpty>
+            <CommandGroup>
+              {items.map((it) => (
+                <CommandItem
+                  key={it.id}
+                  value={it.codigo}
+                  onSelect={() => {
+                    onChange(it.codigo, it);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="flex flex-col items-start gap-0.5"
+                >
+                  <span className="font-mono text-xs">{it.codigo}</span>
+                  <span className="text-[11px] text-muted-foreground truncate w-full">
+                    {it.producto} {it.unidad ? `· ${it.unidad}` : ""}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // Selector reutilizable de audiencia de una oferta: todos los clientes o una lista
@@ -179,11 +274,20 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
   const [editItem, setEditItem] = useState<OffersItem | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ codigo: "", precio: "" });
+  const [newOfferType, setNewOfferType] = useState<OfferType>("regular");
+  const [newProduct, setNewProduct] = useState({
+    codigo: "",
+    precio: "",
+    unitsPerPallet: "",
+    discountPct: "",
+  });
   const [newAllClients, setNewAllClients] = useState(true);
   const [newClients, setNewClients] = useState<SelectedClient[]>([]);
   const [editAllClients, setEditAllClients] = useState(true);
   const [editClients, setEditClients] = useState<SelectedClient[]>([]);
+  // Edits para campos pallet (paralelos a editItem.precio)
+  const [editUnitsPerPallet, setEditUnitsPerPallet] = useState("");
+  const [editDiscountPct, setEditDiscountPct] = useState("");
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -228,10 +332,11 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-offers"] });
       setIsAddOpen(false);
-      setNewProduct({ codigo: "", precio: "" });
+      setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "" });
+      setNewOfferType("regular");
       setNewAllClients(true);
       setNewClients([]);
-      toast({ title: "Creado", description: "SKU agregado correctamente a ofertas" });
+      toast({ title: "Creado", description: "Oferta agregada correctamente" });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err?.message || "No se pudo crear la oferta", variant: "destructive" });
@@ -542,7 +647,16 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-red-600 dark:text-red-400">
                           <div className="flex flex-col items-end gap-0.5">
-                            {formatCurrency(item.precio)}
+                            {item.offerType === "pallet" ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[9px] px-1.5 py-0">PALLET</Badge>
+                                <span>
+                                  {item.unitsPerPallet ?? "?"}u × −{item.discountPct ?? "?"}%
+                                </span>
+                              </span>
+                            ) : (
+                              formatCurrency(item.precio)
+                            )}
                             {item.paused && (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5">
                                 <Pause className="h-2 w-2" />pausado
@@ -598,6 +712,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                                 setEditItem(item);
                                 setEditAllClients(item.allClients !== false);
                                 setEditClients((item.targetClients || []).map((c) => ({ id: c.id, name: c.name || "Sin nombre", rut: c.rut })));
+                                setEditUnitsPerPallet(item.unitsPerPallet != null ? String(item.unitsPerPallet) : "");
+                                setEditDiscountPct(item.discountPct != null ? String(item.discountPct) : "");
                                 setIsEditOpen(true);
                               }}
                               title="Editar oferta"
@@ -660,14 +776,57 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
           </DialogHeader>
           {editItem && (
             <div className="space-y-3">
-              <div className="p-3 bg-muted rounded-lg text-sm">
-                <p><strong>SKU:</strong> {editItem.codigo}</p>
+              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                <div className="flex items-center gap-2">
+                  <strong>SKU:</strong>
+                  <span className="font-mono">{editItem.codigo}</span>
+                  <Badge variant={editItem.offerType === "pallet" ? "default" : "outline"} className="text-[10px]">
+                    {editItem.offerType === "pallet" ? "Pallet" : "Regular"}
+                  </Badge>
+                </div>
                 <p><strong>Producto:</strong> {editItem.producto || "N/A"}</p>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Precio Oferta</label>
-                <Input type="number" value={editItem.precio || ""} onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })} className="h-8 text-sm" />
-              </div>
+
+              {editItem.offerType === "regular" ? (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Precio Oferta</label>
+                  <Input
+                    type="number"
+                    value={editItem.precio || ""}
+                    onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Unidades por pallet *</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={editUnitsPerPallet}
+                      onChange={(e) => setEditUnitsPerPallet(e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder="144 / 36 / 24"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={editDiscountPct}
+                      onChange={(e) => setEditDiscountPct(e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder="0–100"
+                    />
+                  </div>
+                </div>
+              )}
+
               <AudienceSelector
                 allClients={editAllClients}
                 onAllClientsChange={setEditAllClients}
@@ -679,12 +838,31 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
             <Button
-              onClick={() => editItem && updateMutation.mutate({
-                id: editItem.id,
-                precio: editItem.precio,
-                allClients: editAllClients,
-                clientIds: editAllClients ? [] : editClients.map((c) => c.id),
-              })}
+              onClick={() => {
+                if (!editItem) return;
+                const payload: any = {
+                  id: editItem.id,
+                  allClients: editAllClients,
+                  clientIds: editAllClients ? [] : editClients.map((c) => c.id),
+                };
+                if (editItem.offerType === "regular") {
+                  payload.precio = editItem.precio;
+                } else {
+                  const units = parseInt(editUnitsPerPallet, 10);
+                  const pct = parseFloat(editDiscountPct);
+                  if (!Number.isInteger(units) || units < 1) {
+                    toast({ title: "Unidades inválidas", description: "Debe ser un entero ≥ 1", variant: "destructive" });
+                    return;
+                  }
+                  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+                    toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
+                    return;
+                  }
+                  payload.unitsPerPallet = units;
+                  payload.discountPct = pct;
+                }
+                updateMutation.mutate(payload);
+              }}
               disabled={updateMutation.isPending || (!editAllClients && editClients.length === 0)}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -698,27 +876,108 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
         open={isAddOpen}
         onOpenChange={(o) => {
           setIsAddOpen(o);
-          if (!o) { setNewProduct({ codigo: "", precio: "" }); setNewAllClients(true); setNewClients([]); }
+          if (!o) {
+            setNewProduct({ codigo: "", precio: "", unitsPerPallet: "", discountPct: "" });
+            setNewOfferType("regular");
+            setNewAllClients(true);
+            setNewClients([]);
+          }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Agregar SKU a Lista de Ofertas</DialogTitle>
+            <DialogTitle>Agregar Oferta</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Ingresa el código (SKU) del producto y el precio de oferta. El producto debe existir en la lista comercial.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Código (SKU) *</label>
-                <Input value={newProduct.codigo} onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })} className="h-8 text-sm" placeholder="Ej: PAE500BL14" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Precio Oferta *</label>
-                <Input type="number" value={newProduct.precio} onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })} className="h-8 text-sm" placeholder="Ej: 12500" />
+            {/* Tipo de oferta */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo de oferta</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewOfferType("regular")}
+                  className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    newOfferType === "regular"
+                      ? "bg-red-100 text-red-800 border-2 border-red-400 shadow-sm"
+                      : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                  }`}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  Regular (precio fijo)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewOfferType("pallet")}
+                  className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    newOfferType === "pallet"
+                      ? "bg-blue-100 text-blue-800 border-2 border-blue-400 shadow-sm"
+                      : "bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100"
+                  }`}
+                >
+                  <Percent className="h-3.5 w-3.5" />
+                  Pallet (% off)
+                </button>
               </div>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              {newOfferType === "regular"
+                ? "Precio fijo que reemplaza el precio de lista del SKU."
+                : "Habilita la venta por pallet con % de descuento. Reemplaza ofertas regulares al elegir el pallet completo."}
+            </p>
+
+            {/* Buscador SKU */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Producto (SKU) *</label>
+              <SkuSearchCombobox
+                value={newProduct.codigo}
+                onChange={(codigo) => setNewProduct({ ...newProduct, codigo })}
+                placeholder="Buscar por código o nombre…"
+              />
+            </div>
+
+            {/* Campos condicionales por tipo */}
+            {newOfferType === "regular" ? (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Precio Oferta *</label>
+                <Input
+                  type="number"
+                  value={newProduct.precio}
+                  onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })}
+                  className="h-8 text-sm"
+                  placeholder="Ej: 12500"
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Unidades por pallet *</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={newProduct.unitsPerPallet}
+                    onChange={(e) => setNewProduct({ ...newProduct, unitsPerPallet: e.target.value })}
+                    className="h-8 text-sm"
+                    placeholder="144 / 36 / 24"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Descuento (%) *</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={newProduct.discountPct}
+                    onChange={(e) => setNewProduct({ ...newProduct, discountPct: e.target.value })}
+                    className="h-8 text-sm"
+                    placeholder="0–100"
+                  />
+                </div>
+              </div>
+            )}
+
             <AudienceSelector
               allClients={newAllClients}
               onAllClientsChange={setNewAllClients}
@@ -729,13 +988,37 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
             <Button
-              onClick={() => createMutation.mutate({
-                codigo: newProduct.codigo,
-                precio: newProduct.precio,
-                allClients: newAllClients,
-                clientIds: newAllClients ? [] : newClients.map((c) => c.id),
-              })}
-              disabled={!newProduct.codigo || !newProduct.precio || (!newAllClients && newClients.length === 0) || createMutation.isPending}
+              onClick={() => {
+                const payload: any = {
+                  codigo: newProduct.codigo,
+                  offerType: newOfferType,
+                  allClients: newAllClients,
+                  clientIds: newAllClients ? [] : newClients.map((c) => c.id),
+                };
+                if (newOfferType === "regular") {
+                  payload.precio = newProduct.precio;
+                } else {
+                  const units = parseInt(newProduct.unitsPerPallet, 10);
+                  const pct = parseFloat(newProduct.discountPct);
+                  if (!Number.isInteger(units) || units < 1) {
+                    toast({ title: "Unidades inválidas", description: "Debe ser un entero ≥ 1", variant: "destructive" });
+                    return;
+                  }
+                  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+                    toast({ title: "Descuento inválido", description: "Debe estar entre 0 y 100", variant: "destructive" });
+                    return;
+                  }
+                  payload.unitsPerPallet = units;
+                  payload.discountPct = pct;
+                }
+                createMutation.mutate(payload);
+              }}
+              disabled={
+                !newProduct.codigo ||
+                (newOfferType === "regular" ? !newProduct.precio : (!newProduct.unitsPerPallet || !newProduct.discountPct)) ||
+                (!newAllClients && newClients.length === 0) ||
+                createMutation.isPending
+              }
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Agregar

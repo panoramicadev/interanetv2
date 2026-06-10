@@ -7545,7 +7545,11 @@ export function registerRoutes(app: Express): Server {
         ep.packaging_package_name, ep.packaging_package_unit, ep.packaging_amount_per_package,
         ep.packaging_box_name, ep.packaging_box_unit, ep.packaging_amount_per_box,
         ep.packaging_pallet_name, ep.packaging_pallet_unit, ep.packaging_amount_per_pallet,
-        ep.pallet_enabled, ep.pallet_discount_pct,
+        -- Venta por pallet ahora vive en price_list_offers con offer_type='pallet'.
+        -- Una fila pausada o inexistente significa "no habilitado para venta".
+        (po.id IS NOT NULL AND COALESCE(po.paused, false) = false) as pallet_enabled,
+        po.discount_pct as pallet_discount_pct,
+        po.units_per_pallet as pallet_units_per_pallet,
         ep.group_id,
         ep.price_list_id,
         ep.imagen_url,
@@ -7557,6 +7561,8 @@ export function registerRoutes(app: Express): Server {
         pc.breve_resena
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+      LEFT JOIN price_list_offers po
+        ON UPPER(po.codigo) = UPPER(pl.codigo) AND po.offer_type = 'pallet'
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock
@@ -7666,8 +7672,9 @@ export function registerRoutes(app: Express): Server {
           amountPerBox: row.packaging_amount_per_box,
           palletName: row.packaging_pallet_name,
           palletUnit: row.packaging_pallet_unit,
-          amountPerPallet: row.packaging_amount_per_pallet,
-          // Venta por pallet (configuración comercial editable en admin)
+          // Si hay una oferta pallet con units_per_pallet, esa pisa el dato del ETL.
+          amountPerPallet: row.pallet_units_per_pallet ?? row.packaging_amount_per_pallet,
+          // Venta por pallet ahora se gestiona desde Ofertas (offer_type='pallet').
           palletEnabled: row.pallet_enabled === true,
           palletDiscountPct: row.pallet_discount_pct !== null && row.pallet_discount_pct !== undefined
             ? Number(row.pallet_discount_pct)
@@ -12635,7 +12642,6 @@ export function registerRoutes(app: Express): Server {
     const {
       categoria, descripcion, imagenUrl, precio, activo, groupId,
       variantLabel, isMainVariant, productFamily, color,
-      palletEnabled, packagingAmountPerPallet, palletDiscountPct,
     } = req.body;
 
     console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
@@ -12645,24 +12651,9 @@ export function registerRoutes(app: Express): Server {
       timestamp: new Date().toISOString()
     });
 
-    // Validate pallet fields if provided (política comercial: 0..100 y unidades > 0)
-    if (palletDiscountPct !== undefined && palletDiscountPct !== null) {
-      const pct = Number(palletDiscountPct);
-      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-        return res.status(400).json({ message: 'palletDiscountPct debe estar entre 0 y 100' });
-      }
-    }
-    if (packagingAmountPerPallet !== undefined && packagingAmountPerPallet !== null) {
-      const n = Number(packagingAmountPerPallet);
-      if (!Number.isInteger(n) || n < 1) {
-        return res.status(400).json({ message: 'packagingAmountPerPallet debe ser entero ≥ 1' });
-      }
-    }
-
     console.log('📝 [BACKEND] Datos extraídos para actualización:', {
       categoria, descripcion, imagenUrl, precio, activo,
       groupId, variantLabel, isMainVariant, productFamily, color,
-      palletEnabled, packagingAmountPerPallet, palletDiscountPct,
     });
 
     try {
@@ -12678,11 +12669,6 @@ export function registerRoutes(app: Express): Server {
         isMainVariant,
         productFamily,
         color,
-        palletEnabled,
-        packagingAmountPerPallet: packagingAmountPerPallet === undefined ? undefined
-          : (packagingAmountPerPallet === null ? null : Number(packagingAmountPerPallet)),
-        palletDiscountPct: palletDiscountPct === undefined ? undefined
-          : (palletDiscountPct === null ? null : Number(palletDiscountPct)),
       });
 
       console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);
@@ -18728,7 +18714,10 @@ export function registerRoutes(app: Express): Server {
       const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
       
       const items = await db.execute(sql.raw(
-        `SELECT o.id, o.codigo, o.precio, o.paused, o.all_clients as "allClients", o.created_at, o.updated_at,
+        `SELECT o.id, o.codigo, o.precio, o.paused, o.all_clients as "allClients",
+                o.offer_type as "offerType", o.units_per_pallet as "unitsPerPallet",
+                o.discount_pct as "discountPct",
+                o.created_at, o.updated_at,
                 pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
          FROM price_list_offers o
          LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo)
@@ -18835,7 +18824,28 @@ export function registerRoutes(app: Express): Server {
       if (!allClients && clientIds.length === 0) {
         return res.status(400).json({ message: "Selecciona al menos un cliente o marca 'Todos los clientes'" });
       }
-      const [item] = await db.insert(priceListOffers).values({ ...validatedData, allClients }).returning();
+
+      // Validación cruzada: campos requeridos por tipo de oferta
+      const offerType = validatedData.offerType || 'regular';
+      if (offerType === 'pallet') {
+        if (!validatedData.unitsPerPallet || validatedData.unitsPerPallet < 1) {
+          return res.status(400).json({ message: "Unidades por pallet es requerido y debe ser ≥ 1" });
+        }
+        if (validatedData.discountPct == null || validatedData.discountPct < 0 || validatedData.discountPct > 100) {
+          return res.status(400).json({ message: "Descuento debe estar entre 0 y 100" });
+        }
+      } else if (offerType === 'regular') {
+        if (validatedData.precio == null) {
+          return res.status(400).json({ message: "Precio es requerido para ofertas regulares" });
+        }
+      }
+
+      const valuesToInsert: any = { ...validatedData, allClients };
+      // Drizzle numeric() requiere string
+      if (validatedData.discountPct != null) {
+        valuesToInsert.discountPct = String(validatedData.discountPct);
+      }
+      const [item] = await db.insert(priceListOffers).values(valuesToInsert).returning();
       if (!allClients && clientIds.length > 0) {
         await db.insert(priceListOfferClients).values(
           clientIds.map((cid) => ({ offerId: item.id, clientId: cid }))
@@ -18863,6 +18873,26 @@ export function registerRoutes(app: Express): Server {
       if (req.body.precio !== undefined) updateData.precio = req.body.precio;
       if (req.body.paused !== undefined) updateData.paused = req.body.paused;
       if (req.body.allClients !== undefined) updateData.allClients = req.body.allClients === true;
+      // Campos de oferta pallet
+      if (req.body.unitsPerPallet !== undefined) {
+        const n = Number(req.body.unitsPerPallet);
+        if (req.body.unitsPerPallet !== null && (!Number.isInteger(n) || n < 1)) {
+          return res.status(400).json({ message: "unitsPerPallet debe ser entero ≥ 1" });
+        }
+        updateData.unitsPerPallet = req.body.unitsPerPallet === null ? null : n;
+      }
+      if (req.body.discountPct !== undefined) {
+        if (req.body.discountPct !== null) {
+          const pct = Number(req.body.discountPct);
+          if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+            return res.status(400).json({ message: "discountPct debe estar entre 0 y 100" });
+          }
+          updateData.discountPct = String(pct);
+        } else {
+          updateData.discountPct = null;
+        }
+      }
+      // offer_type es inmutable en updates (cambiar de regular↔pallet borraría datos del otro tipo)
 
       const clientIdsProvided = Array.isArray(req.body.clientIds);
       const clientIds: string[] = clientIdsProvided
