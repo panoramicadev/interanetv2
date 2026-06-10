@@ -1337,7 +1337,7 @@ export default function TiendaPage() {
   });
 
   // Fetch offers prices
-  const { data: offersData } = useQuery<{ items: { codigo: string; precio: string }[] }>({
+  const { data: offersData } = useQuery<{ items: { codigo: string; precio: string; paused?: boolean }[] }>({
     queryKey: ['/api/price-list-offers'],
     queryFn: async () => {
       const res = await fetch('/api/price-list-offers?limit=10000');
@@ -1351,7 +1351,7 @@ export default function TiendaPage() {
     const map = new Map<string, number>();
     if (offersData?.items) {
       offersData.items.forEach((item) => {
-        if (item.codigo) {
+        if (item.codigo && !item.paused) {
           map.set(item.codigo.toUpperCase(), Number(item.precio));
         }
       });
