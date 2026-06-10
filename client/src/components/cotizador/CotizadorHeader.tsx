@@ -65,8 +65,8 @@ export default function CotizadorHeader({ searchTerm, onSearchChange, onOpenQuot
             </div>
           </div>
 
-          {/* Custom color request */}
-          <CustomColorButton variant="compact" />
+          {/* Custom color request — oculto temporalmente */}
+          {/* <CustomColorButton variant="compact" /> */}
 
           {/* Quote button */}
           <button
