@@ -1481,7 +1481,7 @@ export default function TomadorPedidos() {
     const map = new Map<string, number>();
     if (offersPricesResponse?.items) {
       offersPricesResponse.items.forEach((item: any) => {
-        if (item.codigo) {
+        if (item.codigo && !item.paused) {
           map.set(item.codigo.toUpperCase(), Number(item.precio));
         }
       });
