@@ -122,11 +122,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
-    },
-    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
@@ -456,12 +451,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: TrendingUp,
     },
     {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
-    },
-
-    {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
@@ -681,11 +670,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       separator: true,
     },
     {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
-    },
-    {
       href: "/seguimiento-pedidos",
       label: "Pedidos",
       icon: PackageSearch,
@@ -858,11 +842,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
-    },
-    {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckSquare,
     },
     {
       href: "/clientes",
