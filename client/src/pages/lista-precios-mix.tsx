@@ -28,7 +28,7 @@ interface MixResponse {
   hasMore: boolean;
 }
 
-export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }: { listCode?: string; listName?: string }) {
+export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', vendorView = false }: { listCode?: string; listName?: string; vendorView?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -67,6 +67,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
       return response.json();
     },
     staleTime: 10 * 60 * 1000,
+    enabled: !vendorView,
   });
 
   const deleteMutation = useMutation({
@@ -190,6 +191,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-2">
+          {!vendorView && (<>
           <Button
             onClick={() => setIsAddOpen(true)}
             size="sm"
@@ -207,7 +209,8 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
             <Percent className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
-          <Button 
+          </>)}
+          <Button
             variant="outline" 
             size="sm" 
             className="flex items-center gap-1.5 text-xs" 
@@ -218,6 +221,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
           </Button>
+          {!vendorView && (
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs">
@@ -268,6 +272,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Search */}
@@ -317,12 +322,14 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
                     <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio {listName}</TableHead>
+                    {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">
                       <span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span>
                     </TableHead>
                     <TableHead className="w-16 text-xs">Acc.</TableHead>
+                    </>)}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -353,6 +360,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
                         <TableCell className="text-right text-xs py-2 font-semibold text-blue-600 dark:text-blue-400">
                           {formatCurrency(item.precio)}
                         </TableCell>
+                        {!vendorView && (<>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
                           {costoNum ? (
                             <div>
@@ -411,6 +419,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }:
                             </Button>
                           </div>
                         </TableCell>
+                        </>)}
                       </TableRow>
                     );
                   })}

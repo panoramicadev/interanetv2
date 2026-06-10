@@ -420,6 +420,8 @@ function StockSummary({
   userRole: string;
 }) {
   const hasAccess = hasInventoryAccess(userRole);
+  // Los vendedores no ven la valorización del inventario (el server la devuelve en 0)
+  const showTotalValue = hasAccess && userRole !== 'salesperson';
   const endpoint = hasAccess ? '/api/inventory/summary-with-prices' : '/api/inventory/summary';
 
   const { data: summary } = useQuery<{
@@ -458,7 +460,7 @@ function StockSummary({
   });
 
   return (
-    <div className={`grid gap-4 ${hasAccess ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+    <div className={`grid gap-4 ${showTotalValue ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
       <Card data-testid="card-total-products" className="rounded-3xl border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">Total Productos</CardTitle>
@@ -502,7 +504,7 @@ function StockSummary({
         </CardContent>
       </Card>
 
-      {hasAccess && (
+      {showTotalValue && (
         <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
@@ -581,6 +583,8 @@ function InventoryTable({
   );
 
   const hasAccess = hasInventoryAccess(userRole);
+  // Los vendedores ven el inventario pero sin precios, costos GRI ni valorización
+  const showValueColumns = hasAccess && userRole !== 'salesperson';
   const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
 
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
@@ -611,7 +615,7 @@ function InventoryTable({
       return response.json();
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
-    enabled: hasAccess,
+    enabled: showValueColumns,
   });
 
   // Mutación para añadir producto a lista de precios
@@ -728,7 +732,7 @@ function InventoryTable({
                     <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">Bod</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD1</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD2</TableHead>
-                    {hasAccess && (
+                    {showValueColumns && (
                       <>
                         <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
                         <TableHead className="text-xs text-right font-semibold text-amber-700 dark:text-amber-300 w-24 px-2">Costo GRI</TableHead>
@@ -776,7 +780,7 @@ function InventoryTable({
                         <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
                           {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
                         </TableCell>
-                        {hasAccess && (
+                        {showValueColumns && (
                           <>
                             <TableCell className="text-xs text-right font-medium text-gray-800 dark:text-gray-200 py-1 px-2 whitespace-nowrap">
                               {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
@@ -803,7 +807,7 @@ function InventoryTable({
                           </>
                         )}
                         <TableCell className="py-1 px-2">
-                          {existingSkus.has(item.productSku?.toUpperCase()) ? (
+                          {userRole === 'salesperson' ? null : existingSkus.has(item.productSku?.toUpperCase()) ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="text-[10px] text-green-600 font-medium cursor-help">

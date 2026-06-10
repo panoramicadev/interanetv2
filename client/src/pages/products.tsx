@@ -1771,9 +1771,12 @@ export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
+  // Vendedores acceden en modo restringido: solo Lista de Precios e Inventario, sin costos
+  const isVendedor = user?.role === 'salesperson';
+
   // Redirect to dashboard if not authenticated or not admin/supervisor
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && (user?.role !== 'supervisor' && user?.role !== 'encargado_area')))) {
+    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area' && user?.role !== 'salesperson'))) {
       toast({
         title: "Acceso denegado",
         description: "Solo los administradores y supervisores pueden acceder a esta página.",
@@ -1784,6 +1787,13 @@ export default function ProductsPage() {
       }, 1000);
     }
   }, [isAuthenticated, isLoading, user, toast]);
+
+  // Vendedores: solo pestañas Lista de Precios e Inventario (por defecto Lista de Precios)
+  useEffect(() => {
+    if (isVendedor && activeTab !== 'lista-precios' && activeTab !== 'inventario') {
+      setActiveTab('lista-precios');
+    }
+  }, [isVendedor, activeTab]);
 
   // Fetch eCommerce products
   const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
@@ -2416,7 +2426,7 @@ export default function ProductsPage() {
     );
   }
 
-  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area')) {
+  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area' && user?.role !== 'salesperson')) {
     return null;
   }
 
@@ -2438,6 +2448,7 @@ export default function ProductsPage() {
             </p>
           </div>
 
+          {!isVendedor && (<>
           <Dialog open={showImageUploadDialog} onOpenChange={setShowImageUploadDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2" data-testid="button-bulk-images">
@@ -2506,6 +2517,7 @@ export default function ProductsPage() {
               </div>
             </DialogContent>
           </Dialog>
+          </>)}
         </div>
       </div>
 
@@ -2589,6 +2601,7 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Lista de Precios</span>
             <span className="sm:hidden">Precios</span>
           </TabsTrigger>
+          {!isVendedor && (<>
           <TabsTrigger value="sap" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Catálogo SAP</span>
@@ -2599,11 +2612,13 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Agrupación Comercial</span>
             <span className="sm:hidden">Agrupado</span>
           </TabsTrigger>
+          </>)}
           <TabsTrigger value="inventario" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Inventario</span>
             <span className="sm:hidden">Inv</span>
           </TabsTrigger>
+          {!isVendedor && (<>
           <TabsTrigger value="fletes" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <Truck className="h-4 w-4" />
             <span className="hidden sm:inline">Fletes</span>
@@ -2614,12 +2629,13 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Categorías y Etiquetas</span>
             <span className="sm:hidden">Tags</span>
           </TabsTrigger>
+          </>)}
           {/* Tab Orden oculta — ya se gestiona desde Catálogo Agrupado */}
         </TabsList>
 
         {/* Tab de Lista de Precios */}
         <TabsContent value="lista-precios" className="space-y-4 mt-4">
-          <ListaPrecios />
+          <ListaPrecios vendorView={isVendedor} />
         </TabsContent>
 
         {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
