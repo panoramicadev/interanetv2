@@ -238,7 +238,11 @@ async function initializeBackgroundServices() {
       try {
         log('📊 [ETL-SCHEDULER] (1/3) Starting Ventas Incremental...');
         const ventasResult = await executeIncrementalETL();
-        log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
+        if (ventasResult.success) {
+          log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] Ventas falló: ${ventasResult.error}`);
+        }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] Ventas ETL failed:', error.message);
       }
@@ -248,7 +252,11 @@ async function initializeBackgroundServices() {
         const { executeGDVETL } = await import('./etl-gdv');
         log('📊 [ETL-SCHEDULER] (2/3) Starting GDV...');
         const gdvResult = await executeGDVETL();
-        log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
+        if (gdvResult.success) {
+          log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] GDV falló: ${(gdvResult as any).error}`);
+        }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] GDV ETL failed:', error.message);
       }
@@ -257,7 +265,11 @@ async function initializeBackgroundServices() {
       try {
         log('📊 [ETL-SCHEDULER] (3/3) Starting NVV...');
         const nvvResult = await executeNVVETL();
-        log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
+        if (nvvResult.success) {
+          log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] NVV falló: ${(nvvResult as any).error}`);
+        }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] NVV ETL failed:', error.message);
       }

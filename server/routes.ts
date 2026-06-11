@@ -1177,11 +1177,15 @@ export function registerRoutes(app: Express): Server {
     let etlWarnings: string[] = [];
 
     try {
-      const lastExecutions = await db
-        .select()
-        .from(sql`ventas.etl_execution_log`)
-        .orderBy(desc(sql`start_time`))
-        .limit(1);
+      // db.select().from(sql`...`) no mapea columnas (devolvía {} y anulaba
+      // las alertas de ETL atrasado/fallido) — usar SQL crudo
+      const lastExecResult = await db.execute(sql`
+        SELECT status, start_time, records_processed, execution_time_ms, period
+        FROM ventas.etl_execution_log
+        ORDER BY start_time DESC
+        LIMIT 1
+      `);
+      const lastExecutions = lastExecResult.rows;
 
       if (lastExecutions.length > 0) {
         const last = lastExecutions[0] as any;
@@ -1193,18 +1197,19 @@ export function registerRoutes(app: Express): Server {
           period: last.period
         };
 
-        // Check if last ETL failed
-        if (last.status === 'failed') {
+        // Check if last ETL failed (el ETL escribe 'error'; la limpieza de colgados escribe 'failed')
+        if (last.status === 'failed' || last.status === 'error') {
           etlHealthy = false;
-          etlWarnings.push('Última ejecución ETL falló');
+          etlWarnings.push(`Última ejecución ETL falló`);
         }
 
-        // Check if last execution was too long ago (>45 min = problema con scheduler)
+        // Scheduler corre a las 10:00, 14:00 y 18:00 Chile — sin ejecución en
+        // >26h significa scheduler muerto
         const timeSinceLastETL = Date.now() - new Date(last.start_time).getTime();
-        const minutesSince = timeSinceLastETL / (1000 * 60);
-        if (minutesSince > 45) {
+        const hoursSince = timeSinceLastETL / (1000 * 60 * 60);
+        if (hoursSince > 26) {
           etlHealthy = false;
-          etlWarnings.push(`Última ejecución hace ${Math.round(minutesSince)} minutos (esperado: cada 30 min)`);
+          etlWarnings.push(`Última ejecución hace ${Math.round(hoursSince)} horas (esperado: 3 veces al día)`);
         }
       } else {
         etlWarnings.push('No hay historial de ejecuciones ETL');
@@ -31771,8 +31776,15 @@ Instrucciones extra:
           etlProgressEmitter.on('progress', ventasProgressListener);
           try {
             const ventasResult = await executeIncrementalETL();
-            syncAllStatus.ventas = { status: 'done', recordsProcessed: ventasResult.recordsProcessed, executionTimeMs: ventasResult.executionTimeMs, error: ventasResult.error || null, progress: 100, progressMessage: 'Completado' };
-            console.log(`✅ [SYNC-ALL] Ventas: ${ventasResult.recordsProcessed} registros`);
+            // executeIncrementalETL no lanza: devuelve success:false con el error.
+            // Sin este check, un ETL fallido se mostraba como "Listo — 0 registros".
+            if (ventasResult.success) {
+              syncAllStatus.ventas = { status: 'done', recordsProcessed: ventasResult.recordsProcessed, executionTimeMs: ventasResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
+              console.log(`✅ [SYNC-ALL] Ventas: ${ventasResult.recordsProcessed} registros`);
+            } else {
+              syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: ventasResult.executionTimeMs, error: ventasResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+              console.error('[SYNC-ALL] Ventas failed:', ventasResult.error);
+            }
           } finally {
             etlProgressEmitter.off('progress', ventasProgressListener);
           }
@@ -31792,8 +31804,13 @@ Instrucciones extra:
           gdvEtlProgressEmitter.on('progress', gdvProgressListener);
           try {
             const gdvResult = await executeGDVETL();
-            syncAllStatus.gdv = { status: 'done', recordsProcessed: gdvResult.recordsProcessed, executionTimeMs: gdvResult.executionTimeMs, error: gdvResult.error || null, progress: 100, progressMessage: 'Completado' };
-            console.log(`✅ [SYNC-ALL] GDV: ${gdvResult.recordsProcessed} registros`);
+            if (gdvResult.success) {
+              syncAllStatus.gdv = { status: 'done', recordsProcessed: gdvResult.recordsProcessed, executionTimeMs: gdvResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
+              console.log(`✅ [SYNC-ALL] GDV: ${gdvResult.recordsProcessed} registros`);
+            } else {
+              syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: gdvResult.executionTimeMs, error: gdvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+              console.error('[SYNC-ALL] GDV failed:', gdvResult.error);
+            }
           } finally {
             gdvEtlProgressEmitter.off('progress', gdvProgressListener);
           }
@@ -31813,8 +31830,13 @@ Instrucciones extra:
           nvvEtlProgressEmitter.on('progress', nvvProgressListener);
           try {
             const nvvResult = await executeNVVETL();
-            syncAllStatus.nvv = { status: 'done', recordsProcessed: nvvResult.records_processed, executionTimeMs: nvvResult.execution_time_ms, error: nvvResult.error || null, progress: 100, progressMessage: 'Completado' };
-            console.log(`✅ [SYNC-ALL] NVV: ${nvvResult.records_processed} registros`);
+            if (nvvResult.success) {
+              syncAllStatus.nvv = { status: 'done', recordsProcessed: nvvResult.records_processed, executionTimeMs: nvvResult.execution_time_ms, error: null, progress: 100, progressMessage: 'Completado' };
+              console.log(`✅ [SYNC-ALL] NVV: ${nvvResult.records_processed} registros`);
+            } else {
+              syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: nvvResult.execution_time_ms, error: nvvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+              console.error('[SYNC-ALL] NVV failed:', nvvResult.error);
+            }
           } finally {
             nvvEtlProgressEmitter.off('progress', nvvProgressListener);
           }

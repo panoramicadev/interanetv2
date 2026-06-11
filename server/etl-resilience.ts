@@ -45,7 +45,11 @@ export async function retryWithBackoff<T>(
     initialDelay,
     maxDelay = 30000, // 30 seconds max
     backoffMultiplier = 2,
-    timeout = 120000, // 2 minutes default
+    // Backstop por sobre los timeouts del driver mssql (connectionTimeout 90s,
+    // requestTimeout 180-300s). Debe ser MAYOR que ellos: este race no cancela
+    // la query en el servidor, solo abandona la promesa; si gana, la query
+    // sigue corriendo y los reintentos apilan carga sobre SQL Server.
+    timeout = 330000,
     onlyIdempotent = true,
     retryableErrors = [
       'ETIMEDOUT',
