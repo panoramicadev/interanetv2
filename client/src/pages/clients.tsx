@@ -32,6 +32,9 @@ import {
   ShoppingCart,
   Gift,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   BookOpen,
   MessageSquare,
   Trash2,
@@ -1017,8 +1020,8 @@ export default function Clients() {
 
           {/* Desktop: Clients Table */}
           <Card className="hidden sm:block border border-muted/60 shadow-sm rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-            <Table>
+            <div className="overflow-x-auto scrollbar-visible">
+            <Table className="min-w-[860px]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
                   <TableHead className="w-[340px] font-semibold text-[11px] uppercase tracking-wider text-muted-foreground pl-6">Cliente</TableHead>
@@ -1034,7 +1037,7 @@ export default function Clients() {
                   return (
                     <TableRow
                       key={client.id}
-                      className="group border-b border-muted/40 last:border-0 hover:bg-indigo-50/40 transition-colors cursor-pointer"
+                      className="group border-b border-muted/40 last:border-0 even:bg-muted/20 hover:bg-indigo-50/40 transition-colors cursor-pointer"
                       onClick={() => openClientDetails(client)}
                     >
                       <TableCell className="py-4 pl-6">
@@ -1287,10 +1290,7 @@ export default function Clients() {
                 className="rounded-lg border-muted w-8 h-8 p-0"
                 title="Primera página"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="11 17 6 12 11 7"></polyline>
-                  <polyline points="18 17 13 12 18 7"></polyline>
-                </svg>
+                <ChevronsLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
@@ -1299,9 +1299,7 @@ export default function Clients() {
                 onClick={() => setCurrentPage(prev => prev - 1)}
                 className="rounded-lg border-muted h-8"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <polyline points="15 18 9 12 15 6"></polyline>
-                </svg>
+                <ChevronLeft className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline">Anterior</span>
               </Button>
               
@@ -1410,9 +1408,7 @@ export default function Clients() {
                 className="rounded-lg border-muted h-8"
               >
                 <span className="hidden sm:inline">Siguiente</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
-                  <polyline points="9 18 15 12 9 6"></polyline>
-                </svg>
+                <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
               <Button
                 variant="outline"
@@ -1422,10 +1418,7 @@ export default function Clients() {
                 className="rounded-lg border-muted w-8 h-8 p-0"
                 title="Última página"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="13 17 18 12 13 7"></polyline>
-                  <polyline points="6 17 11 12 6 7"></polyline>
-                </svg>
+                <ChevronsRight className="h-4 w-4" />
               </Button>
             </div>
           </div>

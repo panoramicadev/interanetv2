@@ -105,6 +105,49 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  /* Scrollbars modernas en toda la app (vertical y horizontal) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 116, 139, 0.35);
+    border-radius: 9999px;
+    /* borde transparente = "padding" alrededor del pulgar */
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(100, 116, 139, 0.55);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .dark * {
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.3);
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.5);
+  }
 }
 
 @layer components {
@@ -196,27 +239,30 @@
     display: none;
   }
 
-  /* Horizontal scrollbar visible */
+  /* Horizontal scrollbar visible (con riel sutil, para tablas anchas) */
   .scrollbar-visible {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--muted) / 0.5);
+    scrollbar-color: rgba(100, 116, 139, 0.4) rgba(100, 116, 139, 0.08);
   }
 
   .scrollbar-visible::-webkit-scrollbar {
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   .scrollbar-visible::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
-    border-radius: 4px;
+    background: rgba(100, 116, 139, 0.08);
+    border-radius: 9999px;
   }
 
   .scrollbar-visible::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.4);
-    border-radius: 4px;
+    background-color: rgba(100, 116, 139, 0.4);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
 
   .scrollbar-visible::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.6);
+    background-color: rgba(100, 116, 139, 0.6);
   }
 }
