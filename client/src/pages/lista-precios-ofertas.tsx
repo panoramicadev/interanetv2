@@ -692,8 +692,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                               <span className="inline-flex items-center gap-1 flex-wrap justify-end">
                                 <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[9px] px-1.5 py-0">PALLET</Badge>
                                 {item.palletPrice != null ? (
-                                  <span title="Precio total del pallet">
-                                    {item.unitsPerPallet ?? "?"}u → {formatCurrency(item.palletPrice)}
+                                  <span title={`Total del pallet: ${formatCurrency(item.palletPrice)}`}>
+                                    {item.unitsPerPallet ?? "?"}u × {item.unitsPerPallet && item.unitsPerPallet > 0 ? formatCurrency(item.palletPrice / item.unitsPerPallet) : formatCurrency(item.palletPrice)}
                                   </span>
                                 ) : (
                                   <span>
@@ -761,7 +761,11 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                                 setEditClients((item.targetClients || []).map((c) => ({ id: c.id, name: c.name || "Sin nombre", rut: c.rut })));
                                 setEditUnitsPerPallet(item.unitsPerPallet != null ? String(item.unitsPerPallet) : "");
                                 setEditDiscountPct(item.discountPct != null ? String(item.discountPct) : "");
-                                setEditPalletPrice(item.palletPrice != null ? String(item.palletPrice) : "");
+                                setEditPalletPrice(
+                                  item.palletPrice != null && item.unitsPerPallet && item.unitsPerPallet > 0
+                                    ? String(item.palletPrice / item.unitsPerPallet)
+                                    : item.palletPrice != null ? String(item.palletPrice) : ""
+                                );
                                 // Si hay palletPrice cargado, entrá al editor en modo "precio fijo".
                                 setEditPalletMode(item.palletPrice != null ? "fixed" : "discount");
                                 setIsEditOpen(true);
@@ -909,7 +913,7 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                     </div>
                   ) : (
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground">Precio total del pallet ($) *</label>
+                      <label className="text-xs font-medium text-muted-foreground">Precio por unidad ($) *</label>
                       <Input
                         type="number"
                         min={1}
@@ -917,11 +921,11 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                         value={editPalletPrice}
                         onChange={(e) => setEditPalletPrice(e.target.value)}
                         className="h-8 text-sm"
-                        placeholder="Ej: 50000"
+                        placeholder="Ej: 350"
                       />
                       {editPalletPrice && editUnitsPerPallet && parseInt(editUnitsPerPallet, 10) > 0 && (
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          Precio unitario: {formatCurrency(parseFloat(editPalletPrice) / parseInt(editUnitsPerPallet, 10))}
+                          Total del pallet: {formatCurrency(parseFloat(editPalletPrice) * parseInt(editUnitsPerPallet, 10))}
                         </p>
                       )}
                     </div>
@@ -965,12 +969,12 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                     payload.discountPct = pct;
                     payload.palletPrice = null; // limpiar el modo alternativo
                   } else {
-                    const palletPrice = parseFloat(editPalletPrice);
-                    if (!Number.isFinite(palletPrice) || palletPrice <= 0) {
+                    const unitPrice = parseFloat(editPalletPrice);
+                    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
                       toast({ title: "Precio inválido", description: "Debe ser un número > 0", variant: "destructive" });
                       return;
                     }
-                    payload.palletPrice = palletPrice;
+                    payload.palletPrice = unitPrice * units;
                     payload.discountPct = null; // limpiar el modo alternativo
                   }
                 }
@@ -1123,7 +1127,7 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                   </div>
                 ) : (
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground">Precio total del pallet ($) *</label>
+                    <label className="text-xs font-medium text-muted-foreground">Precio por unidad ($) *</label>
                     <Input
                       type="number"
                       min={1}
@@ -1131,11 +1135,11 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                       value={newProduct.palletPrice}
                       onChange={(e) => setNewProduct({ ...newProduct, palletPrice: e.target.value })}
                       className="h-8 text-sm"
-                      placeholder="Ej: 50000"
+                      placeholder="Ej: 350"
                     />
                     {newProduct.palletPrice && newProduct.unitsPerPallet && parseInt(newProduct.unitsPerPallet, 10) > 0 && (
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Precio unitario: {formatCurrency(parseFloat(newProduct.palletPrice) / parseInt(newProduct.unitsPerPallet, 10))}
+                        Total del pallet: {formatCurrency(parseFloat(newProduct.palletPrice) * parseInt(newProduct.unitsPerPallet, 10))}
                       </p>
                     )}
                   </div>
@@ -1177,12 +1181,12 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                     }
                     payload.discountPct = pct;
                   } else {
-                    const palletPrice = parseFloat(newProduct.palletPrice);
-                    if (!Number.isFinite(palletPrice) || palletPrice <= 0) {
+                    const unitPrice = parseFloat(newProduct.palletPrice);
+                    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
                       toast({ title: "Precio inválido", description: "Debe ser un número > 0", variant: "destructive" });
                       return;
                     }
-                    payload.palletPrice = palletPrice;
+                    payload.palletPrice = unitPrice * units;
                   }
                 }
                 createMutation.mutate(payload);
