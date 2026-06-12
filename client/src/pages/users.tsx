@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown, Search, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown, Search, Building2, UserCheck, UserX, X } from "lucide-react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +22,34 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import type { User } from "@shared/schema";
 
+// Etiquetas de rol centralizadas (label completo y versión corta para móvil/pestañas)
+const ROLE_LABELS: Record<string, { label: string; short: string }> = {
+  admin: { label: "Administrador", short: "Admin" },
+  supervisor: { label: "Supervisor", short: "Supervisor" },
+  encargado_area: { label: "Encargado de Área", short: "Enc. Área" },
+  salesperson: { label: "Vendedor", short: "Vendedor" },
+  tecnico_obra: { label: "Técnico de Obra", short: "Técnico" },
+  jefe_planta: { label: "Jefe de Planta", short: "Jefe Planta" },
+  mantencion: { label: "Mantención", short: "Mantención" },
+  laboratorio: { label: "Laboratorio", short: "Laboratorio" },
+  produccion: { label: "Producción", short: "Producción" },
+  logistica_bodega: { label: "Logística y Bodega", short: "Logística" },
+  planificacion: { label: "Planificación", short: "Planificación" },
+  bodega_materias_primas: { label: "Bodega Materias Primas", short: "Bodega MP" },
+  prevencion_riesgos: { label: "Prevención de Riesgos", short: "Prev. Riesgos" },
+  recursos_humanos: { label: "Recursos Humanos", short: "RR.HH." },
+  marketing: { label: "Marketing", short: "Marketing" },
+  client: { label: "Cliente", short: "Cliente" },
+  reception: { label: "Recepción", short: "Recepción" },
+};
+
+const getRoleLabel = (role: string | null, short = false) => {
+  if (!role) return "Vendedor";
+  const entry = ROLE_LABELS[role];
+  if (!entry) return role;
+  return short ? entry.short : entry.label;
+};
+
 export default function UsersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -30,6 +58,8 @@ export default function UsersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
   const [roleFilter, setRoleFilter] = useState<string>("todos");
+  const [statusFilter, setStatusFilter] = useState<"todos" | "activos" | "inactivos">("todos");
+  const [searchTerm, setSearchTerm] = useState("");
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [createRutSearch, setCreateRutSearch] = useState('');
   const [editRutSearch, setEditRutSearch] = useState('');
@@ -56,11 +86,38 @@ export default function UsersPage() {
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
-  // Filtrar usuarios según el filtro seleccionado
+  // Roles presentes en los datos, ordenados por cantidad de usuarios
+  const roleTabs = Object.entries(
+    salespeopleUsers.reduce<Record<string, number>>((acc, u) => {
+      const role = u.role ?? "salesperson";
+      acc[role] = (acc[role] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1] - a[1]);
+
+  // Filtrar usuarios según rol, estado y búsqueda
   const filteredUsers = salespeopleUsers.filter((userData) => {
-    if (roleFilter === "todos") return true;
-    return userData.role === roleFilter;
+    if (roleFilter !== "todos" && userData.role !== roleFilter) return false;
+    if (statusFilter === "activos" && !userData.isActive) return false;
+    if (statusFilter === "inactivos" && userData.isActive) return false;
+    if (searchTerm.trim()) {
+      const term = searchTerm.trim().toLowerCase();
+      const haystack = [userData.salespersonName, userData.username, userData.email]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+    return true;
   });
+
+  // Usuarios del rol seleccionado (para los contadores de estado de las pestañas)
+  const usersInRole = roleFilter === "todos"
+    ? salespeopleUsers
+    : salespeopleUsers.filter(u => u.role === roleFilter);
+  const activeInRole = usersInRole.filter(u => u.isActive).length;
+  const inactiveInRole = usersInRole.length - activeInRole;
+  const hasFilters = roleFilter !== "todos" || statusFilter !== "todos" || searchTerm.trim() !== "";
 
   // Función para obtener el nombre del supervisor
   const getSupervisorName = (supervisorId: string | null) => {
@@ -941,103 +998,174 @@ export default function UsersPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Filters and Summary Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-          <div className="lg:col-span-2">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center text-sm sm:text-base">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-indigo-600" />
-                  Filtros de Usuario
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-col gap-3 sm:gap-4">
-                  <div className="flex-1">
-                    <label className="text-xs sm:text-sm font-medium mb-2 block text-muted-foreground">Filtrar por rol</label>
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger className="bg-muted/30 border-muted focus:ring-indigo-500">
-                        <SelectValue placeholder="Selecciona un rol" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos los roles ({salespeopleUsers.length})</SelectItem>
-                        <SelectItem value="admin">
-                          Administradores ({salespeopleUsers.filter(u => u.role === 'admin').length})
-                        </SelectItem>
-                        <SelectItem value="supervisor">
-                          Supervisores ({salespeopleUsers.filter(u => u.role === 'supervisor').length})
-                        </SelectItem>
-                        <SelectItem value="encargado_area">
-                          Encargados de Área ({salespeopleUsers.filter(u => u.role === 'encargado_area').length})
-                        </SelectItem>
-                        <SelectItem value="salesperson">
-                          Vendedores ({salespeopleUsers.filter(u => u.role === 'salesperson').length})
-                        </SelectItem>
-                        <SelectItem value="tecnico_obra">
-                          Técnicos de Obra ({salespeopleUsers.filter(u => u.role === 'tecnico_obra').length})
-                        </SelectItem>
-                        <SelectItem value="laboratorio">
-                          Laboratorio ({salespeopleUsers.filter(u => u.role === 'laboratorio').length})
-                        </SelectItem>
-                        <SelectItem value="produccion">
-                          Producción ({salespeopleUsers.filter(u => u.role === 'produccion').length})
-                        </SelectItem>
-                        <SelectItem value="logistica_bodega">
-                          Logística y Bodega ({salespeopleUsers.filter(u => u.role === 'logistica_bodega').length})
-                        </SelectItem>
-                        <SelectItem value="planificacion">
-                          Planificación ({salespeopleUsers.filter(u => u.role === 'planificacion').length})
-                        </SelectItem>
-                        <SelectItem value="bodega_materias_primas">
-                          Bodega Materias Primas ({salespeopleUsers.filter(u => u.role === 'bodega_materias_primas').length})
-                        </SelectItem>
-                        <SelectItem value="prevencion_riesgos">
-                          Prevención de Riesgos ({salespeopleUsers.filter(u => u.role === 'prevencion_riesgos').length})
-                        </SelectItem>
-                        <SelectItem value="client">
-                          Clientes ({salespeopleUsers.filter(u => u.role === 'client').length})
-                        </SelectItem>
-                        <SelectItem value="marketing">
-                          Marketing ({salespeopleUsers.filter(u => u.role === 'marketing').length})
-                        </SelectItem>
-                        <SelectItem value="reception">
-                          Recepción ({salespeopleUsers.filter(u => u.role === 'reception').length})
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div>
-            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/50 dark:to-indigo-900/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs sm:text-sm flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                  Resumen
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
-                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total usuarios:</span>
-                    <span className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{salespeopleUsers.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-green-50/50 dark:bg-green-950/30">
-                    <span className="text-xs sm:text-sm font-medium text-green-700 dark:text-green-400">Activos:</span>
-                    <span className="text-lg font-bold text-green-600 dark:text-green-300">{salespeopleUsers.filter(u => u.isActive).length}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-red-50/50 dark:bg-red-950/30">
-                    <span className="text-xs sm:text-sm font-medium text-red-700 dark:text-red-400">Inactivos:</span>
-                    <span className="text-lg font-bold text-red-600 dark:text-red-300">{salespeopleUsers.filter(u => !u.isActive).length}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <Card
+            className={cn(
+              "border shadow-sm cursor-pointer transition-all hover:shadow-md",
+              statusFilter === "todos" ? "border-indigo-300 ring-1 ring-indigo-200 bg-indigo-50/50 dark:bg-indigo-950/30" : "border-transparent"
+            )}
+            onClick={() => setStatusFilter("todos")}
+            data-testid="card-summary-total"
+          >
+            <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+              <div className="hidden sm:flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/50">
+                <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Total usuarios</p>
+                <p className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-300">{salespeopleUsers.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className={cn(
+              "border shadow-sm cursor-pointer transition-all hover:shadow-md",
+              statusFilter === "activos" ? "border-green-300 ring-1 ring-green-200 bg-green-50/50 dark:bg-green-950/30" : "border-transparent"
+            )}
+            onClick={() => setStatusFilter("activos")}
+            data-testid="card-summary-active"
+          >
+            <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+              <div className="hidden sm:flex items-center justify-center w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/50">
+                <UserCheck className="h-5 w-5 text-green-600 dark:text-green-300" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Activos</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-300">{salespeopleUsers.filter(u => u.isActive).length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className={cn(
+              "border shadow-sm cursor-pointer transition-all hover:shadow-md",
+              statusFilter === "inactivos" ? "border-red-300 ring-1 ring-red-200 bg-red-50/50 dark:bg-red-950/30" : "border-transparent"
+            )}
+            onClick={() => setStatusFilter("inactivos")}
+            data-testid="card-summary-inactive"
+          >
+            <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+              <div className="hidden sm:flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/50">
+                <UserX className="h-5 w-5 text-red-600 dark:text-red-300" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Inactivos</p>
+                <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-300">{salespeopleUsers.filter(u => !u.isActive).length}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Role Tabs + Search */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-3 sm:p-4 space-y-3">
+            {/* Búsqueda */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre, usuario o email..."
+                className="pl-9 pr-9 bg-muted/30"
+                data-testid="input-user-search"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Pestañas por rol */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+              <button
+                type="button"
+                onClick={() => setRoleFilter("todos")}
+                className={cn(
+                  "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs sm:text-sm font-medium border transition-colors",
+                  roleFilter === "todos"
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted"
+                )}
+                data-testid="tab-role-todos"
+              >
+                Todos
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  roleFilter === "todos" ? "bg-white/20" : "bg-muted-foreground/10"
+                )}>
+                  {salespeopleUsers.length}
+                </span>
+              </button>
+              {roleTabs.map(([role, count]) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setRoleFilter(role)}
+                  className={cn(
+                    "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs sm:text-sm font-medium border transition-colors",
+                    roleFilter === role
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted"
+                  )}
+                  data-testid={`tab-role-${role}`}
+                >
+                  {getRoleLabel(role, true)}
+                  <span className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                    roleFilter === role ? "bg-white/20" : "bg-muted-foreground/10"
+                  )}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Sub-pestañas de estado dentro del rol seleccionado */}
+            <div className="flex items-center gap-1.5">
+              {([
+                { value: "todos", label: "Todos", count: usersInRole.length },
+                { value: "activos", label: "Activos", count: activeInRole },
+                { value: "inactivos", label: "Inactivos", count: inactiveInRole },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.value)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium border transition-colors",
+                    statusFilter === tab.value
+                      ? tab.value === "activos"
+                        ? "bg-green-600 text-white border-green-600"
+                        : tab.value === "inactivos"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-slate-700 text-white border-slate-700"
+                      : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted"
+                  )}
+                  data-testid={`tab-status-${tab.value}`}
+                >
+                  {tab.label} ({tab.count})
+                </button>
+              ))}
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={() => { setRoleFilter("todos"); setStatusFilter("todos"); setSearchTerm(""); }}
+                  className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  data-testid="button-clear-filters"
+                >
+                  <X className="h-3 w-3" />
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Users Table */}
         <Card className="border-0 shadow-sm">
@@ -1049,7 +1177,9 @@ export default function UsersPage() {
                   Lista de Usuarios
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm mt-1">
-                  Gestiona los usuarios y sus permisos de acceso
+                  {roleFilter === "todos"
+                    ? "Gestiona los usuarios y sus permisos de acceso"
+                    : `Mostrando rol: ${getRoleLabel(roleFilter)}${statusFilter !== "todos" ? ` · ${statusFilter === "activos" ? "Activos" : "Inactivos"}` : ""}`}
                 </CardDescription>
               </div>
               <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
@@ -1064,6 +1194,26 @@ export default function UsersPage() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
                   <span className="text-muted-foreground text-sm">Cargando usuarios...</span>
                 </div>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <Users className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="font-medium text-sm">No se encontraron usuarios</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  No hay usuarios que coincidan con los filtros seleccionados.
+                </p>
+                {hasFilters && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => { setRoleFilter("todos"); setStatusFilter("todos"); setSearchTerm(""); }}
+                    data-testid="button-empty-clear-filters"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1.5" />
+                    Limpiar filtros
+                  </Button>
+                )}
               </div>
             ) : (
               <>
@@ -1090,22 +1240,7 @@ export default function UsersPage() {
                           <TableCell className="text-muted-foreground">{user.email || "Sin email"}</TableCell>
                           <TableCell>
                             <Badge variant={user.role === 'admin' ? 'default' : (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
-                              {user.role === 'admin' ? 'Administrador' :
-                                user.role === 'supervisor' ? 'Supervisor' :
-                                user.role === 'encargado_area' ? 'Encargado de Área' :
-                                  user.role === 'tecnico_obra' ? 'Técnico de Obra' :
-                                    user.role === 'jefe_planta' ? 'Jefe de Planta' :
-                                      user.role === 'mantencion' ? 'Mantención' :
-                                        user.role === 'laboratorio' ? 'Laboratorio' :
-                                          user.role === 'produccion' ? 'Producción' :
-                                            user.role === 'logistica_bodega' ? 'Logística y Bodega' :
-                                              user.role === 'planificacion' ? 'Planificación' :
-                                                user.role === 'bodega_materias_primas' ? 'Bodega Materias Primas' :
-                                                  user.role === 'prevencion_riesgos' ? 'Prevención de Riesgos' :
-                                                    user.role === 'recursos_humanos' ? 'Recursos Humanos' :
-                                                      user.role === 'marketing' ? 'Marketing' :
-                                                        user.role === 'client' ? 'Cliente' :
-                                                          user.role === 'reception' ? 'Recepción' : 'Vendedor'}
+                              {getRoleLabel(user.role)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{getSupervisorName(user.supervisorId)}</TableCell>
@@ -1187,21 +1322,7 @@ export default function UsersPage() {
                               <span className="text-muted-foreground">Rol:</span>
                               <div className="mt-1">
                                 <Badge variant={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className="text-xs">
-                                  {user.role === 'admin' ? 'Admin' :
-                                    user.role === 'supervisor' ? 'Supervisor' :
-                                    user.role === 'encargado_area' ? 'Enc. Área' :
-                                      user.role === 'tecnico_obra' ? 'Técnico' :
-                                        user.role === 'jefe_planta' ? 'Jefe Planta' :
-                                          user.role === 'mantencion' ? 'Mantención' :
-                                            user.role === 'laboratorio' ? 'Laboratorio' :
-                                              user.role === 'produccion' ? 'Producción' :
-                                                user.role === 'logistica_bodega' ? 'Logística y Bodega' :
-                                                  user.role === 'planificacion' ? 'Planificación' :
-                                                    user.role === 'bodega_materias_primas' ? 'Bodega MP' :
-                                                      user.role === 'prevencion_riesgos' ? 'Prev. Riesgos' :
-                                                        user.role === 'marketing' ? 'Marketing' :
-                                                          user.role === 'client' ? 'Cliente' :
-                                                            user.role === 'reception' ? 'Recepción' : 'Vendedor'}
+                                  {getRoleLabel(user.role, true)}
                                 </Badge>
                               </div>
                             </div>
