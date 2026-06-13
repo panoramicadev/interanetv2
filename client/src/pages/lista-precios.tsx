@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag } from "lucide-react";
 import { PriceList } from "@shared/schema";
+import { usePermissions } from "@/hooks/usePermissions";
 import ListaPreciosMix from "./lista-precios-mix";
 import ListaPreciosOfertas from "./lista-precios-ofertas";
 
@@ -23,8 +24,12 @@ interface PriceListResponse {
   hasMore: boolean;
 }
 
-// vendorView: vista de solo lectura para vendedores — sin costos, márgenes, simulador ni acciones de edición
-export default function ListaPrecios({ vendorView = false }: { vendorView?: boolean }) {
+// vendorView: vista de solo lectura para vendedores — sin costos, márgenes, simulador ni acciones de edición.
+// Además del prop (cuando se monta desde /productos), se fuerza si el rol
+// no tiene el permiso "productos.costos" (cubre la ruta directa /lista-precios).
+export default function ListaPrecios({ vendorView: vendorViewProp = false }: { vendorView?: boolean }) {
+  const { can } = usePermissions();
+  const vendorView = vendorViewProp || !can("productos.costos");
   const [search, setSearch] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");

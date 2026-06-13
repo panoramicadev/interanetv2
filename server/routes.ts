@@ -95,6 +95,7 @@ import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-ag
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
+import { registerPermissionRoutes } from "./permissions";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -490,6 +491,9 @@ function effectivePriceList(client: any): string | null {
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
+
+  // Sistema de Roles y Permisos (permisos efectivos del usuario + administración)
+  registerPermissionRoutes(app);
 
   // Register log routes (admin only)
   registerLogRoutes(app, requireRoles);

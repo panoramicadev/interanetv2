@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1768,25 +1769,28 @@ export default function ProductsPage() {
 
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
+  const { can, isReady: permissionsReady } = usePermissions();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  // Vendedores acceden en modo restringido: solo Lista de Precios e Inventario, sin costos
-  const isVendedor = user?.role === 'salesperson';
+  // Modo restringido (vista vendedor): sin permiso de costos solo ve
+  // Lista de Precios e Inventario, sin costos/márgenes/simulador.
+  // Configurable por rol en Configuración → Roles y Permisos.
+  const isVendedor = !can('productos.costos');
 
-  // Redirect to dashboard if not authenticated or not admin/supervisor
+  // Redirect to dashboard if not authenticated or without module permission
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area' && user?.role !== 'salesperson'))) {
+    if (!isLoading && permissionsReady && (!isAuthenticated || !can('productos'))) {
       toast({
         title: "Acceso denegado",
-        description: "Solo los administradores y supervisores pueden acceder a esta página.",
+        description: "Tu rol no tiene habilitado el módulo de Productos.",
         variant: "destructive",
       });
       setTimeout(() => {
         setLocation('/');
       }, 1000);
     }
-  }, [isAuthenticated, isLoading, user, toast]);
+  }, [isAuthenticated, isLoading, permissionsReady, can, user, toast]);
 
   // Vendedores: solo pestañas Lista de Precios e Inventario (por defecto Lista de Precios)
   useEffect(() => {
@@ -2426,7 +2430,7 @@ export default function ProductsPage() {
     );
   }
 
-  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor' && user?.role !== 'encargado_area' && user?.role !== 'salesperson')) {
+  if (!isAuthenticated || (permissionsReady && !can('productos'))) {
     return null;
   }
 

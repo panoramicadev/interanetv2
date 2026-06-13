@@ -39,7 +39,7 @@ import {
   Mail
 } from "lucide-react";
 
-interface SidebarItem {
+export interface SidebarItem {
   href: string;
   label: string;
   icon: any;

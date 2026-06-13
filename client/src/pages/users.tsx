@@ -19,6 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import type { User } from "@shared/schema";
 
@@ -64,26 +65,27 @@ export default function UsersPage() {
   const [createRutSearch, setCreateRutSearch] = useState('');
   const [editRutSearch, setEditRutSearch] = useState('');
 
-  // Verificar permisos de admin
+  // Verificar permiso del módulo (configurable en Roles y Permisos)
   const [, setLocation] = useLocation();
+  const { can, isReady: permissionsReady } = usePermissions();
 
   useEffect(() => {
-    if (user && user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+    if (user && permissionsReady && !can('config.usuarios')) {
       toast({
         title: "Acceso denegado",
-        description: "Solo los administradores y supervisores pueden acceder a esta página.",
+        description: "Tu rol no tiene habilitada la gestión de usuarios.",
         variant: "destructive",
       });
       setTimeout(() => {
         setLocation('/');
       }, 1000);
     }
-  }, [user, toast, setLocation]);
+  }, [user, permissionsReady, can, toast, setLocation]);
 
   // Query para obtener usuarios
   const { data: salespeopleUsers = [], isLoading } = useQuery<SalespersonUser[]>({
     queryKey: ["/api/users/salespeople"],
-    enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
+    enabled: !!user && can('config.usuarios'),
   });
 
   // Roles presentes en los datos, ordenados por cantidad de usuarios
