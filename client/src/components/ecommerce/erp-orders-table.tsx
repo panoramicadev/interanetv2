@@ -20,6 +20,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { formatPrice } from "@/components/ecommerce/order-detail-view";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ErpOrderDoc {
   docId: string;
@@ -209,6 +210,14 @@ function StatusBadge({ docType }: { docType: ErpOrder["docType"] }) {
 }
 
 export default function ErpOrdersTable() {
+  const { user } = useAuth();
+  // Un vendedor solo ve sus propios pedidos: ocultamos el filtro de Vendedor
+  // para que no pueda navegar los pedidos de sus compañeros. Admin/supervisión sí lo ven.
+  const canFilterBySalesperson =
+    user?.role === "admin" ||
+    user?.role === "supervisor" ||
+    user?.role === "encargado_area";
+
   const { data, isLoading } = useQuery<ErpOrdersResponse>({
     queryKey: ["/api/ecommerce/erp-orders"],
   });
@@ -413,15 +422,17 @@ export default function ErpOrdersTable() {
 
         {/* Filtros por vendedor, cliente y fecha */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
-          <FilterCombobox
-            value={vendedor}
-            onChange={setVendedor}
-            options={salespeople}
-            placeholder="Vendedor"
-            allLabel="Todos los vendedores"
-            searchPlaceholder="Buscar vendedor..."
-            icon={<Users className="h-4 w-4 shrink-0 text-gray-400" />}
-          />
+          {canFilterBySalesperson && (
+            <FilterCombobox
+              value={vendedor}
+              onChange={setVendedor}
+              options={salespeople}
+              placeholder="Vendedor"
+              allLabel="Todos los vendedores"
+              searchPlaceholder="Buscar vendedor..."
+              icon={<Users className="h-4 w-4 shrink-0 text-gray-400" />}
+            />
+          )}
           <FilterCombobox
             value={cliente}
             onChange={setCliente}

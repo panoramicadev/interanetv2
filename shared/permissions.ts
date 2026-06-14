@@ -497,8 +497,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard",
     "productos",
     "clientes",
-    "clientes.seguimiento",
-    "clientes.ayuda_memoria",
     "marketing",
     "seguimiento_pedidos",
     "tomador_pedidos",

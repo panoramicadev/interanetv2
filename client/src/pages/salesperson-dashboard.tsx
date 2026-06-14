@@ -26,7 +26,6 @@ import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/
 import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
 import SalespersonNVV from "@/components/salesperson/salesperson-nvv";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
-import PeriodComparisonChart from "@/components/salesperson/period-comparison-chart";
 import type { DateRange } from "react-day-picker";
 import {
   Users,
@@ -1107,15 +1106,6 @@ export default function SalespersonDashboard() {
             salesperson={user?.salespersonName}
           />
         </CardWrapper>
-
-        {/* Comparativa de Períodos */}
-        {
-          salespersonName && (
-            <CardWrapper>
-              <PeriodComparisonChart salespersonName={salespersonName} />
-            </CardWrapper>
-          )
-        }
       </main >
 
       {/* Diálogo de Clientes */}

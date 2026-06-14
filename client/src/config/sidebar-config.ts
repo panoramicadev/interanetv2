@@ -642,26 +642,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Package,
     },
     {
+      // El vendedor solo gestiona su cartera: "Clientes" abre el listado directo,
+      // sin submenú (Seguimiento / Ayuda Memoria quedan fuera de su vista).
       href: "/clientes",
       label: "Clientes",
       icon: Users,
-      children: [
-        {
-          href: "/clientes",
-          label: "Listado Clientes",
-          icon: Users,
-        },
-        {
-          href: "/seguimiento-clientes",
-          label: "Seguimiento",
-          icon: UserCheck,
-        },
-        {
-          href: "/ayuda-memoria",
-          label: "Ayuda Memoria",
-          icon: BookOpen,
-        },
-      ],
     },
     {
       href: "/marketing",
