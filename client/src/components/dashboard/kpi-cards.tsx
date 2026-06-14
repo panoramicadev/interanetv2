@@ -392,12 +392,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     comparisonDate: string;
     isYTD: boolean;
   }>({
-    queryKey: ['/api/sales/yearly-totals', segment, salesperson, client, ytdEndDateStr],
+    queryKey: ['/api/sales/yearly-totals', segment, salesperson, client, product, ytdEndDateStr],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
       if (client) params.append('client', client);
+      if (product) params.append('product', product);
       if (ytdEndDateStr) params.append('endDateStr', ytdEndDateStr);
       const res = await fetch(`/api/sales/yearly-totals?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);

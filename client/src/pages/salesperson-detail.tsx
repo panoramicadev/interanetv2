@@ -22,6 +22,7 @@ import PendingDocumentsUnified from "@/components/dashboard/pending-documents-un
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import SalesChart from "@/components/dashboard/sales-chart";
 import KPICards from "@/components/dashboard/kpi-cards";
+import SalespersonScopeFilter from "@/components/salesperson/salesperson-scope-filter";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import FletesPanel from "@/components/dashboard/fletes-panel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -206,6 +207,11 @@ export default function SalespersonDetail({
 
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
+
+  // Filtros Cliente/Producto del vendedor (scopeados a sus propios datos).
+  // Alimentan los KPIs (incl. "Total Acumulado del Año") y la tendencia de ventas.
+  const [clientFilter, setClientFilter] = useState<string>("");
+  const [productFilter, setProductFilter] = useState<string>("");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
   const handleShowNewClientsInPanel = () => {
@@ -1415,12 +1421,51 @@ export default function SalespersonDetail({
             </>
           ) : (
             <>
+              {/* Filtros Cliente/Producto — limitados a los datos del vendedor */}
+              {salespersonName && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm dark:bg-slate-900 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <Filter className="h-4 w-4 text-gray-400" />
+                    <span>Filtrar:</span>
+                  </div>
+                  <SalespersonScopeFilter
+                    salespersonName={salespersonName}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    kind="client"
+                    value={clientFilter}
+                    onChange={setClientFilter}
+                  />
+                  <SalespersonScopeFilter
+                    salespersonName={salespersonName}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    kind="product"
+                    value={productFilter}
+                    onChange={setProductFilter}
+                  />
+                  {(clientFilter || productFilter) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-gray-500"
+                      onClick={() => { setClientFilter(""); setProductFilter(""); }}
+                      data-testid="button-clear-scope-filters"
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" /> Limpiar
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* KPI Cards — usa las mismas tarjetas del dashboard principal */}
               <div>
                 <KPICards
                   selectedPeriod={selectedPeriod}
                   filterType={filterType}
                   salesperson={salespersonName}
+                  client={clientFilter || undefined}
+                  product={productFilter || undefined}
                   onShowNewClients={handleShowNewClientsInPanel}
                 />
               </div>
@@ -1564,6 +1609,8 @@ export default function SalespersonDetail({
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                     salesperson={salespersonName}
+                    client={clientFilter || undefined}
+                    product={productFilter || undefined}
                   />
                 </div>
               )}
