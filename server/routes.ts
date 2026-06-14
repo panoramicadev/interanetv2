@@ -417,6 +417,27 @@ interface TokenPayload {
 
 // Middleware to ensure salespeople can only access their own data
 // Must be used after requireAuth middleware
+// Para endpoints comerciales que reciben el vendedor por query param (?salesperson=...)
+// y además usan responseCacheMiddleware (caché por URL). Debe ejecutarse ANTES de la
+// caché: si no, una respuesta a nivel empresa ya cacheada bajo otra URL podría servirse
+// sin pasar por una validación dentro del handler. Un vendedor solo puede pedir SU
+// propio nombre (la UI siempre lo envía); cualquier otra cosa → 403. Mismo criterio de
+// normalización que requireOwnDataOrAdmin.
+function requireOwnSalespersonQuery(req: any, res: any, next: any) {
+  const user = req.user;
+  if (user?.role === 'salesperson') {
+    const normalize = (str: string): string => {
+      try { return decodeURIComponent(str).trim().toLowerCase(); } catch { return str.trim().toLowerCase(); }
+    };
+    const requested = req.query?.salesperson;
+    const own = user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    if (!requested || normalize(String(requested)) !== normalize(own)) {
+      return res.status(403).json({ message: "No tienes permiso para acceder a datos de otros vendedores" });
+    }
+  }
+  next();
+}
+
 function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   const user = req.user;
 
@@ -1579,7 +1600,7 @@ export function registerRoutes(app: Express): Server {
 
   // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/dashboard/init', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/dashboard/init', requireCommercialAccess, requireOwnSalespersonQuery, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, filterType, segment, salesperson, client, product, branch, endDateStr } = req.query;
 
     const dateRange = getDateRange(period as string, filterType as string);
