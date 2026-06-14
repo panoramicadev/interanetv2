@@ -392,6 +392,58 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
     }).slice(0, 10); // Limit to 10 results
   }, [searchResults, debouncedSku, offersMap]);
 
+  // ── Código oculto / personalizado ────────────────────────────────────────
+  // Si la vitrina no tiene una coincidencia EXACTA, intentamos resolver el SKU
+  // como código personalizado de la lista del cliente: no aparece en el catálogo
+  // pero el cliente lo puede insertar a mano. Solo para clientes autenticados.
+  const hasExactCatalogMatch = matchedVariants.some(m => m.isExactMatch);
+  const { data: hiddenResult, isFetching: hiddenFetching } = useQuery<any>({
+    queryKey: ['/api/store/products/sku-lookup', debouncedSku, selectedBranchId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('sku', debouncedSku);
+      if (selectedBranchId) params.append('branchId', selectedBranchId);
+      const r = await fetch(`/api/store/products/sku-lookup?${params.toString()}`, { credentials: 'include' });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: isClient && debouncedSku.length >= 3 && !isLoading && !hasExactCatalogMatch,
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  // El resultado oculto se mapea a la MISMA forma que una variante del catálogo,
+  // así el render y handleAddVariant lo manejan sin lógica especial.
+  const hiddenVariant = useMemo(() => {
+    if (!hiddenResult?.sku) return null;
+    const skuUpper = String(hiddenResult.sku).toUpperCase();
+    // No duplicar si el SKU ya vino en las coincidencias del catálogo.
+    if (matchedVariants.some(m => (m.variant.sku || '').toUpperCase() === skuUpper)) return null;
+    return {
+      genericName: hiddenResult.productName || hiddenResult.sku,
+      variant: {
+        sku: hiddenResult.sku,
+        format: hiddenResult.format,
+        color: hiddenResult.color,
+        price: hiddenResult.price,
+        offerPrice: hiddenResult.offerPrice ?? null,
+        originalPrice: hiddenResult.originalPrice,
+        minUnit: hiddenResult.minUnit ?? 1,
+        stepSize: hiddenResult.stepSize ?? 1,
+        imageUrl: hiddenResult.imageUrl ?? null,
+      } as any,
+      imageUrl: hiddenResult.imageUrl ?? null,
+      isExactMatch: true,
+      isHidden: true,
+    };
+  }, [hiddenResult, matchedVariants]);
+
+  // Lista combinada que renderiza el modal (oculto primero, luego catálogo).
+  const displayVariants = useMemo(
+    () => (hiddenVariant ? [hiddenVariant, ...matchedVariants] : matchedVariants),
+    [hiddenVariant, matchedVariants]
+  );
+
   // Add a variant to cart from the SKU modal
   const handleAddVariant = (variant: StoreFormatVariant, genericName: string) => {
     const qty = skuQuantities[variant.sku] || variant.minUnit || 1;
@@ -649,10 +701,10 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
               </button>
             )}
           </div>
-          {debouncedSku && matchedVariants.length > 0 && (
+          {debouncedSku && displayVariants.length > 0 && (
             <p className="text-xs text-gray-400 mt-2 pl-1">
-              {matchedVariants.length} resultado{matchedVariants.length !== 1 ? 's' : ''} encontrado{matchedVariants.length !== 1 ? 's' : ''}
-              {matchedVariants.some(m => m.isExactMatch) && (
+              {displayVariants.length} resultado{displayVariants.length !== 1 ? 's' : ''} encontrado{displayVariants.length !== 1 ? 's' : ''}
+              {displayVariants.some(m => m.isExactMatch) && (
                 <span className="text-emerald-600 font-semibold ml-1">• Coincidencia exacta</span>
               )}
             </p>
@@ -813,7 +865,7 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
           )}
 
           {/* No results */}
-          {!isLoading && debouncedSku && debouncedSku.length >= 2 && matchedVariants.length === 0 && (
+          {!isLoading && !hiddenFetching && debouncedSku && debouncedSku.length >= 2 && displayVariants.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
               <Package className="h-10 w-10 text-gray-300 mb-3" />
               <h3 className="text-sm font-bold text-gray-700 mb-1">Sin resultados para "{debouncedSku}"</h3>
@@ -824,9 +876,9 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
           )}
 
           {/* Search Results */}
-          {!isLoading && matchedVariants.length > 0 && (
+          {!isLoading && displayVariants.length > 0 && (
             <div className="px-5 py-3 space-y-2.5">
-              {matchedVariants.map(({ genericName, variant, imageUrl, isExactMatch }) => {
+              {displayVariants.map(({ genericName, variant, imageUrl, isExactMatch, isHidden }: any) => {
                 const qty = skuQuantities[variant.sku] || 0;
                 const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : (variant.price || 0);
                 const hasOffer = variant.offerPrice && variant.offerPrice > 0 && variant.price && variant.price > variant.offerPrice;
@@ -873,6 +925,11 @@ function SkuQuickOrderModal({ onClose, clientPriceList, offersMap, isClient, sel
                               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
                                 {variant.color}
                               </span>
+                              {isHidden && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700" title="Código personalizado de tu lista — no aparece en el catálogo">
+                                  Personalizado
+                                </span>
+                              )}
                             </div>
                           </div>
 
