@@ -20159,6 +20159,144 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // LOOKUP DE CÓDIGO OCULTO / PERSONALIZADO POR SKU EXACTO
+  // ───────────────────────────────────────────────────────────────────────────
+  // El catálogo de la tienda (/api/store/products/grouped) solo muestra
+  // ecommerce_products activos. Pero el equipo comercial crea "códigos
+  // personalizados" para un cliente: se agregan a SU lista de precios
+  // (custom_price_list_items: Mix/LP02, Panorámica Store, etc.) y se comparten
+  // por fuera para que el cliente los inserte a mano, SIN que aparezcan en la
+  // vitrina (no tienen fila activa en ecommerce_products).
+  //
+  // Este endpoint resuelve un SKU EXACTO contra la lista efectiva del cliente +
+  // ofertas dirigidas + convenio, devolviendo el producto con la MISMA forma que
+  // una variante del catálogo (price/offerPrice/originalPrice) para que el front
+  // lo agregue por el mismo flujo. El precio definitivo igual lo recalcula
+  // resolveItemsPricing en el checkout (candado de precios), así que esto es solo
+  // para descubrir/mostrar el código.
+  //
+  // Gate de seguridad (modelo "por lista de precios"): solo devuelve el código si
+  // pertenece a la lista custom del cliente, o si está marcado es_personalizado
+  // en price_list. Así NO se expone todo el catálogo ERP adivinando SKUs.
+  app.get('/api/store/products/sku-lookup', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!req.user || req.user.role !== 'client') {
+      return res.status(403).json({ message: 'Solo clientes pueden buscar códigos personalizados' });
+    }
+    const rawSku = (req.query.sku || '').toString().trim();
+    if (rawSku.length < 2) {
+      return res.status(400).json({ message: 'SKU inválido' });
+    }
+    const skuUpper = rawSku.toUpperCase();
+
+    // Resolver el cliente (sucursal explícita o cuenta por defecto) — misma lógica
+    // que /grouped, para usar su lista (lcen/override), convenio y RUT.
+    let clientRecord: any = null;
+    try {
+      const { branchId } = req.query;
+      if (branchId) {
+        const { clients: clientsLookup } = await import('@shared/schema');
+        const { eq: eqLookup } = await import('drizzle-orm');
+        const { db: dbLookup } = await import('./db');
+        const [explicitBranch] = await dbLookup.select().from(clientsLookup).where(eqLookup(clientsLookup.id, branchId as string)).limit(1);
+        if (explicitBranch) clientRecord = explicitBranch;
+      }
+      if (!clientRecord) clientRecord = await storage.getClientByUserId(req.user.id);
+    } catch (e) {
+      console.warn('[sku-lookup] client resolution failed:', e);
+    }
+
+    const priceListCode = (effectivePriceList(clientRecord) || 'LP01').toUpperCase();
+    const useCustomList = priceListCode !== 'LP01';
+    const branchDiscountPct = clientRecord?.branchDiscountPercent ? parseFloat(clientRecord.branchDiscountPercent as string) || 0 : 0;
+    const discountFactor = branchDiscountPct > 0 && branchDiscountPct <= 100 ? 1 - branchDiscountPct / 100 : 1;
+
+    const offerClientId = (clientRecord?.id || '').toString();
+    const offerClientRut = (clientRecord?.rten || '').toString().trim();
+    const offerAudienceClause = sql`(
+      offers.all_clients = true
+      OR EXISTS (
+        SELECT 1 FROM price_list_offer_clients oc
+        JOIN clients oc_c ON oc_c.id = oc.client_id
+        WHERE oc.offer_id = offers.id
+          AND (oc_c.id = ${offerClientId} OR (${offerClientRut} <> '' AND oc_c.rten = ${offerClientRut}))
+      )
+    )`;
+
+    try {
+      const result: any = await db.execute(sql`
+        SELECT
+          pl.codigo            AS sku,
+          pl.producto          AS product_name,
+          pl.unidad            AS unit,
+          pl.es_personalizado  AS es_personalizado,
+          pl.lista             AS lista,
+          ${useCustomList ? sql`cpli.precio` : sql`NULL::numeric`} AS custom_precio,
+          COALESCE(offers.precio, pl.offer_price) AS offer_price,
+          ep.variant_generic_display_name AS generic_name,
+          ep.color             AS color,
+          ep.format_unit       AS format_unit,
+          ep.min_unit          AS min_unit,
+          ep.step_size         AS step_size,
+          ep.imagen_url        AS imagen_url,
+          ep.activo            AS ep_activo,
+          pc.imagen_destacada  AS imagen_destacada
+        FROM price_list pl
+        ${useCustomList
+          ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceListCode}`
+          : sql``}
+        LEFT JOIN price_list_offers offers
+          ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}
+        LEFT JOIN ecommerce_products ep ON ep.price_list_id = pl.id
+        LEFT JOIN product_content pc ON pc.codigo = pl.codigo
+        WHERE UPPER(pl.codigo) = ${skuUpper}
+        LIMIT 1
+      `);
+      const rows = Array.isArray(result) ? result : (result.rows || []);
+      const row = rows[0];
+      if (!row) {
+        return res.status(404).json({ message: 'Código no encontrado' });
+      }
+
+      // Gate: el código debe pertenecer a la lista custom del cliente, o estar
+      // marcado como personalizado. Si no, no se entrega (evita exponer el ERP).
+      const inCustomList = useCustomList && row.custom_precio != null;
+      const isPersonalizado = (row.es_personalizado || '').toString().trim().toLowerCase() === 'yes';
+      if (!inCustomList && !isPersonalizado) {
+        return res.status(404).json({ message: 'Código no disponible para este cliente' });
+      }
+
+      // Precio: misma forma que el catálogo para clientes. El convenio se aplica
+      // SIEMPRE a la lista (nunca a la oferta); la oferta se decide en el front.
+      const baseList = parseFloat((inCustomList ? row.custom_precio : row.lista)?.toString() || '0') || 0;
+      const offerNum = row.offer_price != null ? (parseFloat(row.offer_price.toString()) || 0) : 0;
+      const hasOffer = offerNum > 0;
+      const discountedList = Math.max(0, Math.round(baseList * discountFactor));
+
+      if (discountedList <= 0 && !hasOffer) {
+        return res.status(404).json({ message: 'Código sin precio en tu lista' });
+      }
+
+      return res.json({
+        sku: row.sku,
+        productName: row.generic_name || row.product_name || row.sku,
+        color: row.color || 'Sin Color',
+        format: row.format_unit || row.unit || 'Sin formato',
+        price: discountedList,                                  // lista con convenio (base)
+        offerPrice: hasOffer ? Math.round(offerNum) : null,     // oferta (gana si menor)
+        originalPrice: Math.round(baseList),                    // lista sin convenio
+        minUnit: row.min_unit != null ? Number(row.min_unit) : 1,
+        stepSize: row.step_size != null ? Number(row.step_size) : 1,
+        imageUrl: row.imagen_url || row.imagen_destacada || null,
+        hidden: row.ep_activo !== true,                         // true si no está en vitrina
+        priceList: priceListCode,
+      });
+    } catch (error: any) {
+      console.error('[sku-lookup] error:', error);
+      return res.status(500).json({ message: 'Error al buscar el código' });
+    }
+  }));
+
   // Object Storage endpoints
 
   // Serve public objects from Object Storage with local fallback
