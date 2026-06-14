@@ -8,15 +8,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
 import { TrackingScripts } from "@/components/tracking-scripts";
-import {
-  canViewCMMS,
-  canViewCMMSDashboard,
-  canAccessCMMSFull,
-  canAccessPlanesPreventivos,
-  canAccessMantencionesPlanificadas,
-  canAccessGastosMateriales,
-  canViewCalendar
-} from "@/lib/cmmsPermissions";
+import { Guarded } from "@/components/guarded-route";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import ClientEcommerceLayout from "@/components/layout/client-ecommerce-layout";
 import ClientOrderTracking from "@/pages/client-order-tracking";
@@ -113,6 +105,30 @@ import DondeComprar from "@/pages/donde-comprar";
 import RetailLocationsAdmin from "@/pages/retail-locations-admin";
 import Registro from "@/pages/registro";
 import NotFound from "@/pages/not-found";
+
+// Envuelve una página con el gate de permisos del sistema de Roles y
+// Permisos, preservando las props que inyecta wouter (params, etc.).
+// El resultado se cachea por (Componente, permiso) para mantener una
+// identidad estable entre renders de Router: si no, wouter remontaría
+// la página en cada render (perdiendo estado, scroll y datos cargados).
+const guardedCache = new WeakMap<any, Map<string, any>>();
+function guarded(permission: string, Component: any) {
+  let byPermission = guardedCache.get(Component);
+  if (!byPermission) {
+    byPermission = new Map();
+    guardedCache.set(Component, byPermission);
+  }
+  let wrapped = byPermission.get(permission);
+  if (!wrapped) {
+    wrapped = (props: any) => (
+      <Guarded permission={permission}>
+        <Component {...props} />
+      </Guarded>
+    );
+    byPermission.set(permission, wrapped);
+  }
+  return wrapped;
+}
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -224,26 +240,26 @@ function Router() {
             }} />
 
             {/* Rutas específicas de admin */}
-            <Route path="/facturas" component={FacturasMainPage} />
-            <Route path="/nvv" component={FacturasMainPage} />
+            <Route path="/facturas" component={guarded("finanzas", FacturasMainPage)} />
+            <Route path="/nvv" component={guarded("finanzas", FacturasMainPage)} />
 
             <Route path="/tareas" component={TareasPage} />
-            <Route path="/usuarios" component={Users} />
+            <Route path="/usuarios" component={guarded("config.usuarios", Users)} />
             <Route path="/admin-catalogos" component={AdminCatalogos} />
-            <Route path="/donde-comprar-admin" component={RetailLocationsAdmin} />
-            <Route path="/productos" component={Products} />
-            <Route path="/productos/:codigo" component={ProductCatalogDetail} />
-            <Route path="/lista-precios" component={ListaPrecios} />
-            <Route path="/ecommerce" component={EcommerceAdmin} />
-            <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
-            <Route path="/logistica" component={Logistica} />
-            <Route path="/logistica-tms" component={LogisticaTms} />
-            <Route path="/logistica-rutas" component={LogisticaRutas} />
+            <Route path="/donde-comprar-admin" component={guarded("market.donde_comprar", RetailLocationsAdmin)} />
+            <Route path="/productos" component={guarded("productos", Products)} />
+            <Route path="/productos/:codigo" component={guarded("productos", ProductCatalogDetail)} />
+            <Route path="/lista-precios" component={guarded("productos", ListaPrecios)} />
+            <Route path="/ecommerce" component={guarded("market.configuracion", EcommerceAdmin)} />
+            <Route path="/ecommerce-pedidos" component={guarded("market.pedidos", EcommercePedidos)} />
+            <Route path="/logistica" component={guarded("market.logistica", Logistica)} />
+            <Route path="/logistica-tms" component={guarded("market.logistica", LogisticaTms)} />
+            <Route path="/logistica-rutas" component={guarded("market.logistica", LogisticaRutas)} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
-            <Route path="/mailing" component={MailingPage} />
+            <Route path="/mailing" component={guarded("market.mailing", MailingPage)} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
-            <Route path="/clientes" component={ClientesUnificado} />
+            <Route path="/clientes" component={guarded("clientes", ClientesUnificado)} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/pedidos" component={() => {
               // Redirect from /pedidos to /tomador-pedidos recientes tab
@@ -255,7 +271,7 @@ function Router() {
               window.location.replace('/productos');
               return null;
             }} />
-            <Route path="/metas" component={Metas} />
+            <Route path="/metas" component={guarded("config.metas", Metas)} />
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra
@@ -265,110 +281,41 @@ function Router() {
               }
               return <PromesasCompraPage />;
             }} />
-            <Route path="/tomador-pedidos" component={TomadorPedidos} />
-            <Route path="/seguimiento-pedidos" component={SeguimientoPedidos} />
-            <Route path="/seguimiento-clientes/:id" component={SeguimientoClienteDetalle} />
-            <Route path="/seguimiento-clientes" component={SeguimientoClientes} />
-            <Route path="/ayuda-memoria" component={AyudaMemoriaPage} />
+            <Route path="/tomador-pedidos" component={guarded("tomador_pedidos", TomadorPedidos)} />
+            <Route path="/seguimiento-pedidos" component={guarded("seguimiento_pedidos", SeguimientoPedidos)} />
+            <Route path="/seguimiento-clientes/:id" component={guarded("clientes.seguimiento", SeguimientoClienteDetalle)} />
+            <Route path="/seguimiento-clientes" component={guarded("clientes.seguimiento", SeguimientoClientes)} />
+            <Route path="/ayuda-memoria" component={guarded("clientes.ayuda_memoria", AyudaMemoriaPage)} />
             <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
-            <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
-            <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
-            <Route path="/reclamos/resolucion/:id" component={ReclamoResolucionPage} />
-            <Route path="/mantenciones" component={MantencionesPage} />
-            <Route path="/cmms" component={() => {
-              // Solo roles con gestión pueden ver el dashboard CMMS (admin, jefe_planta, mantencion, supervisor)
-              if (!canViewCMMSDashboard(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMMSDashboard />;
-            }} />
-            <Route path="/cmms/dashboard" component={() => {
-              // Solo roles con gestión pueden ver el dashboard CMMS (admin, jefe_planta, mantencion, supervisor)
-              if (!canViewCMMSDashboard(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMMSDashboard />;
-            }} />
-            <Route path="/cmms/equipos" component={() => {
-              // Solo admin y jefe_planta pueden gestionar equipos
-              if (!canAccessCMMSFull(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMMSEquipos />;
-            }} />
-            <Route path="/cmms/proveedores" component={() => {
-              // Solo admin y jefe_planta pueden gestionar proveedores
-              if (!canAccessCMMSFull(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMmsProveedores />;
-            }} />
-            <Route path="/cmms/presupuesto" component={() => {
-              // Solo admin y jefe_planta pueden gestionar presupuesto
-              if (!canAccessCMMSFull(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMmsPresupuesto />;
-            }} />
-            <Route path="/cmms/gastos-materiales" component={() => {
-              // Solo admin y jefe_planta pueden ver gastos de materiales
-              if (!canAccessGastosMateriales(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMmsGastosMateriales />;
-            }} />
-            <Route path="/cmms/planes-preventivos" component={() => {
-              // Admin, jefe_planta y mantencion pueden gestionar planes preventivos
-              if (!canAccessPlanesPreventivos(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMmsPlanesPreventivos />;
-            }} />
-            <Route path="/cmms/mantenciones-planificadas" component={() => {
-              // Admin, jefe_planta y mantencion pueden gestionar mantenciones planificadas
-              if (!canAccessMantencionesPlanificadas(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CmmsMantencionesPlanificadas />;
-            }} />
-            <Route path="/cmms/calendario" component={() => {
-              // Todos los roles de planta pueden ver el calendario
-              if (!canViewCalendar(user?.role)) {
-                window.location.replace('/');
-                return null;
-              }
-              return <CMmsCalendario />;
-            }} />
-            <Route path="/marketing" component={Marketing} />
+            <Route path="/visitas-tecnicas" component={guarded("postventa.visitas", VisitasTecnicasPage)} />
+            <Route path="/reclamos-generales" component={guarded("postventa.reclamos", ReclamosGeneralesPage)} />
+            <Route path="/reclamos/resolucion/:id" component={guarded("postventa.reclamos", ReclamoResolucionPage)} />
+            <Route path="/mantenciones" component={guarded("cmms.ordenes", MantencionesPage)} />
+            <Route path="/cmms" component={guarded("cmms.dashboard", CMMSDashboard)} />
+            <Route path="/cmms/dashboard" component={guarded("cmms.dashboard", CMMSDashboard)} />
+            <Route path="/cmms/equipos" component={guarded("cmms.equipos", CMMSEquipos)} />
+            <Route path="/cmms/proveedores" component={guarded("cmms.proveedores", CMmsProveedores)} />
+            <Route path="/cmms/presupuesto" component={guarded("cmms.presupuesto", CMmsPresupuesto)} />
+            <Route path="/cmms/gastos-materiales" component={guarded("cmms.gastos_materiales", CMmsGastosMateriales)} />
+            <Route path="/cmms/planes-preventivos" component={guarded("cmms.planes_preventivos", CMmsPlanesPreventivos)} />
+            <Route path="/cmms/mantenciones-planificadas" component={guarded("cmms.mantenciones_planificadas", CmmsMantencionesPlanificadas)} />
+            <Route path="/cmms/calendario" component={guarded("cmms.calendario", CMmsCalendario)} />
+            <Route path="/marketing" component={guarded("marketing", Marketing)} />
             <Route path="/inventario" component={Inventario} />
-            <Route path="/gastos-empresariales" component={GastosEmpresariales} />
+            <Route path="/gastos-empresariales" component={guarded("gastos", GastosEmpresariales)} />
             <Route path="/gestion-fondos" component={() => {
               window.location.replace('/gastos-empresariales');
               return null;
             }} />
             <Route path="/notificaciones" component={Notificaciones} />
             <Route path="/ai-assistant" component={AiAssistantPage} />
-            <Route path="/api-keys" component={ApiKeysPage} />
-            <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
-            <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
-            <Route path="/etl-monitor" component={ETLMonitor} />
-            <Route path="/margen" component={() => {
-              if (!user || user.role !== 'admin') {
-                window.location.replace('/');
-                return null;
-              }
-              return <MargenPage />;
-            }} />
-            <Route path="/configuracion" component={ConfiguracionPage} />
+            <Route path="/api-keys" component={guarded("config.apikeys", ApiKeysPage)} />
+            <Route path="/gastos-empresariales/nuevo" component={guarded("gastos", GastosEmpresarialesForm)} />
+            <Route path="/gastos-empresariales/dashboard" component={guarded("gastos", GastosEmpresarialesDashboard)} />
+            <Route path="/etl-monitor" component={guarded("etl_monitor", ETLMonitor)} />
+            <Route path="/margen" component={guarded("margen", MargenPage)} />
+            <Route path="/configuracion" component={guarded("configuracion", ConfiguracionPage)} />
             <Route path="/date-selector-demo" component={DateSelectorDemo} />
 
             {/* Rutas de Tintometría */}
@@ -377,9 +324,9 @@ function Router() {
               window.location.replace('/tintometria/admin');
               return null;
             }} />
-            <Route path="/tintometria/admin" component={TintometriaAdmin} />
-            <Route path="/tintometria/calculadora" component={TintometriaCalculadora} />
-            <Route path="/tintometria/selector" component={TintometriaSelector} />
+            <Route path="/tintometria/admin" component={guarded("tintometria.admin", TintometriaAdmin)} />
+            <Route path="/tintometria/calculadora" component={guarded("tintometria.calculadora", TintometriaCalculadora)} />
+            <Route path="/tintometria/selector" component={guarded("tintometria.selector", TintometriaSelector)} />
 
             <Route path="/segment/:segmentName">
               {(params: any) => <SegmentDetail segmentName={params.segmentName} />}
@@ -408,7 +355,7 @@ function Router() {
             <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
 
             {/* Rutas específicas de cliente */}
-            <Route path="/mis-pedidos" component={MisPedidos} />
+            <Route path="/mis-pedidos" component={guarded("mis_pedidos", MisPedidos)} />
             <Route path="/solicitar-cotizacion" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div>} />
             <Route path="/client-portal" component={ClientPortal} />
 

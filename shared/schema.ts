@@ -1271,6 +1271,24 @@ export const salespeopleUsers = pgTable("salespeople_users", {
 export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
 export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
 
+// Overrides de permisos por rol (sistema de Roles y Permisos).
+// Solo se guardan los roles editados desde la UI; un rol sin filas usa
+// los defaults de shared/permissions.ts. El rol admin nunca se persiste
+// (siempre tiene acceso total).
+export const rolePermissions = pgTable("role_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  role: varchar("role").notNull(),
+  permissionKey: varchar("permission_key").notNull(),
+  allowed: boolean("allowed").notNull().default(true),
+  updatedBy: varchar("updated_by"), // id del admin que guardó el cambio
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueRolePermission: uniqueIndex("UQ_role_permissions_role_key").on(table.role, table.permissionKey),
+}));
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = typeof rolePermissions.$inferInsert;
+
 // Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
 export const userBranchAssignments = pgTable("user_branch_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

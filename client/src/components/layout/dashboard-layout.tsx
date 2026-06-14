@@ -9,9 +9,10 @@ import {
   Sparkles
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
+import { usePermissions } from "@/hooks/usePermissions";
+import { buildSidebarItems } from "@/lib/sidebar-permissions";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import logoPath from "@assets/logo_1757532115858.png";
@@ -22,6 +23,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logoutMutation } = useAuth();
+  const { can, permissions } = usePermissions();
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -69,7 +71,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return map[role || ""] || "bg-slate-500";
   };
 
-  const sidebarItems = SIDEBAR_CONFIG[user?.role || ""] || [];
+  // Sidebar dinámico: base del rol filtrado por permisos efectivos
+  // (configurables desde Configuración → Roles y Permisos)
+  const sidebarItems = useMemo(
+    () => buildSidebarItems(user?.role || undefined, can),
+    [user?.role, can, permissions],
+  );
 
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
@@ -262,7 +269,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <NavItem key={item.disabled ? `disabled-${index}` : item.href} item={item} index={index} />
           ))}
 
-          {user?.role === "admin" && (
+          {can("config.importar") && (
             <button
               className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-200 hover:text-white hover:bg-slate-700/60 transition-all duration-150"
               onClick={() => {
@@ -312,7 +319,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Modals */}
       {
-        user?.role === "admin" && (
+        can("config.importar") && (
           <ImportModal open={showImportModal} onOpenChange={setShowImportModal} />
         )
       }

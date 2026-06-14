@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Target, Database, Key, Upload, Settings, Mail, MessageCircle, Link2 } from "lucide-react";
+import { Users, Target, Database, Key, Upload, Settings, Mail, MessageCircle, Link2, ShieldCheck } from "lucide-react";
 import UsersPage from "./users";
 import Metas from "./metas";
 import ETLMonitor from "./etl-monitor";
@@ -11,15 +12,61 @@ import ImportarDatos from "@/components/importar-datos";
 import NotificacionesConfigPage from "./notificaciones-config";
 import WhatsAppConfigPage from "./whatsapp-config";
 import IntegracionesPage from "./integraciones";
+import RolesPermisosPage from "./roles-permisos";
+
+interface ConfigTab {
+  value: string;
+  label: string;
+  shortLabel: string;
+  icon: any;
+  /** Permiso requerido; null = solo admin (no configurable) */
+  permission: string | null;
+  content: React.ReactNode;
+}
+
+const CONFIG_TABS: ConfigTab[] = [
+  { value: "usuarios", label: "Gestión de Usuarios", shortLabel: "Usuarios", icon: Users, permission: "config.usuarios", content: <UsersPage /> },
+  // Edición de permisos = solo admin (evita escalamiento de privilegios)
+  { value: "roles", label: "Roles y Permisos", shortLabel: "Roles", icon: ShieldCheck, permission: null, content: <RolesPermisosPage /> },
+  { value: "metas", label: "Gestión de Metas", shortLabel: "Metas", icon: Target, permission: "config.metas", content: <Metas /> },
+  { value: "etl", label: "Monitor ETL", shortLabel: "ETL", icon: Database, permission: "etl_monitor", content: <ETLMonitor /> },
+  { value: "api-keys", label: "API Keys", shortLabel: "APIs", icon: Key, permission: "config.apikeys", content: <ApiKeysPage /> },
+  { value: "importar", label: "Importar Datos", shortLabel: "Importar", icon: Upload, permission: "config.importar", content: <ImportarDatos /> },
+  { value: "correos", label: "Correos", shortLabel: "Correos", icon: Mail, permission: "config.correos", content: <NotificacionesConfigPage /> },
+  { value: "whatsapp", label: "WhatsApp", shortLabel: "WhatsApp", icon: MessageCircle, permission: "config.whatsapp", content: <WhatsAppConfigPage /> },
+  { value: "integraciones", label: "Integraciones", shortLabel: "Integr.", icon: Link2, permission: "config.integraciones", content: <IntegracionesPage /> },
+];
 
 export default function ConfiguracionPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("usuarios");
+  const { can, isReady } = usePermissions();
 
-  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area"))) {
-    setLocation("/dashboard");
+  const isAdmin = user?.role === "admin";
+  const visibleTabs = useMemo(
+    () =>
+      CONFIG_TABS.filter((tab) =>
+        tab.permission === null ? isAdmin : can(tab.permission),
+      ),
+    [isAdmin, can],
+  );
+
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const currentTab = activeTab && visibleTabs.some((t) => t.value === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.value;
+
+  if (!user || (isReady && !can("configuracion"))) {
+    setLocation("/");
     return null;
+  }
+
+  if (!isReady || visibleTabs.length === 0) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   return (
@@ -30,89 +77,38 @@ export default function ConfiguracionPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Configuración</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Gestión de usuarios, metas, monitoreo ETL y configuraciones del sistema
+              Gestión de usuarios, roles, metas, monitoreo ETL y configuraciones del sistema
             </p>
           </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={currentTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-2 px-2">
           <TabsList className="inline-flex min-w-max gap-1 p-1">
-            <TabsTrigger value="usuarios" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-usuarios">
-              <Users className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Gestión de Usuarios</span>
-              <span className="sm:hidden">Usuarios</span>
-            </TabsTrigger>
-            <TabsTrigger value="metas" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-metas">
-              <Target className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Gestión de Metas</span>
-              <span className="sm:hidden">Metas</span>
-            </TabsTrigger>
-            <TabsTrigger value="etl" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-etl">
-              <Database className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Monitor ETL</span>
-              <span className="sm:hidden">ETL</span>
-            </TabsTrigger>
-            <TabsTrigger value="api-keys" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-api-keys">
-              <Key className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">API Keys</span>
-              <span className="sm:hidden">APIs</span>
-            </TabsTrigger>
-            <TabsTrigger value="importar" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-importar">
-              <Upload className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Importar Datos</span>
-              <span className="sm:hidden">Importar</span>
-            </TabsTrigger>
-            <TabsTrigger value="correos" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-correos">
-              <Mail className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Correos</span>
-              <span className="sm:hidden">Correos</span>
-            </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-whatsapp">
-              <MessageCircle className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">WhatsApp</span>
-              <span className="sm:hidden">WhatsApp</span>
-            </TabsTrigger>
-            <TabsTrigger value="integraciones" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-integraciones">
-              <Link2 className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Integraciones</span>
-              <span className="sm:hidden">Integr.</span>
-            </TabsTrigger>
+            {visibleTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3"
+                  data-testid={`tab-config-${tab.value}`}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
         </div>
 
-        <TabsContent value="usuarios" className="mt-6">
-          <UsersPage />
-        </TabsContent>
-
-        <TabsContent value="metas" className="mt-6">
-          <Metas />
-        </TabsContent>
-
-        <TabsContent value="etl" className="mt-6">
-          <ETLMonitor />
-        </TabsContent>
-
-        <TabsContent value="api-keys" className="mt-6">
-          <ApiKeysPage />
-        </TabsContent>
-
-        <TabsContent value="importar" className="mt-6">
-          <ImportarDatos />
-        </TabsContent>
-
-        <TabsContent value="correos" className="mt-6">
-          <NotificacionesConfigPage />
-        </TabsContent>
-
-        <TabsContent value="whatsapp" className="mt-6">
-          <WhatsAppConfigPage />
-        </TabsContent>
-
-        <TabsContent value="integraciones" className="mt-6">
-          <IntegracionesPage />
-        </TabsContent>
+        {visibleTabs.map((tab) => (
+          <TabsContent key={tab.value} value={tab.value} className="mt-6">
+            {tab.content}
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );
