@@ -142,6 +142,32 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
     enabled: vendorView,
   });
 
+  // Ofertas: mapa codigo→precio oferta para mostrar como columna en la vista de vendedor.
+  // Solo ofertas regulares, activas (no pausadas) y globales (allClients), para no exponer
+  // precios que aplican solo a clientes específicos. Si hay varias por código, toma la menor.
+  const { data: offerPricesByCode } = useQuery<Record<string, number>>({
+    queryKey: ['/api/price-list-offers', 'all-for-comercial'],
+    queryFn: async () => {
+      const response = await fetch('/api/price-list-offers?limit=5000&offset=0', { credentials: 'include' });
+      if (!response.ok) return {};
+      const json = await response.json();
+      const map: Record<string, number> = {};
+      for (const it of (json.items || [])) {
+        if (it.offerType && it.offerType !== 'regular') continue;
+        if (it.paused) continue;
+        if (it.allClients === false) continue;
+        if (!it.codigo || it.precio == null) continue;
+        const n = typeof it.precio === 'string' ? parseFloat(it.precio) : it.precio;
+        if (isNaN(n)) continue;
+        const key = it.codigo.toUpperCase();
+        if (map[key] == null || n < map[key]) map[key] = n;
+      }
+      return map;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: vendorView,
+  });
+
   // Query para obtener precios GRI (costo producción desde SQL Server)
   const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ['/api/inventory/gri-prices'],
@@ -687,6 +713,9 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                     {vendorView && (
                       <TableHead className="text-right text-xs text-red-600 dark:text-red-400 font-semibold">Lista Mix</TableHead>
                     )}
+                    {vendorView && (
+                      <TableHead className="text-right text-xs text-emerald-600 dark:text-emerald-400 font-semibold"><span className="flex items-center justify-end gap-1"><Tag className="h-3 w-3" />Ofertas</span></TableHead>
+                    )}
                     {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
@@ -774,6 +803,14 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                                 </div>
                               </TableCell>
                             )}
+                            {vendorView && (() => {
+                              const oferta = item.codigo ? (offerPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null;
+                              return (
+                                <TableCell className="text-right py-2 text-emerald-600 dark:text-emerald-400 font-semibold" data-testid={`text-oferta-${item.id}`}>
+                                  <div className="text-xs">{oferta != null ? formatCurrency(oferta) : '—'}</div>
+                                </TableCell>
+                              );
+                            })()}
                           </>
                         );
                       })()}
