@@ -1618,6 +1618,7 @@ export function registerRoutes(app: Express): Server {
       segment: segment as string,
       salesperson: salesperson as string,
       client: client as string,
+      product: product as string,
       branch: branch as string,
     };
 
@@ -1677,9 +1678,10 @@ export function registerRoutes(app: Express): Server {
       segment: segment as string,
       salesperson: salesperson as string,
       client: client as string,
+      product: product as string,
     };
 
-    // Parse comparison period date range if provided  
+    // Parse comparison period date range if provided
     let compDateRange: any = {};
     if (comparePeriod) {
       if ((comparePeriod as string).includes('_')) {
@@ -1806,7 +1808,7 @@ export function registerRoutes(app: Express): Server {
   // When current year has minimal data (early in year), shows previous year as main reference
   app.get('/api/sales/yearly-totals', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
-      const { segment, salesperson, client, endDateStr } = req.query;
+      const { segment, salesperson, client, product, endDateStr } = req.query;
 
       let currentYear = new Date().getFullYear();
       if (typeof endDateStr === 'string' && endDateStr.match(/^\d{4}/)) {
@@ -1817,6 +1819,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
         salesperson: salesperson as string,
         client: client as string,
+        product: product as string,
       };
 
       const currentTotals = await storage.getYearlyTotals(currentYear, filters, endDateStr as string);

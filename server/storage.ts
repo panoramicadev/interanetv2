@@ -3028,7 +3028,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }, endDateStr?: string): Promise<{
+  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string; product?: string }, endDateStr?: string): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
     comparisonYear: number;
@@ -3036,7 +3036,7 @@ export class DatabaseStorage implements IStorage {
     isYTD: boolean;
   }> {
     // Cache key for yearly totals
-    const ytCacheKey = `yearlyTotals:${year}:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${endDateStr || ''}`;
+    const ytCacheKey = `yearlyTotals:${year}:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.product || ''}:${endDateStr || ''}`;
     const ytCached = this.getCached<{ currentYearTotal: number; previousYearTotal: number; comparisonYear: number; comparisonDate: string; isYTD: boolean }>(ytCacheKey);
     if (ytCached) return ytCached;
 
@@ -3098,6 +3098,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.client) {
       baseConditions.push(eq(factVentas.nokoen, filters.client));
+    }
+    if (filters?.product) {
+      baseConditions.push(eq(factVentas.nokoprct, filters.product));
     }
     if ((filters as any)?.branch) {
       baseConditions.push(...DatabaseStorage.getBranchConditions((filters as any).branch));

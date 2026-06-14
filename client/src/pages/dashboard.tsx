@@ -327,7 +327,7 @@ export default function Dashboard() {
         const today = new Date();
         const ytdEndDateStr = today.toISOString().split('T')[0];
         queryClient.setQueryData(
-          ['/api/sales/yearly-totals', segment, salespersonFilter, clientFilter, ytdEndDateStr],
+          ['/api/sales/yearly-totals', segment, salespersonFilter, clientFilter, productFilter, ytdEndDateStr],
           data.yearlyTotals
         );
       }
