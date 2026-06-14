@@ -97,6 +97,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const isActive = location === item.href;
     const isNotif = item.href === "/notificaciones";
     const isAi = item.href === "/ai-assistant";
+    const isPremium = item.isPremium;
     const isExpanded = expandedItems.has(item.href);
     const hasChildren = item.children && item.children.length > 0;
 
@@ -190,24 +191,37 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <button
             onClick={() => setIsMobileOpen(false)}
             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative group
-              ${isAi
-                ? isActive
-                  ? "text-blue-400 bg-blue-500/10 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
-                  : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
-                : isNotif
-                  ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                  : isActive ? "text-white bg-white/10" : "text-slate-200 hover:text-white hover:bg-slate-700/60"
+              ${isPremium
+                ? isActive ? "bg-amber-500/15 group" : "hover:bg-amber-500/10 group"
+                : isAi
+                  ? isActive
+                    ? "text-blue-400 bg-blue-500/10 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                    : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
+                  : isNotif
+                    ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                    : isActive ? "text-white bg-white/10" : "text-slate-200 hover:text-white hover:bg-slate-700/60"
               }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isAi
-              ? "text-blue-500"
-              : isActive && !isNotif ? "text-white" : "text-slate-400"
+            <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isPremium
+              ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]"
+              : isAi
+                ? "text-blue-500"
+                : isActive && !isNotif ? "text-white" : "text-slate-400"
               }`}
             />
-            <span className={`flex-1 text-left ${isAi ? "font-bold tracking-tight" : ""}`}>
-              {item.label}
-            </span>
+            {isPremium ? (
+              <span
+                className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]"
+                style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+              >
+                {item.label}
+              </span>
+            ) : (
+              <span className={`flex-1 text-left ${isAi ? "font-bold tracking-tight" : ""}`}>
+                {item.label}
+              </span>
+            )}
             {isAi && (
               <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
             )}

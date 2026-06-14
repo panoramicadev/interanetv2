@@ -291,6 +291,12 @@ export default function Dashboard() {
   const productFilter = globalFilter.type === "product" ? globalFilter.value : undefined;
   const branchFilter = globalFilter.type === "branch" ? globalFilter.value : undefined;
 
+  // El vendedor entra al mismo Dashboard del admin pero se auto-bloquea a su propio
+  // filtro (ver useEffect "Auto-configure salesperson view"). Hasta que ese bloqueo se
+  // aplique, el filtro global está en "all" → evitamos renderizar contenido o disparar
+  // fetches a nivel empresa que mostrarían/filtrarían datos de toda la compañía.
+  const salespersonLockPending = user?.role === 'salesperson' && globalFilter.type !== 'salesperson';
+
   const { data: dashboardInit } = useQuery({
     queryKey: ["/api/dashboard/init", selectedPeriod, filterType, segment, salespersonFilter, clientFilter, productFilter, branchFilter],
     queryFn: async () => {
@@ -330,6 +336,7 @@ export default function Dashboard() {
     },
     placeholderData: keepPreviousData,
     staleTime: 60_000,
+    enabled: !salespersonLockPending,
   });
 
   // Use pre-fetched availablePeriods from consolidated init
@@ -354,7 +361,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: filterType === "month", // Only fetch for month view
+    enabled: filterType === "month" && !salespersonLockPending, // Only fetch for month view
   });
 
   // Query to fetch pending expenses (estado = "pendiente")
@@ -1071,6 +1078,19 @@ export default function Dashboard() {
   // (no usa componente embedido, usa los mismos componentes del dashboard principal con filtro de cliente)
   const selectedClient = globalFilter.type === "client" && globalFilter.value ? globalFilter.value : undefined;
 
+  // Vendedor: no renderizar el contenido (que por defecto es la vista "all" a nivel
+  // empresa) hasta que el filtro se bloquee a su propio vendedor.
+  if (salespersonLockPending) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando tu panel...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Mobile Header with Logo, Menu and ETL Button */}
@@ -1117,7 +1137,9 @@ export default function Dashboard() {
                   </DrawerHeader>
 
                   <div className="px-6 space-y-6 overflow-y-auto flex-1">
-                    {/* Vista Section - PRIMERO */}
+                    {/* Vista Section - PRIMERO — oculto para vendedores (ver nota en header desktop) */}
+                    {user?.role !== 'salesperson' && (
+                    <>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
                         <Filter className="h-4 w-4" />
@@ -1375,6 +1397,8 @@ export default function Dashboard() {
                     </div>
 
                     <Separator />
+                    </>
+                    )}
 
                     {/* Período Section */}
                     <div className="space-y-4">
@@ -1446,7 +1470,12 @@ export default function Dashboard() {
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
             <div className="flex items-center gap-3">
-              {/* Vista */}
+              {/* Vista — oculto para vendedores: las vistas del top-bar
+                  (producto/cliente/segmento/vendedor) son a nivel empresa y NO están
+                  limitadas a sus datos. El vendedor filtra por producto/cliente dentro
+                  de su propia vista (SalespersonDetail), ya scopeada a su nombre. */}
+              {user?.role !== 'salesperson' && (
+              <>
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Vista:</span>
@@ -1653,6 +1682,8 @@ export default function Dashboard() {
                     onChange={(v) => setGlobalFilter({ type: "product", value: v })}
                   />
                 </div>
+              )}
+              </>
               )}
 
               {/* Período */}

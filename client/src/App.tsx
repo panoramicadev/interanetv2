@@ -20,7 +20,6 @@ import CatalogoPublico from "@/pages/catalogo-publico";
 import ProductoPublic from "@/pages/producto-public";
 import Cotizador from "@/pages/cotizador";
 import Dashboard from "@/pages/dashboard";
-import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
 import TecnicoObraDashboard from "@/pages/tecnico-obra-dashboard";
 import MisVendedoresPage from "@/pages/mis-vendedores";
@@ -205,7 +204,10 @@ function Router() {
                 case 'logistica_bodega':
                   return <Dashboard />;
                 case 'salesperson':
-                  return <SalespersonDashboard />;
+                  // El vendedor ve el mismo dashboard del admin (Dashboard se auto-fija
+                  // al filtro de su propio vendedor y renderiza SalespersonDetail con
+                  // filtrado por producto/cliente limitado a sus datos).
+                  return <Dashboard />;
                 case 'tecnico_obra':
                   return <VisitasTecnicasPage />;
                 case 'reception':
