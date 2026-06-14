@@ -29,7 +29,6 @@ import PendingDocumentsUnified from "@/components/dashboard/pending-documents-un
 import PeriodComparisonChart from "@/components/salesperson/period-comparison-chart";
 import type { DateRange } from "react-day-picker";
 import {
-  TrendingUp,
   Users,
   DollarSign,
   Package,
@@ -649,7 +648,7 @@ export default function SalespersonDashboard() {
       <main className="space-y-4 md:space-y-6 px-3 md:px-4 lg:px-6 py-4 md:py-6">
 
         {/* KPIs del Vendedor - ARRIBA */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3" data-testid="section-kpi-cards">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="section-kpi-cards">
 
           {/* Ventas Totales */}
           <Card className="rounded-2xl shadow-sm border border-emerald-100 bg-emerald-50/60" data-testid="card-ventas-totales">
@@ -681,19 +680,6 @@ export default function SalespersonDashboard() {
             </CardContent>
           </Card>
 
-          {/* Transacciones */}
-          <Card className="rounded-2xl shadow-sm border border-violet-100 bg-violet-50/60" data-testid="card-transacciones">
-            <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center">
-                <Package className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-xl font-bold text-violet-900" data-testid="text-transacciones">
-                {salesData.transactions}
-              </div>
-              <p className="text-xs text-violet-600 font-medium">Transacciones</p>
-            </CardContent>
-          </Card>
-
           {/* Días última venta */}
           <Card className="rounded-2xl shadow-sm border border-amber-100 bg-amber-50/60" data-testid="card-dias-ultima-venta">
             <CardContent className="p-4 flex flex-col gap-2">
@@ -704,19 +690,6 @@ export default function SalespersonDashboard() {
                 {salesData.daysSinceLastSale}d
               </div>
               <p className="text-xs text-amber-600 font-medium">Días sin venta</p>
-            </CardContent>
-          </Card>
-
-          {/* Ticket Promedio */}
-          <Card className="rounded-2xl shadow-sm border border-indigo-100 bg-indigo-50/60" data-testid="card-ticket-promedio">
-            <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-xl font-bold text-indigo-900 truncate" data-testid="text-ticket-promedio">
-                {formatCurrency(salesData.avgTicket)}
-              </div>
-              <p className="text-xs text-indigo-600 font-medium">Ticket Promedio</p>
             </CardContent>
           </Card>
 
