@@ -1421,8 +1421,8 @@ export default function SalespersonDetail({
             </>
           ) : (
             <>
-              {/* Filtros Cliente/Producto — limitados a los datos del vendedor */}
-              {salespersonName && (
+              {/* Filtros Cliente/Producto — solo para el vendedor, no para el admin */}
+              {salespersonName && user?.role === 'salesperson' && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm dark:bg-slate-900 dark:border-gray-700">
                   <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
                     <Filter className="h-4 w-4 text-gray-400" />
