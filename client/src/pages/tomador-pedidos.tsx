@@ -24,10 +24,11 @@ import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
 import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-taker/ecommerce-orders-list";
 import VoiceOrderDialog, { VoiceOrderConfirmPayload } from "@/components/order-taker/voice-order-dialog";
+import { MultiColorProductCard } from "@/components/order-taker/MultiColorProductCard";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck, Mic } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck, Mic, Sparkles, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -727,7 +728,8 @@ export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, sho
   );
 };
 
-export default function TomadorPedidos() {
+export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v2" } = {}) {
+  const isV2 = variant === "v2";
   const { user } = useAuth();
   const [location, navigate] = useLocation();
 
@@ -1508,6 +1510,42 @@ export default function TomadorPedidos() {
     }
     return map;
   }, [offersPricesResponse]);
+
+  // ===== Tomador 2 (beta): catálogo agrupado por color =====
+  // Estructura genérica → colores → formatos (solo se consulta en v2).
+  const { data: v2CatalogData, isLoading: v2CatalogLoading } = useQuery<any>({
+    queryKey: ["/api/products/grouped-catalog", { search: debouncedProductSearchTerm, groupFilter: selectedCategory }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (debouncedProductSearchTerm) params.set("search", debouncedProductSearchTerm);
+      if (selectedCategory && selectedCategory !== "all") params.set("groupFilter", selectedCategory);
+      const res = await fetch(`/api/products/grouped-catalog?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch grouped catalog");
+      return res.json();
+    },
+    enabled: isV2 && debouncedProductSearchTerm.length >= 2,
+  });
+  const v2Catalog: any[] = v2CatalogData?.catalog ?? [];
+
+  // Mapa SKU → fila completa de price_list, para resolver los tramos REALES
+  // (10%, 10%+5%, mix, oferta, etc.) de cada variante del catálogo agrupado.
+  const { data: v2PriceListData } = useQuery<any>({
+    queryKey: ["/api/price-list", "v2-tiers", { search: debouncedProductSearchTerm }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: debouncedProductSearchTerm, limit: "300" });
+      const res = await fetch(`/api/price-list?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch price list");
+      return res.json();
+    },
+    enabled: isV2 && debouncedProductSearchTerm.length >= 2,
+  });
+  const v2PriceListByCode = useMemo(() => {
+    const map = new Map<string, PriceList>();
+    (v2PriceListData?.items ?? []).forEach((p: PriceList) => {
+      if (p.codigo) map.set(p.codigo.toUpperCase(), p);
+    });
+    return map;
+  }, [v2PriceListData]);
 
   // Fetch inventory data for stock display
   const { data: inventoryData, isLoading: isLoadingInventory, isError: isInventoryError } = useQuery({
@@ -3093,6 +3131,111 @@ export default function TomadorPedidos() {
     return tiers;
   };
 
+  // ===== Helpers del Tomador 2 (beta) =====
+  // Resuelve los tramos REALES de una variante del catálogo agrupado cruzando
+  // su SKU contra price_list. Si no hay fila, cae al precio base de la variante.
+  const v2GetTiersForVariant = (v: { sku?: string; priceList?: string | null; price?: string | null }): PriceTierOption[] => {
+    const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+    if (pl) {
+      const tiers = getAvailableTiers(pl);
+      if (tiers.length > 0) return tiers;
+    }
+    const base = parseFloat((v.priceList ?? v.price ?? "0").toString());
+    return base > 0 ? [{ key: "lista" as PriceTier, label: "Lista", price: base }] : [];
+  };
+
+  // Agrega una línea al carrito con tramo y cantidad explícitos (usado por v2).
+  // Reutiliza el mismo shape de CartItem y el auto-guardado del tomador clásico.
+  const addProductLineToCart = (product: PriceList, tierKey: PriceTier, qty: number, unitPrice: number) => {
+    const safeQty = Math.max(1, Math.round(qty || 1));
+    const availableTiers = getAvailableTiers(product);
+    setCart(prev => {
+      const existing = prev.find(it => it.type === "standard" && it.productCode === product.codigo && it.priceTier === tierKey);
+      let newCart: CartItem[];
+      if (existing) {
+        newCart = prev.map(it => it.id === existing.id
+          ? { ...it, quantity: it.quantity + safeQty, totalPrice: (it.quantity + safeQty) * it.unitPrice }
+          : it);
+      } else {
+        const newItem: CartItem = {
+          id: `item-${Date.now()}-${Math.random()}`,
+          type: "standard",
+          productName: product.producto || "Producto sin nombre",
+          productCode: product.codigo,
+          quantity: safeQty,
+          unitPrice,
+          totalPrice: unitPrice * safeQty,
+          priceTier: tierKey,
+          tierPrices: availableTiers,
+          productUnit: product.unidad || "UN",
+        };
+        newCart = [...prev, newItem];
+      }
+      triggerAutoSave(newCart);
+      return newCart;
+    });
+  };
+
+  // Render del catálogo multi-color del Tomador 2.
+  const renderV2Catalog = () => {
+    if (debouncedProductSearchTerm.length < 2) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          <Search className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          <p className="text-sm">Busca un producto para empezar</p>
+          <p className="text-xs mt-1">Escribe al menos 2 caracteres</p>
+        </div>
+      );
+    }
+    if (v2CatalogLoading) {
+      return (
+        <div className="text-center py-6">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Buscando productos...</p>
+        </div>
+      );
+    }
+    if (v2Catalog.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          <Package className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          <p className="text-sm">No se encontraron productos</p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 gap-3 p-1">
+        {v2Catalog.map((product: any) => (
+          <MultiColorProductCard
+            key={product.genericName}
+            product={product}
+            getAvailableTiers={v2GetTiersForVariant as any}
+            onAdd={(lines) => {
+              lines.forEach(({ variant: v, tier, qty }) => {
+                const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+                if (pl) {
+                  addProductLineToCart(pl, tier.key as PriceTier, qty, tier.price);
+                } else {
+                  // Sin fila en price_list: arma un item mínimo desde la variante.
+                  addProductLineToCart(
+                    { codigo: v.sku, producto: `${product.genericName} ${v.color}`.trim(), unidad: v.format } as any,
+                    "lista" as PriceTier,
+                    qty,
+                    tier.price,
+                  );
+                }
+              });
+              toast({
+                title: lines.length === 1 ? "Color agregado" : `${lines.length} colores agregados`,
+                description: product.genericName,
+              });
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
   // Open the quote builder pre-filled from a voice/text order draft
   const handleVoiceOrderConfirm = (payload: VoiceOrderConfirmPayload) => {
     const { client, clientName, notes, items } = payload;
@@ -3237,11 +3380,16 @@ export default function TomadorPedidos() {
             <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-orange-600`} />
           </div>
           <div>
-            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight`}>
-              Tomador de Pedidos
+            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight flex items-center gap-2`}>
+              {isV2 ? "Tomador de Pedidos 2" : "Tomador de Pedidos"}
+              {isV2 && (
+                <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5">
+                  Beta
+                </span>
+              )}
             </h1>
             <p className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-sm'} mt-0.5`}>
-              Presupuestos, cotizaciones y pedidos
+              {isV2 ? "Nuevo catálogo: varios colores por producto" : "Presupuestos, cotizaciones y pedidos"}
             </p>
           </div>
         </div>
@@ -3249,6 +3397,31 @@ export default function TomadorPedidos() {
         {/* Action Buttons in Header */}
         {!(isMobile && showClientSearch) && (
           <div className="flex items-center gap-2">
+            {isV2 ? (
+              <Link href="/tomador-pedidos">
+                <Button
+                  variant="outline"
+                  className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                  size="sm"
+                  data-testid="button-tomador-clasico"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  {isMobile ? "Clásico" : "Volver al clásico"}
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/tomador-pedidos-v2">
+                <Button
+                  variant="outline"
+                  className={`border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 hover:text-orange-800 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                  size="sm"
+                  data-testid="button-tomador-v2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isMobile ? "Nuevo" : "Probar nuevo tomador"}
+                </Button>
+              </Link>
+            )}
             <Button
               onClick={() => setShowVoiceOrder(true)}
               variant="outline"
@@ -3995,7 +4168,7 @@ export default function TomadorPedidos() {
 
                       {/* Mobile Product Results */}
                       <div className="space-y-3">
-                        {priceList.length > 0 ? (
+                        {isV2 ? renderV2Catalog() : priceList.length > 0 ? (
                           priceList.filter((product: PriceList) => {
                             // Filter by search term
                             if (productSearchTerm && productSearchTerm.trim().length > 0) {
@@ -4806,7 +4979,7 @@ export default function TomadorPedidos() {
 
                         {productSearchTerm.length >= 2 && (
                           <div className="space-y-2 max-h-96 overflow-y-auto border rounded-lg">
-                            {priceListLoading ? (
+                            {isV2 ? renderV2Catalog() : priceListLoading ? (
                               <div className="text-center py-4">
                                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
                                 <p className="text-sm text-muted-foreground mt-2">Buscando productos...</p>

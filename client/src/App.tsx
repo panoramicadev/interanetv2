@@ -129,6 +129,10 @@ function guarded(permission: string, Component: any) {
   return wrapped;
 }
 
+// Tomador 2 (beta): misma página, variante v2. Convive con el tomador clásico
+// para que los vendedores tengan respaldo si algo falla en el nuevo.
+const TomadorPedidosV2 = (props: any) => <TomadorPedidos {...props} variant="v2" />;
+
 function Router() {
   const { user, isLoading } = useAuth();
 
@@ -284,6 +288,7 @@ function Router() {
               return <PromesasCompraPage />;
             }} />
             <Route path="/tomador-pedidos" component={guarded("tomador_pedidos", TomadorPedidos)} />
+            <Route path="/tomador-pedidos-v2" component={guarded("tomador_pedidos", TomadorPedidosV2)} />
             <Route path="/seguimiento-pedidos" component={guarded("seguimiento_pedidos", SeguimientoPedidos)} />
             <Route path="/seguimiento-clientes/:id" component={guarded("clientes.seguimiento", SeguimientoClienteDetalle)} />
             <Route path="/seguimiento-clientes" component={guarded("clientes.seguimiento", SeguimientoClientes)} />
