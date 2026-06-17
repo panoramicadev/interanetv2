@@ -10025,14 +10025,33 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado. Solo clientes pueden consultar su propio historial ERP.' });
       }
 
-      if (!user.clientRut) {
+      // Resolvemos el scope del cliente desde su SESIÓN (ficha + todos los códigos de la
+      // empresa: casa matriz + sucursales por RUT, por parentClientId y por asignación).
+      // NO usamos user.clientRut: ese campo no viaja en la sesión (getUser no lo expone),
+      // así que depender de él dejaba el historial SIEMPRE vacío para todos los clientes.
+      const scope = await resolveClientScope(user.id);
+      if (!scope || (scope.koens.length === 0 && !scope.cleanRut)) {
         return res.json({ nvv: [], gdv: [], transactions: [] });
       }
 
       const { nvvPendingSales, factGdv, salesTransactions } = await import('@shared/schema');
       const { sql, and, gte, desc } = await import('drizzle-orm');
-      
-      const cleanRut = user.clientRut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
+
+      // En las tablas espejo del ERP `endo` = código de cliente (koen), NO el RUT
+      // (mismo SELECT* que ventas.fact_ventas). Igualamos por koen — camino validado en
+      // account-status — y, por robustez, también por RUT normalizado.
+      const koens = scope.koens;
+      const cleanRut = scope.cleanRut;
+      const ownsBy = (col: any) => {
+        const parts: any[] = [];
+        if (koens.length > 0) {
+          parts.push(sql`TRIM(${col}) IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})`);
+        }
+        if (cleanRut) {
+          parts.push(sql`REPLACE(REPLACE(REPLACE(UPPER(${col}), '.', ''), '-', ''), ' ', '') = ${cleanRut}`);
+        }
+        return parts.length > 1 ? sql`(${sql.join(parts, sql` OR `)})` : parts[0];
+      };
 
       // Ventana de historial (meses). Por defecto 12 (perf), ampliable vía ?months=
       // para vistas que necesitan más historial (p.ej. el listado de pedidos). Acotado a 60.
@@ -10042,13 +10061,13 @@ export function registerRoutes(app: Express): Server {
 
       // Fetch NVV (Pending orders, generally small list)
       const nvvData = await db.select().from(nvvPendingSales)
-        .where(sql`UPPER(REPLACE(REPLACE(REPLACE(${nvvPendingSales.ENDO}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`);
-      
+        .where(ownsBy(nvvPendingSales.ENDO));
+
       // Fetch GDV
       const gdvData = await db.select().from(factGdv)
         .where(
           and(
-            sql`UPPER(REPLACE(REPLACE(REPLACE(${factGdv.endo}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`,
+            ownsBy(factGdv.endo),
             gte(factGdv.feemdo, startDate as any)
           )
         );
@@ -10057,7 +10076,7 @@ export function registerRoutes(app: Express): Server {
         .from(salesTransactions)
         .where(
           and(
-            sql`UPPER(REPLACE(REPLACE(REPLACE(${salesTransactions.endo}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`,
+            ownsBy(salesTransactions.endo),
             gte(salesTransactions.feemdo, startDate as any)
           )
         )
@@ -10075,11 +10094,12 @@ export function registerRoutes(app: Express): Server {
   }));
 
 
-  // Resuelve el "scope" del cliente logueado para acotar cartera/facturas a lo que él
-  // puede ver, SIN confiar en parámetros del request. Devuelve su ficha + todos los
-  // códigos de cliente (koen) de la empresa (casa matriz + sucursales que comparten RUT).
-  // La cartera vive en ventas.fact_ventas donde endo = koen (NO el RUT), por eso necesitamos
-  // los koen y no alcanza con user.clientRut.
+  // Resuelve el "scope" del cliente logueado para acotar cartera/facturas/historial a lo
+  // que él puede ver, SIN confiar en parámetros del request. Devuelve su ficha + todos los
+  // códigos de cliente (koen) de la empresa, reunidos por 3 vías: (1) mismo RUT, (2) jerarquía
+  // de sucursales (parentClientId, caso MCT aunque cada plaza tenga RUT distinto) y (3) tabla
+  // de unión user_branch_assignments. La cartera vive en ventas.fact_ventas donde endo = koen
+  // (NO el RUT), por eso necesitamos los koen y no alcanza con user.clientRut.
   const resolveClientScope = async (userId: string) => {
     const client = await storage.getClientByUserId(userId);
     if (!client) return null;
@@ -10088,22 +10108,59 @@ export function registerRoutes(app: Express): Server {
     const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
     const cleanRut = normalizeRut(client.rten);
     const koens = new Set<string>();
+    const clientIds = new Set<string>();
     if (client.koen) koens.add(String(client.koen).trim());
+    if (client.id) clientIds.add(String(client.id));
+
+    const absorb = (r: any) => {
+      const rows = Array.isArray(r) ? r : (r as any).rows || [];
+      for (const row of rows) {
+        if (row.koen) koens.add(String(row.koen).trim());
+        if (row.id) clientIds.add(String(row.id));
+      }
+    };
+
+    // 1) Sucursales que comparten el mismo RUT (empresa con varias fichas bajo un RUT).
     if (cleanRut) {
       try {
-        const r = await db.execute(sql`
-          SELECT koen FROM clients
+        absorb(await db.execute(sql`
+          SELECT id, koen FROM clients
           WHERE REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut}
-        `);
-        const rows = Array.isArray(r) ? r : (r as any).rows || [];
-        for (const row of rows) if (row.koen) koens.add(String(row.koen).trim());
+        `));
       } catch (e) {
-        console.warn('[client-scope] sibling koen lookup failed:', e);
+        console.warn('[client-scope] sibling-by-RUT lookup failed:', e);
       }
     }
+
+    // 2) Jerarquía de sucursales por parentClientId (casa matriz + sus hijas), aunque
+    //    cada plaza tenga RUT distinto. Es el modelo usado por MCT y por la tienda
+    //    (/api/store/my-branches). El "root" es la casa matriz.
+    try {
+      const rootId = (client as any).parentClientId || client.id;
+      absorb(await db.execute(sql`
+        SELECT id, koen FROM clients
+        WHERE id = ${rootId} OR parent_client_id = ${rootId}
+      `));
+    } catch (e) {
+      console.warn('[client-scope] parent-hierarchy lookup failed:', e);
+    }
+
+    // 3) Sucursales asignadas explícitamente al usuario (tabla de unión multi-sucursal).
+    try {
+      absorb(await db.execute(sql`
+        SELECT c.id, c.koen
+        FROM user_branch_assignments uba
+        JOIN clients c ON c.id = uba.client_id
+        WHERE uba.user_id = ${userId}
+      `));
+    } catch (e) {
+      console.warn('[client-scope] branch-assignments lookup failed:', e);
+    }
+
     return {
       client,
-      koens: Array.from(koens),
+      koens: Array.from(koens).filter(Boolean),
+      clientIds: Array.from(clientIds).filter(Boolean),
       cleanRut,
       clientName: (client.nokoen || '') as string,
       rut: (client.rten || '') as string,
