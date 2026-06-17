@@ -1428,6 +1428,19 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
     placeholderData: tomadorInit?.colors,
   });
 
+  // Tomador 2 (beta): categorías reales de la tienda (Panorámica Store).
+  // Misma fuente de verdad que /tienda → /api/store/categories
+  // (app_config 'ecommerce_categories' → ecommerce_categories → categoria distinct).
+  const { data: storeCategories = [] } = useQuery<string[]>({
+    queryKey: ["/api/store/categories"],
+    queryFn: async () => {
+      const res = await fetch('/api/store/categories', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch store categories');
+      return res.json();
+    },
+    enabled: isV2,
+  });
+
   // Fetch products for quote builder
   const { data: priceListResponse, isLoading: priceListLoading } = useQuery({
     queryKey: ["/api/price-list", { search: debouncedProductSearchTerm, unidad: selectedUnidad, color: selectedColor, limit: 50 }],
@@ -3415,10 +3428,12 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
     const chex = (c?: string) => (c && V2_COLOR_HEX[c]) || "#cbd5e1";
     const units = cart.reduce((n, i) => n + i.quantity, 0);
 
+    // Categorías = las mismas de la tienda (Panorámica Store), traídas de
+    // /api/store/categories. "Todos" siempre primero. Si la tienda aún no
+    // devolvió nada, se muestra solo "Todos" (no más categorías inventadas).
     const CATS = [
-      { k: "all", label: "Todos" }, { k: "Anticorrosivos", label: "Anticorrosivos" },
-      { k: "Esmaltes", label: "Esmaltes" }, { k: "Látex", label: "Látex" },
-      { k: "Barnices", label: "Barnices" }, { k: "Diluyentes", label: "Diluyentes" },
+      { k: "all", label: "Todos" },
+      ...storeCategories.map((name) => ({ k: name, label: name })),
     ];
     const v2Formats = Array.from(new Set(v2Catalog.flatMap((p: any) =>
       Object.values(p.colors ?? {}).flatMap((vs: any) => (vs as any[]).map((v) => v.format)).filter(Boolean)))) as string[];
