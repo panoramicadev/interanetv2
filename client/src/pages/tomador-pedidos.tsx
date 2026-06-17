@@ -3254,10 +3254,6 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                       );
                     }
                   });
-                  toast({
-                    title: lines.length === 1 ? "Color agregado" : `${lines.length} colores agregados`,
-                    description: product.genericName,
-                  });
                 }}
               />
               {inCart > 0 && (
@@ -3610,9 +3606,20 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
           )}
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px solid #eef0f3", paddingTop: 11 }}><span style={{ color: "#475569" }}>IVA (19%)</span><span style={{ fontWeight: 700 }}>{formatCurrency(tax)}</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 15, fontWeight: 800, color: ORANGE }}>Total final</span><span style={{ fontSize: 22, fontWeight: 800, color: ORANGE }}>{formatCurrency(total)}</span></div>
-          <button onClick={() => saveQuote()} disabled={cart.length === 0 || isSavingQuote} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: cart.length === 0 ? "#f1f5f9" : ORANGE, color: cart.length === 0 ? "#cbd5e1" : "#fff", fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: cart.length === 0 ? "not-allowed" : "pointer", boxShadow: cart.length === 0 ? "none" : "0 3px 10px rgba(253,99,1,.3)" }}>
-            {isSavingQuote ? "Guardando..." : "Guardar presupuesto"}
-          </button>
+          {(!savedQuoteId || hasUnsavedChanges) ? (
+            <button onClick={() => saveQuote()} disabled={cart.length === 0 || isSavingQuote} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: cart.length === 0 ? "#f1f5f9" : ORANGE, color: cart.length === 0 ? "#cbd5e1" : "#fff", fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: cart.length === 0 ? "not-allowed" : "pointer", boxShadow: cart.length === 0 ? "none" : "0 3px 10px rgba(253,99,1,.3)" }}>
+              {isSavingQuote ? "Guardando..." : "Guardar presupuesto"}
+            </button>
+          ) : (
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => downloadPDF()} style={{ flex: 1, padding: "14px", borderRadius: 12, border: `1px solid ${ORANGE}`, background: "#fff", color: ORANGE, fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Download style={{ width: 17, height: 17 }} /> Descargar
+              </button>
+              <button onClick={() => sendOrder()} style={{ flex: 1, padding: "14px", borderRadius: 12, border: "none", background: ORANGE, color: "#fff", fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 3px 10px rgba(253,99,1,.3)" }}>
+                <Share2 style={{ width: 17, height: 17 }} /> Compartir
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
