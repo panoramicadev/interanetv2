@@ -43,6 +43,8 @@ export interface AddedLine {
   qty: number;
 }
 interface SelectedLine {
+  color: string;
+  format: string;
   tier: string;
   qty: number;
 }
@@ -124,7 +126,16 @@ export function MultiColorProductCard({
   }, [product, colors]);
 
   const [format, setFormat] = useState(allFormats[0] ?? "");
+  // Selección keyed por SKU → cada combinación color+envase vive independiente,
+  // así se acumulan colores de distintos formatos en el mismo listado.
   const [selected, setSelected] = useState<Record<string, SelectedLine>>({});
+
+  // Mapa SKU → variante (todas las variantes de todos los formatos).
+  const variantBySku = useMemo(() => {
+    const m: Record<string, FormatVariant> = {};
+    colors.forEach((c) => product.colors[c].forEach((v) => { m[v.sku] = v; }));
+    return m;
+  }, [product, colors]);
 
   const resolve = (color: string): FormatVariant =>
     product.colors[color]?.find((v) => v.format === format) ?? product.colors[color]?.[0];
@@ -137,36 +148,49 @@ export function MultiColorProductCard({
   const imageOf = (color: string): string | null =>
     resolve(color)?.imageUrl || product.colors[color]?.[0]?.imageUrl || null;
 
-  const toggleColor = (color: string) =>
+  // Toggle del color para el ENVASE activo: cada uno vive bajo su SKU propio.
+  const toggleColor = (color: string) => {
+    const v = resolve(color);
+    if (!v) return;
     setSelected((prev) => {
       const next = { ...prev };
-      if (next[color]) delete next[color];
-      else next[color] = { tier: "lista", qty: 1 };
+      if (next[v.sku]) delete next[v.sku];
+      else next[v.sku] = { color, format, tier: "lista", qty: 1 };
       return next;
     });
-  const setTier = (color: string, tier: string) =>
-    setSelected((p) => ({ ...p, [color]: { ...p[color], tier } }));
-  const bumpQty = (color: string, d: number) =>
-    setSelected((p) => ({ ...p, [color]: { ...p[color], qty: Math.max(1, p[color].qty + d) } }));
+  };
+  const removeSku = (sku: string) =>
+    setSelected((prev) => { const next = { ...prev }; delete next[sku]; return next; });
+  const setTier = (sku: string, tier: string) =>
+    setSelected((p) => ({ ...p, [sku]: { ...p[sku], tier } }));
+  const bumpQty = (sku: string, d: number) =>
+    setSelected((p) => ({ ...p, [sku]: { ...p[sku], qty: Math.max(1, p[sku].qty + d) } }));
 
   // Solo colores disponibles para el envase (formato) seleccionado
   const colorsForFormat = colors.filter((c) => product.colors[c]?.some((v) => v.format === format));
-  const rows = colorsForFormat.filter((c) => selected[c]);
-  const priceOf = (color: string) => {
-    const v = resolve(color);
-    return getAvailableTiers(v).find((t) => t.key === selected[color].tier)?.price ?? Number(v.price ?? 0);
+
+  // Filas = TODAS las selecciones de TODOS los formatos, ordenadas por envase y color.
+  const rowSkus = Object.keys(selected).sort((a, b) => {
+    const fa = allFormats.indexOf(selected[a].format);
+    const fb = allFormats.indexOf(selected[b].format);
+    if (fa !== fb) return fa - fb;
+    return selected[a].color.localeCompare(selected[b].color);
+  });
+  const priceOf = (sku: string) => {
+    const v = variantBySku[sku];
+    return getAvailableTiers(v).find((t) => t.key === selected[sku].tier)?.price ?? Number(v?.price ?? 0);
   };
-  const totalQty = rows.reduce((n, c) => n + selected[c].qty, 0);
-  const totalAmt = rows.reduce((n, c) => n + priceOf(c) * selected[c].qty, 0);
+  const totalQty = rowSkus.reduce((n, sku) => n + selected[sku].qty, 0);
+  const totalAmt = rowSkus.reduce((n, sku) => n + priceOf(sku) * selected[sku].qty, 0);
   const stock = (() => { const v = resolve(colors[0]); return v ? v.stock : 0; })();
   const fromPrice = Math.min(...colors.map((c) => Number(resolve(c)?.priceList ?? resolve(c)?.price ?? 0)).filter((n) => n > 0));
 
   const handleAdd = () => {
-    if (rows.length === 0) return;
-    onAdd(rows.map((color) => {
-      const v = resolve(color);
-      const tier = getAvailableTiers(v).find((t) => t.key === selected[color].tier)!;
-      return { variant: v, tier, qty: selected[color].qty };
+    if (rowSkus.length === 0) return;
+    onAdd(rowSkus.map((sku) => {
+      const v = variantBySku[sku];
+      const tier = getAvailableTiers(v).find((t) => t.key === selected[sku].tier)!;
+      return { variant: v, tier, qty: selected[sku].qty };
     }));
     setSelected({});
   };
@@ -186,7 +210,7 @@ export function MultiColorProductCard({
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <div style={{ width: 50, height: 50, borderRadius: 13, background: swatchOf(rows[0] ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
+          <div style={{ width: 50, height: 50, borderRadius: 13, background: swatchOf(selected[rowSkus[0]]?.color ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -218,7 +242,8 @@ export function MultiColorProductCard({
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           {colorsForFormat.map((c) => {
-            const active = !!selected[c];
+            const cv = resolve(c);
+            const active = !!(cv && selected[cv.sku]);
             const img = imageOf(c);
             return (
               <div key={c} onClick={() => toggleColor(c)} title={c} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 64, cursor: "pointer" }}>
@@ -246,24 +271,28 @@ export function MultiColorProductCard({
 
       {/* Filas por color: precio + cantidad */}
       <div style={{ paddingTop: 13, borderTop: "1px dashed #eef0f3" }}>
-        {rows.length > 0 && (
+        {rowSkus.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 13 }}>
-            {rows.map((color) => {
-              const v = resolve(color);
+            {rowSkus.map((sku) => {
+              const line = selected[sku];
+              const v = variantBySku[sku];
               const tiers = getAvailableTiers(v);
               return (
-                <div key={color} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, minWidth: 70 }}>{color}</span>
-                  <select value={selected[color].tier} onChange={(e) => setTier(color, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
+                <div key={sku} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
+                  <div style={{ minWidth: 92, display: "flex", flexDirection: "column", gap: 3 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{line.color}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, alignSelf: "flex-start", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
+                  </div>
+                  <select value={line.tier} onChange={(e) => setTier(sku, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
                     {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
                   </select>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
-                    <button onClick={() => bumpQty(color, -1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.minus()}</button>
-                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{selected[color].qty}</span>
-                    <button onClick={() => bumpQty(color, 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.plus()}</button>
+                    <button onClick={() => bumpQty(sku, -1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.minus()}</button>
+                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{line.qty}</span>
+                    <button onClick={() => bumpQty(sku, 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.plus()}</button>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 800, minWidth: 80, textAlign: "right" }}>{clp(priceOf(color) * selected[color].qty)}</span>
-                  <button onClick={() => toggleColor(color)} style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "flex", padding: 2 }}>{Ic.x()}</button>
+                  <span style={{ fontSize: 13, fontWeight: 800, minWidth: 80, textAlign: "right" }}>{clp(priceOf(sku) * line.qty)}</span>
+                  <button onClick={() => removeSku(sku)} style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "flex", padding: 2 }}>{Ic.x()}</button>
                 </div>
               );
             })}
@@ -273,14 +302,14 @@ export function MultiColorProductCard({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#475569" }}>
-              {rows.length > 0 ? `${rows.length} ${rows.length === 1 ? "color" : "colores"} · ${totalQty} un. · ${clp(totalAmt)}` : "Elige uno o más colores para cotizar"}
+              {rowSkus.length > 0 ? `${rowSkus.length} ${rowSkus.length === 1 ? "color" : "colores"} · ${totalQty} un. · ${clp(totalAmt)}` : "Elige uno o más colores para cotizar"}
             </div>
-            {rows.length > 0 && (
+            {rowSkus.length > 0 && (
               <div style={{ fontSize: 11, fontWeight: 600, color: "#16a34a", marginTop: 2 }}>Desde {clp(fromPrice)} · Stock {stock}</div>
             )}
           </div>
-          <button onClick={handleAdd} disabled={rows.length === 0} style={{ display: "flex", alignItems: "center", gap: 7, border: "none", fontFamily: FONT, fontSize: 14, fontWeight: 700, padding: "12px 18px", borderRadius: 12, whiteSpace: "nowrap", background: rows.length > 0 ? "#fd6301" : "#f1f5f9", color: rows.length > 0 ? "#fff" : "#cbd5e1", cursor: rows.length > 0 ? "pointer" : "not-allowed", boxShadow: rows.length > 0 ? "0 3px 10px rgba(253,99,1,.3)" : "none" }}>
-            {Ic.cart(17)} {rows.length > 0 ? `Agregar ${rows.length} ${rows.length === 1 ? "color" : "colores"}` : "Selecciona un color"}
+          <button onClick={handleAdd} disabled={rowSkus.length === 0} style={{ display: "flex", alignItems: "center", gap: 7, border: "none", fontFamily: FONT, fontSize: 14, fontWeight: 700, padding: "12px 18px", borderRadius: 12, whiteSpace: "nowrap", background: rowSkus.length > 0 ? "#fd6301" : "#f1f5f9", color: rowSkus.length > 0 ? "#fff" : "#cbd5e1", cursor: rowSkus.length > 0 ? "pointer" : "not-allowed", boxShadow: rowSkus.length > 0 ? "0 3px 10px rgba(253,99,1,.3)" : "none" }}>
+            {Ic.cart(17)} {rowSkus.length > 0 ? `Agregar ${rowSkus.length} ${rowSkus.length === 1 ? "color" : "colores"}` : "Selecciona un color"}
           </button>
         </div>
       </div>
