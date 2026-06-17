@@ -3136,10 +3136,29 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
   };
 
   // ===== Helpers del Tomador 2 (beta) =====
-  // Resuelve los tramos REALES de una variante del catálogo agrupado cruzando
-  // su SKU contra price_list. Si no hay fila, cae al precio base de la variante.
+  // Arma una fila estilo price_list a partir de los tramos que ahora viajan por
+  // variante en /grouped-catalog. Así no dependemos del fetch aparte (gateado
+  // por búsqueda y limitado a 300) para tener TODAS las listas en el dropdown.
+  const v2PriceListFromVariant = (v: any): PriceList | undefined => {
+    if (!v?.sku) return undefined;
+    return {
+      codigo: v.sku,
+      producto: v.name ?? "",
+      unidad: v.format ?? null,
+      lista: v.priceList ?? v.price ?? null,
+      desc10: v.desc10 ?? null,
+      desc10_5: v.desc10_5 ?? null,
+      desc10_5_3: v.desc10_5_3 ?? null,
+      minimo: v.minimo ?? null,
+      canalDigital: v.canalDigital ?? null,
+    } as PriceList;
+  };
+
+  // Resuelve los tramos REALES de una variante del catálogo agrupado. Prefiere
+  // la fila ya cargada por búsqueda y, si no está, usa los tramos embebidos en
+  // la variante; recién al final cae al precio base.
   const v2GetTiersForVariant = (v: { sku?: string; priceList?: string | null; price?: string | null }): PriceTierOption[] => {
-    const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+    const pl = (v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined) ?? v2PriceListFromVariant(v);
     if (pl) {
       const tiers = getAvailableTiers(pl);
       if (tiers.length > 0) return tiers;
@@ -3220,7 +3239,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                 onAdd={(lines) => {
                   lines.forEach(({ variant: v, tier, qty }) => {
                     const img = (v as any).imageUrl || product.imageUrl || undefined;
-                    const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+                    const pl = (v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined) ?? v2PriceListFromVariant(v);
                     if (pl) {
                       addProductLineToCart(pl, tier.key as PriceTier, qty, tier.price, v.color, img);
                     } else {
