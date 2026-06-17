@@ -7591,6 +7591,11 @@ export function registerRoutes(app: Express): Server {
         pl.producto as product_name,
         pl.unidad as unit,
         pl.lista as price_list,
+        pl.desc10 as desc10,
+        pl.desc10_5 as desc10_5,
+        pl.desc10_5_3 as desc10_5_3,
+        pl.minimo as minimo,
+        pl.canal_digital as canal_digital,
         COALESCE(stk.total_stock, 0) as total_stock,
         pc.breve_resena
       FROM ecommerce_products ep
@@ -7715,6 +7720,14 @@ export function registerRoutes(app: Express): Server {
         groupName,
         price: row.precio,
         priceList: row.price_list,
+        // Tramos REALES de price_list por variante, para que el dropdown del
+        // Tomador 2 muestre TODAS las listas (10%, 10%+5%, mínimo, digital, …)
+        // sin depender de un fetch aparte gateado por búsqueda.
+        desc10: row.desc10,
+        desc10_5: row.desc10_5,
+        desc10_5_3: row.desc10_5_3,
+        minimo: row.minimo,
+        canalDigital: row.canal_digital,
         stock: parseFloat(row.total_stock) || 0,
         minUnit: row.min_unit,
         stepSize: row.step_size,

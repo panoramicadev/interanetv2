@@ -253,7 +253,6 @@ export function MultiColorProductCard({
               const tiers = getAvailableTiers(v);
               return (
                 <div key={color} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
-                  <span style={{ width: 22, height: 22, borderRadius: 999, background: swatchOf(color), border: "1px solid rgba(15,23,42,.14)", flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 700, minWidth: 70 }}>{color}</span>
                   <select value={selected[color].tier} onChange={(e) => setTier(color, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
                     {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
