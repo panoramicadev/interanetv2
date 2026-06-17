@@ -83,27 +83,32 @@ interface Quote {
 const statusConfig = {
   draft: {
     label: "Borrador",
-    color: "bg-gray-100 text-gray-800",
+    color: "bg-slate-50 text-slate-600 ring-1 ring-slate-200",
+    dot: "bg-slate-400",
     icon: FileText,
   },
   sent: {
     label: "Enviada",
-    color: "bg-blue-100 text-blue-800",
+    color: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+    dot: "bg-blue-500",
     icon: Send,
   },
   accepted: {
     label: "Aceptada",
-    color: "bg-green-100 text-green-800",
+    color: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    dot: "bg-emerald-500",
     icon: CheckCircle,
   },
   rejected: {
     label: "Rechazada",
-    color: "bg-red-100 text-red-800",
+    color: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
+    dot: "bg-rose-500",
     icon: XCircle,
   },
   converted: {
     label: "Convertida a Pedido",
-    color: "bg-purple-100 text-purple-800",
+    color: "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+    dot: "bg-violet-500",
     icon: Package,
   },
 };
@@ -565,13 +570,12 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
   const getStatusBadge = (status: Quote['status']) => {
     const config = statusConfig[status];
-    const Icon = config.icon;
 
     return (
-      <Badge variant="secondary" className={`${config.color} flex items-center gap-1`}>
-        <Icon className="w-3 h-3" />
+      <span className={`${config.color} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
         {config.label}
-      </Badge>
+      </span>
     );
   };
 
@@ -596,23 +600,24 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   return (
     <div className="space-y-4">
       {/* Filters - Mobile Compact */}
-      <div className={`${isMobile ? 'space-y-3' : 'flex flex-col sm:flex-row gap-4'}`}>
+      <div className={isMobile ? 'space-y-3' : 'bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 space-y-4'}>
+      <div className={`${isMobile ? 'space-y-3' : 'flex flex-col sm:flex-row gap-3'}`}>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
             placeholder="Buscar por nombre de cliente..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); handleFilterChange(); }}
-            className={`pl-10 ${isMobile ? 'h-11 rounded-xl text-sm' : ''}`}
+            className={`pl-10 ${isMobile ? 'h-11 rounded-xl text-sm' : 'h-11 rounded-xl border-slate-200 focus-visible:ring-orange-300 focus-visible:border-orange-300'}`}
             style={isMobile ? { fontSize: '16px' } : undefined}
             data-testid="input-search-quotes"
           />
         </div>
 
-        <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex gap-4'}`}>
+        <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex gap-3'}`}>
           <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); handleFilterChange(); }}>
-            <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[200px]'}`} data-testid="select-status-filter">
-              <Filter className="w-3.5 h-3.5 mr-1.5" />
+            <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[190px] h-11 rounded-xl border-slate-200'}`} data-testid="select-status-filter">
+              <Filter className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
@@ -628,8 +633,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           {/* Creator Filter - Only for admin/supervisor */}
           {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && creators && creators.length > 0 && (
             <Select value={creatorFilter} onValueChange={(value) => { setCreatorFilter(value); handleFilterChange(); }}>
-              <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[200px]'}`} data-testid="select-creator-filter">
-                <User className="w-3.5 h-3.5 mr-1.5" />
+              <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[190px] h-11 rounded-xl border-slate-200'}`} data-testid="select-creator-filter">
+                <User className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
                 <SelectValue placeholder="Emisor" />
               </SelectTrigger>
               <SelectContent>
@@ -654,7 +659,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); handleFilterChange(); }}
-              className="w-[150px]"
+              className="w-[150px] h-11 rounded-xl border-slate-200"
               placeholder="Desde"
               data-testid="input-date-from"
             />
@@ -663,15 +668,16 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); handleFilterChange(); }}
-              className="w-[150px]"
+              className="w-[150px] h-11 rounded-xl border-slate-200"
               placeholder="Hasta"
               data-testid="input-date-to"
             />
           </div>
           {(dateFrom || dateTo || creatorFilter !== "all" || statusFilter !== "all" || searchTerm) && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className="rounded-xl text-slate-500 hover:text-orange-600 hover:bg-orange-50"
               onClick={() => {
                 setDateFrom("");
                 setDateTo("");
@@ -682,11 +688,13 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
               }}
               data-testid="button-clear-filters"
             >
+              <XIcon className="w-3.5 h-3.5 mr-1" />
               Limpiar filtros
             </Button>
           )}
         </div>
       )}
+      </div>{/* /filters card */}
 
       {/* Mobile Card View / Desktop Table View */}
       {isMobile ? (

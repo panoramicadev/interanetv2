@@ -85,6 +85,7 @@ import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MargenPage from "@/pages/margen";
 import MetricasProductos from "@/pages/metricas-productos";
+import ColoresPaleta from "@/pages/colores-paleta";
 import ProductDashboard from "@/pages/product-dashboard";
 import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
@@ -256,6 +257,7 @@ function Router() {
             <Route path="/productos" component={guarded("productos", Products)} />
             <Route path="/productos/:codigo" component={guarded("productos", ProductCatalogDetail)} />
             <Route path="/lista-precios" component={guarded("productos", ListaPrecios)} />
+            <Route path="/colores-paleta" component={guarded("productos", ColoresPaleta)} />
             <Route path="/ecommerce" component={guarded("market.configuracion", EcommerceAdmin)} />
             <Route path="/ecommerce-pedidos" component={guarded("market.pedidos", EcommercePedidos)} />
             <Route path="/logistica" component={guarded("market.logistica", Logistica)} />

@@ -7618,6 +7618,17 @@ export function registerRoutes(app: Express): Server {
       multiCatAssignments = mcRow?.value || {};
     } catch {}
 
+    // Load color palette (nombre_color → hex). Resiliente: si la tabla aún no
+    // existe (migración no aplicada), seguimos sin hex y la card usa su fallback.
+    const colorHexMap = new Map<string, string>();
+    try {
+      const palResult = await db.execute(sql`SELECT nombre_color, hex FROM color_palette`);
+      const palRows = (palResult as any).rows || [];
+      for (const pr of palRows) {
+        colorHexMap.set(String(pr.nombre_color).trim().toUpperCase(), pr.hex);
+      }
+    } catch { /* tabla color_palette no disponible todavía */ }
+
     // Structure: Product Group → Colors → Formats
     const productsMap = new Map<string, {
       genericName: string;
@@ -7625,6 +7636,8 @@ export function registerRoutes(app: Express): Server {
       categories: string[];
       tags: string[];
       breveResena: string | null;
+      imageUrl: string | null;
+      imageUrlPriority: number;
       colors: Map<string, any[]>;
     }>();
 
@@ -7663,6 +7676,8 @@ export function registerRoutes(app: Express): Server {
           categories: assignedCategories,
           tags: rowTags,
           breveResena: (row as any).breve_resena || null,
+          imageUrl: null,
+          imageUrlPriority: 0,
           colors: new Map(),
         });
       }
@@ -7671,6 +7686,21 @@ export function registerRoutes(app: Express): Server {
       if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
       // Pick the first non-null breveResena
       if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
+
+      // Imagen del producto: prioriza color BLANCO + formato GALÓN (misma lógica
+      // que /api/public/products/grouped) para elegir una foto representativa.
+      const rowImageUrl = (row as any).imagen_url || null;
+      if (rowImageUrl) {
+        let priority = 1;
+        const colorUpper = color.toUpperCase();
+        const formatUpper = formatUnit.toUpperCase();
+        if (colorUpper.includes('BLANCO')) priority += 10;
+        if (formatUpper.includes('GALON') || formatUpper.includes('GALÓN')) priority += 5;
+        if (priority > product.imageUrlPriority) {
+          product.imageUrl = rowImageUrl;
+          product.imageUrlPriority = priority;
+        }
+      }
 
       if (!product.colors.has(color)) {
         product.colors.set(color, []);
@@ -7690,6 +7720,7 @@ export function registerRoutes(app: Express): Server {
         stepSize: row.step_size,
         description: row.description,
         imageUrl: (row as any).imagen_url || null,
+        hex: colorHexMap.get(color.toUpperCase()) || null,
         dimensions: {
           weight: row.weight, weightUnit: row.weight_unit,
           length: row.length, lengthUnit: row.length_unit,
@@ -7727,8 +7758,28 @@ export function registerRoutes(app: Express): Server {
       categories: p.categories,
       tags: p.tags,
       breveResena: p.breveResena,
+      imageUrl: p.imageUrl,
       colors: Object.fromEntries(p.colors),
     }));
+
+    // Apply manual image overrides set from the admin's "Imagen Destacada" dialog
+    // (same source as /api/store/products/grouped — keep both in sync).
+    try {
+      const imgResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+      `);
+      const imgRow = (imgResult as any).rows?.[0];
+      const manualImages: Record<string, string> = imgRow?.value || {};
+      if (Object.keys(manualImages).length > 0) {
+        catalog.forEach(p => {
+          if (manualImages[p.genericName]) {
+            p.imageUrl = manualImages[p.genericName];
+          }
+        });
+      }
+    } catch (imgError) {
+      console.log('[grouped-catalog] manual images lookup skipped:', imgError);
+    }
 
     // Apply custom display order from app_config (same logic as store endpoint)
     try {
@@ -7756,6 +7807,50 @@ export function registerRoutes(app: Express): Server {
     const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
 
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
+  }));
+
+  // ── Paleta de colores del catálogo (hex por nombre de color) ──────────────
+  // Devuelve cada color distinto del catálogo cruzado con su hex guardado.
+  // Así el editor muestra TODOS los colores aunque la paleta esté incompleta.
+  app.get('/api/color-palette', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    let palette: Array<{ nombreColor: string; hex: string | null }> = [];
+    try {
+      const result = await db.execute(sql`
+        SELECT TRIM(c.color) AS nombre_color, cp.hex
+        FROM (SELECT DISTINCT TRIM(color) AS color FROM ecommerce_products
+              WHERE color IS NOT NULL AND TRIM(color) <> '') c
+        LEFT JOIN color_palette cp ON UPPER(TRIM(cp.nombre_color)) = UPPER(c.color)
+        ORDER BY c.color
+      `);
+      const rows = (result as any).rows || [];
+      palette = rows.map((r: any) => ({ nombreColor: r.nombre_color, hex: r.hex || null }));
+    } catch (e) {
+      console.error('[color-palette] GET error:', e);
+    }
+    res.json({ palette });
+  }));
+
+  // Upsert de uno o varios colores. Body: { colors: [{ nombreColor, hex }] }.
+  app.put('/api/color-palette', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    const colors = Array.isArray(req.body?.colors) ? req.body.colors : [];
+    const hexRe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+    let saved = 0;
+    for (const c of colors) {
+      const nombre = String(c?.nombreColor || '').trim();
+      const hex = String(c?.hex || '').trim();
+      if (!nombre || !hexRe.test(hex)) continue;
+      await db.execute(sql`
+        INSERT INTO color_palette (nombre_color, hex, updated_by, updated_at)
+        VALUES (${nombre}, ${hex}, ${req.user.id || null}, NOW())
+        ON CONFLICT (UPPER(TRIM(nombre_color)))
+        DO UPDATE SET hex = EXCLUDED.hex, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+      `);
+      saved++;
+    }
+    res.json({ ok: true, saved });
   }));
 
   // Toggle tags on product family

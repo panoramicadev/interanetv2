@@ -3741,6 +3741,32 @@ export type InsertReceta = z.infer<typeof insertRecetaSchema>;
 export type Parametro = typeof parametros.$inferSelect;
 export type InsertParametro = z.infer<typeof insertParametroSchema>;
 
+// =============================================================================
+// PALETA DE COLORES DEL CATÁLOGO
+// -----------------------------------------------------------------------------
+// Fuente de verdad del hex por nombre de color (ecommerce_products.color).
+// La usan los swatches del Tomador de Pedidos / Constructor de Presupuesto.
+// El match contra ep.color es case-insensitive (ver índice único en migración).
+// =============================================================================
+export const colorPalette = pgTable("color_palette", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombreColor: text("nombre_color").notNull(),
+  hex: varchar("hex", { length: 32 }).notNull().default("#cbd5e1"),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertColorPaletteSchema = createInsertSchema(colorPalette).omit({
+  id: true,
+  updatedAt: true,
+}).extend({
+  nombreColor: z.string().min(1, "El nombre del color es obligatorio"),
+  hex: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Debe ser un hex válido, ej: #fd6301"),
+});
+
+export type ColorPalette = typeof colorPalette.$inferSelect;
+export type InsertColorPalette = z.infer<typeof insertColorPaletteSchema>;
+
 // Pedidos del eCommerce - Purchases made from ecommerce that need approval from salesperson
 export const ecommerceOrders = pgTable("ecommerce_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

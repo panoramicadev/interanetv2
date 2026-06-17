@@ -127,6 +127,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Sparkles,
     },
     {
+      href: "/colores-paleta",
+      label: "Paleta de Colores",
+      icon: Palette,
+    },
+    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,

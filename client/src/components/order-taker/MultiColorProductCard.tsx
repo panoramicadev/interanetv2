@@ -27,10 +27,13 @@ export interface FormatVariant {
   price: string | null;
   priceList: string | null;
   stock: number;
+  hex?: string | null;       // hex real desde color_palette (vía API)
+  imageUrl?: string | null;  // imagen de la variante (rara vez poblada)
 }
 export interface GenericProduct {
   genericName: string;
   breveResena: string | null;
+  imageUrl?: string | null;  // foto representativa del producto (vía API)
   colors: { [color: string]: FormatVariant[] };
 }
 export type PriceTier = { key: string; label: string; price: number };
@@ -56,7 +59,22 @@ const COLOR_HEX: Record<string, string> = {
   Incoloro: "linear-gradient(135deg,#e2e8f0,#f1f5f9)",
 };
 const colorHex = (c: string) => COLOR_HEX[c] ?? "#cbd5e1";
-const isDark = (c: string) => ["Negro", "Rojo", "Gris"].includes(c);
+// Contraste del check según luminancia del fondo (funciona con cualquier hex).
+const isDarkHex = (bg: string): boolean => {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(bg?.trim() || "");
+  if (!m) {
+    const s = /^#([0-9a-fA-F]{3})$/.exec(bg?.trim() || "");
+    if (!s) return false; // gradientes u otros → asume claro
+    const r = parseInt(s[1][0] + s[1][0], 16);
+    const g = parseInt(s[1][1] + s[1][1], 16);
+    const b = parseInt(s[1][2] + s[1][2], 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+  }
+  const r = parseInt(m[1].slice(0, 2), 16);
+  const g = parseInt(m[1].slice(2, 4), 16);
+  const b = parseInt(m[1].slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+};
 const clp = (n: number) => "$" + Math.round(n).toLocaleString("es-CL");
 
 // Fallback de tramos — SOLO si no se pasa getAvailableTiers.
@@ -111,6 +129,14 @@ export function MultiColorProductCard({
   const resolve = (color: string): FormatVariant =>
     product.colors[color]?.find((v) => v.format === format) ?? product.colors[color]?.[0];
 
+  // Hex real del color (color_palette vía API); fallback al mapa local y luego gris.
+  const swatchOf = (color: string): string =>
+    product.colors[color]?.[0]?.hex || colorHex(color);
+
+  // Foto de la variante (SKU) para el color/envase actual; fallback a la 1ª variante.
+  const imageOf = (color: string): string | null =>
+    resolve(color)?.imageUrl || product.colors[color]?.[0]?.imageUrl || null;
+
   const toggleColor = (color: string) =>
     setSelected((prev) => {
       const next = { ...prev };
@@ -123,7 +149,9 @@ export function MultiColorProductCard({
   const bumpQty = (color: string, d: number) =>
     setSelected((p) => ({ ...p, [color]: { ...p[color], qty: Math.max(1, p[color].qty + d) } }));
 
-  const rows = colors.filter((c) => selected[c]);
+  // Solo colores disponibles para el envase (formato) seleccionado
+  const colorsForFormat = colors.filter((c) => product.colors[c]?.some((v) => v.format === format));
+  const rows = colorsForFormat.filter((c) => selected[c]);
   const priceOf = (color: string) => {
     const v = resolve(color);
     return getAvailableTiers(v).find((t) => t.key === selected[color].tier)?.price ?? Number(v.price ?? 0);
@@ -150,7 +178,16 @@ export function MultiColorProductCard({
     <div style={{ fontFamily: FONT, color: "#0f172a", border: "1px solid #eef0f3", borderRadius: 16, padding: 16, background: "#fff" }}>
       {/* Encabezado */}
       <div style={{ display: "flex", gap: 13, alignItems: "flex-start", marginBottom: 14 }}>
-        <div style={{ width: 50, height: 50, borderRadius: 13, background: colorHex(rows[0] ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.genericName}
+            style={{ width: 50, height: 50, borderRadius: 13, objectFit: "cover", border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, background: "#f8fafc" }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <div style={{ width: 50, height: 50, borderRadius: 13, background: swatchOf(rows[0] ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", padding: "2px 7px", borderRadius: 6, fontFamily: "ui-monospace, monospace" }}>{resolve(colors[0])?.sku}</span>
@@ -179,13 +216,29 @@ export function MultiColorProductCard({
         <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>
           Color · <span style={{ color: "#94a3b8", textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>elige uno o más</span>
         </div>
-        <div style={{ display: "flex", gap: 9, flexWrap: "wrap", alignItems: "center" }}>
-          {colors.map((c) => {
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
+          {colorsForFormat.map((c) => {
             const active = !!selected[c];
+            const img = imageOf(c);
             return (
-              <button key={c} title={c} onClick={() => toggleColor(c)} style={{ position: "relative", width: 32, height: 32, borderRadius: 999, cursor: "pointer", transition: "all .15s", display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: colorHex(c), boxShadow: active ? "0 0 0 2px #fff, 0 0 0 4px #fd6301" : "0 0 0 1px rgba(15,23,42,.14)" }}>
-                {active && <span style={{ display: "flex", color: isDark(c) ? "#fff" : "#0f172a" }}>{Ic.check(15)}</span>}
-              </button>
+              <div key={c} onClick={() => toggleColor(c)} title={c} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 64, cursor: "pointer" }}>
+                <span style={{ position: "relative", width: 48, height: 48, borderRadius: 10, overflow: "hidden", transition: "all .15s", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", border: active ? "1.5px solid #fd6301" : "1px solid #e2e8f0", boxShadow: active ? "0 0 0 3px #fff7ed" : "none" }}>
+                  {img ? (
+                    <img
+                      src={img}
+                      alt={c}
+                      style={{ width: "100%", height: "100%", objectFit: "contain", padding: 3, boxSizing: "border-box" }}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "#cbd5e1" }}>S/F</span>
+                  )}
+                  {active && (
+                    <span style={{ position: "absolute", top: 2, right: 2, display: "flex", color: "#fd6301", background: "#fff", borderRadius: 999 }}>{Ic.check(13)}</span>
+                  )}
+                </span>
+                <span style={{ fontSize: 10, lineHeight: 1.2, textAlign: "center", color: active ? "#fd6301" : "#64748b", fontWeight: active ? 700 : 500, wordBreak: "break-word", textTransform: "capitalize" }}>{c.toLowerCase()}</span>
+              </div>
             );
           })}
         </div>
@@ -200,7 +253,7 @@ export function MultiColorProductCard({
               const tiers = getAvailableTiers(v);
               return (
                 <div key={color} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
-                  <span style={{ width: 22, height: 22, borderRadius: 999, background: colorHex(color), border: "1px solid rgba(15,23,42,.14)", flexShrink: 0 }} />
+                  <span style={{ width: 22, height: 22, borderRadius: 999, background: swatchOf(color), border: "1px solid rgba(15,23,42,.14)", flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 700, minWidth: 70 }}>{color}</span>
                   <select value={selected[color].tier} onChange={(e) => setTier(color, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
                     {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
