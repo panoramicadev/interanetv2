@@ -365,6 +365,10 @@ export const PERMISSION_BY_HREF: Record<string, string> = Object.fromEntries(
   PERMISSIONS.filter((p) => p.href).map((p) => [p.href as string, p.key]),
 );
 
+// El Tomador 2 (beta) reutiliza el mismo permiso que el tomador clásico:
+// así se muestra/oculta para exactamente los mismos roles.
+PERMISSION_BY_HREF["/tomador-pedidos-v2"] = "tomador_pedidos";
+
 /** Etiquetas legibles de cada rol */
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",

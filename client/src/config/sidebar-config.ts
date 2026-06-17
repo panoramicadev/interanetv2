@@ -122,6 +122,16 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
+      href: "/tomador-pedidos-v2",
+      label: "Tomador 2 (Beta)",
+      icon: Sparkles,
+    },
+    {
+      href: "/colores-paleta",
+      label: "Paleta de Colores",
+      icon: Palette,
+    },
+    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
@@ -456,6 +466,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
+      href: "/tomador-pedidos-v2",
+      label: "Tomador 2 (Beta)",
+      icon: Sparkles,
+    },
+    {
       href: "/visitas-tecnicas",
       label: "Visita Técnica",
       icon: FileCheck,
@@ -628,6 +643,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
     },
+    {
+      href: "/tomador-pedidos-v2",
+      label: "Tomador 2 (Beta)",
+      icon: Sparkles,
+    },
   ],
 
   salesperson: [
@@ -641,6 +661,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
       isPremium: true,
+    },
+    {
+      href: "/tomador-pedidos-v2",
+      label: "Tomador 2 (Beta)",
+      icon: Sparkles,
       separator: true,
     },
     {

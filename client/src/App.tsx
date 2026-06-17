@@ -85,6 +85,7 @@ import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MargenPage from "@/pages/margen";
 import MetricasProductos from "@/pages/metricas-productos";
+import ColoresPaleta from "@/pages/colores-paleta";
 import ProductDashboard from "@/pages/product-dashboard";
 import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
@@ -128,6 +129,10 @@ function guarded(permission: string, Component: any) {
   }
   return wrapped;
 }
+
+// Tomador 2 (beta): misma página, variante v2. Convive con el tomador clásico
+// para que los vendedores tengan respaldo si algo falla en el nuevo.
+const TomadorPedidosV2 = (props: any) => <TomadorPedidos {...props} variant="v2" />;
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -252,6 +257,7 @@ function Router() {
             <Route path="/productos" component={guarded("productos", Products)} />
             <Route path="/productos/:codigo" component={guarded("productos", ProductCatalogDetail)} />
             <Route path="/lista-precios" component={guarded("productos", ListaPrecios)} />
+            <Route path="/colores-paleta" component={guarded("productos", ColoresPaleta)} />
             <Route path="/ecommerce" component={guarded("market.configuracion", EcommerceAdmin)} />
             <Route path="/ecommerce-pedidos" component={guarded("market.pedidos", EcommercePedidos)} />
             <Route path="/logistica" component={guarded("market.logistica", Logistica)} />
@@ -284,6 +290,7 @@ function Router() {
               return <PromesasCompraPage />;
             }} />
             <Route path="/tomador-pedidos" component={guarded("tomador_pedidos", TomadorPedidos)} />
+            <Route path="/tomador-pedidos-v2" component={guarded("tomador_pedidos", TomadorPedidosV2)} />
             <Route path="/seguimiento-pedidos" component={guarded("seguimiento_pedidos", SeguimientoPedidos)} />
             <Route path="/seguimiento-clientes/:id" component={guarded("clientes.seguimiento", SeguimientoClienteDetalle)} />
             <Route path="/seguimiento-clientes" component={guarded("clientes.seguimiento", SeguimientoClientes)} />

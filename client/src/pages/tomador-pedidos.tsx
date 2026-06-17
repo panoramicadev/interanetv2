@@ -24,10 +24,11 @@ import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
 import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-taker/ecommerce-orders-list";
 import VoiceOrderDialog, { VoiceOrderConfirmPayload } from "@/components/order-taker/voice-order-dialog";
+import { MultiColorProductCard } from "@/components/order-taker/MultiColorProductCard";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck, Mic } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck, Mic, Sparkles, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -93,6 +94,7 @@ interface CartItem {
   pricingMode?: "calculated" | "direct";
   productUnit?: string; // Store the actual unit from price list data
   productColor?: string; // Color for custom products
+  imageUrl?: string; // Imagen del producto (Tomador 2) para mostrar en el carrito
 }
 
 interface QuoteFormData {
@@ -727,7 +729,8 @@ export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, sho
   );
 };
 
-export default function TomadorPedidos() {
+export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v2" } = {}) {
+  const isV2 = variant === "v2";
   const { user } = useAuth();
   const [location, navigate] = useLocation();
 
@@ -1108,6 +1111,9 @@ export default function TomadorPedidos() {
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   const [showCartAnimation, setShowCartAnimation] = useState(false); // Track cart add animation
   const [showShipping, setShowShipping] = useState(true); // Toggle shipping cost visibility
+  // Tomador 2 (beta): estado del modal rediseñado
+  const [v2MobileTab, setV2MobileTab] = useState<"cliente" | "productos" | "carrito">("productos");
+  const [v2ClientOpen, setV2ClientOpen] = useState(false);
 
   // Ficha de Creación de Cliente states
   const [showFichaClienteDialog, setShowFichaClienteDialog] = useState(false);
@@ -1508,6 +1514,42 @@ export default function TomadorPedidos() {
     }
     return map;
   }, [offersPricesResponse]);
+
+  // ===== Tomador 2 (beta): catálogo agrupado por color =====
+  // Estructura genérica → colores → formatos (solo se consulta en v2).
+  const { data: v2CatalogData, isLoading: v2CatalogLoading } = useQuery<any>({
+    queryKey: ["/api/products/grouped-catalog", { search: debouncedProductSearchTerm, groupFilter: selectedCategory }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (debouncedProductSearchTerm) params.set("search", debouncedProductSearchTerm);
+      if (selectedCategory && selectedCategory !== "all") params.set("groupFilter", selectedCategory);
+      const res = await fetch(`/api/products/grouped-catalog?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch grouped catalog");
+      return res.json();
+    },
+    enabled: isV2, // navegable sin búsqueda (como el prototipo); search/categoría refinan
+  });
+  const v2Catalog: any[] = v2CatalogData?.catalog ?? [];
+
+  // Mapa SKU → fila completa de price_list, para resolver los tramos REALES
+  // (10%, 10%+5%, mix, oferta, etc.) de cada variante del catálogo agrupado.
+  const { data: v2PriceListData } = useQuery<any>({
+    queryKey: ["/api/price-list", "v2-tiers", { search: debouncedProductSearchTerm }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: debouncedProductSearchTerm, limit: "300" });
+      const res = await fetch(`/api/price-list?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch price list");
+      return res.json();
+    },
+    enabled: isV2 && debouncedProductSearchTerm.length >= 2,
+  });
+  const v2PriceListByCode = useMemo(() => {
+    const map = new Map<string, PriceList>();
+    (v2PriceListData?.items ?? []).forEach((p: PriceList) => {
+      if (p.codigo) map.set(p.codigo.toUpperCase(), p);
+    });
+    return map;
+  }, [v2PriceListData]);
 
   // Fetch inventory data for stock display
   const { data: inventoryData, isLoading: isLoadingInventory, isError: isInventoryError } = useQuery({
@@ -3093,6 +3135,124 @@ export default function TomadorPedidos() {
     return tiers;
   };
 
+  // ===== Helpers del Tomador 2 (beta) =====
+  // Resuelve los tramos REALES de una variante del catálogo agrupado cruzando
+  // su SKU contra price_list. Si no hay fila, cae al precio base de la variante.
+  const v2GetTiersForVariant = (v: { sku?: string; priceList?: string | null; price?: string | null }): PriceTierOption[] => {
+    const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+    if (pl) {
+      const tiers = getAvailableTiers(pl);
+      if (tiers.length > 0) return tiers;
+    }
+    const base = parseFloat((v.priceList ?? v.price ?? "0").toString());
+    return base > 0 ? [{ key: "lista" as PriceTier, label: "Lista", price: base }] : [];
+  };
+
+  // Agrega una línea al carrito con tramo y cantidad explícitos (usado por v2).
+  // Reutiliza el mismo shape de CartItem y el auto-guardado del tomador clásico.
+  const addProductLineToCart = (product: PriceList, tierKey: PriceTier, qty: number, unitPrice: number, color?: string, imageUrl?: string) => {
+    const safeQty = Math.max(1, Math.round(qty || 1));
+    const availableTiers = getAvailableTiers(product);
+    setCart(prev => {
+      const existing = prev.find(it => it.type === "standard" && it.productCode === product.codigo && it.priceTier === tierKey);
+      let newCart: CartItem[];
+      if (existing) {
+        newCart = prev.map(it => it.id === existing.id
+          ? { ...it, quantity: it.quantity + safeQty, totalPrice: (it.quantity + safeQty) * it.unitPrice }
+          : it);
+      } else {
+        const newItem: CartItem = {
+          id: `item-${Date.now()}-${Math.random()}`,
+          type: "standard",
+          productName: product.producto || "Producto sin nombre",
+          productCode: product.codigo,
+          quantity: safeQty,
+          unitPrice,
+          totalPrice: unitPrice * safeQty,
+          priceTier: tierKey,
+          tierPrices: availableTiers,
+          productUnit: product.unidad || "UN",
+          productColor: color,
+          imageUrl,
+        };
+        newCart = [...prev, newItem];
+      }
+      triggerAutoSave(newCart);
+      return newCart;
+    });
+  };
+
+  // Cuántas líneas del carrito pertenecen a un producto genérico (para el badge "N en el carrito").
+  const v2CartCountForProduct = (product: any): number => {
+    const skus = new Set<string>();
+    Object.values(product.colors ?? {}).forEach((variants: any) =>
+      (variants as any[]).forEach((v) => v?.sku && skus.add(String(v.sku).toUpperCase())));
+    return cart.reduce((n, it) => n + (it.productCode && skus.has(it.productCode.toUpperCase()) ? it.quantity : 0), 0);
+  };
+
+  // Render del catálogo multi-color del Tomador 2 (grilla de tarjetas).
+  const renderV2Catalog = (products: any[] = v2Catalog) => {
+    if (v2CatalogLoading) {
+      return (
+        <div className="text-center py-6">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Buscando productos...</p>
+        </div>
+      );
+    }
+    if (products.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          <Package className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          <p className="text-sm">No se encontraron productos</p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 gap-3">
+        {products.map((product: any) => {
+          const inCart = v2CartCountForProduct(product);
+          return (
+            <div key={product.genericName} style={{ position: "relative" }}>
+              <MultiColorProductCard
+                product={product}
+                getAvailableTiers={v2GetTiersForVariant as any}
+                onAdd={(lines) => {
+                  lines.forEach(({ variant: v, tier, qty }) => {
+                    const img = (v as any).imageUrl || product.imageUrl || undefined;
+                    const pl = v.sku ? v2PriceListByCode.get(v.sku.toUpperCase()) : undefined;
+                    if (pl) {
+                      addProductLineToCart(pl, tier.key as PriceTier, qty, tier.price, v.color, img);
+                    } else {
+                      // Sin fila en price_list: arma un item mínimo desde la variante.
+                      addProductLineToCart(
+                        { codigo: v.sku, producto: `${product.genericName} ${v.color}`.trim(), unidad: v.format } as any,
+                        "lista" as PriceTier,
+                        qty,
+                        tier.price,
+                        v.color,
+                        img,
+                      );
+                    }
+                  });
+                  toast({
+                    title: lines.length === 1 ? "Color agregado" : `${lines.length} colores agregados`,
+                    description: product.genericName,
+                  });
+                }}
+              />
+              {inCart > 0 && (
+                <div style={{ position: "absolute", top: 12, right: 12, fontSize: 11, fontWeight: 700, color: "#fd6301" }}>
+                  {inCart} en el carrito
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // Open the quote builder pre-filled from a voice/text order draft
   const handleVoiceOrderConfirm = (payload: VoiceOrderConfirmPayload) => {
     const { client, clientName, notes, items } = payload;
@@ -3228,6 +3388,284 @@ export default function TomadorPedidos() {
   // Assign the saveQuote function to the ref so the auto-save useEffect can use it
   saveQuoteRef.current = saveQuote;
 
+  // ===== Tomador 2 (beta): modal "Constructor de Presupuesto" rediseñado =====
+  const renderV2Builder = () => {
+    const ORANGE = "#fd6301";
+    const FONT = "Inter, system-ui, sans-serif";
+    const V2_COLOR_HEX: Record<string, string> = {
+      Blanco: "#f8fafc", Hueso: "#f5f0e1", Gris: "#94a3b8", "Gris Perla": "#cbd5e1",
+      Negro: "#1e293b", Rojo: "#dc2626", Transparente: "linear-gradient(135deg,#e0f2fe,#fef9c3)",
+      Incoloro: "linear-gradient(135deg,#e2e8f0,#f1f5f9)",
+    };
+    const chex = (c?: string) => (c && V2_COLOR_HEX[c]) || "#cbd5e1";
+    const units = cart.reduce((n, i) => n + i.quantity, 0);
+
+    const CATS = [
+      { k: "all", label: "Todos" }, { k: "Anticorrosivos", label: "Anticorrosivos" },
+      { k: "Esmaltes", label: "Esmaltes" }, { k: "Látex", label: "Látex" },
+      { k: "Barnices", label: "Barnices" }, { k: "Diluyentes", label: "Diluyentes" },
+    ];
+    const v2Formats = Array.from(new Set(v2Catalog.flatMap((p: any) =>
+      Object.values(p.colors ?? {}).flatMap((vs: any) => (vs as any[]).map((v) => v.format)).filter(Boolean)))) as string[];
+    const filteredCatalog = v2Catalog.filter((p: any) => {
+      if (selectedColor && !Object.keys(p.colors ?? {}).some((c) => c.toLowerCase().includes(selectedColor.toLowerCase()))) return false;
+      if (selectedUnidad && !Object.values(p.colors ?? {}).some((vs: any) => (vs as any[]).some((v) => v.format === selectedUnidad))) return false;
+      return true;
+    });
+
+    const lbl = (s: string): React.CSSProperties => ({ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 } as any);
+    const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 10, fontFamily: FONT, fontSize: 13, background: "#fff", outline: "none", boxSizing: "border-box" };
+
+    const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
+      <button onClick={onToggle} style={{ width: 40, height: 23, borderRadius: 999, border: "none", cursor: "pointer", background: on ? ORANGE : "#cbd5e1", position: "relative", transition: "all .15s", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 2, left: on ? 19 : 2, width: 19, height: 19, borderRadius: 999, background: "#fff", transition: "all .15s" }} />
+      </button>
+    );
+
+    // --- Sección: Información del cliente ---
+    const clientSection = (
+      <div style={{ border: "1px solid #eef0f3", borderRadius: 14, background: "#fff", padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <User style={{ width: 20, height: 20, color: ORANGE }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Información del cliente</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {quoteForm.clientName ? quoteForm.clientName : "Sin cliente asignado — toca para completar"}
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setV2ClientOpen((o) => !o)} style={{ display: "flex", alignItems: "center", gap: 6, background: ORANGE, color: "#fff", border: "none", borderRadius: 10, padding: "10px 14px", fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Agregar datos <ChevronRight style={{ width: 15, height: 15, transform: v2ClientOpen ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+          </button>
+        </div>
+        {v2ClientOpen && (
+          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+            <div style={{ position: "relative" }}>
+              <div style={lbl("")}>Nombre del cliente *</div>
+              <input
+                style={inputStyle}
+                value={quoteForm.clientName}
+                autoComplete="off"
+                onChange={(e) => { const val = e.target.value; setQuoteForm((p) => ({ ...p, clientName: val, clientId: undefined })); setBuilderClientSearch(val); setShowBuilderClientResults(true); }}
+                onFocus={() => { if ((quoteForm.clientName || "").length >= 2) { setBuilderClientSearch(quoteForm.clientName); setShowBuilderClientResults(true); } }}
+                onBlur={() => setTimeout(() => setShowBuilderClientResults(false), 150)}
+                placeholder="Buscar cliente por nombre..."
+              />
+              {showBuilderClientResults && debouncedBuilderClientSearch.length >= 2 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 5, marginTop: 4, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(15,23,42,.12)", maxHeight: 240, overflowY: "auto" }}>
+                  {isLoadingBuilderClients ? (
+                    <div style={{ padding: 12, fontSize: 13, color: "#94a3b8" }}>Buscando...</div>
+                  ) : builderClients.length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 13, color: "#94a3b8" }}>Sin resultados</div>
+                  ) : builderClients.map((cl: any) => (
+                    <button key={cl.id} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelectBuilderClient(cl)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: "1px solid #f1f5f9", background: "#fff", cursor: "pointer", fontFamily: FONT }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{cl.nokoen}</div>
+                      {cl.rten && <div style={{ fontSize: 11, color: "#94a3b8" }}>{cl.rten}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div><div style={lbl("")}>RUT</div><input style={inputStyle} value={quoteForm.clientRut ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientRut: e.target.value }))} placeholder="12345678-9" /></div>
+            <div><div style={lbl("")}>Email</div><input style={inputStyle} value={quoteForm.clientEmail ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="cliente@email.com" /></div>
+            <div><div style={lbl("")}>Teléfono</div><input style={inputStyle} value={quoteForm.clientPhone ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientPhone: e.target.value }))} placeholder="+56 9 1234 5678" /></div>
+            <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><div style={lbl("")}>Dirección</div><input style={inputStyle} value={quoteForm.clientAddress ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientAddress: e.target.value }))} placeholder="Dirección completa" /></div>
+            <div><div style={lbl("")}>Válido hasta</div><input type="date" style={inputStyle} value={quoteForm.validUntil ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, validUntil: e.target.value }))} /></div>
+            <div><div style={lbl("")}>Condición de pago</div>
+              <select style={inputStyle} value={quoteForm.paymentCondition ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, paymentCondition: e.target.value }))}>
+                <option value="">Sin especificar</option>
+                {PAYMENT_CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            {isAdminOrSupervisor && (
+              <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><div style={lbl("")}>Asignar a vendedor</div>
+                <select style={inputStyle} value={selectedCreatorId} onChange={(e) => setSelectedCreatorId(e.target.value)}>
+                  <option value="">Yo mismo</option>
+                  {(allUsers ?? []).map((u: any) => <option key={u.id} value={u.id}>{u.firstName ? `${u.firstName} ${u.lastName ?? ""}`.trim() : (u.email ?? u.id)}</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><div style={lbl("")}>Notas</div><textarea style={{ ...inputStyle, minHeight: 64, resize: "vertical" }} value={quoteForm.notes ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Condiciones especiales, términos, etc." /></div>
+          </div>
+        )}
+      </div>
+    );
+
+    // --- Sección: Buscar productos (search + filtros + pastillas + grilla) ---
+    const productsSection = (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Search style={{ width: 18, height: 18, color: ORANGE }} />
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>Buscar productos</span>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          <input style={{ ...inputStyle, flex: 1, minWidth: 180 }} value={productSearchTerm} onChange={(e) => setProductSearchTerm(e.target.value)} placeholder="Buscar por código o descripción..." />
+          {!isMobile && (
+            <>
+              <select style={{ ...inputStyle, width: 170 }} value={selectedUnidad} onChange={(e) => setSelectedUnidad(e.target.value)}>
+                <option value="">Todos los envases</option>
+                {v2Formats.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+              <select style={{ ...inputStyle, width: 170 }} value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)}>
+                <option value="">Todos los colores</option>
+                {(availableColors ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          {CATS.map((cat) => {
+            const active = (selectedCategory || "all") === cat.k;
+            return (
+              <button key={cat.k} onClick={() => setSelectedCategory(cat.k)} style={{ cursor: "pointer", fontFamily: FONT, fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 999, whiteSpace: "nowrap", border: active ? `1px solid ${ORANGE}` : "1px solid #e2e8f0", background: active ? "#fff7ed" : "#fff", color: active ? ORANGE : "#64748b" }}>{cat.label}</button>
+            );
+          })}
+        </div>
+        {renderV2Catalog(filteredCatalog)}
+        <button onClick={() => setShowCustomProductModal(true)} style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 12, border: "1.5px dashed #cbd5e1", background: "#fff", color: ORANGE, fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Plus style={{ width: 16, height: 16 }} /> Agregar Producto Personalizado
+        </button>
+      </div>
+    );
+
+    // --- Panel de carrito (lista + totales) ---
+    const cartPanel = (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #eef0f3" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <ShoppingCart style={{ width: 19, height: 19, color: ORANGE }} />
+            <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Carrito <span style={{ color: ORANGE }}>({units})</span></span>
+          </div>
+          {cart.length > 0 && <button onClick={() => setCart([])} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Limpiar</button>}
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: cart.length === 0 ? 0 : "12px 14px", minHeight: 0 }}>
+          {cart.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#cbd5e1", padding: 30 }}>
+              <ShoppingCart style={{ width: 48, height: 48, marginBottom: 12, opacity: .5 }} />
+              <div style={{ fontSize: 13, fontWeight: 600, textAlign: "center" }}>No hay productos en el carrito</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {cart.map((item) => {
+                const tierLabel = item.tierPrices?.find((t) => t.key === item.priceTier)?.label ?? "";
+                return (
+                  <div key={item.id} style={{ border: "1px solid #eef0f3", borderRadius: 12, padding: 11, background: "#fff" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "contain", padding: 2, boxSizing: "border-box", background: "#fff", border: "1px solid #eef0f3", flexShrink: 0 }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      ) : (
+                        <span style={{ width: 36, height: 36, borderRadius: 8, background: chex(item.productColor), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0 }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", lineHeight: 1.25 }}>{item.productName}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{[item.productUnit, tierLabel, `${formatCurrency(item.unitPrice)} c/u`].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <button onClick={() => removeFromCart(item.id)} style={{ background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", padding: 2, display: "flex" }}><Trash2 style={{ width: 15, height: 15 }} /></button>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
+                        <button onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus style={{ width: 13, height: 13 }} /></button>
+                        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{item.quantity}</span>
+                        <button onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus style={{ width: 13, height: 13 }} /></button>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{formatCurrency(item.totalPrice)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div style={{ borderTop: "1px solid #eef0f3", padding: "14px 18px", display: "flex", flexDirection: "column", gap: 11 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "#475569" }}>Subtotal productos</span><span style={{ fontWeight: 700 }}>{formatCurrency(subtotal)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}><span style={{ color: "#475569" }}>Incluir flete en el presupuesto</span><Toggle on={showShipping} onToggle={() => setShowShipping((s) => !s)} /></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}><span style={{ color: "#475569" }}>Ver ahorros por descuento</span><Toggle on={showDiscount} onToggle={() => setShowDiscount((s) => !s)} /></div>
+          {showShipping && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+              <span style={{ color: ORANGE, display: "flex", alignItems: "center", gap: 6 }}><Truck style={{ width: 15, height: 15 }} /> Despacho</span>
+              <span style={{ fontWeight: 700, color: ORANGE }}>{formatCurrency(shippingCost)}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px solid #eef0f3", paddingTop: 11 }}><span style={{ color: "#475569" }}>IVA (19%)</span><span style={{ fontWeight: 700 }}>{formatCurrency(tax)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 15, fontWeight: 800, color: ORANGE }}>Total final</span><span style={{ fontSize: 22, fontWeight: 800, color: ORANGE }}>{formatCurrency(total)}</span></div>
+          <button onClick={() => saveQuote()} disabled={cart.length === 0 || isSavingQuote} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: cart.length === 0 ? "#f1f5f9" : ORANGE, color: cart.length === 0 ? "#cbd5e1" : "#fff", fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: cart.length === 0 ? "not-allowed" : "pointer", boxShadow: cart.length === 0 ? "none" : "0 3px 10px rgba(253,99,1,.3)" }}>
+            {isSavingQuote ? "Guardando..." : "Guardar presupuesto"}
+          </button>
+        </div>
+      </div>
+    );
+
+    const header = (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #eef0f3", background: "#fff", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 11, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center" }}><Calculator style={{ width: 21, height: 21, color: ORANGE }} /></div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>Constructor de Presupuesto</div>
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>{units} producto(s) en el carrito</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ background: "#fff7ed", color: ORANGE, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999 }}>Total {formatCurrency(total)}</span>
+          <button onClick={() => setShowQuoteBuilder(false)} style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "#eef2f7", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X style={{ width: 18, height: 18 }} /></button>
+        </div>
+      </div>
+    );
+
+    const overlay = (children: React.ReactNode) => (
+      <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? 0 : 24, fontFamily: FONT }} onClick={() => setShowQuoteBuilder(false)}>
+        <div onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc", borderRadius: isMobile ? 0 : 18, width: isMobile ? "100%" : "min(1180px, 96vw)", height: isMobile ? "100%" : "min(88vh, 900px)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(15,23,42,.25)" }}>
+          {children}
+        </div>
+      </div>
+    );
+
+    if (isMobile) {
+      const tab = v2MobileTab;
+      return overlay(
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#fff", borderBottom: "1px solid #eef0f3", flexShrink: 0 }}>
+            <div><div style={{ fontSize: 16, fontWeight: 800 }}>Constructor de Presupuesto</div><div style={{ fontSize: 12, color: "#94a3b8" }}>{units} producto(s) · {formatCurrency(total)}</div></div>
+            <button onClick={() => setShowQuoteBuilder(false)} style={{ width: 34, height: 34, borderRadius: 9, border: "none", background: "#eef2f7", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X style={{ width: 17, height: 17 }} /></button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 14, minHeight: 0 }}>
+            {tab === "cliente" && <div onClick={() => setV2ClientOpen(true)}>{clientSection}</div>}
+            {tab === "productos" && productsSection}
+            {tab === "carrito" && <div style={{ height: "100%", border: "1px solid #eef0f3", borderRadius: 14, overflow: "hidden" }}>{cartPanel}</div>}
+          </div>
+          <div style={{ display: "flex", borderTop: "1px solid #eef0f3", background: "#fff", flexShrink: 0 }}>
+            {([["cliente", "Cliente", User], ["productos", "Productos", Package], ["carrito", "Carrito", ShoppingCart]] as const).map(([k, label, Icon]) => {
+              const active = tab === k;
+              return (
+                <button key={k} onClick={() => setV2MobileTab(k as any)} style={{ flex: 1, padding: "10px 4px 12px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: active ? ORANGE : "#94a3b8", position: "relative" }}>
+                  <Icon style={{ width: 20, height: 20 }} />
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{label}</span>
+                  {k === "carrito" && units > 0 && <span style={{ position: "absolute", top: 4, right: "50%", marginRight: -22, background: ORANGE, color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{units}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      );
+    }
+
+    // Desktop: 2 columnas
+    return overlay(
+      <>
+        {header}
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+            {clientSection}
+            {productsSection}
+          </div>
+          <div style={{ width: 380, borderLeft: "1px solid #eef0f3", flexShrink: 0 }}>{cartPanel}</div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <>
       {/* Minimalist Header with Action Buttons */}
@@ -3237,11 +3675,16 @@ export default function TomadorPedidos() {
             <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-orange-600`} />
           </div>
           <div>
-            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight`}>
-              Tomador de Pedidos
+            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight flex items-center gap-2`}>
+              {isV2 ? "Tomador de Pedidos 2" : "Tomador de Pedidos"}
+              {isV2 && (
+                <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5">
+                  Beta
+                </span>
+              )}
             </h1>
             <p className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-sm'} mt-0.5`}>
-              Presupuestos, cotizaciones y pedidos
+              {isV2 ? "Nuevo catálogo: varios colores por producto" : "Presupuestos, cotizaciones y pedidos"}
             </p>
           </div>
         </div>
@@ -3249,6 +3692,31 @@ export default function TomadorPedidos() {
         {/* Action Buttons in Header */}
         {!(isMobile && showClientSearch) && (
           <div className="flex items-center gap-2">
+            {isV2 ? (
+              <Link href="/tomador-pedidos">
+                <Button
+                  variant="outline"
+                  className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                  size="sm"
+                  data-testid="button-tomador-clasico"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  {isMobile ? "Clásico" : "Volver al clásico"}
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/tomador-pedidos-v2">
+                <Button
+                  variant="outline"
+                  className={`border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 hover:text-orange-800 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                  size="sm"
+                  data-testid="button-tomador-v2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isMobile ? "Nuevo" : "Probar nuevo tomador"}
+                </Button>
+              </Link>
+            )}
             <Button
               onClick={() => setShowVoiceOrder(true)}
               variant="outline"
@@ -3490,12 +3958,12 @@ export default function TomadorPedidos() {
             )
           ) : (
             // Desktop: Always show search
-            <Card className="border-0 shadow-sm rounded-2xl bg-white">
+            <Card className="border border-slate-200/70 shadow-sm rounded-2xl bg-white">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Search className="w-5 h-5 text-blue-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
+                      <Search className="w-5 h-5 text-orange-600" />
                     </div>
                     <div>
                       <CardTitle className="text-lg">Buscar Cliente</CardTitle>
@@ -3648,9 +4116,12 @@ export default function TomadorPedidos() {
         </div>
       </div>
 
+      {/* Tomador 2 (beta): modal "Constructor de Presupuesto" rediseñado */}
+      {isV2 && showQuoteBuilder && renderV2Builder()}
+
       {/* Quote Builder - Mobile Sheet / Desktop Dialog */}
       {isMobile ? (
-        <Sheet open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
+        <Sheet open={showQuoteBuilder && !isV2} onOpenChange={setShowQuoteBuilder}>
           <SheetContent side="bottom" className="h-screen p-0">
             <SheetHeader className="p-4 pb-2 border-b" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
               <SheetTitle className="flex items-center gap-2">
@@ -3995,7 +4466,7 @@ export default function TomadorPedidos() {
 
                       {/* Mobile Product Results */}
                       <div className="space-y-3">
-                        {priceList.length > 0 ? (
+                        {isV2 ? renderV2Catalog() : priceList.length > 0 ? (
                           priceList.filter((product: PriceList) => {
                             // Filter by search term
                             if (productSearchTerm && productSearchTerm.trim().length > 0) {
@@ -4530,7 +5001,7 @@ export default function TomadorPedidos() {
           </SheetContent>
         </Sheet>
       ) : (
-        <Dialog open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
+        <Dialog open={showQuoteBuilder && !isV2} onOpenChange={setShowQuoteBuilder}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
             <DialogHeader className="p-6 pb-4">
               <DialogTitle className="flex items-center gap-2">
@@ -4806,7 +5277,7 @@ export default function TomadorPedidos() {
 
                         {productSearchTerm.length >= 2 && (
                           <div className="space-y-2 max-h-96 overflow-y-auto border rounded-lg">
-                            {priceListLoading ? (
+                            {isV2 ? renderV2Catalog() : priceListLoading ? (
                               <div className="text-center py-4">
                                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
                                 <p className="text-sm text-muted-foreground mt-2">Buscando productos...</p>
