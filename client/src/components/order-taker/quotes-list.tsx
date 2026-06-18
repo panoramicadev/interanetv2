@@ -113,6 +113,23 @@ const statusConfig = {
   },
 };
 
+// Avatar de iniciales con color estable por emisor (deriva el color del seed).
+const AVATAR_COLORS = [
+  "bg-blue-500", "bg-emerald-500", "bg-orange-500", "bg-violet-500",
+  "bg-rose-500", "bg-amber-500", "bg-cyan-500", "bg-indigo-500",
+];
+function initialsOf(name?: string): string {
+  if (!name) return "?";
+  const p = name.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+function avatarColor(seed?: string): string {
+  const s = seed || "";
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 interface QuotesListProps {
   onEditQuote?: (quoteId: string) => void;
 }
@@ -599,6 +616,13 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
   return (
     <div className="space-y-4">
+      {!isMobile && (
+        <div className="flex justify-end -mt-1">
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-3 py-1" data-testid="quotes-count">
+            {getTotalQuotes()} {getTotalQuotes() === 1 ? 'cotización' : 'cotizaciones'}
+          </span>
+        </div>
+      )}
       {/* Filters - Mobile Compact */}
       <div className={isMobile ? 'space-y-3' : 'bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 space-y-4'}>
       <div className={`${isMobile ? 'space-y-3' : 'flex flex-col sm:flex-row gap-3'}`}>
@@ -770,14 +794,14 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs text-gray-500">
                       {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white ${avatarColor(quote.creatorEmail || quote.creatorName)}`}>{initialsOf(quote.creatorName)}</span>
                           {quote.creatorName || 'Desconocido'}
                         </span>
                       )}
                       <span>{getTimeAgo(quote.createdAt)}</span>
                     </div>
-                    <span className="text-sm font-bold text-gray-900">
+                    <span className="text-sm font-bold text-orange-600">
                       ${parseFloat(quote.total).toLocaleString('es-CL', { minimumFractionDigits: 0 })}
                     </span>
                   </div>
@@ -869,14 +893,16 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
                       {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
                         <TableCell className="py-4">
-                          <div className="flex items-center gap-2">
-                            <User className="w-3.5 h-3.5 text-gray-400" />
-                            <div>
-                              <div className="text-sm text-gray-900 font-medium">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0 ${avatarColor(quote.creatorEmail || quote.creatorName)}`}>
+                              {initialsOf(quote.creatorName)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm text-gray-900 font-medium truncate">
                                 {quote.creatorName || 'Desconocido'}
                               </div>
                               {quote.creatorEmail && (
-                                <div className="text-[10px] text-gray-400">
+                                <div className="text-[10px] text-gray-400 truncate">
                                   {quote.creatorEmail}
                                 </div>
                               )}
@@ -895,7 +921,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </TableCell>
 
                       <TableCell className="py-4 text-right">
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-orange-600">
                           {formatCurrency(quote.total || '0')}
                         </span>
                       </TableCell>
@@ -908,14 +934,14 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                           {/* Enviar (correo) - botón principal */}
                           <Button
                             size="sm"
-                            className="h-8 gap-1.5 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-sm shadow-orange-500/30 px-3 rounded-lg"
+                            className="h-8 gap-1.5 bg-orange-600 hover:bg-orange-700 text-white shadow-sm shadow-orange-500/30 px-3 rounded-lg"
                             onClick={() => handleSendEmail(quote.id, quote.quoteNumber, quote.clientName, quote.createdBy)}
                             disabled={sendEmailMutation.isPending}
                             title="Enviar cotización por correo"
                             data-testid={`send-email-${quote.id}`}
                           >
-                            <Mail className="h-3.5 w-3.5" />
-                            <span className="text-xs font-medium hidden xl:inline">Enviar</span>
+                            <Send className="h-3.5 w-3.5" />
+                            <span className="text-xs font-medium hidden lg:inline">Enviar</span>
                           </Button>
 
                           {/* Duplicar */}

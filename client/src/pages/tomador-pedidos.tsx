@@ -4216,6 +4216,20 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
         </div>
       </div>
 
+      {/* Acceso directo (móvil · v2): FAB sobre el menú hamburguesa que abre
+          el constructor de presupuesto al toque. Se oculta si hay un modal abierto. */}
+      {isV2 && isMobile && !showQuoteBuilder && !showVoiceOrder && !showCustomProductModal && !showFichaClienteDialog && (
+        <button
+          onClick={handleCreateQuoteForNewClient}
+          className="fixed left-5 bottom-[4.25rem] z-50 lg:hidden w-10 h-10 rounded-full bg-orange-600 hover:bg-orange-700 active:scale-95 text-white shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center"
+          data-testid="fab-nuevo-presupuesto"
+          aria-label="Nuevo presupuesto"
+          title="Nuevo presupuesto"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Tomador 2 (beta): modal "Constructor de Presupuesto" rediseñado */}
       {isV2 && showQuoteBuilder && renderV2Builder()}
 
