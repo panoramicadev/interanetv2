@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check, Tag, Pause, Play, Users, X, UserCheck } from "lucide-react";
+import { MobilePriceField } from "@/components/precios/mobile-price-field";
 
 interface SelectedClient {
   id: string;
@@ -501,8 +502,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <div className="flex gap-2 flex-wrap">
           {!vendorView && (<>
           <Button
             onClick={() => setIsAddOpen(true)}
@@ -587,8 +588,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
+          <div className="relative flex-1 min-w-[160px] max-w-sm">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
@@ -625,6 +626,8 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Desktop: tabla completa */}
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
@@ -802,6 +805,130 @@ export default function ListaPreciosOfertas({ vendorView = false }: { vendorView
                   })}
                 </TableBody>
               </Table>
+              </div>
+
+              {/* Mobile: tarjetas apiladas */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {data.items.map((item) => {
+                  const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                  const costoFromGri = griEntry?.price ? Number(griEntry.price) : null;
+                  const costoFromList = item.costoProduccion ? Number(item.costoProduccion) : null;
+                  const costoNum = costoFromGri || costoFromList;
+                  const costoDate = griEntry?.date ?? null;
+                  const precioNum = item.precio ? Number(item.precio) : null;
+                  let margen: number | null = null;
+                  if (precioNum && costoNum && precioNum > 0) {
+                    margen = ((precioNum - costoNum) / precioNum) * 100;
+                  }
+                  const precioNode = item.offerType === "pallet" ? (
+                    <span className="inline-flex items-center gap-1 flex-wrap">
+                      <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[9px] px-1.5 py-0">PALLET</Badge>
+                      {item.palletPrice != null ? (
+                        <span>{item.unitsPerPallet ?? "?"}u × {item.unitsPerPallet && item.unitsPerPallet > 0 ? formatCurrency(item.palletPrice / item.unitsPerPallet) : formatCurrency(item.palletPrice)}</span>
+                      ) : (
+                        <span>{item.unitsPerPallet ?? "?"}u × −{item.discountPct ?? "?"}%</span>
+                      )}
+                    </span>
+                  ) : (
+                    formatCurrency(item.precio)
+                  );
+                  return (
+                    <div key={item.id} className={`p-3 ${item.paused ? "opacity-50" : ""}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium leading-tight text-foreground">
+                            {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="font-mono text-[11px] text-muted-foreground">{item.codigo}</span>
+                            {item.unidad && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{item.unidad}</Badge>
+                            )}
+                            {item.allClients ? (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-gray-300 px-1.5 py-0 h-4">
+                                <Users className="h-2.5 w-2.5" />Todos
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-red-300 text-red-700 dark:text-red-400 px-1.5 py-0 h-4">
+                                <UserCheck className="h-2.5 w-2.5" />{item.clientCount} {item.clientCount === 1 ? "cliente" : "clientes"}
+                              </Badge>
+                            )}
+                            {item.paused && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5">
+                                <Pause className="h-2 w-2" />pausado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {!vendorView && (
+                          <div className="flex gap-0.5 shrink-0 -mr-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                setEditItem(item);
+                                setEditAllClients(item.allClients !== false);
+                                setEditClients((item.targetClients || []).map((c) => ({ id: c.id, name: c.name || "Sin nombre", rut: c.rut })));
+                                setEditUnitsPerPallet(item.unitsPerPallet != null ? String(item.unitsPerPallet) : "");
+                                setEditDiscountPct(item.discountPct != null ? String(item.discountPct) : "");
+                                setEditPalletPrice(
+                                  item.palletPrice != null && item.unitsPerPallet && item.unitsPerPallet > 0
+                                    ? String(item.palletPrice / item.unitsPerPallet)
+                                    : item.palletPrice != null ? String(item.palletPrice) : ""
+                                );
+                                setEditPalletMode(item.palletPrice != null ? "fixed" : "discount");
+                                setIsEditOpen(true);
+                              }}
+                              title="Editar oferta"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-7 w-7 p-0 ${item.paused ? "text-amber-500 hover:text-amber-600" : "text-gray-400 hover:text-amber-500"}`}
+                              onClick={() => pauseMutation.mutate({ id: item.id, paused: !item.paused })}
+                              disabled={pauseMutation.isPending}
+                              title={item.paused ? "Reactivar oferta" : "Pausar oferta"}
+                            >
+                              {item.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              onClick={() => deleteMutation.mutate(item.id)}
+                              disabled={deleteMutation.isPending}
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">
+                        <MobilePriceField label="Precio Oferta" value={precioNode} className="text-red-600 dark:text-red-400" />
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Costo"
+                            value={costoNum ? formatCurrency(costoNum) : '-'}
+                            className="text-amber-700 dark:text-amber-400"
+                            sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
+                          />
+                        )}
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Margen"
+                            value={margen != null ? `${margen.toFixed(1)}%` : '-'}
+                            className={margen != null && margen < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               {data.totalCount > itemsPerPage && (
                 <div className="flex items-center justify-between px-4 pb-4">

@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import { usePermissions } from "@/hooks/usePermissions";
+import { MobilePriceField } from "@/components/precios/mobile-price-field";
 import ListaPreciosMix from "./lista-precios-mix";
 import ListaPreciosOfertas from "./lista-precios-ofertas";
 
@@ -489,8 +490,8 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
 
         <TabsContent value="comercial" className="mt-3">
       {/* Compact Toolbar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <div className="flex gap-2 flex-wrap">
           {!vendorView && (
           <Button
             onClick={() => setIsAddDialogOpen(true)}
@@ -614,8 +615,8 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
         </div>
 
         {/* Search + Filters inline */}
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex items-center gap-2 flex-1 flex-wrap w-full sm:w-auto">
+          <div className="relative flex-1 min-w-[160px] max-w-sm">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
@@ -700,6 +701,8 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Desktop: tabla completa (scroll horizontal en pantallas medianas) */}
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
@@ -893,6 +896,74 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                   ))}
                 </TableBody>
               </Table>
+              </div>
+
+              {/* Mobile: tarjetas apiladas (legibles sin scroll horizontal) */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {data.items.map((item) => {
+                  const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                  const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                  const costoDate = griEntry?.date ?? null;
+                  const costoNum = typeof costoValue === 'string' ? parseFloat(costoValue) : costoValue;
+                  const minimoNum = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
+                  const margenMin = costoNum && minimoNum && minimoNum !== 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
+                  const mix = vendorView && item.codigo ? (mixPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null;
+                  const oferta = vendorView && item.codigo ? (offerPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null;
+                  return (
+                    <div key={item.id} className="p-3" data-testid={`card-price-${item.id}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium leading-tight text-foreground">{item.producto}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="font-mono text-[11px] text-muted-foreground">{item.codigo}</span>
+                            {item.unidad && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{item.unidad}</Badge>
+                            )}
+                          </div>
+                        </div>
+                        {!vendorView && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 shrink-0 -mr-1"
+                            onClick={() => handleEdit(item)}
+                            data-testid={`button-edit-mobile-${item.id}`}
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">
+                        <MobilePriceField label="Lista" value={formatCurrency(item.lista)} />
+                        <MobilePriceField label="Desc10" value={formatCurrency(item.desc10)} />
+                        <MobilePriceField label="Desc10+5" value={formatCurrency(item.desc10_5)} />
+                        <MobilePriceField label="Mínimo" value={formatCurrency(item.minimo)} />
+                        {vendorView && (
+                          <MobilePriceField label="Lista Mix" value={formatCurrency(mix)} className="text-red-600 dark:text-red-400" />
+                        )}
+                        {vendorView && (
+                          <MobilePriceField label="Ofertas" value={oferta != null ? formatCurrency(oferta) : '—'} className="text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Costo"
+                            value={costoValue ? formatCurrency(costoValue) : '-'}
+                            className="text-amber-700 dark:text-amber-400"
+                            sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
+                          />
+                        )}
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Margen"
+                            value={margenMin != null ? `${margenMin.toFixed(1)}%` : '-'}
+                            className={margenMin != null && margenMin < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* Pagination */}
               {data.totalCount > itemsPerPage && (

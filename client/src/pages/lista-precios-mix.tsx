@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check } from "lucide-react";
+import { MobilePriceField } from "@/components/precios/mobile-price-field";
 
 // Response includes JOINed fields from price_list
 interface MixItem {
@@ -189,8 +190,8 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <div className="flex gap-2 flex-wrap">
           {!vendorView && (<>
           <Button
             onClick={() => setIsAddOpen(true)}
@@ -276,8 +277,8 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
         </div>
 
         {/* Search */}
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
+          <div className="relative flex-1 min-w-[160px] max-w-sm">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
@@ -315,6 +316,8 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Desktop: tabla completa */}
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
@@ -425,6 +428,77 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                   })}
                 </TableBody>
               </Table>
+              </div>
+
+              {/* Mobile: tarjetas apiladas */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {data.items.map((item) => {
+                  const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                  const costoNum = griEntry?.price || (item.costoProduccion ? parseFloat(item.costoProduccion) : null);
+                  const costoDate = griEntry?.date ?? null;
+                  const precioNum = item.precio ? parseFloat(item.precio) : null;
+                  let margen: number | null = null;
+                  if (precioNum && costoNum && precioNum > 0) {
+                    margen = ((precioNum - costoNum) / precioNum) * 100;
+                  }
+                  return (
+                    <div key={item.id} className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium leading-tight text-foreground">
+                            {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="font-mono text-[11px] text-muted-foreground">{item.codigo}</span>
+                            {item.unidad && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{item.unidad}</Badge>
+                            )}
+                          </div>
+                        </div>
+                        {!vendorView && (
+                          <div className="flex gap-0.5 shrink-0 -mr-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => { setEditItem(item); setIsEditOpen(true); }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              onClick={() => deleteMutation.mutate(item.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">
+                        <MobilePriceField label={`Precio ${listName}`} value={formatCurrency(item.precio)} className="text-blue-600 dark:text-blue-400" />
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Costo"
+                            value={costoNum ? formatCurrency(costoNum) : '-'}
+                            className="text-amber-700 dark:text-amber-400"
+                            sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
+                          />
+                        )}
+                        {!vendorView && (
+                          <MobilePriceField
+                            label="Margen"
+                            value={margen != null ? `${margen.toFixed(1)}%` : '-'}
+                            className={margen != null && margen < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* Pagination */}
               {data.totalCount > itemsPerPage && (
