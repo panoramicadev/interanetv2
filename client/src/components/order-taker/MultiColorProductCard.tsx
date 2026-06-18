@@ -111,12 +111,15 @@ export interface MultiColorProductCardProps {
   product: GenericProduct;
   getAvailableTiers?: (v: FormatVariant) => PriceTier[];
   onAdd: (lines: AddedLine[]) => void;
+  /** Layout compacto para móvil: paddings/swatches más chicos y filas en 2 líneas. */
+  compact?: boolean;
 }
 
 export function MultiColorProductCard({
   product,
   getAvailableTiers = defaultTiers,
   onAdd,
+  compact = false,
 }: MultiColorProductCardProps) {
   const colors = useMemo(() => Object.keys(product.colors), [product]);
   const allFormats = useMemo(() => {
@@ -199,18 +202,18 @@ export function MultiColorProductCard({
   const FONT = "Inter, system-ui, sans-serif";
 
   return (
-    <div style={{ fontFamily: FONT, color: "#0f172a", border: "1px solid #eef0f3", borderRadius: 16, padding: 16, background: "#fff" }}>
+    <div style={{ fontFamily: FONT, color: "#0f172a", border: "1px solid #eef0f3", borderRadius: compact ? 14 : 16, padding: compact ? 13 : 16, background: "#fff" }}>
       {/* Encabezado */}
-      <div style={{ display: "flex", gap: 13, alignItems: "flex-start", marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: compact ? 11 : 13, alignItems: "flex-start", marginBottom: compact ? 12 : 14 }}>
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
             alt={product.genericName}
-            style={{ width: 50, height: 50, borderRadius: 13, objectFit: "cover", border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, background: "#f8fafc" }}
+            style={{ width: compact ? 44 : 50, height: compact ? 44 : 50, borderRadius: 13, objectFit: "cover", border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, background: "#f8fafc" }}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <div style={{ width: 50, height: 50, borderRadius: 13, background: swatchOf(selected[rowSkus[0]]?.color ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
+          <div style={{ width: compact ? 44 : 50, height: compact ? 44 : 50, borderRadius: 13, background: swatchOf(selected[rowSkus[0]]?.color ?? colors[0]), border: "1px solid rgba(15,23,42,.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,.45)" }}>{initials}</div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -246,8 +249,8 @@ export function MultiColorProductCard({
             const active = !!(cv && selected[cv.sku]);
             const img = imageOf(c);
             return (
-              <div key={c} onClick={() => toggleColor(c)} title={c} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 64, cursor: "pointer" }}>
-                <span style={{ position: "relative", width: 48, height: 48, borderRadius: 10, overflow: "hidden", transition: "all .15s", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", border: active ? "1.5px solid #fd6301" : "1px solid #e2e8f0", boxShadow: active ? "0 0 0 3px #fff7ed" : "none" }}>
+              <div key={c} onClick={() => toggleColor(c)} title={c} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: compact ? 54 : 64, cursor: "pointer" }}>
+                <span style={{ position: "relative", width: compact ? 44 : 48, height: compact ? 44 : 48, borderRadius: 10, overflow: "hidden", transition: "all .15s", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", border: active ? "1.5px solid #fd6301" : "1px solid #e2e8f0", boxShadow: active ? "0 0 0 3px #fff7ed" : "none" }}>
                   {img ? (
                     <img
                       src={img}
@@ -277,22 +280,52 @@ export function MultiColorProductCard({
               const line = selected[sku];
               const v = variantBySku[sku];
               const tiers = getAvailableTiers(v);
+              const colorFormat = (
+                <div style={{ minWidth: compact ? 0 : 92, flex: compact ? 1 : undefined, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{line.color}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, alignSelf: "flex-start", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
+                </div>
+              );
+              const tierSelect = (
+                <select value={line.tier} onChange={(e) => setTier(sku, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
+                  {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
+                </select>
+              );
+              const stepper = (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 9, padding: 3, flexShrink: 0 }}>
+                  <button onClick={() => bumpQty(sku, -1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.minus()}</button>
+                  <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{line.qty}</span>
+                  <button onClick={() => bumpQty(sku, 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.plus()}</button>
+                </div>
+              );
+              const lineTotal = (
+                <span style={{ fontSize: 13, fontWeight: 800, minWidth: compact ? 0 : 80, textAlign: "right", whiteSpace: "nowrap" }}>{clp(priceOf(sku) * line.qty)}</span>
+              );
+              const removeBtn = (
+                <button onClick={() => removeSku(sku)} style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "flex", padding: 2, flexShrink: 0 }}>{Ic.x()}</button>
+              );
+              if (compact) {
+                return (
+                  <div key={sku} style={{ display: "flex", flexDirection: "column", gap: 8, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {colorFormat}
+                      {lineTotal}
+                      {removeBtn}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {tierSelect}
+                      {stepper}
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={sku} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
-                  <div style={{ minWidth: 92, display: "flex", flexDirection: "column", gap: 3 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>{line.color}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, alignSelf: "flex-start", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
-                  </div>
-                  <select value={line.tier} onChange={(e) => setTier(sku, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
-                    {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
-                  </select>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
-                    <button onClick={() => bumpQty(sku, -1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.minus()}</button>
-                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{line.qty}</span>
-                    <button onClick={() => bumpQty(sku, 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.plus()}</button>
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 800, minWidth: 80, textAlign: "right" }}>{clp(priceOf(sku) * line.qty)}</span>
-                  <button onClick={() => removeSku(sku)} style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "flex", padding: 2 }}>{Ic.x()}</button>
+                  {colorFormat}
+                  {tierSelect}
+                  {stepper}
+                  {lineTotal}
+                  {removeBtn}
                 </div>
               );
             })}

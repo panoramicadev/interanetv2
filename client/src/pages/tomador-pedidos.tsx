@@ -3248,6 +3248,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
             <div key={product.genericName} style={{ position: "relative" }}>
               <MultiColorProductCard
                 product={product}
+                compact={isMobile}
                 getAvailableTiers={v2GetTiersForVariant as any}
                 onAdd={(lines) => {
                   lines.forEach(({ variant: v, tier, qty }) => {
@@ -3461,9 +3462,9 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
               <User style={{ width: 20, height: 20, color: ORANGE }} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Información del cliente</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Cliente <span style={{ fontWeight: 600, color: "#94a3b8", fontSize: 12 }}>· opcional</span></div>
               <div style={{ fontSize: 12, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {quoteForm.clientName ? quoteForm.clientName : "Sin cliente asignado — toca para completar"}
+                {quoteForm.clientName ? quoteForm.clientName : "Cotiza sin cliente y asígnalo antes de guardar"}
               </div>
             </div>
           </div>
@@ -3676,6 +3677,19 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
             {tab === "productos" && productsSection}
             {tab === "carrito" && <div style={{ height: "100%", border: "1px solid #eef0f3", borderRadius: 14, overflow: "hidden" }}>{cartPanel}</div>}
           </div>
+          {units > 0 && tab !== "carrito" && (
+            <button
+              onClick={() => setV2MobileTab("carrito")}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, border: "none", borderTop: "1px solid rgba(255,255,255,.2)", background: ORANGE, color: "#fff", padding: "13px 16px", cursor: "pointer", flexShrink: 0, fontFamily: FONT, boxShadow: "0 -4px 14px rgba(253,99,1,.25)" }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                <ShoppingCart style={{ width: 16, height: 16 }} /> {units} producto(s)
+              </span>
+              <span style={{ fontSize: 15, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
+                {formatCurrency(total)} <ChevronRight style={{ width: 16, height: 16 }} />
+              </span>
+            </button>
+          )}
           <div style={{ display: "flex", borderTop: "1px solid #eef0f3", background: "#fff", flexShrink: 0 }}>
             {([["cliente", "Cliente", User], ["productos", "Productos", Package], ["carrito", "Carrito", ShoppingCart]] as const).map(([k, label, Icon]) => {
               const active = tab === k;
@@ -3732,20 +3746,59 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
 
         {/* Action Buttons in Header */}
         {!(isMobile && showClientSearch) && (
-          <div className="flex items-center gap-2">
-            {isV2 ? (
-              <Link href="/tomador-pedidos">
-                <Button
-                  variant="outline"
-                  className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
-                  size="sm"
-                  data-testid="button-tomador-clasico"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  {isMobile ? "Clásico" : "Volver al clásico"}
-                </Button>
-              </Link>
-            ) : (
+          isV2 ? (
+            // V2: un solo CTA primario + menú de opciones (menos botones)
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button
+                onClick={handleCreateQuoteForNewClient}
+                className="flex-1 md:flex-none bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 h-11 px-5 md:px-6 font-semibold rounded-xl"
+                data-testid="button-create-quote-new-client"
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo presupuesto
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-11 w-11 p-0 flex-shrink-0 border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm rounded-xl"
+                    data-testid="button-tomador-menu"
+                    aria-label="Más opciones"
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onSelect={() => setShowVoiceOrder(true)} data-testid="menu-voice-order">
+                    <Mic className="w-4 h-4 mr-2 text-orange-600" />
+                    Presupuesto por voz
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => { resetFichaClienteForm(); setShowFichaClienteDialog(true); }}
+                    data-testid="menu-ficha-cliente"
+                  >
+                    <User className="w-4 h-4 mr-2 text-emerald-600" />
+                    Crear ficha de cliente
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild data-testid="menu-presupuestos-avanzados">
+                    <Link href="/presupuestos-avanzados">
+                      <FileText className="w-4 h-4 mr-2 text-slate-500" />
+                      Presupuestos avanzados
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild data-testid="menu-tomador-clasico">
+                    <Link href="/tomador-pedidos">
+                      <ArrowLeft className="w-4 h-4 mr-2 text-slate-500" />
+                      Volver al clásico
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            // V1 (clásico): se mantiene tal cual
+            <div className="flex items-center gap-2">
               <Link href="/tomador-pedidos-v2">
                 <Button
                   variant="outline"
@@ -3757,38 +3810,38 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                   {isMobile ? "Nuevo" : "Probar nuevo tomador"}
                 </Button>
               </Link>
-            )}
-            <Button
-              onClick={() => setShowVoiceOrder(true)}
-              variant="outline"
-              className={`border-orange-200 text-orange-700 bg-white hover:bg-orange-50 hover:text-orange-800 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
-              size="sm"
-              data-testid="button-voice-order"
-            >
-              <Mic className="w-4 h-4" />
-              {isMobile ? "Por Voz" : "Presupuesto por Voz"}
-            </Button>
-            <Button
-              onClick={handleCreateQuoteForNewClient}
-              className={`bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
-              size="sm"
-              data-testid="button-create-quote-new-client"
-            >
-              <Plus className="w-4 h-4" />
-              {isMobile ? "Nuevo" : "Crear Presupuesto"}
-            </Button>
-            <Link href="/presupuestos-avanzados">
               <Button
+                onClick={() => setShowVoiceOrder(true)}
                 variant="outline"
-                className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                className={`border-orange-200 text-orange-700 bg-white hover:bg-orange-50 hover:text-orange-800 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
                 size="sm"
-                data-testid="button-presupuestos-avanzados"
+                data-testid="button-voice-order"
               >
-                <FileText className="w-4 h-4" />
-                {isMobile ? "Avanzado" : "Presupuestos Avanzados"}
+                <Mic className="w-4 h-4" />
+                {isMobile ? "Por Voz" : "Presupuesto por Voz"}
               </Button>
-            </Link>
-          </div>
+              <Button
+                onClick={handleCreateQuoteForNewClient}
+                className={`bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                size="sm"
+                data-testid="button-create-quote-new-client"
+              >
+                <Plus className="w-4 h-4" />
+                {isMobile ? "Nuevo" : "Crear Presupuesto"}
+              </Button>
+              <Link href="/presupuestos-avanzados">
+                <Button
+                  variant="outline"
+                  className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                  size="sm"
+                  data-testid="button-presupuestos-avanzados"
+                >
+                  <FileText className="w-4 h-4" />
+                  {isMobile ? "Avanzado" : "Presupuestos Avanzados"}
+                </Button>
+              </Link>
+            </div>
+          )
         )}
       </div>
 
@@ -3973,58 +4026,64 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-5 gap-2">
+              <div className={`grid gap-2 ${isV2 ? 'grid-cols-1' : 'grid-cols-5'}`}>
                 <Button
                   onClick={() => setShowClientSearch(true)}
                   variant="outline"
-                  className="col-span-3 h-12 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-orange-300 hover:bg-orange-50/50 transition-all"
+                  className={`${isV2 ? '' : 'col-span-3'} h-12 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-orange-300 hover:bg-orange-50/50 transition-all`}
                   data-testid="button-open-client-search"
                 >
                   <Search className="w-4 h-4 mr-2 text-orange-500" />
-                  <span className="font-medium text-gray-700">Buscar Cliente</span>
+                  <span className="font-medium text-gray-700">{isV2 ? "Empezar desde un cliente" : "Buscar Cliente"}</span>
                 </Button>
-                <Button
-                  onClick={() => {
-                    resetFichaClienteForm();
-                    setShowFichaClienteDialog(true);
-                  }}
-                  variant="outline"
-                  className="col-span-2 h-12 rounded-xl bg-emerald-50/50 border border-emerald-200 shadow-sm hover:bg-emerald-50 text-emerald-700 transition-all"
-                  data-testid="button-ficha-cliente"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  <span className="font-medium">Ficha Cliente</span>
-                </Button>
-              </div>
-            )
-          ) : (
-            // Desktop: Always show search
-            <Card className="border border-slate-200/70 shadow-sm rounded-2xl bg-white">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
-                      <Search className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Buscar Cliente</CardTitle>
-                      <CardDescription className="text-sm">
-                        Ingresa el nombre del cliente para buscar en la base de datos
-                      </CardDescription>
-                    </div>
-                  </div>
+                {!isV2 && (
                   <Button
                     onClick={() => {
                       resetFichaClienteForm();
                       setShowFichaClienteDialog(true);
                     }}
                     variant="outline"
-                    className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50"
-                    data-testid="button-ficha-cliente-desktop"
+                    className="col-span-2 h-12 rounded-xl bg-emerald-50/50 border border-emerald-200 shadow-sm hover:bg-emerald-50 text-emerald-700 transition-all"
+                    data-testid="button-ficha-cliente"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Ficha de Creación de Cliente
+                    <Plus className="w-4 h-4 mr-1" />
+                    <span className="font-medium">Ficha Cliente</span>
                   </Button>
+                )}
+              </div>
+            )
+          ) : (
+            // Desktop: Always show search
+            <Card className="border border-slate-200/70 shadow-sm rounded-2xl bg-white">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
+                      <Search className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg">{isV2 ? "Empezar desde un cliente" : "Buscar Cliente"}</CardTitle>
+                      <CardDescription className="text-sm">
+                        {isV2
+                          ? "Opcional — o crea un presupuesto nuevo y asigna el cliente después"
+                          : "Ingresa el nombre del cliente para buscar en la base de datos"}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {!isV2 && (
+                    <Button
+                      onClick={() => {
+                        resetFichaClienteForm();
+                        setShowFichaClienteDialog(true);
+                      }}
+                      variant="outline"
+                      className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50"
+                      data-testid="button-ficha-cliente-desktop"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Ficha de Creación de Cliente
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
