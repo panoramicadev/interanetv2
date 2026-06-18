@@ -102,8 +102,20 @@
     @apply border-border;
   }
 
+  /* Evita el scroll horizontal a nivel de página en móvil:
+     el contenido ancho (tablas, barras de pestañas) debe desplazarse
+     dentro de su propio contenedor, nunca descuadrar toda la página.
+     Usamos `clip` (no `hidden`) para no crear un contenedor de scroll,
+     así no se rompe ningún `position: sticky` de la app. */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    width: 100%;
   }
 
   /* Scrollbars modernas en toda la app (vertical y horizontal) */
@@ -236,6 +248,20 @@
   }
 
   .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tira de pestañas deslizable en móvil (sin barra visible, con inercia).
+     Permite hacer swipe entre pestañas en vez de desbordar la página. */
+  .tab-strip {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .tab-strip::-webkit-scrollbar {
     display: none;
   }
 

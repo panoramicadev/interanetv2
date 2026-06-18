@@ -458,7 +458,8 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
     <div className="space-y-4">
       <Tabs defaultValue="comercial" className="w-full">
         <div className="flex items-center gap-2">
-        <TabsList className={`h-9 bg-muted/50 p-0.5 rounded-lg flex-1 ${vendorView ? 'hidden' : ''}`}>
+        <div className={`tab-strip flex-1 min-w-0 ${vendorView ? 'hidden' : ''}`}>
+        <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg w-max min-w-full">
           <TabsTrigger value="comercial" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <List className="h-3.5 w-3.5" />
             Lista Comercial
@@ -475,6 +476,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
             Ofertas
           </TabsTrigger>
         </TabsList>
+        </div>
         {!vendorView && (
         <Button
           onClick={() => setIsNewListOpen(true)}

@@ -99,11 +99,11 @@ function FletesContent() {
   return (
     <>
     <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
-      <CardHeader className="bg-muted/30 border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Truck className="h-5 w-5 text-orange-500" />
+      <CardHeader className="bg-muted/30 border-b px-4 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Truck className="h-5 w-5 text-orange-500 flex-shrink-0" />
               Tarifas de Flete por Formato
             </CardTitle>
             <CardDescription className="mt-0.5">
@@ -113,7 +113,7 @@ function FletesContent() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
+            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg w-full sm:w-auto flex-shrink-0"
           >
             <Save className="h-4 w-4" />
             {isSaving ? 'Guardando...' : 'Guardar Tarifas'}
@@ -128,12 +128,12 @@ function FletesContent() {
         ) : (
           <div className="grid gap-6 max-w-3xl">
             {FORMATS.map((format) => (
-              <div key={format.key} className="flex items-center gap-6 p-4 rounded-xl bg-muted/30 border border-muted hover:border-orange-200 transition-colors">
+              <div key={format.key} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 p-4 rounded-xl bg-muted/30 border border-muted hover:border-orange-200 transition-colors">
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-bold text-foreground">{format.label}</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">{format.description}</p>
                 </div>
-                <div className="flex items-center gap-2 w-44">
+                <div className="flex items-center gap-2 w-full sm:w-44">
                   <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Input
                     type="number"
@@ -144,7 +144,7 @@ function FletesContent() {
                   />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">CLP</span>
                 </div>
-                <div className="flex items-center gap-2 w-48">
+                <div className="flex items-center gap-2 w-full sm:w-48">
                   <Tag className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Input
                     type="text"
@@ -2599,7 +2599,8 @@ export default function ProductsPage() {
 
       {/* Modern Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
+        <div className="tab-strip -mx-2 px-2 md:mx-0 md:px-0">
+        <TabsList className="flex h-auto w-max min-w-full p-1 bg-muted/50 rounded-xl gap-1">
           <TabsTrigger value="lista-precios" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <DollarSign className="h-4 w-4" />
             <span className="hidden sm:inline">Lista de Precios</span>
@@ -2636,6 +2637,7 @@ export default function ProductsPage() {
           </>)}
           {/* Tab Orden oculta — ya se gestiona desde Catálogo Agrupado */}
         </TabsList>
+        </div>
 
         {/* Tab de Lista de Precios */}
         <TabsContent value="lista-precios" className="space-y-4 mt-4">
@@ -2665,7 +2667,7 @@ export default function ProductsPage() {
                 setPriceListPage(0);
               }}
             >
-              <SelectTrigger className="w-[200px] h-11 rounded-xl border-muted">
+              <SelectTrigger className="w-full sm:w-[200px] h-11 rounded-xl border-muted">
                 <SelectValue placeholder="Formato / Unidad" />
               </SelectTrigger>
               <SelectContent>
@@ -2679,17 +2681,17 @@ export default function ProductsPage() {
 
           {/* Price Table */}
           <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 bg-muted/30 border-b px-6 py-4">
-              <div>
-                <CardTitle className="text-lg">Catálogo de Precios Comerciales</CardTitle>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between space-y-0 bg-muted/30 border-b px-4 sm:px-6 py-4">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Catálogo de Precios Comerciales</CardTitle>
                 <CardDescription className="mt-0.5">Información sincronizada con el tomador de pedidos</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="rounded-lg gap-1.5 bg-orange-500 hover:bg-orange-600 text-white" onClick={openAddPriceListDialog}>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button size="sm" className="flex-1 sm:flex-none rounded-lg gap-1.5 bg-orange-500 hover:bg-orange-600 text-white" onClick={openAddPriceListDialog}>
                   <Plus className="h-3.5 w-3.5" />
                   Agregar Producto
                 </Button>
-                <Button variant="outline" size="sm" className="rounded-lg gap-1.5" onClick={() => setLocation('/lista-precios')}>
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none rounded-lg gap-1.5" onClick={() => setLocation('/lista-precios')}>
                   <ExternalLink className="h-3.5 w-3.5" />
                   Ver completo
                 </Button>

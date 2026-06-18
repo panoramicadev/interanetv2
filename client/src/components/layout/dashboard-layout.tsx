@@ -327,7 +327,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <div className="lg:ml-64 transition-all duration-300">
+      <div className="lg:ml-64 min-w-0 max-w-full overflow-x-clip transition-all duration-300">
         {children}
       </div >
 
