@@ -1040,6 +1040,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [showClientSearch, setShowClientSearch] = useState(false); // Control client search visibility in mobile
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
+  const [quotesCount, setQuotesCount] = useState<number | null>(null);
   const [showVoiceOrder, setShowVoiceOrder] = useState(false);
   const [selectedClientForQuote, setSelectedClientForQuote] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -3750,6 +3751,17 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
             // V2: un solo CTA primario + menú de opciones (menos botones)
             <div className="flex items-center gap-2 w-full md:w-auto">
               <Button
+                variant="outline"
+                onClick={() => setShowVoiceOrder(true)}
+                className="h-11 w-11 p-0 md:w-auto md:px-4 flex-shrink-0 border-orange-200 text-orange-700 bg-white hover:bg-orange-50 hover:text-orange-800 shadow-sm rounded-xl flex items-center justify-center gap-2"
+                data-testid="button-voice-order"
+                aria-label="Presupuesto por voz"
+                title="Presupuesto por voz"
+              >
+                <Mic className="w-4 h-4" />
+                <span className="hidden md:inline font-medium">Por voz</span>
+              </Button>
+              <Button
                 onClick={handleCreateQuoteForNewClient}
                 className="flex-1 md:flex-none bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 h-11 px-5 md:px-6 font-semibold rounded-xl"
                 data-testid="button-create-quote-new-client"
@@ -3769,10 +3781,6 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onSelect={() => setShowVoiceOrder(true)} data-testid="menu-voice-order">
-                    <Mic className="w-4 h-4 mr-2 text-orange-600" />
-                    Presupuesto por voz
-                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => { resetFichaClienteForm(); setShowFichaClienteDialog(true); }}
                     data-testid="menu-ficha-cliente"
@@ -4188,16 +4196,23 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
 
           {/* Cotizaciones Recientes */}
           <div>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-orange-600" />
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-gray-900">Cotizaciones Recientes</h2>
+                  <p className="text-sm text-gray-500 truncate">Historial de cotizaciones creadas en el sistema</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Cotizaciones Recientes</h2>
-                <p className="text-sm text-gray-500">Historial de cotizaciones creadas en el sistema</p>
-              </div>
+              {quotesCount !== null && (
+                <span className="flex-shrink-0 text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-3 py-1 whitespace-nowrap" data-testid="quotes-count">
+                  {quotesCount} {quotesCount === 1 ? 'cotización' : 'cotizaciones'}
+                </span>
+              )}
             </div>
-            <QuotesList onEditQuote={loadQuoteForEditing} />
+            <QuotesList onEditQuote={loadQuoteForEditing} onCountChange={setQuotesCount} />
           </div>
 
           {/* Pedidos de Clientes (eCommerce + Catálogo) */}

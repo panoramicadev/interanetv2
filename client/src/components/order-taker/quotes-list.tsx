@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -132,9 +132,10 @@ function avatarColor(seed?: string): string {
 
 interface QuotesListProps {
   onEditQuote?: (quoteId: string) => void;
+  onCountChange?: (count: number) => void;
 }
 
-export default function QuotesList({ onEditQuote }: QuotesListProps) {
+export default function QuotesList({ onEditQuote, onCountChange }: QuotesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [creatorFilter, setCreatorFilter] = useState<string>("all");
@@ -190,6 +191,11 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
   // Paginated quotes
   const displayedQuotes = quotes?.slice(0, displayLimit) || [];
+
+  // Reporta el total al contenedor para mostrar el pill de conteo en el título.
+  useEffect(() => {
+    onCountChange?.(quotes?.length ?? 0);
+  }, [quotes?.length, onCountChange]);
   const hasMore = quotes && quotes.length > displayLimit;
 
   // Mutation to duplicate quote for editing
@@ -616,13 +622,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
   return (
     <div className="space-y-4">
-      {!isMobile && (
-        <div className="flex justify-end -mt-1">
-          <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-3 py-1" data-testid="quotes-count">
-            {getTotalQuotes()} {getTotalQuotes() === 1 ? 'cotización' : 'cotizaciones'}
-          </span>
-        </div>
-      )}
       {/* Filters - Mobile Compact */}
       <div className={isMobile ? 'space-y-3' : 'bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 space-y-4'}>
       <div className={`${isMobile ? 'space-y-3' : 'flex flex-col sm:flex-row gap-3'}`}>
