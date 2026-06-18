@@ -735,7 +735,7 @@ export default function GroupedCatalog() {
                             />
                         </div>
                         <Select value={groupFilter} onValueChange={setGroupFilter}>
-                            <SelectTrigger className="w-[220px]">
+                            <SelectTrigger className="w-full sm:w-[220px]">
                                 <SelectValue placeholder="Todas las categorías" />
                             </SelectTrigger>
                             <SelectContent>
@@ -807,7 +807,7 @@ export default function GroupedCatalog() {
                     <Card key={product.genericName} className="overflow-hidden">
                         {/* Product header */}
                         <div
-                            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                            className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                             onClick={() => toggleProduct(product.genericName)}
                         >
                             {/* Editable Position number */}
@@ -901,7 +901,7 @@ export default function GroupedCatalog() {
                                     />
                                 ) : (
                                     <h3
-                                        className="font-semibold text-lg cursor-pointer hover:text-orange-600 transition-colors inline-block"
+                                        className="font-semibold text-base sm:text-lg leading-tight break-words cursor-pointer hover:text-orange-600 transition-colors inline-block"
                                         title="Clic para renombrar la agrupación"
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -915,24 +915,26 @@ export default function GroupedCatalog() {
                                 {product.breveResena && (
                                     <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{product.breveResena}</p>
                                 )}
-                                <span className="text-sm text-muted-foreground">
-                                    {colorKeys.length} color{colorKeys.length !== 1 ? "es" : ""} disponible{colorKeys.length !== 1 ? "s" : ""}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <span className="text-sm text-muted-foreground">
+                                        {colorKeys.length} color{colorKeys.length !== 1 ? "es" : ""} disponible{colorKeys.length !== 1 ? "s" : ""}
+                                    </span>
+                                    {product.groupName && (
+                                        <Badge variant="outline" className="text-xs">
+                                            {product.groupName}
+                                        </Badge>
+                                    )}
+                                    {(product.tags || []).map((tag: string) => {
+                                        const tagDef = dynamicTags.find(t => t.name === tag);
+                                        const bgClass = tagDef ? TAG_BADGE_BG[tagDef.color] || 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700';
+                                        return (
+                                            <Badge key={tag} className={`text-[10px] font-bold border ${bgClass}`}>
+                                                {tag}
+                                            </Badge>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                            {product.groupName && (
-                                <Badge variant="outline" className="text-xs">
-                                    {product.groupName}
-                                </Badge>
-                            )}
-                            {(product.tags || []).map((tag: string) => {
-                                const tagDef = dynamicTags.find(t => t.name === tag);
-                                const bgClass = tagDef ? TAG_BADGE_BG[tagDef.color] || 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700';
-                                return (
-                                    <Badge key={tag} className={`text-[10px] font-bold border ${bgClass}`}>
-                                        {tag}
-                                    </Badge>
-                                );
-                            })}
                             <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
