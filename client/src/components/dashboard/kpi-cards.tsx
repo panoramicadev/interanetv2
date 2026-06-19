@@ -737,6 +737,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const gdvSales = Number(gdvGlobalMetrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
+    // El modo "Combinado" (Facturado + NVV + GDV) solo aplica al mes en curso.
+    // En meses cerrados se muestra siempre "Facturado" y se oculta el toggle.
+    const isCurrent = isCurrentMonth();
+    const effectiveCombined = showCombined && isCurrent;
+
     // % de variación del combinado vs el mismo período del año anterior.
     // NVV y GDV son una foto de lo pendiente hoy, sin equivalente del período
     // anterior, por lo que su variación interanual es 0: la única variación real
@@ -765,37 +770,39 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   {kpi.title}
                 </p>
 
-                {/* Facturado / Combinado Subtle Toggle */}
-                <div
-                  className="flex items-center space-x-1 sm:space-x-1.5"
-                  onClick={(e) => e.stopPropagation()} // Prevent opening projection modal when toggling
-                >
-                  <button
-                    onClick={() => setShowCombined(false)}
-                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+                {/* Facturado / Combinado Subtle Toggle (solo mes en curso) */}
+                {isCurrent && (
+                  <div
+                    className="flex items-center space-x-1 sm:space-x-1.5"
+                    onClick={(e) => e.stopPropagation()} // Prevent opening projection modal when toggling
                   >
-                    Facturado
-                  </button>
-                  <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
-                  <button
-                    onClick={() => setShowCombined(true)}
-                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                  >
-                    Combinado
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setShowCombined(false)}
+                      className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+                    >
+                      Facturado
+                    </button>
+                    <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
+                    <button
+                      onClick={() => setShowCombined(true)}
+                      className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+                    >
+                      Combinado
+                    </button>
+                  </div>
+                )}
               </div>
 
               <p
                 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
                 data-testid={kpi.testId}
-                title={showCombined ? formatCurrency(combinedTotal) : kpi.value}
+                title={effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               >
-                {showCombined ? formatCurrency(combinedTotal) : kpi.value}
+                {effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  {!showCombined ? (
+                  {!effectiveCombined ? (
                     <>
                       {kpi.change.percentage !== "Sin datos previos" && (
                         <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
@@ -838,7 +845,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   )}
                 </div>
               </div>
-              {(nvvTotal > 0 || gdvSales > 0) && (
+              {isCurrent && (nvvTotal > 0 || gdvSales > 0) && (
                 <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
                   <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
                     <span className="truncate" title={`Facturas: ${kpi.value}`}>Fact: {kpi.value}</span>
@@ -1099,8 +1106,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     // Calculate final facturado value
     const facturadoValue = currentTotal;
 
+    // El modo "Combinado" solo aplica al mes en curso; en meses cerrados se
+    // muestra siempre "Facturado" y se oculta el toggle.
+    const isCurrent = isCurrentMonth();
+    const effectiveCombined = showCombined && isCurrent;
+
     // Choose what to display
-    const displayValue = showCombined ? finalCombinedValue : facturadoValue;
+    const displayValue = effectiveCombined ? finalCombinedValue : facturadoValue;
 
     // La Meta es un objetivo de facturación: la diferencia y el % siempre se
     // miden contra lo facturado, no contra el combinado (que incluye pendientes)
@@ -1126,25 +1138,27 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 Total Acumulado
               </p>
 
-              {/* Facturado / Combinado Subtle Toggle */}
-              <div
-                className="flex items-center space-x-1 sm:space-x-1.5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setShowCombined(false)}
-                  className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+              {/* Facturado / Combinado Subtle Toggle (solo mes en curso) */}
+              {isCurrent && (
+                <div
+                  className="flex items-center space-x-1 sm:space-x-1.5"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  Facturado
-                </button>
-                <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
-                <button
-                  onClick={() => setShowCombined(true)}
-                  className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                >
-                  Combinado
-                </button>
-              </div>
+                  <button
+                    onClick={() => setShowCombined(false)}
+                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+                  >
+                    Facturado
+                  </button>
+                  <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
+                  <button
+                    onClick={() => setShowCombined(true)}
+                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+                  >
+                    Combinado
+                  </button>
+                </div>
+              )}
             </div>
 
             <p
