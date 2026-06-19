@@ -4242,9 +4242,10 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
         </div>
       </div>
 
-      {/* Acceso directo (móvil · v2): FAB sobre el menú hamburguesa que abre
-          el constructor de presupuesto al toque. Se oculta si hay un modal abierto. */}
-      {isV2 && isMobile && !showQuoteBuilder && !showVoiceOrder && !showCustomProductModal && !showFichaClienteDialog && (
+      {/* Acceso directo (móvil): FAB sobre el menú hamburguesa que abre
+          el constructor de presupuesto al toque. Visible en ambos tomadores
+          (clásico y v2). Se oculta si hay un modal abierto. */}
+      {isMobile && !showQuoteBuilder && !showVoiceOrder && !showCustomProductModal && !showFichaClienteDialog && (
         <button
           onClick={handleCreateQuoteForNewClient}
           className="fixed left-5 bottom-[4.25rem] z-50 lg:hidden w-10 h-10 rounded-full bg-orange-600 hover:bg-orange-700 active:scale-95 text-white shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center"
