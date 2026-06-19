@@ -3600,7 +3600,18 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
                         <button onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus style={{ width: 13, height: 13 }} /></button>
-                        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{item.quantity}</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={item.quantity}
+                          onChange={(e) => { const value = parseInt(e.target.value, 10) || 1; updateCartItemQuantity(item.id, Math.min(99999, Math.max(1, value))); }}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onBlur={(e) => { if (!e.currentTarget.value || parseInt(e.currentTarget.value, 10) < 1) updateCartItemQuantity(item.id, 1); }}
+                          aria-label="Cantidad"
+                          data-testid={`v2-cart-quantity-input-${item.id}`}
+                          style={{ width: 34, fontSize: 13, fontWeight: 700, textAlign: "center", border: "none", outline: "none", background: "transparent", padding: 0, color: "#0f172a" }}
+                        />
                         <button onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus style={{ width: 13, height: 13 }} /></button>
                       </div>
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{formatCurrency(item.totalPrice)}</span>
