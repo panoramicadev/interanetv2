@@ -785,7 +785,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  {kpi.change.percentage !== "Sin datos previos" && (
+                  {kpi.change.percentage !== "Sin datos previos" && !showCombined && (
                     <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
                       {kpi.change.percentage}
                     </span>
@@ -795,12 +795,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                       {salesDifferenceSign}{salesDifferenceFormatted}
                     </span>
                   )}
-                  {kpi.change.comparisonText && (
+                  {kpi.change.comparisonText && !showCombined && (
                     <span className="text-[10px] text-gray-500 dark:text-gray-400">
                       {kpi.change.comparisonText}
                     </span>
                   )}
-                  {kpi.change.percentage === "Sin datos previos" && (
+                  {kpi.change.percentage === "Sin datos previos" && !showCombined && (
                     <span className="text-xs sm:text-sm font-semibold text-gray-500">
                       Sin datos previos
                     </span>
@@ -1071,8 +1071,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     // Choose what to display
     const displayValue = showCombined ? finalCombinedValue : facturadoValue;
 
-    // Calculate difference against budget based on displayed value
-    const difference = displayValue - budgetYTD;
+    // La Meta es un objetivo de facturación: la diferencia y el % siempre se
+    // miden contra lo facturado, no contra el combinado (que incluye pendientes)
+    const difference = facturadoValue - budgetYTD;
     const differenceFormatted = formatCurrency(Math.abs(difference));
     const differenceSign = difference >= 0 ? '+' : '-';
 
@@ -1080,7 +1081,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     let budgetPct = "0%";
     let budgetColor = "text-gray-500";
     if (budgetYTD > 0) {
-      const pct = ((displayValue - budgetYTD) / budgetYTD) * 100;
+      const pct = ((facturadoValue - budgetYTD) / budgetYTD) * 100;
       budgetPct = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
       budgetColor = pct >= 0 ? "text-green-600" : "text-red-600";
     }
