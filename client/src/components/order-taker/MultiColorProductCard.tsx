@@ -168,6 +168,9 @@ export function MultiColorProductCard({
     setSelected((p) => ({ ...p, [sku]: { ...p[sku], tier } }));
   const bumpQty = (sku: string, d: number) =>
     setSelected((p) => ({ ...p, [sku]: { ...p[sku], qty: Math.max(1, p[sku].qty + d) } }));
+  // Cantidad escrita a mano: fija un valor absoluto (acotado 1..99999).
+  const setQty = (sku: string, n: number) =>
+    setSelected((p) => ({ ...p, [sku]: { ...p[sku], qty: Math.min(99999, Math.max(1, n)) } }));
 
   // Solo colores disponibles para el envase (formato) seleccionado
   const colorsForFormat = colors.filter((c) => product.colors[c]?.some((v) => v.format === format));
@@ -294,7 +297,17 @@ export function MultiColorProductCard({
               const stepper = (
                 <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 9, padding: 3, flexShrink: 0 }}>
                   <button onClick={() => bumpQty(sku, -1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.minus()}</button>
-                  <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{line.qty}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={line.qty}
+                    onChange={(e) => { const value = parseInt(e.target.value, 10) || 1; setQty(sku, value); }}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={(e) => { if (!e.currentTarget.value || parseInt(e.currentTarget.value, 10) < 1) setQty(sku, 1); }}
+                    aria-label={`Cantidad ${line.color}`}
+                    style={{ width: 34, fontSize: 13, fontWeight: 700, textAlign: "center", border: "none", outline: "none", background: "transparent", padding: 0, fontFamily: FONT, color: "#0f172a" }}
+                  />
                   <button onClick={() => bumpQty(sku, 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>{Ic.plus()}</button>
                 </div>
               );
