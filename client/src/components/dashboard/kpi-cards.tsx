@@ -737,6 +737,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const gdvSales = Number(gdvGlobalMetrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
+    // % de variación del combinado vs el mismo período del año anterior.
+    // NVV y GDV son una foto de lo pendiente hoy, sin equivalente del período
+    // anterior, por lo que su variación interanual es 0: la única variación real
+    // proviene de lo facturado, prorrateada sobre la base combinada anterior.
+    const combinedPrevious = previousSales + nvvTotal + gdvSales;
+    const combinedHasPrev = previousSales > 0;
+    const combinedPctValue = combinedHasPrev ? (salesDifference / combinedPrevious) * 100 : 0;
+    const combinedPctFormatted = `${combinedPctValue >= 0 ? '+' : ''}${combinedPctValue.toFixed(1)}%`;
+    const combinedPctColor = combinedPctValue >= 0 ? 'text-green-600' : 'text-red-600';
+
     return (
       <>
         <div
@@ -785,25 +795,46 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  {kpi.change.percentage !== "Sin datos previos" && !showCombined && (
-                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                      {kpi.change.percentage}
-                    </span>
-                  )}
-                  {previousSales > 0 && !showCombined && (
-                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                      {salesDifferenceSign}{salesDifferenceFormatted}
-                    </span>
-                  )}
-                  {kpi.change.comparisonText && !showCombined && (
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                      {kpi.change.comparisonText}
-                    </span>
-                  )}
-                  {kpi.change.percentage === "Sin datos previos" && !showCombined && (
-                    <span className="text-xs sm:text-sm font-semibold text-gray-500">
-                      Sin datos previos
-                    </span>
+                  {!showCombined ? (
+                    <>
+                      {kpi.change.percentage !== "Sin datos previos" && (
+                        <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                          {kpi.change.percentage}
+                        </span>
+                      )}
+                      {previousSales > 0 && (
+                        <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                          {salesDifferenceSign}{salesDifferenceFormatted}
+                        </span>
+                      )}
+                      {kpi.change.comparisonText && (
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                          {kpi.change.comparisonText}
+                        </span>
+                      )}
+                      {kpi.change.percentage === "Sin datos previos" && (
+                        <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                          Sin datos previos
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {combinedHasPrev ? (
+                        <span className={`text-xs sm:text-sm font-semibold ${combinedPctColor}`}>
+                          {combinedPctFormatted}
+                        </span>
+                      ) : (
+                        <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                          Sin datos previos
+                        </span>
+                      )}
+                      {kpi.change.comparisonText && (
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                          {kpi.change.comparisonText}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
