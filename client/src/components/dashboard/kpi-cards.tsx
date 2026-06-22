@@ -743,14 +743,18 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const effectiveCombined = showCombined && isCurrent;
 
     // % de variación del combinado vs el mismo período del año anterior.
-    // NVV y GDV son una foto de lo pendiente hoy, sin equivalente del período
-    // anterior, por lo que su variación interanual es 0: la única variación real
-    // proviene de lo facturado, prorrateada sobre la base combinada anterior.
-    const combinedPrevious = previousSales + nvvTotal + gdvSales;
+    // El combinado (Facturado + NVV + GDV) proyecta dónde cerrará el mes en curso.
+    // Se compara contra el FACTURADO del año anterior, porque en un mes ya cerrado
+    // lo pendiente (NVV/GDV) ya se transformó en facturado: no existe un "combinado"
+    // del pasado. Usar una base combinada anterior infla el denominador y diluye el %
+    // (haría que el combinado, siendo un monto mayor, creciera menos que el facturado).
+    const combinedDifference = combinedTotal - previousSales;
     const combinedHasPrev = previousSales > 0;
-    const combinedPctValue = combinedHasPrev ? (salesDifference / combinedPrevious) * 100 : 0;
+    const combinedPctValue = combinedHasPrev ? (combinedDifference / previousSales) * 100 : 0;
     const combinedPctFormatted = `${combinedPctValue >= 0 ? '+' : ''}${combinedPctValue.toFixed(1)}%`;
     const combinedPctColor = combinedPctValue >= 0 ? 'text-green-600' : 'text-red-600';
+    const combinedDiffFormatted = formatCurrency(Math.abs(combinedDifference));
+    const combinedDiffSign = combinedDifference >= 0 ? '+' : '-';
 
     return (
       <>
@@ -828,9 +832,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   ) : (
                     <>
                       {combinedHasPrev ? (
-                        <span className={`text-xs sm:text-sm font-semibold ${combinedPctColor}`}>
-                          {combinedPctFormatted}
-                        </span>
+                        <>
+                          <span className={`text-xs sm:text-sm font-semibold ${combinedPctColor}`}>
+                            {combinedPctFormatted}
+                          </span>
+                          <span className={`text-xs sm:text-sm font-semibold ${combinedPctColor}`}>
+                            {combinedDiffSign}{combinedDiffFormatted}
+                          </span>
+                        </>
                       ) : (
                         <span className="text-xs sm:text-sm font-semibold text-gray-500">
                           Sin datos previos
