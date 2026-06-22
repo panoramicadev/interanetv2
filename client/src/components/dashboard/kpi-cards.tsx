@@ -1041,9 +1041,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const currentTotal = currentYearTotal || 0;
 
-    // NVV and GDV yearly totals
-    const nvvYearTotal = Number(nvvYearlyMetrics?.totalAmount || 0);
-    const gdvYearTotal = Number(gdvYearlyMetrics?.gdvSales || 0);
+    // NVV/GDV: todo el pendiente vivo (sin filtro de fecha), igual que en
+    // "Ventas Totales". Las NVV/GDV se transforman en factura más adelante, así
+    // que solo tienen sentido en el mes en curso; por eso el Combinado se gatilla
+    // con effectiveCombined (isCurrent) y en meses cerrados no se muestran.
+    const nvvYearTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
+    const gdvYearTotal = Number(gdvGlobalMetrics?.gdvSales || 0);
 
     // Per user request, the "Total Acumulado del Año" should strictly match 
     // the "Ventas Totales" (Facturado) without adding NVV/GDV to the main figure
@@ -1123,9 +1126,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     // Choose what to display
     const displayValue = effectiveCombined ? finalCombinedValue : facturadoValue;
 
-    // La Meta es un objetivo de facturación: la diferencia y el % siempre se
-    // miden contra lo facturado, no contra el combinado (que incluye pendientes)
-    const difference = facturadoValue - budgetYTD;
+    // La Diferencia y el % siguen al modo seleccionado: en Facturado miden la
+    // plata firme vs meta; en Combinado suman el pendiente vivo (NVV+GDV) para
+    // ver si el pipeline alcanza a cerrar la brecha con la meta.
+    const difference = displayValue - budgetYTD;
     const differenceFormatted = formatCurrency(Math.abs(difference));
     const differenceSign = difference >= 0 ? '+' : '-';
 
@@ -1133,7 +1137,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     let budgetPct = "0%";
     let budgetColor = "text-gray-500";
     if (budgetYTD > 0) {
-      const pct = ((facturadoValue - budgetYTD) / budgetYTD) * 100;
+      const pct = ((displayValue - budgetYTD) / budgetYTD) * 100;
       budgetPct = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
       budgetColor = pct >= 0 ? "text-green-600" : "text-red-600";
     }
