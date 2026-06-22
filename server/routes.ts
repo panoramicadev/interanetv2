@@ -406,6 +406,7 @@ import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
+import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import crypto from "crypto";
@@ -7659,13 +7660,14 @@ export function registerRoutes(app: Express): Server {
       const assignedCategories = multiCatAssignments[genericName] || (groupName ? [groupName] : []);
 
       if (search) {
-        const s = (search as string).toLowerCase();
+        // Insensible a mayúsculas y tildes: "jose"/"José" matchean igual.
+        const s = normalizeText(search as string);
         const matches =
-          sku.toLowerCase().includes(s) ||
-          genericName.toLowerCase().includes(s) ||
-          color.toLowerCase().includes(s) ||
-          (groupName && groupName.toLowerCase().includes(s)) ||
-          assignedCategories.some(c => c.toLowerCase().includes(s));
+          normalizeText(sku).includes(s) ||
+          normalizeText(genericName).includes(s) ||
+          normalizeText(color).includes(s) ||
+          (groupName && normalizeText(groupName).includes(s)) ||
+          assignedCategories.some(c => normalizeText(c).includes(s));
         if (!matches) continue;
       }
 

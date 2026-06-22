@@ -35,7 +35,7 @@ import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
-import { getShippingKey as getShippingKeyFn, getFormatOptions, normalizeFormat, PRODUCT_FORMATS } from '@shared/format-utils';
+import { getShippingKey as getShippingKeyFn, getFormatOptions, normalizeFormat, PRODUCT_FORMATS, getFormatQuantityRules } from '@shared/format-utils';
 
 const getQuoteItemSortOrder = (item: any): number => {
   const name = item?.productName?.toString() || '';
@@ -1069,11 +1069,12 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
   const [debouncedBuilderClientSearch, setDebouncedBuilderClientSearch] = useState("");
   const [showBuilderClientResults, setShowBuilderClientResults] = useState(false);
 
-  // Debounce search input for client search - wait 600ms after user stops typing
+  // Debounce search input for client search - wait 350ms after user stops typing
+  // (alineado con la búsqueda de productos para que se sienta más ágil)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-    }, 600);
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -2104,6 +2105,20 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
       setHasUnsavedChanges(true);
     }
   };
+
+  // Salto de cantidad por formato, igual que la tienda online:
+  // Galón → de a 4, 1/4 Galón → de a 6, Baldes/Unidad → de a 1.
+  // El input numérico del carrito sigue permitiendo cargar cualquier cantidad
+  // a mano (no se ve afectado por esto).
+  const getCartItemStep = (item: any): number =>
+    getFormatQuantityRules(item?.productUnit || item?.unit || item?.productName).stepQuantity || 1;
+
+  // +/- del carrito v2: avanzan/retroceden en múltiplos del formato.
+  // updateCartItemQuantity ya remueve el ítem si la cantidad llega a 0.
+  const incrementCartItem = (item: any) =>
+    updateCartItemQuantity(item.id, item.quantity + getCartItemStep(item));
+  const decrementCartItem = (item: any) =>
+    updateCartItemQuantity(item.id, item.quantity - getCartItemStep(item));
 
   // Update cart item price tier
   const updateCartItemPriceTier = (itemId: string, newTier: PriceTier) => {
@@ -3627,7 +3642,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                     </button>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
-                        <button onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus style={{ width: 13, height: 13 }} /></button>
+                        <button onClick={() => decrementCartItem(item)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus style={{ width: 13, height: 13 }} /></button>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -3640,7 +3655,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                           data-testid={`v2-cart-quantity-input-${item.id}`}
                           style={{ width: 34, fontSize: 13, fontWeight: 700, textAlign: "center", border: "none", outline: "none", background: "transparent", padding: 0, color: "#0f172a" }}
                         />
-                        <button onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus style={{ width: 13, height: 13 }} /></button>
+                        <button onClick={() => incrementCartItem(item)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus style={{ width: 13, height: 13 }} /></button>
                       </div>
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{formatCurrency(item.totalPrice)}</span>
                     </div>

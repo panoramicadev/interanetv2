@@ -353,6 +353,7 @@ import {
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
+import { accentInsensitiveContains } from "./utils/sql-search";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -12201,8 +12202,10 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
 
     if (filters?.search) {
+      // Insensible a tildes: "jose" encuentra "José" y viceversa.
+      const term = filters.search.trim();
       conditions.push(
-        sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
+        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
       );
     }
 
@@ -12524,8 +12527,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.search) {
+      // Insensible a tildes: "jose" encuentra "José" y viceversa.
+      const term = filters.search.trim();
       conditions.push(
-        sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
+        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
       );
     }
 
@@ -14210,11 +14215,11 @@ export class DatabaseStorage implements IStorage {
         if (term === 'galon' || term === 'galón' || term === 'gl') mappedTerm = 'galon';
         if (term === 'balde' || term === 'bd') mappedTerm = 'balde';
 
-        const pattern = `%${mappedTerm}%`;
+        // Insensible a tildes en código/producto/unidad.
         conditions.push(
-          sql`(${priceList.codigo} ILIKE ${pattern} OR 
-               ${priceList.producto} ILIKE ${pattern} OR
-               ${priceList.unidad} ILIKE ${pattern})`
+          sql`(${accentInsensitiveContains(priceList.codigo, mappedTerm)} OR
+               ${accentInsensitiveContains(priceList.producto, mappedTerm)} OR
+               ${accentInsensitiveContains(priceList.unidad, mappedTerm)})`
         );
       }
     }
