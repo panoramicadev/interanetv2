@@ -14744,8 +14744,21 @@ export class DatabaseStorage implements IStorage {
 
   // Quote operations
   async createQuote(quote: InsertQuote): Promise<Quote> {
-    // Generate quote number
-    const quoteNumber = `Q-${Date.now()}`;
+    // Generate quote number: Q-DD-MM-YYYY-NNN (secuencia diaria, hora chilena)
+    const chileanTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+    const day = String(chileanTime.getDate()).padStart(2, '0');
+    const month = String(chileanTime.getMonth() + 1).padStart(2, '0');
+    const year = chileanTime.getFullYear();
+    const prefix = `Q-${day}-${month}-${year}-`;
+
+    // Contar cotizaciones del día para calcular el correlativo
+    const [{ todayCount }] = await db
+      .select({ todayCount: sql<number>`count(*)` })
+      .from(quotes)
+      .where(ilike(quotes.quoteNumber, `${prefix}%`));
+
+    const seq = String(Number(todayCount ?? 0) + 1).padStart(3, '0');
+    const quoteNumber = `${prefix}${seq}`;
 
     const [newQuote] = await db
       .insert(quotes)
