@@ -2456,7 +2456,13 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
 
   // Helper function to generate PDF filename
   const generatePDFFilename = (clientName: string, createdAt: string | Date, quoteNumber: string | number): string => {
-    // Clean client name (remove special characters, keep only letters, numbers, and spaces)
+    // Nombre corto: usar el n\u00famero de cotizaci\u00f3n (ej: Q-22-06-2026-001.pdf)
+    const qn = String(quoteNumber ?? "").trim();
+    if (/^Q-/i.test(qn)) {
+      return `${qn.replace(/[^a-zA-Z0-9-]/g, "")}.pdf`;
+    }
+
+    // Fallback (borrador sin n\u00famero a\u00fan): COT-CLIENTE-DD_MM_YYYY.pdf
     const cleanName = clientName
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "") // Remove accents
@@ -3597,6 +3603,28 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
                       </div>
                       <button onClick={() => removeFromCart(item.id)} style={{ background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", padding: 2, display: "flex" }}><Trash2 style={{ width: 15, height: 15 }} /></button>
                     </div>
+                    {/* Selector de precio desde la lista (primero) + opción de precio libre */}
+                    {item.type === "standard" && item.tierPrices && item.tierPrices.length > 1 && (
+                      <div style={{ marginTop: 9 }}>
+                        <select
+                          value={item.priceTier || "lista"}
+                          onChange={(e) => updateCartItemPriceTier(item.id, e.target.value as PriceTier)}
+                          data-testid={`v2-select-tier-${item.id}`}
+                          style={{ width: "100%", fontSize: 12, fontWeight: 600, color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 9px", background: "#fff", cursor: "pointer", fontFamily: FONT, outline: "none" }}
+                        >
+                          {item.tierPrices.map((tier) => (
+                            <option key={tier.key} value={tier.key}>{tier.label}: {formatCurrency(tier.price)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setEditingPriceItem(item.id); setCustomPriceInput(String(item.unitPrice)); setCustomDiscountInput(""); setPriceInputMode("price"); }}
+                      data-testid={`v2-custom-price-${item.id}`}
+                      style={{ marginTop: 7, width: "100%", padding: "7px", borderRadius: 8, border: "1px dashed #cbd5e1", background: "#fff", color: ORANGE, fontFamily: FONT, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    >
+                      <Edit style={{ width: 12, height: 12 }} /> Precio personalizado
+                    </button>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", borderRadius: 9, padding: 3 }}>
                         <button onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)} style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "#f1f5f9", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus style={{ width: 13, height: 13 }} /></button>
