@@ -1395,6 +1395,9 @@ export function registerRoutes(app: Express): Server {
       const previousStartFormatted = formatDateLocal(previousStart);
       const previousEndFormatted = formatDateLocal(previousEnd);
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       const commonFilters = {
         salesperson: salesperson as string,
         segment: segment as string,
@@ -1412,6 +1415,7 @@ export function registerRoutes(app: Express): Server {
           client: client as string,
           supplier: supplier as string,
           product: product as string,
+          clientScope,
         }),
         // Previous year metrics (year-over-year comparison)
         storage.getSalesMetrics({
@@ -1422,18 +1426,21 @@ export function registerRoutes(app: Express): Server {
           client: client as string,
           supplier: supplier as string,
           product: product as string,
+          clientScope,
         }),
         // New clients count - current period
         storage.getNewClientsCount({
           startDate: currentStartDate,
           endDate: currentEndDate,
           ...commonFilters,
+          clientScope,
         }),
         // New clients count - previous period
         storage.getNewClientsCount({
           startDate: previousStartFormatted,
           endDate: previousEndFormatted,
           ...commonFilters,
+          clientScope,
         }),
       ]);
 
@@ -1468,12 +1475,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Missing required date parameters" });
       }
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       const newClients = await storage.getNewClientsList({
         startDate,
         endDate,
         salesperson: salesperson as string,
         segment: segment as string,
         client: client as string,
+        clientScope,
       });
 
       res.json(newClients);
@@ -1615,12 +1626,16 @@ export function registerRoutes(app: Express): Server {
       currentYear = parseInt((endDateStr as string).substring(0, 4), 10);
     }
 
+    // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+    const clientScope = await getEncargadoScopeKoens(req.user);
+
     const filters = {
       segment: segment as string,
       salesperson: salesperson as string,
       client: client as string,
       product: product as string,
       branch: branch as string,
+      clientScope,
     };
 
     // Run ALL queries in parallel - single HTTP roundtrip, multiple DB queries
@@ -1640,6 +1655,7 @@ export function registerRoutes(app: Express): Server {
             client: client as string,
             product: product as string,
             branch: branch as string,
+            clientScope,
           } as any)
         : null,
       // 2. Best year historical (1.1s but cached 5min)
@@ -1816,11 +1832,15 @@ export function registerRoutes(app: Express): Server {
         currentYear = parseInt(endDateStr.substring(0, 4), 10);
       }
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       const filters = {
         segment: segment as string,
         salesperson: salesperson as string,
         client: client as string,
         product: product as string,
+        clientScope,
       };
 
       const currentTotals = await storage.getYearlyTotals(currentYear, filters, endDateStr as string);
@@ -1851,10 +1871,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/best-year', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { segment, salesperson, client } = req.query;
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
       const bestYear = await storage.getBestYearHistorical({
         segment: segment as string,
         salesperson: salesperson as string,
         client: client as string,
+        clientScope,
       });
       res.json(bestYear);
     } catch (error) {
@@ -1901,11 +1924,14 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/gdv-pending', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { salesperson, segment, client } = req.query;
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
       const metrics = await storage.getGdvPendingGlobal({
         salesperson: salesperson as string,
         segment: segment as string,
         client: client as string,
+        clientScope,
       });
 
       res.json(metrics);
@@ -3539,6 +3565,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, segment, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
       const result = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
@@ -3546,7 +3574,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.endDate,
         segment as string, // Filtrar por segmento específico
         client as string, // Filtrar por cliente específico
-        product as string // Filtrar por producto específico
+        product as string, // Filtrar por producto específico
+        clientScope
       );
       res.json(result);
     } catch (error) {
@@ -3721,6 +3750,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
       const result = await storage.getTopProducts(
         limit ? parseInt(limit as string) : undefined,
@@ -3728,7 +3759,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
         segment as string, // Filtrar por segmento específico
-        client as string // Filtrar por cliente específico
+        client as string, // Filtrar por cliente específico
+        clientScope
       );
       res.json(result);
     } catch (error) {
@@ -3793,6 +3825,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, salesperson, segment, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
       const result = await storage.getTopClients(
         limit ? parseInt(limit as string) : undefined,
@@ -3800,7 +3834,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
         segment as string, // Filtrar por segmento específico
-        product as string // Filtrar por producto específico
+        product as string, // Filtrar por producto específico
+        clientScope
       );
       res.json(result);
     } catch (error) {
@@ -4014,12 +4049,15 @@ export function registerRoutes(app: Express): Server {
     try {
       const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
       const segmentAnalysis = await storage.getSegmentAnalysis(
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string,
-        segment as string
+        segment as string,
+        clientScope
       );
       res.json(segmentAnalysis);
     } catch (error) {
@@ -4196,6 +4234,9 @@ export function registerRoutes(app: Express): Server {
       console.log('[CHART-DATA DEBUG] Request params:', { period, selectedPeriod, filterType, salesperson, segment, client, product, branch });
       console.log('[CHART-DATA DEBUG] Date range calculated:', dateRange);
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       let chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
@@ -4204,7 +4245,8 @@ export function registerRoutes(app: Express): Server {
         segment as string, // Filtrar por segmento específico
         client as string, // Filtrar por cliente específico
         product as string, // Filtrar por producto específico
-        branch as string  // Filtrar por sucursal
+        branch as string,  // Filtrar por sucursal
+        clientScope
       );
 
       console.log('[CHART-DATA DEBUG] Result count:', chartData?.length || 0);
@@ -4281,8 +4323,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segmentName } = req.params;
       const { period, filterType = "month" } = req.query;
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
 
-      const clients = await storage.getSegmentClients(segmentName, period as string, filterType as string);
+      const clients = await storage.getSegmentClients(segmentName, period as string, filterType as string, clientScope);
       res.json(clients);
     } catch (error) {
       console.error("Error fetching segment clients:", error);
@@ -5215,6 +5259,9 @@ export function registerRoutes(app: Express): Server {
           .trim();
       };
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       const allGoals = await storage.getGoals();
 
       // Filter goals by selected period - only show goals for the specific period
@@ -5244,16 +5291,16 @@ export function registerRoutes(app: Express): Server {
 
           switch (goal.type) {
             case 'global':
-              currentSales = await storage.getGlobalSalesForPeriod(goal.period);
+              currentSales = await storage.getGlobalSalesForPeriod(goal.period, clientScope);
               break;
             case 'segment':
               if (goal.target) {
-                currentSales = await storage.getSegmentSalesForPeriod(goal.target, goal.period);
+                currentSales = await storage.getSegmentSalesForPeriod(goal.target, goal.period, clientScope);
               }
               break;
             case 'salesperson':
               if (goal.target) {
-                currentSales = await storage.getSalespersonSalesForPeriod(goal.target, goal.period);
+                currentSales = await storage.getSalespersonSalesForPeriod(goal.target, goal.period, clientScope);
               }
               break;
           }
@@ -10168,6 +10215,92 @@ export function registerRoutes(app: Express): Server {
       rut: (client.rten || '') as string,
     };
   };
+
+  // Scope de datos para el rol encargado_area: códigos de cliente (koen) de las
+  // sucursales que tiene asignadas en user_branch_assignments. Se usa para acotar
+  // TODO el dashboard (KPIs, gráficos, metas, top-N) a esas sucursales.
+  //   - Devuelve [] (sin restricción => ve todo) si el usuario NO es encargado_area,
+  //     o si es encargado_area pero todavía no tiene ninguna sucursal asignada.
+  //   - Devuelve la lista de koens si tiene ≥1 asignación => queda acotado a esas.
+  // Resultado cacheado 60s por usuario para no repetir el query en cada tarjeta.
+  const encargadoScopeCache = new Map<string, { koens: string[]; ts: number }>();
+  const getEncargadoScopeKoens = async (user: any): Promise<string[]> => {
+    if (!user || user.role !== 'encargado_area' || !user.id) return [];
+    const cached = encargadoScopeCache.get(user.id);
+    if (cached && Date.now() - cached.ts < 60_000) return cached.koens;
+    let koens: string[] = [];
+    try {
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      const r = await db.execute(sql`
+        SELECT c.koen FROM user_branch_assignments uba
+        JOIN clients c ON c.id = uba.client_id
+        WHERE uba.user_id = ${user.id} AND c.koen IS NOT NULL
+      `);
+      const rows = Array.isArray(r) ? r : (r as any).rows || [];
+      koens = rows.map((row: any) => String(row.koen).trim()).filter(Boolean);
+    } catch (e) {
+      console.warn('[encargado-scope] lookup failed:', e);
+      koens = [];
+    }
+    encargadoScopeCache.set(user.id, { koens, ts: Date.now() });
+    return koens;
+  };
+
+  // ── Asignación de sucursales a usuarios (scope de datos del encargado de área) ──
+  // Lista liviana de clientes/sucursales para el selector, agrupable por RUT en el front.
+  app.get('/api/clients/branches-tree', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const r = await db.execute(sql`
+      SELECT id, koen, nokoen, rten, parent_client_id AS "parentClientId", branch_label AS "branchLabel"
+      FROM clients
+      WHERE koen IS NOT NULL
+      ORDER BY COALESCE(NULLIF(TRIM(rten), ''), nokoen), nokoen
+    `);
+    const rows = Array.isArray(r) ? r : (r as any).rows || [];
+    res.json(rows);
+  }));
+
+  // Sucursales asignadas a un usuario (devuelve los clientId asignados).
+  app.get('/api/users/salespeople/:id/branch-assignments', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const r = await db.execute(sql`
+      SELECT uba.client_id AS "clientId", c.koen, c.nokoen, c.rten, c.branch_label AS "branchLabel"
+      FROM user_branch_assignments uba
+      LEFT JOIN clients c ON c.id = uba.client_id
+      WHERE uba.user_id = ${id}
+    `);
+    const rows = Array.isArray(r) ? r : (r as any).rows || [];
+    res.json(rows);
+  }));
+
+  // Reemplaza el set de sucursales asignadas a un usuario. Body: { clientIds: string[] }.
+  app.put('/api/users/salespeople/:id/branch-assignments', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const clientIds: unknown = req.body?.clientIds;
+    if (!Array.isArray(clientIds) || clientIds.some((c) => typeof c !== 'string')) {
+      return res.status(400).json({ message: 'clientIds debe ser un arreglo de strings.' });
+    }
+    const ids = Array.from(new Set((clientIds as string[]).map((c) => c.trim()).filter(Boolean)));
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    // Reemplazo total: borrar lo previo e insertar el nuevo set.
+    await db.execute(sql`DELETE FROM user_branch_assignments WHERE user_id = ${id}`);
+    if (ids.length > 0) {
+      const values = sql.join(ids.map((cid) => sql`(${id}, ${cid})`), sql`, `);
+      await db.execute(sql`
+        INSERT INTO user_branch_assignments (user_id, client_id)
+        VALUES ${values}
+        ON CONFLICT (user_id, client_id) DO NOTHING
+      `);
+    }
+    // Invalida el cache de scope para que el cambio se vea de inmediato.
+    encargadoScopeCache.delete(id);
+    res.json({ ok: true, count: ids.length });
+  }));
 
   // Estado de cuenta del cliente logueado: línea de crédito + cartera REAL (cuentas por
   // cobrar) calculada desde ventas.fact_ventas — el mismo cálculo validado de
@@ -21779,6 +21912,9 @@ export function registerRoutes(app: Express): Server {
     if (segment) options.segment = segment;
     if (client) options.client = client;
 
+    // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+    options.clientScope = await getEncargadoScopeKoens(req.user);
+
     // Use date range if period/filterType provided, otherwise use startDate/endDate
     if (period && filterType && dateRange.startDate && dateRange.endDate) {
       options.startDate = new Date(dateRange.startDate);
@@ -22085,11 +22221,13 @@ export function registerRoutes(app: Express): Server {
       }
     }
 
+    const clientScope = await getEncargadoScopeKoens(req.user);
     const nvvData = await storage.getAllNvvGroupedBySalespeople({
       startDate,
       endDate,
       segment: segment as string | undefined,
-      salesperson: salesperson as string | undefined
+      salesperson: salesperson as string | undefined,
+      clientScope
     });
 
     res.json(nvvData);
@@ -22170,6 +22308,14 @@ export function registerRoutes(app: Express): Server {
       conditions.push(`nokoen = $${paramIdx}`);
       params.push(client as string);
       paramIdx++;
+    }
+    // Scope de datos para encargado_area (sucursales asignadas), por código de cliente (endo)
+    const clientScope = await getEncargadoScopeKoens(req.user);
+    if (clientScope.length > 0) {
+      const placeholders = clientScope.map((_, i) => `$${paramIdx + i}`).join(', ');
+      conditions.push(`endo IN (${placeholders})`);
+      params.push(...clientScope);
+      paramIdx += clientScope.length;
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -29588,7 +29734,8 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/gdv/all-by-salespeople', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     try {
       const { segment, salesperson } = req.query;
-      const gdvData = await storage.getAllGdvGroupedBySalespeople(segment as string | undefined, salesperson as string | undefined);
+      const clientScope = await getEncargadoScopeKoens(req.user);
+      const gdvData = await storage.getAllGdvGroupedBySalespeople(segment as string | undefined, salesperson as string | undefined, clientScope);
       res.json(gdvData);
     } catch (error: any) {
       console.error('[GDV All By Salespeople Error]', error);

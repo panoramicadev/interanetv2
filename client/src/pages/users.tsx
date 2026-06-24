@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,127 @@ const getRoleLabel = (role: string | null, short = false) => {
   return short ? entry.short : entry.label;
 };
 
+// Fila liviana de cliente/sucursal para el selector de scope del encargado de área.
+interface BranchRow {
+  id: string;
+  koen: string | null;
+  nokoen: string;
+  rten: string | null;
+  parentClientId: string | null;
+  branchLabel: string | null;
+}
+
+// Multi-select de sucursales agrupadas por RUT, con atajo "todo el RUT".
+// Define a qué comercios/sucursales queda acotado lo que ve un encargado de área.
+function BranchAssignmentSelector({
+  branches,
+  value,
+  onChange,
+}: {
+  branches: BranchRow[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const normRut = (r: string | null) => (r || "").replace(/[.\-\s]/g, "").toUpperCase();
+
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; rut: string; name: string; items: BranchRow[] }>();
+    for (const b of branches) {
+      const key = normRut(b.rten) || `__${b.id}`;
+      if (!map.has(key)) map.set(key, { key, rut: b.rten || "Sin RUT", name: b.nokoen, items: [] });
+      map.get(key)!.items.push(b);
+    }
+    return Array.from(map.values());
+  }, [branches]);
+
+  const term = search.trim().toLowerCase();
+  const filteredGroups = useMemo(() => {
+    if (!term) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((b) =>
+          [b.nokoen, b.rten, b.branchLabel, b.koen].filter(Boolean).join(" ").toLowerCase().includes(term),
+        ),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [groups, term]);
+
+  const valueSet = new Set(value);
+  const toggle = (id: string) => {
+    const next = new Set(value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(Array.from(next));
+  };
+  const toggleGroup = (items: BranchRow[]) => {
+    const ids = items.map((i) => i.id);
+    const allSelected = ids.every((id) => valueSet.has(id));
+    const next = new Set(value);
+    if (allSelected) ids.forEach((id) => next.delete(id));
+    else ids.forEach((id) => next.add(id));
+    onChange(Array.from(next));
+  };
+
+  const selectedRows = branches.filter((b) => valueSet.has(b.id));
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
+            {value.length > 0 ? `${value.length} sucursal(es) asignada(s)` : "Seleccionar sucursales…"}
+            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput placeholder="Buscar por nombre o RUT…" value={search} onValueChange={setSearch} />
+            <CommandList className="max-h-[300px]">
+              <CommandEmpty>Sin resultados.</CommandEmpty>
+              {filteredGroups.map((g) => {
+                const ids = g.items.map((i) => i.id);
+                const allSelected = ids.length > 0 && ids.every((id) => valueSet.has(id));
+                return (
+                  <CommandGroup key={g.key} heading={`${g.name} · ${g.rut}`}>
+                    <CommandItem value={`__all_${g.key}`} onSelect={() => toggleGroup(g.items)}>
+                      <span className="text-xs font-medium text-indigo-600">
+                        {allSelected ? "✓ Quitar todo el RUT" : "Seleccionar todo el RUT"}
+                      </span>
+                    </CommandItem>
+                    {g.items.map((b) => (
+                      <CommandItem key={b.id} value={b.id} onSelect={() => toggle(b.id)}>
+                        <Check className={cn("mr-2 h-4 w-4", valueSet.has(b.id) ? "opacity-100" : "opacity-0")} />
+                        <span className="truncate">{b.branchLabel || b.nokoen}</span>
+                        {b.koen && <span className="ml-auto pl-2 text-xs text-muted-foreground">{b.koen}</span>}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                );
+              })}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selectedRows.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selectedRows.map((b) => (
+            <Badge key={b.id} variant="secondary" className="text-xs font-normal">
+              {b.branchLabel || b.nokoen}
+              <button type="button" className="ml-1 hover:text-destructive" onClick={() => toggle(b.id)}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -64,6 +185,9 @@ export default function UsersPage() {
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [createRutSearch, setCreateRutSearch] = useState('');
   const [editRutSearch, setEditRutSearch] = useState('');
+  // Sucursales asignadas (scope de datos) para usuarios con rol encargado_area
+  const [createBranches, setCreateBranches] = useState<string[]>([]);
+  const [editBranches, setEditBranches] = useState<string[]>([]);
 
   // Verificar permiso del módulo (configurable en Roles y Permisos)
   const [, setLocation] = useLocation();
@@ -164,6 +288,13 @@ export default function UsersPage() {
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
+  // Árbol de clientes/sucursales para asignar el scope de datos de un encargado de área.
+  // Solo admin/supervisor gestionan asignaciones (el endpoint lo restringe).
+  const { data: branchesTree = [] } = useQuery<BranchRow[]>({
+    queryKey: ["/api/clients/branches-tree"],
+    enabled: !!user && (user?.role === 'admin' || user?.role === 'supervisor') && can('config.usuarios'),
+  });
+
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
   const { data: segmentsData = [] } = useQuery<Array<{ segment: string; totalSales: number; percentage: number }>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
@@ -202,11 +333,22 @@ export default function UsersPage() {
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
-      return await apiRequest("POST", "/api/users/salespeople", userData);
+      const res = await apiRequest("POST", "/api/users/salespeople", userData);
+      // Si es encargado de área, guardar sus sucursales asignadas (scope de datos).
+      if (userData.role === 'encargado_area' && createBranches.length > 0) {
+        try {
+          const created: any = await res.clone().json();
+          if (created?.id) {
+            await apiRequest("PUT", `/api/users/salespeople/${created.id}/branch-assignments`, { clientIds: createBranches });
+          }
+        } catch { /* si falla, el admin puede asignarlas luego desde Editar */ }
+      }
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
       createForm.reset();
+      setCreateBranches([]);
       setIsCreateDialogOpen(false);
       toast({
         title: "Usuario creado",
@@ -225,12 +367,18 @@ export default function UsersPage() {
 
   // Mutation para actualizar usuario
   const updateUserMutation = useMutation({
-    mutationFn: async ({ id, userData }: { id: string; userData: Partial<InsertSalespersonUserInput> }) => {
-      return await apiRequest("PUT", `/api/users/salespeople/${id}`, userData);
+    mutationFn: async ({ id, userData, branches }: { id: string; userData: Partial<InsertSalespersonUserInput>; branches?: string[] }) => {
+      const res = await apiRequest("PUT", `/api/users/salespeople/${id}`, userData);
+      // Reemplazar sucursales asignadas cuando aplica (scope de datos del encargado).
+      if (branches !== undefined) {
+        await apiRequest("PUT", `/api/users/salespeople/${id}/branch-assignments`, { clientIds: branches });
+      }
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
       editForm.reset();
+      setEditBranches([]);
       setIsEditDialogOpen(false);
       setEditingUser(null);
       toast({
@@ -375,12 +523,28 @@ export default function UsersPage() {
       delete cleanedData.password;
     }
 
+    // Scope de datos: enviar sucursales solo si el rol (nuevo o previo) lo amerita.
+    // - encargado_area => guardar la selección actual.
+    // - dejó de ser encargado_area => limpiar ([]).
+    // - nunca fue encargado_area => no tocar (undefined).
+    const branches = data.role === 'encargado_area'
+      ? editBranches
+      : (editingUser.role === 'encargado_area' ? [] : undefined);
+
     console.log("Editando datos:", cleanedData);
-    updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
+    updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData, branches });
   };
 
   const handleEdit = (user: SalespersonUser) => {
     setEditingUser(user);
+    // Cargar las sucursales asignadas si es encargado de área (para precargar el selector).
+    setEditBranches([]);
+    if ((user.role ?? '') === 'encargado_area') {
+      fetch(`/api/users/salespeople/${user.id}/branch-assignments`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((rows) => setEditBranches(Array.isArray(rows) ? rows.map((x: any) => x.clientId) : []))
+        .catch(() => setEditBranches([]));
+    }
     editForm.reset({
       salespersonName: user.salespersonName,
       username: user.username ?? "",
@@ -502,6 +666,19 @@ export default function UsersPage() {
                       />
 
                       {/* Campos específicos para vendedores */}
+                      {createForm.watch("role") === "encargado_area" && (
+                        <div className="space-y-3 p-4 bg-amber-50 rounded-lg border-l-4 border-amber-400">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-amber-400 rounded-full" />
+                            <h4 className="font-medium text-amber-900">Sucursales asignadas (scope de datos)</h4>
+                          </div>
+                          <p className="text-xs text-amber-800">
+                            El encargado verá estadísticas y comercios solo de estas sucursales. Sin asignar nada = ve todo.
+                          </p>
+                          <BranchAssignmentSelector branches={branchesTree} value={createBranches} onChange={setCreateBranches} />
+                        </div>
+                      )}
+
                       {createForm.watch("role") === "salesperson" && (
                         <div className="space-y-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
                           <div className="flex items-center space-x-2">
@@ -863,6 +1040,19 @@ export default function UsersPage() {
                     </FormItem>
                   )}
                 />
+                {editForm.watch("role") === "encargado_area" && (
+                  <div className="space-y-3 p-4 bg-amber-50 rounded-lg border-l-4 border-amber-400">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full" />
+                      <h4 className="font-medium text-amber-900">Sucursales asignadas (scope de datos)</h4>
+                    </div>
+                    <p className="text-xs text-amber-800">
+                      El encargado verá estadísticas y comercios solo de estas sucursales. Sin asignar nada = ve todo.
+                    </p>
+                    <BranchAssignmentSelector branches={branchesTree} value={editBranches} onChange={setEditBranches} />
+                  </div>
+                )}
+
                 {editForm.watch("role") === "salesperson" && (
                   <FormField
                     control={editForm.control}

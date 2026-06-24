@@ -2828,6 +2828,20 @@ export class DatabaseStorage implements IStorage {
     return conditions;
   }
 
+  /**
+   * Condición de "scope de datos" para encargado_area: limita fact_ventas a las
+   * sucursales asignadas, matcheando por `endo` (= koen, clave estable que ya usa
+   * el portal cliente). Array vacío/undefined => sin restricción (ve todo).
+   * Se aplica de forma uniforme en TODAS las queries del dashboard para que los
+   * totales de cada tarjeta sean coherentes entre sí.
+   */
+  static getClientScopeConditions(clientScope?: string[] | null): any[] {
+    if (Array.isArray(clientScope) && clientScope.length > 0) {
+      return [inArray(factVentas.endo, clientScope)];
+    }
+    return [];
+  }
+
   async getSalesMetrics(filters: {
     startDate?: string;
     endDate?: string;
@@ -2836,6 +2850,7 @@ export class DatabaseStorage implements IStorage {
     client?: string;
     supplier?: string;
     product?: string;
+    clientScope?: string[];
   } = {}): Promise<{
     totalSales: number;
     totalTransactions: number;
@@ -2845,9 +2860,9 @@ export class DatabaseStorage implements IStorage {
     activeCustomers: number;
     gdvSales: number;
   }> {
-    const { startDate, endDate, salesperson, segment, client, supplier, product } = filters;
-    // Cache key based on all filter parameters
-    const cacheKey = `salesMetrics:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${supplier || ''}:${product || ''}:${(filters as any).branch || ''}`;
+    const { startDate, endDate, salesperson, segment, client, supplier, product, clientScope } = filters;
+    // Cache key based on all filter parameters (incluye el scope del encargado)
+    const cacheKey = `salesMetrics:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${supplier || ''}:${product || ''}:${(filters as any).branch || ''}:${(clientScope || []).join(',')}`;
     const cached = this.getCached<{
       totalSales: number; totalTransactions: number; salesTransactionCount: number;
       totalOrders: number; totalUnits: number; activeCustomers: number; gdvSales: number;
@@ -2879,6 +2894,8 @@ export class DatabaseStorage implements IStorage {
       const branchConditions = DatabaseStorage.getBranchConditions((filters as any).branch);
       conditions.push(...branchConditions);
     }
+    // Scope de datos del encargado de área (sucursales asignadas)
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -2915,8 +2932,9 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     segment?: string;
     client?: string;
+    clientScope?: string[];
   }): Promise<number> {
-    const { startDate, endDate, salesperson, segment, client } = filters;
+    const { startDate, endDate, salesperson, segment, client, clientScope } = filters;
 
     const result = await db.execute(sql`
       SELECT COUNT(DISTINCT fv."nokoen") as new_clients
@@ -2927,6 +2945,7 @@ export class DatabaseStorage implements IStorage {
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
         ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
           SELECT 1 FROM ventas.fact_ventas fv2
           WHERE fv2."nokoen" = fv."nokoen"
@@ -2945,6 +2964,7 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     segment?: string;
     client?: string;
+    clientScope?: string[];
   }): Promise<Array<{
     clientName: string;
     totalSales: number;
@@ -2953,7 +2973,7 @@ export class DatabaseStorage implements IStorage {
     firstPurchaseDate: string;
     salesperson: string;
   }>> {
-    const { startDate, endDate, salesperson, segment, client } = filters;
+    const { startDate, endDate, salesperson, segment, client, clientScope } = filters;
 
     const result = await db.execute(sql`
       SELECT 
@@ -2970,6 +2990,7 @@ export class DatabaseStorage implements IStorage {
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
         ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
           SELECT 1 FROM ventas.fact_ventas fv2
           WHERE fv2."nokoen" = fv."nokoen"
@@ -2996,11 +3017,12 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     segment?: string;
     client?: string;
+    clientScope?: string[];
   } = {}): Promise<{
     gdvSales: number;
     gdvCount: number;
   }> {
-    const { salesperson, segment, client } = filters;
+    const { salesperson, segment, client, clientScope } = filters;
     const conditions = [];
     if (salesperson) {
       // Filter by salesperson name (nokofu) - case-insensitive match
@@ -3011,6 +3033,10 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factGdv.nokoen, client));
+    }
+    // Scope de datos del encargado de área (sucursales asignadas)
+    if (clientScope && clientScope.length > 0) {
+      conditions.push(inArray(factGdv.endo, clientScope));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3029,7 +3055,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string; product?: string }, endDateStr?: string): Promise<{
+  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string; product?: string; clientScope?: string[] }, endDateStr?: string): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
     comparisonYear: number;
@@ -3037,7 +3063,7 @@ export class DatabaseStorage implements IStorage {
     isYTD: boolean;
   }> {
     // Cache key for yearly totals
-    const ytCacheKey = `yearlyTotals:${year}:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.product || ''}:${endDateStr || ''}`;
+    const ytCacheKey = `yearlyTotals:${year}:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.product || ''}:${endDateStr || ''}:${(filters?.clientScope || []).join(',')}`;
     const ytCached = this.getCached<{ currentYearTotal: number; previousYearTotal: number; comparisonYear: number; comparisonDate: string; isYTD: boolean }>(ytCacheKey);
     if (ytCached) return ytCached;
 
@@ -3106,6 +3132,7 @@ export class DatabaseStorage implements IStorage {
     if ((filters as any)?.branch) {
       baseConditions.push(...DatabaseStorage.getBranchConditions((filters as any).branch));
     }
+    baseConditions.push(...DatabaseStorage.getClientScopeConditions(filters?.clientScope));
 
     // Run both year queries in parallel
     const [requestedYearResults, previousYearResults] = await Promise.all([
@@ -3148,12 +3175,12 @@ export class DatabaseStorage implements IStorage {
     return ytResult;
   }
 
-  async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string; branch?: string }): Promise<{
+  async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string; branch?: string; clientScope?: string[] }): Promise<{
     bestYear: number;
     bestYearTotal: number;
   }> {
     // Check cache first (expensive query - full table group by year)
-    const cacheKey = `bestYear:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.branch || ''}`;
+    const cacheKey = `bestYear:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.branch || ''}:${(filters?.clientScope || []).join(',')}`;
     const cached = this.getCached<{ bestYear: number; bestYearTotal: number }>(cacheKey);
     if (cached) return cached;
 
@@ -3173,6 +3200,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.branch) {
       conditions.push(...DatabaseStorage.getBranchConditions(filters.branch));
     }
+    conditions.push(...DatabaseStorage.getClientScopeConditions(filters?.clientScope));
 
     // Get sales by year (excluding ALL GDV)
     const yearlyTotals = await db
@@ -3194,7 +3222,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string, clientScope?: string[]): Promise<{
     items: Array<{
       salesperson: string;
       totalSales: number;
@@ -3223,6 +3251,7 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -3314,7 +3343,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<{
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, clientScope?: string[]): Promise<{
     items: Array<{
       productName: string;
       totalSales: number;
@@ -3346,6 +3375,7 @@ export class DatabaseStorage implements IStorage {
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
     }
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -3407,7 +3437,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, product?: string): Promise<{
+  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, product?: string, clientScope?: string[]): Promise<{
     items: Array<{
       clientName: string;
       totalSales: number;
@@ -3436,6 +3466,7 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -5377,13 +5408,13 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
+  async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string, clientScope?: string[]): Promise<Array<{
     segment: string;
     totalSales: number;
     percentage: number;
   }>> {
     // Cache key
-    const segCacheKey = `segmentAnalysis:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}`;
+    const segCacheKey = `segmentAnalysis:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${(clientScope || []).join(',')}`;
     const segCached = this.getCached<Array<{ segment: string; totalSales: number; percentage: number }>>(segCacheKey);
     if (segCached) return segCached;
 
@@ -5403,6 +5434,7 @@ export class DatabaseStorage implements IStorage {
     if (segment) {
       dateConditions.push(eq(factVentas.noruen, segment));
     }
+    dateConditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
     const conditions = [
@@ -5440,12 +5472,12 @@ export class DatabaseStorage implements IStorage {
     return segResult;
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string, branch?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string, branch?: string, clientScope?: string[]): Promise<Array<{
     period: string;
     sales: number;
   }>> {
     // Check cache first
-    const chartCacheKey = `chartData:${period}:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${product || ''}:${branch || ''}`;
+    const chartCacheKey = `chartData:${period}:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${product || ''}:${branch || ''}:${(clientScope || []).join(',')}`;
     const chartCached = this.getCached<Array<{ period: string; sales: number }>>(chartCacheKey);
     if (chartCached) return chartCached;
 
@@ -5475,6 +5507,7 @@ export class DatabaseStorage implements IStorage {
     if (branch) {
       conditions.push(...DatabaseStorage.getBranchConditions(branch));
     }
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     // When a date range is set, zero-fill missing buckets via generate_series + LEFT JOIN
     // so the chart shows $0 for empty days/weeks/months instead of drawing misleading
@@ -6344,19 +6377,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Sales data for goals comparison
-  async getGlobalSalesForPeriod(period: string): Promise<number> {
+  async getGlobalSalesForPeriod(period: string, clientScope?: string[]): Promise<number> {
     const result = await db
       .select({
         total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
       .from(factVentas)
-      .where(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`)
+      .where(
+        and(
+          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`,
+          ...DatabaseStorage.getClientScopeConditions(clientScope)
+        )
+      )
       .execute();
 
     return Number(result[0]?.total || 0);
   }
 
-  async getSegmentSalesForPeriod(segment: string, period: string): Promise<number> {
+  async getSegmentSalesForPeriod(segment: string, period: string, clientScope?: string[]): Promise<number> {
     const result = await db
       .select({
         total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
@@ -6365,7 +6403,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(factVentas.noruen, segment),
-          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
+          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`,
+          ...DatabaseStorage.getClientScopeConditions(clientScope)
         )
       )
       .execute();
@@ -6373,7 +6412,7 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.total || 0);
   }
 
-  async getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number> {
+  async getSalespersonSalesForPeriod(salesperson: string, period: string, clientScope?: string[]): Promise<number> {
     const result = await db
       .select({
         total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
@@ -6382,7 +6421,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(factVentas.nokofu, salesperson),
-          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
+          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`,
+          ...DatabaseStorage.getClientScopeConditions(clientScope)
         )
       )
       .execute();
@@ -6390,7 +6430,7 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.total || 0);
   }
 
-  async getSegmentClients(segmentName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+  async getSegmentClients(segmentName: string, period?: string, filterType: string = 'month', clientScope?: string[]): Promise<Array<{
     clientName: string;
     salespersonName: string;
     totalSales: number;
@@ -6454,6 +6494,8 @@ export class DatabaseStorage implements IStorage {
           break;
       }
     }
+
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     const result = await db
       .select({
@@ -15590,6 +15632,7 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     segment?: string;
     client?: string;
+    clientScope?: string[];
   } = {}): Promise<{
     totalAmount: number;
     totalQuantity: number;
@@ -15628,6 +15671,11 @@ export class DatabaseStorage implements IStorage {
       // Use nokoen for client filtering
       if (options.client) {
         conditions.push(sql`nokoen = ${options.client}`);
+      }
+
+      // Scope de datos del encargado de área (sucursales asignadas) - fact_nvv tiene columna endo
+      if (options.clientScope && options.clientScope.length) {
+        conditions.push(sql`endo IN (${sql.join(options.clientScope.map(k => sql`${k}`), sql`, `)})`);
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
@@ -15779,6 +15827,7 @@ export class DatabaseStorage implements IStorage {
     endDate?: Date;
     segment?: string;
     salesperson?: string;
+    clientScope?: string[];
   }): Promise<Array<{
     salespersonCode: string;
     salespersonName: string;
@@ -15803,7 +15852,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     try {
       // Check cache first
-      const nvvCacheKey = `nvvGrouped:${options?.startDate || ''}:${options?.endDate || ''}:${options?.segment || ''}:${options?.salesperson || ''}`;
+      const nvvCacheKey = `nvvGrouped:${options?.startDate || ''}:${options?.endDate || ''}:${options?.segment || ''}:${options?.salesperson || ''}:${(options?.clientScope || []).join(',')}`;
       const nvvCached = this.getCached<any>(nvvCacheKey);
       if (nvvCached) return nvvCached;
 
@@ -15828,6 +15877,11 @@ export class DatabaseStorage implements IStorage {
       if (options?.segment) {
         const normalizedSegment = options.segment.trim();
         conditions.push(sql`UPPER(nvv.nombre_segmento_cliente) = ${normalizedSegment.toUpperCase()}`);
+      }
+
+      // Scope de datos del encargado de área (sucursales asignadas), por código de cliente
+      if (options?.clientScope && options.clientScope.length > 0) {
+        conditions.push(sql`nvv.endo IN (${sql.join(options.clientScope.map((k) => sql`${k}`), sql`, `)})`);
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
@@ -26492,7 +26546,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAllGdvGroupedBySalespeople(segment?: string, salesperson?: string): Promise<Array<{
+  async getAllGdvGroupedBySalespeople(segment?: string, salesperson?: string, clientScope?: string[]): Promise<Array<{
     salespersonCode: string;
     salespersonName: string;
     totalAmount: number;
@@ -26510,7 +26564,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     try {
       // Check cache first
-      const gdvCacheKey = `gdvGrouped:${segment || ''}:${salesperson || ''}`;
+      const gdvCacheKey = `gdvGrouped:${segment || ''}:${salesperson || ''}:${(clientScope || []).join(',')}`;
       const gdvCached = this.getCached<any>(gdvCacheKey);
       if (gdvCached) return gdvCached;
 
@@ -26534,6 +26588,13 @@ export class DatabaseStorage implements IStorage {
         const normalizedSegment = segment.trim().toUpperCase();
         // Filter by endo codes that belong to the segment in nvv table
         whereClause += ` AND gdv.endo IN (SELECT endo FROM nvv.fact_nvv WHERE UPPER(COALESCE(nombre_segmento_cliente, '')) = '${normalizedSegment}' GROUP BY endo)`;
+      }
+
+      // Scope de datos del encargado de área (sucursales asignadas), por código de cliente.
+      // Se escapan comillas simples por usar sql.raw con interpolación de string.
+      if (clientScope && clientScope.length > 0) {
+        const inList = clientScope.map((k) => `'${String(k).replace(/'/g, "''")}'`).join(', ');
+        whereClause += ` AND gdv.endo IN (${inList})`;
       }
 
       const query = sql.raw(`
