@@ -72,7 +72,6 @@ function BranchAssignmentSelector({
   value: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const normRut = (r: string | null) => (r || "").replace(/[.\-\s]/g, "").toUpperCase();
@@ -120,42 +119,53 @@ function BranchAssignmentSelector({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
-            {value.length > 0 ? `${value.length} sucursal(es) asignada(s)` : "Seleccionar sucursales…"}
-            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput placeholder="Buscar por nombre o RUT…" value={search} onValueChange={setSearch} />
-            <CommandList className="max-h-[300px]">
-              <CommandEmpty>Sin resultados.</CommandEmpty>
-              {filteredGroups.map((g) => {
-                const ids = g.items.map((i) => i.id);
-                const allSelected = ids.length > 0 && ids.every((id) => valueSet.has(id));
-                return (
-                  <CommandGroup key={g.key} heading={`${g.name} · ${g.rut}`}>
-                    <CommandItem value={`__all_${g.key}`} onSelect={() => toggleGroup(g.items)}>
-                      <span className="text-xs font-medium text-indigo-600">
-                        {allSelected ? "✓ Quitar todo el RUT" : "Seleccionar todo el RUT"}
-                      </span>
-                    </CommandItem>
-                    {g.items.map((b) => (
-                      <CommandItem key={b.id} value={b.id} onSelect={() => toggle(b.id)}>
-                        <Check className={cn("mr-2 h-4 w-4", valueSet.has(b.id) ? "opacity-100" : "opacity-0")} />
-                        <span className="truncate">{b.branchLabel || b.nokoen}</span>
-                        {b.koen && <span className="ml-auto pl-2 text-xs text-muted-foreground">{b.koen}</span>}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                );
-              })}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <div className="relative">
+        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre o RUT…"
+          className="pl-8"
+        />
+      </div>
+      <div className="max-h-[260px] overflow-y-auto rounded-md border divide-y bg-background">
+        {branches.length === 0 && (
+          <div className="p-3 text-sm text-muted-foreground">Cargando clientes…</div>
+        )}
+        {branches.length > 0 && filteredGroups.length === 0 && (
+          <div className="p-3 text-sm text-muted-foreground">Sin resultados para “{search}”.</div>
+        )}
+        {filteredGroups.map((g) => {
+          const ids = g.items.map((i) => i.id);
+          const allSelected = ids.length > 0 && ids.every((id) => valueSet.has(id));
+          return (
+            <div key={g.key} className="p-2">
+              <div className="flex items-center justify-between gap-2 px-1 pb-1">
+                <span className="truncate text-xs font-semibold text-muted-foreground">{g.name} · {g.rut}</span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-medium text-indigo-600 hover:underline"
+                  onClick={() => toggleGroup(g.items)}
+                >
+                  {allSelected ? "Quitar RUT" : "Todo el RUT"}
+                </button>
+              </div>
+              {g.items.map((b) => (
+                <button
+                  type="button"
+                  key={b.id}
+                  onClick={() => toggle(b.id)}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+                >
+                  <Check className={cn("h-4 w-4 shrink-0", valueSet.has(b.id) ? "opacity-100 text-indigo-600" : "opacity-0")} />
+                  <span className="truncate">{b.branchLabel || b.nokoen}</span>
+                  {b.koen && <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{b.koen}</span>}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
       {selectedRows.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedRows.map((b) => (
