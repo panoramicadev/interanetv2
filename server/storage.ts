@@ -440,6 +440,7 @@ export interface IStorage {
     offset?: number;
     client?: string;
     product?: string;
+    clientScope?: string[];
   }): Promise<SalesTransaction[]>;
   getSalesMetrics(filters?: {
     startDate?: string;
@@ -2676,12 +2677,16 @@ export class DatabaseStorage implements IStorage {
     client?: string;
     product?: string;
     client_rut?: string;
+    clientScope?: string[];
   } = {}): Promise<SalesTransaction[]> {
-    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product, client_rut } = filters;
+    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product, client_rut, clientScope } = filters;
 
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
+
+    // Scope de datos del encargado de área (sucursales asignadas), por endo (= koen)
+    conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
@@ -6938,7 +6943,7 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.total || 0);
   }
 
-  async getNVVByBranch(branchName: string): Promise<any[]> {
+  async getNVVByBranch(branchName: string, clientScope?: string[]): Promise<any[]> {
     // Get kofulido to branch mapping from sales_transactions
     const salespersonBranchResults = await db
       .selectDistinct({
@@ -6975,10 +6980,16 @@ export class DatabaseStorage implements IStorage {
 
     console.log(`Found ${kofulidoCodes.length} salespeople mapping to branch ${branchName}: ${kofulidoCodes.join(', ')}`);
 
+    // Scope de datos del encargado de área (sucursales asignadas), por endo (= koen).
+    // Array vacío/undefined => sin restricción.
+    const scopeClause = (clientScope && clientScope.length > 0)
+      ? sql`AND endo IN (${sql.join(clientScope.map((k) => sql`${k}`), sql`, `)})`
+      : sql``;
+
     // Get all NVV for these salespeople (sin filtros de fecha)
     // Using nvv.fact_nvv (ETL data) instead of obsolete nvv_pending_sales
     const queryResult = await db.execute(sql`
-      SELECT 
+      SELECT
         id,
         nudo as "NUDO",
         tido as "TIDO",
@@ -6991,6 +7002,7 @@ export class DatabaseStorage implements IStorage {
       WHERE (eslido IS NULL OR eslido = '')
         AND kofulido IS NOT NULL
         AND UPPER(TRIM(kofulido)) IN (${sql.raw(kofulidoCodes.map(c => `'${c}'`).join(','))})
+        ${scopeClause}
       ORDER BY feemdo DESC
     `);
 
@@ -15738,6 +15750,7 @@ export class DatabaseStorage implements IStorage {
     clientRut?: string;
     startDate?: Date;
     endDate?: Date;
+    clientScope?: string[];
   }): Promise<Array<{
     id: string;
     NUDO: string;
@@ -15777,6 +15790,11 @@ export class DatabaseStorage implements IStorage {
       }
       if (options.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
         conditions.push(sql`${factNvv.feemdo} <= ${options.endDate.toISOString().split('T')[0]}`);
+      }
+
+      // Scope de datos del encargado de área (sucursales asignadas), por endo (= koen)
+      if (options.clientScope && options.clientScope.length > 0) {
+        conditions.push(inArray(factNvv.endo, options.clientScope));
       }
 
       const results = await db
@@ -16120,6 +16138,7 @@ export class DatabaseStorage implements IStorage {
     segment: string;
     startDate?: Date;
     endDate?: Date;
+    clientScope?: string[];
   }): Promise<Array<{
     id: string;
     NUDO: string;
@@ -16150,11 +16169,16 @@ export class DatabaseStorage implements IStorage {
         conditions.push(sql`feemdo <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
+      // Scope de datos del encargado de área (sucursales asignadas), por código de cliente
+      if (options.clientScope && options.clientScope.length > 0) {
+        conditions.push(sql`endo IN (${sql.join(options.clientScope.map((k) => sql`${k}`), sql`, `)})`);
+      }
+
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
       // Query from nvv.fact_nvv (ETL data)
       const queryResults = await db.execute(sql`
-        SELECT 
+        SELECT
           id,
           nudo as "NUDO",
           tido as "TIDO",
@@ -26484,7 +26508,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getGdvBySalesperson(options: { salesperson?: string; client_rut?: string }): Promise<Array<{
+  async getGdvBySalesperson(options: { salesperson?: string; client_rut?: string; clientScope?: string[] }): Promise<Array<{
     numeroGuia: string;
     fecha: string;
     cliente: string;
@@ -26509,6 +26533,13 @@ export class DatabaseStorage implements IStorage {
         conditions.push(`UPPER(TRIM(endo)) = UPPER(TRIM('${options.client_rut.replace(/'/g, "''")}'))`);
       } else if (options.salesperson) {
         conditions.push(`UPPER(TRIM(nokofu)) = UPPER(TRIM('${options.salesperson.replace(/'/g, "''")}'))`);
+      }
+
+      // Scope de datos del encargado de área (sucursales asignadas), por endo (= koen).
+      // Se escapan comillas simples por usar sql.raw con interpolación de string.
+      if (options.clientScope && options.clientScope.length > 0) {
+        const inList = options.clientScope.map((k) => `'${String(k).replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`endo IN (${inList})`);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

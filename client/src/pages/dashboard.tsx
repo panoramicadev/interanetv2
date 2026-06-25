@@ -54,6 +54,34 @@ import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download, AlertTriangle } from "lucide-react";
+
+// Banner del Dashboard que le muestra al Encargado de Área a qué sucursales está
+// acotado lo que ve. Hace explícita la "traducción" de las asignaciones de scope.
+// Solo aparece para encargado_area CON sucursales asignadas; el resto no ve nada.
+function ScopeBanner() {
+  const { data } = useQuery<{
+    role: string | null;
+    scoped: boolean;
+    branches: Array<{ koen: string | null; nokoen: string; branchLabel: string | null }>;
+  }>({
+    queryKey: ["/api/me/scope"],
+    staleTime: 60_000,
+  });
+  if (!data || data.role !== "encargado_area" || !data.scoped) return null;
+  const names = data.branches.map((b) => b.branchLabel || b.nokoen);
+  const shown = names.slice(0, 8);
+  const extra = names.length - shown.length;
+  return (
+    <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+      <Building className="mt-0.5 h-4 w-4 shrink-0" />
+      <p>
+        Estás viendo datos de <span className="font-semibold">{data.branches.length}</span> sucursal(es):{" "}
+        <span className="font-medium">{shown.join(", ")}</span>
+        {extra > 0 && <span> +{extra} más</span>}.
+      </p>
+    </div>
+  );
+}
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1093,6 +1121,8 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* Banner de scope para el Encargado de Área (sucursales asignadas) */}
+      <ScopeBanner />
       {/* Mobile Header with Logo, Menu and ETL Button */}
       {isMobile && (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-50 shadow-sm">

@@ -193,12 +193,15 @@ function asyncHandler(fn: Function) {
 }
 
 // ─── HTTP Response Cache Middleware ───
-// Caches full JSON responses in memory. Shared across all users for the same URL+params.
+// Caches full JSON responses in memory. La clave incluye la identidad del usuario
+// (user.id) para NO compartir respuestas entre usuarios con distinto scope de datos:
+// p.ej. un encargado_area acotado a ciertas sucursales no debe recibir el caché
+// global generado por un admin sobre la misma URL (y viceversa).
 const responseCache = new Map<string, { data: any; expires: number }>();
 
 function responseCacheMiddleware(ttlSeconds: number = 120) {
   return (req: any, res: any, next: any) => {
-    const cacheKey = `resp:${req.originalUrl}`;
+    const cacheKey = `resp:${req.user?.id || 'anon'}:${req.originalUrl}`;
     const cached = responseCache.get(cacheKey);
     if (cached && Date.now() < cached.expires) {
       return res.json(cached.data);
@@ -1691,11 +1694,15 @@ export function registerRoutes(app: Express): Server {
       currentYear = parseInt(endDateStr.substring(0, 4), 10);
     }
 
+    // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+    const clientScope = await getEncargadoScopeKoens(req.user);
+
     const filters = {
       segment: segment as string,
       salesperson: salesperson as string,
       client: client as string,
       product: product as string,
+      clientScope,
     };
 
     // Parse comparison period date range if provided
@@ -1742,6 +1749,7 @@ export function registerRoutes(app: Express): Server {
               segment: segment as string,
               client: client as string,
               product: product as string,
+              clientScope,
             } as any)
           : Promise.resolve(null),
         // 2. Comparison period metrics (optional)
@@ -1753,6 +1761,7 @@ export function registerRoutes(app: Express): Server {
               segment: segment as string,
               client: client as string,
               product: product as string,
+              clientScope,
             } as any)
           : Promise.resolve(null),
         // 3. NVV metrics (period filtered)
@@ -1762,18 +1771,21 @@ export function registerRoutes(app: Express): Server {
           salesperson: salesperson as string,
           segment: segment as string,
           client: client as string,
+          clientScope,
         }),
         // 4. NVV global (no date filters)
         storage.getNvvSummaryMetrics({
           salesperson: salesperson as string,
           segment: segment as string,
           client: client as string,
+          clientScope,
         }),
         // 5. GDV global pending
         storage.getGdvPendingGlobal({
           salesperson: salesperson as string,
           segment: segment as string,
           client: client as string,
+          clientScope,
         }),
         // 6. Yearly totals
         storage.getYearlyTotals(currentYear, filters, endDateStr as string),
@@ -1785,6 +1797,7 @@ export function registerRoutes(app: Express): Server {
               salesperson: salesperson as string,
               segment: segment as string,
               client: client as string,
+              clientScope,
             })
           : Promise.resolve(null),
         // 8. Best year
@@ -3558,6 +3571,9 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
       const transactions = await storage.getSalesTransactions({
         startDate: (startDate as string) || dateRange.startDate,
         endDate: (endDate as string) || dateRange.endDate,
@@ -3567,6 +3583,7 @@ export function registerRoutes(app: Express): Server {
         offset: offset ? parseInt(offset as string) : undefined,
         client: client as string,
         product: product as string,
+        clientScope,
       });
       res.json(transactions);
     } catch (error) {
@@ -10304,6 +10321,43 @@ export function registerRoutes(app: Express): Server {
     // Invalida el cache de scope para que el cambio se vea de inmediato.
     encargadoScopeCache.delete(id);
     res.json({ ok: true, count: ids.length });
+  }));
+
+  // Scope del usuario logueado: a qué sucursales está acotado su dashboard. Sirve para
+  // mostrarle al encargado de área (en su propio Dashboard) qué comercios está viendo,
+  // así la limitación es explícita y "se traduce" visualmente. Otros roles => no scopeado.
+  app.get('/api/me/scope', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!user || user.role !== 'encargado_area') {
+      return res.json({ role: user?.role || null, scoped: false, branches: [] });
+    }
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const r = await db.execute(sql`
+      SELECT c.id, c.koen, c.nokoen, c.rten, c.branch_label AS "branchLabel"
+      FROM user_branch_assignments uba
+      JOIN clients c ON c.id = uba.client_id
+      WHERE uba.user_id = ${user.id}
+      ORDER BY c.nokoen
+    `);
+    const rows = Array.isArray(r) ? r : (r as any).rows || [];
+    res.json({ role: 'encargado_area', scoped: rows.length > 0, branches: rows });
+  }));
+
+  // Conteo de sucursales asignadas por usuario (para mostrar en la tabla de Gestión
+  // de Usuarios cuántas sucursales tiene acotado cada encargado de un vistazo).
+  app.get('/api/users/branch-assignment-counts', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const r = await db.execute(sql`
+      SELECT user_id AS "userId", COUNT(*)::int AS count
+      FROM user_branch_assignments
+      GROUP BY user_id
+    `);
+    const rows = Array.isArray(r) ? r : (r as any).rows || [];
+    const counts: Record<string, number> = {};
+    for (const row of rows) counts[String(row.userId)] = Number(row.count) || 0;
+    res.json(counts);
   }));
 
   // Estado de cuenta del cliente logueado: línea de crédito + cartera REAL (cuentas por
@@ -22153,11 +22207,13 @@ export function registerRoutes(app: Express): Server {
       client_rut = req.user.client_rut;
     }
 
+    const clientScope = await getEncargadoScopeKoens(req.user);
     const nvvData = await storage.getNvvBySalesperson({
       salesperson: salesperson as string,
       startDate,
       endDate,
-      client_rut
+      client_rut,
+      clientScope
     });
 
     res.json(nvvData);
@@ -22175,8 +22231,10 @@ export function registerRoutes(app: Express): Server {
 
     // Delegate to storage layer which uses factVentas.kofulido (line-level vendor)
     // to correctly match against nvvPendingSales.KOFULIDO
+    const clientScope = await getEncargadoScopeKoens(req.user);
     const nvvData = await storage.getNvvBySegment({
-      segment: segment as string
+      segment: segment as string,
+      clientScope
     });
 
     res.json(nvvData);
@@ -22190,7 +22248,8 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'Branch parameter is required' });
     }
 
-    const nvvData = await storage.getNVVByBranch(branch as string);
+    const clientScope = await getEncargadoScopeKoens(req.user);
+    const nvvData = await storage.getNVVByBranch(branch as string, clientScope);
 
     const results = nvvData.map(row => ({
       id: row.id,
@@ -29726,7 +29785,8 @@ export function registerRoutes(app: Express): Server {
       if (!salesperson) {
         return res.status(400).json({ message: 'Se requiere el parámetro salesperson' });
       }
-      const records = await storage.getGdvBySalesperson(salesperson);
+      const clientScope = await getEncargadoScopeKoens(req.user);
+      const records = await storage.getGdvBySalesperson({ salesperson, clientScope });
       res.json(records);
     } catch (error: any) {
       console.error('[GDV By Salesperson Error]', error);

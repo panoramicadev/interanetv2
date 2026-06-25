@@ -61,8 +61,28 @@ interface BranchRow {
   branchLabel: string | null;
 }
 
-// Multi-select de sucursales agrupadas por RUT, con atajo "todo el RUT".
-// Define a qué comercios/sucursales queda acotado lo que ve un encargado de área.
+const normRut = (r: string | null) => (r || "").replace(/[.\-\s]/g, "").toUpperCase();
+const fmtRut = (r: string | null) => (r && r.trim() ? r.trim() : "sin RUT");
+
+// Caja de checkbox con buen affordance: vacía (borde) vs llena (azul + check).
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+        checked ? "border-indigo-600 bg-indigo-600 text-white" : "border-input bg-background",
+      )}
+    >
+      {checked && <Check className="h-3 w-3" />}
+    </span>
+  );
+}
+
+// Selector de clientes/sucursales a los que queda ACOTADO un encargado de área.
+// - Lista plana por defecto (cada cliente = una fila seleccionable).
+// - Cuando un comercio tiene VARIAS sucursales (mismo RUT o misma matriz), se
+//   agrupan con un atajo "Seleccionar todas". Es el caso MCT (Temuco/Castro/...).
+// - Búsqueda por nombre/RUT/código; tope de render para no colgar con miles.
 function BranchAssignmentSelector({
   branches,
   value,
@@ -73,31 +93,38 @@ function BranchAssignmentSelector({
   onChange: (ids: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
+  const MAX_VISIBLE = 200;
 
-  const normRut = (r: string | null) => (r || "").replace(/[.\-\s]/g, "").toUpperCase();
-
-  const groups = useMemo(() => {
-    const map = new Map<string, { key: string; rut: string; name: string; items: BranchRow[] }>();
+  // Agrupar en "comercios": por RUT si existe; si no, por matriz (parentClientId); si no, solo.
+  const companies = useMemo(() => {
+    const map = new Map<string, { key: string; rut: string | null; items: BranchRow[] }>();
     for (const b of branches) {
-      const key = normRut(b.rten) || `__${b.id}`;
-      if (!map.has(key)) map.set(key, { key, rut: b.rten || "Sin RUT", name: b.nokoen, items: [] });
+      const rut = normRut(b.rten);
+      const key = rut || (b.parentClientId ? `p:${b.parentClientId}` : `id:${b.id}`);
+      if (!map.has(key)) map.set(key, { key, rut: b.rten, items: [] });
       map.get(key)!.items.push(b);
     }
-    return Array.from(map.values());
+    const list = Array.from(map.values()).map((c) => {
+      const matriz = c.items.find((i) => !i.parentClientId) || c.items[0];
+      return { ...c, name: matriz.nokoen, isMulti: c.items.length > 1 };
+    });
+    // Comercios multi-sucursal primero (son los que importa agrupar), luego alfabético.
+    list.sort((a, b) => Number(b.isMulti) - Number(a.isMulti) || a.name.localeCompare(b.name));
+    return list;
   }, [branches]);
 
   const term = search.trim().toLowerCase();
-  const filteredGroups = useMemo(() => {
-    if (!term) return groups;
-    return groups
-      .map((g) => ({
-        ...g,
-        items: g.items.filter((b) =>
+  const filtered = useMemo(() => {
+    if (!term) return companies;
+    return companies
+      .map((c) => ({
+        ...c,
+        items: c.items.filter((b) =>
           [b.nokoen, b.rten, b.branchLabel, b.koen].filter(Boolean).join(" ").toLowerCase().includes(term),
         ),
       }))
-      .filter((g) => g.items.length > 0);
-  }, [groups, term]);
+      .filter((c) => c.items.length > 0);
+  }, [companies, term]);
 
   const valueSet = new Set(value);
   const toggle = (id: string) => {
@@ -106,7 +133,7 @@ function BranchAssignmentSelector({
     else next.add(id);
     onChange(Array.from(next));
   };
-  const toggleGroup = (items: BranchRow[]) => {
+  const toggleMany = (items: BranchRow[]) => {
     const ids = items.map((i) => i.id);
     const allSelected = ids.every((id) => valueSet.has(id));
     const next = new Set(value);
@@ -117,61 +144,116 @@ function BranchAssignmentSelector({
 
   const selectedRows = branches.filter((b) => valueSet.has(b.id));
 
+  // Tope de filas visibles (sumando ítems de cada comercio) para performance.
+  let rendered = 0;
+  let truncated = 0;
+  const visible: typeof filtered = [];
+  for (const c of filtered) {
+    if (rendered >= MAX_VISIBLE) { truncated += c.items.length; continue; }
+    const room = MAX_VISIBLE - rendered;
+    if (c.items.length > room) {
+      visible.push({ ...c, items: c.items.slice(0, room) });
+      truncated += c.items.length - room;
+      rendered = MAX_VISIBLE;
+    } else {
+      visible.push(c);
+      rendered += c.items.length;
+    }
+  }
+
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          {value.length > 0 ? `${value.length} sucursal(es) seleccionada(s)` : "Ninguna seleccionada (verá todo)"}
+        </span>
+        {value.length > 0 && (
+          <button type="button" className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => onChange([])}>
+            Limpiar
+          </button>
+        )}
+      </div>
+
       <div className="relative">
         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre o RUT…"
+          placeholder="Buscar por nombre, RUT o código…"
           className="pl-8"
         />
       </div>
-      <div className="max-h-[260px] overflow-y-auto rounded-md border divide-y bg-background">
+
+      <div className="max-h-[280px] overflow-y-auto rounded-md border bg-background">
         {branches.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground">Cargando clientes…</div>
         )}
-        {branches.length > 0 && filteredGroups.length === 0 && (
+        {branches.length > 0 && filtered.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground">Sin resultados para “{search}”.</div>
         )}
-        {filteredGroups.map((g) => {
-          const ids = g.items.map((i) => i.id);
-          const allSelected = ids.length > 0 && ids.every((id) => valueSet.has(id));
-          return (
-            <div key={g.key} className="p-2">
-              <div className="flex items-center justify-between gap-2 px-1 pb-1">
-                <span className="truncate text-xs font-semibold text-muted-foreground">{g.name} · {g.rut}</span>
+
+        {visible.map((c) =>
+          c.isMulti ? (
+            // Comercio con varias sucursales: encabezado + sucursales anidadas.
+            <div key={c.key} className="border-b last:border-b-0">
+              <div className="flex items-center justify-between gap-2 bg-muted/50 px-2 py-1.5">
+                <span className="min-w-0 truncate text-xs font-semibold">
+                  {c.name} <span className="font-normal text-muted-foreground">· {fmtRut(c.rut)} · {c.items.length} sucursales</span>
+                </span>
                 <button
                   type="button"
                   className="shrink-0 text-xs font-medium text-indigo-600 hover:underline"
-                  onClick={() => toggleGroup(g.items)}
+                  onClick={() => toggleMany(c.items)}
                 >
-                  {allSelected ? "Quitar RUT" : "Todo el RUT"}
+                  {c.items.every((i) => valueSet.has(i.id)) ? "Quitar todas" : "Seleccionar todas"}
                 </button>
               </div>
-              {g.items.map((b) => (
+              {c.items.map((b) => (
                 <button
                   type="button"
                   key={b.id}
                   onClick={() => toggle(b.id)}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  className="flex w-full items-center gap-2 px-2 py-1.5 pl-6 text-left text-sm hover:bg-accent"
                 >
-                  <Check className={cn("h-4 w-4 shrink-0", valueSet.has(b.id) ? "opacity-100 text-indigo-600" : "opacity-0")} />
-                  <span className="truncate">{b.branchLabel || b.nokoen}</span>
+                  <CheckBox checked={valueSet.has(b.id)} />
+                  <span className="min-w-0 truncate">{b.branchLabel || b.nokoen}</span>
                   {b.koen && <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{b.koen}</span>}
                 </button>
               ))}
             </div>
-          );
-        })}
+          ) : (
+            // Cliente único: fila plana con nombre + RUT + código.
+            <button
+              type="button"
+              key={c.key}
+              onClick={() => toggle(c.items[0].id)}
+              className="flex w-full items-center gap-2 border-b px-2 py-2 text-left text-sm last:border-b-0 hover:bg-accent"
+            >
+              <CheckBox checked={valueSet.has(c.items[0].id)} />
+              <span className="min-w-0 flex-1 truncate">{c.items[0].nokoen}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{fmtRut(c.rut)}</span>
+              {c.items[0].koen && (
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {c.items[0].koen}
+                </span>
+              )}
+            </button>
+          ),
+        )}
+
+        {truncated > 0 && (
+          <div className="p-2 text-center text-xs text-muted-foreground">
+            +{truncated} más — refiná la búsqueda para verlos
+          </div>
+        )}
       </div>
+
       {selectedRows.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedRows.map((b) => (
-            <Badge key={b.id} variant="secondary" className="text-xs font-normal">
-              {b.branchLabel || b.nokoen}
-              <button type="button" className="ml-1 hover:text-destructive" onClick={() => toggle(b.id)}>
+            <Badge key={b.id} variant="secondary" className="max-w-[200px] text-xs font-normal">
+              <span className="truncate">{b.branchLabel || b.nokoen}</span>
+              <button type="button" className="ml-1 shrink-0 hover:text-destructive" onClick={() => toggle(b.id)}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -305,6 +387,12 @@ export default function UsersPage() {
     enabled: !!user && (user?.role === 'admin' || user?.role === 'supervisor') && can('config.usuarios'),
   });
 
+  // Conteo de sucursales asignadas por usuario, para mostrar el scope en la tabla.
+  const { data: branchCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/users/branch-assignment-counts"],
+    enabled: !!user && (user?.role === 'admin' || user?.role === 'supervisor') && can('config.usuarios'),
+  });
+
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
   const { data: segmentsData = [] } = useQuery<Array<{ segment: string; totalSales: number; percentage: number }>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
@@ -357,6 +445,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/branch-assignment-counts"] });
       createForm.reset();
       setCreateBranches([]);
       setIsCreateDialogOpen(false);
@@ -387,6 +476,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/branch-assignment-counts"] });
       editForm.reset();
       setEditBranches([]);
       setIsEditDialogOpen(false);
@@ -413,6 +503,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/branch-assignment-counts"] });
       toast({
         title: "Usuario eliminado",
         description: "El usuario se ha eliminado correctamente.",
@@ -1441,9 +1532,21 @@ export default function UsersPage() {
                           <TableCell className="text-muted-foreground">{user.username || "Sin usuario"}</TableCell>
                           <TableCell className="text-muted-foreground">{user.email || "Sin email"}</TableCell>
                           <TableCell>
-                            <Badge variant={user.role === 'admin' ? 'default' : (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
-                              {getRoleLabel(user.role)}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={user.role === 'admin' ? 'default' : (user.role === 'supervisor' || user.role === 'encargado_area') ? 'default' : 'secondary'} className={user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
+                                {getRoleLabel(user.role)}
+                              </Badge>
+                              {user.role === 'encargado_area' && (
+                                branchCounts[user.id] > 0 ? (
+                                  <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                    <Building2 className="h-3 w-3" />
+                                    {branchCounts[user.id]} sucursal(es)
+                                  </span>
+                                ) : (
+                                  <span className="w-fit text-[11px] text-muted-foreground">Ve todo (sin acotar)</span>
+                                )
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{getSupervisorName(user.supervisorId)}</TableCell>
                           <TableCell>
