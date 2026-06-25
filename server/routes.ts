@@ -3006,6 +3006,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Lista liviana de clientes/sucursales para el selector de scope del encargado.
+  // DEBE ir antes de /api/clients/:koen para no ser capturada como :koen="branches-tree".
+  app.get('/api/clients/branches-tree', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const r = await db.execute(sql`
+      SELECT id, koen, nokoen, rten, parent_client_id AS "parentClientId", branch_label AS "branchLabel"
+      FROM clients
+      WHERE koen IS NOT NULL
+      ORDER BY COALESCE(NULLIF(TRIM(rten), ''), nokoen), nokoen
+    `);
+    const rows = Array.isArray(r) ? r : (r as any).rows || [];
+    res.json(rows);
+  }));
+
   app.get('/api/clients/:koen', requireAuth, async (req, res) => {
     try {
       const { koen } = req.params;
@@ -10248,19 +10263,8 @@ export function registerRoutes(app: Express): Server {
   };
 
   // ── Asignación de sucursales a usuarios (scope de datos del encargado de área) ──
-  // Lista liviana de clientes/sucursales para el selector, agrupable por RUT en el front.
-  app.get('/api/clients/branches-tree', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
-    const { db } = await import('./db');
-    const { sql } = await import('drizzle-orm');
-    const r = await db.execute(sql`
-      SELECT id, koen, nokoen, rten, parent_client_id AS "parentClientId", branch_label AS "branchLabel"
-      FROM clients
-      WHERE koen IS NOT NULL
-      ORDER BY COALESCE(NULLIF(TRIM(rten), ''), nokoen), nokoen
-    `);
-    const rows = Array.isArray(r) ? r : (r as any).rows || [];
-    res.json(rows);
-  }));
+  // Nota: la lista de clientes/sucursales para el selector (/api/clients/branches-tree)
+  // se registra ANTES de /api/clients/:koen para que no la capture esa ruta param.
 
   // Sucursales asignadas a un usuario (devuelve los clientId asignados).
   app.get('/api/users/salespeople/:id/branch-assignments', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
