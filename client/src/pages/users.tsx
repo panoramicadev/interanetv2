@@ -697,15 +697,16 @@ export default function UsersPage() {
                     Nuevo Usuario
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
+                <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+                  <DialogHeader className="shrink-0">
                     <DialogTitle>Crear Nuevo Usuario</DialogTitle>
                     <DialogDescription>
                       Crea una cuenta de acceso para un vendedor del sistema
                     </DialogDescription>
                   </DialogHeader>
                   <Form {...createForm}>
-                    <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
+                    <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                      <div className="flex-1 min-h-0 space-y-4 overflow-y-auto px-1">
                       <FormField
                         control={createForm.control}
                         name="role"
@@ -1028,7 +1029,8 @@ export default function UsersPage() {
                           </FormItem>
                         )}
                       />
-                      <DialogFooter>
+                      </div>
+                      <DialogFooter className="shrink-0 border-t pt-4">
                         <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-submit-create">
                           {createUserMutation.isPending ? "Creando..." : "Crear Usuario"}
                         </Button>
@@ -1044,15 +1046,16 @@ export default function UsersPage() {
 
         {/* Dialog de edición */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader className="shrink-0">
               <DialogTitle>Editar Usuario</DialogTitle>
               <DialogDescription>
                 Modifica la información del usuario seleccionado
               </DialogDescription>
             </DialogHeader>
             <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="space-y-4">
+              <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 space-y-4 overflow-y-auto px-1">
                 <FormField
                   control={editForm.control}
                   name="salespersonName"
@@ -1281,7 +1284,8 @@ export default function UsersPage() {
                     </FormItem>
                   )}
                 />
-                <DialogFooter>
+                </div>
+                <DialogFooter className="shrink-0 border-t pt-4">
                   <Button type="submit" disabled={updateUserMutation.isPending} data-testid="button-submit-edit">
                     {updateUserMutation.isPending ? "Actualizando..." : "Actualizar Usuario"}
                   </Button>
