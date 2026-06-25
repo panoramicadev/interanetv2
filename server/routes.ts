@@ -10256,19 +10256,29 @@ export function registerRoutes(app: Express): Server {
     };
   };
 
-  // Scope de datos para el rol encargado_area: códigos de cliente (koen) de las
-  // sucursales que tiene asignadas en user_branch_assignments. Se usa para acotar
-  // TODO el dashboard (KPIs, gráficos, metas, top-N) a esas sucursales.
+  // Scope de datos para el rol encargado_area: códigos de cliente (koen = endo) cuyas
+  // ventas debe ver. Se usa para acotar TODO el dashboard (KPIs, gráficos, metas, top-N).
   //   - Devuelve [] (sin restricción => ve todo) SOLO si el usuario NO es
   //     encargado_area, o si NO tiene NINGUNA sucursal asignada.
-  //   - Devuelve la lista de koens efectivos si tiene asignaciones que resuelven.
+  //   - Devuelve la lista de koens resueltos si sus sucursales resuelven a ventas.
   //   - Devuelve [ENCARGADO_NO_SCOPE] si tiene asignaciones pero NINGUNA resuelve a
   //     un koen real => el dashboard queda en CERO (ve NADA), nunca "ve todo".
   // Resultado cacheado 60s por usuario para no repetir el query en cada tarjeta.
   //
+  // Modelo de resolución (verificado contra datos reales de MCT/ELECTROCOM):
+  //   (a) Sucursal = ficha ERP propia (tiene koen) → se usa su koen.
+  //   (b) Sucursal = "plaza" creada a mano (caso MCT): koen NULL, pero sus ventas viven
+  //       en ventas.fact_ventas bajo un VENDEDOR (nokofu) cuyo nombre coincide con el
+  //       branch_label ("MCT CASTRO", "MCT LOS ANGELES", ...). Mapeamos branch_label→koen
+  //       a través de ese nokofu (normalizando acentos con translate, sin extensión
+  //       unaccent). NO se usa el koen de la matriz (parent_client_id): esa ficha no tiene
+  //       ventas y, peor, agruparía todas las plazas del mismo RUT → mostraría de más.
+  // Caveat de datos: si el branch_label no coincide con el nokofu (typo, p.ej.
+  //   "VILLARRICA" vs "VILLARICA"), esa plaza no resuelve y cae al sentinel (ve nada),
+  //   lo que evita fugas pero exige alinear el nombre con el vendedor del ERP.
+  //
   // Sentinel: koens=[] significa "sin restricción" para getClientScopeConditions, así
-  // que un encargado con sucursales asignadas que no resuelven a koen (p.ej. una
-  // sucursal MCT koen-NULL cuya matriz tampoco tiene koen) NO debe devolver [] —
+  // que un encargado con sucursales asignadas que no resuelven NO debe devolver [] —
   // eso filtraría como "ve TODA la empresa" (fuga de datos). Devolvemos un valor que
   // jamás matchea un endo real, así "endo IN (...)" no trae filas (ve NADA).
   const ENCARGADO_NO_SCOPE = '__no_scope__';
@@ -10281,25 +10291,40 @@ export function registerRoutes(app: Express): Server {
     try {
       const { db } = await import('./db');
       const { sql } = await import('drizzle-orm');
-      // koen EFECTIVO de cada sucursal asignada: su propio koen si lo tiene (ficha ERP
-      // real) o, si es koen-NULL (sucursal de tienda creada a mano, caso MCT), el koen
-      // de su matriz (parent_client_id). Solo se camina HACIA ARRIBA: no se traen
-      // hermanas ni se agrupa por RUT — eso sobre-ampliaría el scope (cf. PR#169).
-      // LEFT JOIN para que TODA fila de asignación cuente, aunque su cliente/koen falte
-      // (necesario para distinguir "sin asignaciones" de "asignaciones sin koen").
+      // ¿Tiene asignaciones? (distingue "sin scope = ve todo" de "scope vacío = ve nada").
+      const cntR = await db.execute(sql`
+        SELECT COUNT(*)::int AS n FROM user_branch_assignments WHERE user_id = ${user.id}
+      `);
+      const cntRows = Array.isArray(cntR) ? cntR : (cntR as any).rows || [];
+      const assignmentCount = Number(cntRows[0]?.n) || 0;
+
+      // (a) koen propio de fichas ERP asignadas  UNION  (b) koens de las plazas (MCT)
+      // cuyo vendedor (nokofu) coincide con el branch_label (acentos normalizados).
       const r = await db.execute(sql`
-        SELECT COALESCE(c.koen, p.koen) AS koen
-        FROM user_branch_assignments uba
-        LEFT JOIN clients c ON c.id = uba.client_id
-        LEFT JOIN clients p ON p.id = c.parent_client_id
-        WHERE uba.user_id = ${user.id}
+        WITH assigned AS (
+          SELECT c.koen, c.branch_label
+          FROM user_branch_assignments uba
+          JOIN clients c ON c.id = uba.client_id
+          WHERE uba.user_id = ${user.id}
+        ),
+        labels AS (
+          SELECT DISTINCT translate(upper(btrim(branch_label)), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') AS lbl
+          FROM assigned
+          WHERE koen IS NULL AND branch_label IS NOT NULL AND btrim(branch_label) <> ''
+        )
+        SELECT koen FROM assigned WHERE koen IS NOT NULL
+        UNION
+        SELECT DISTINCT fv.endo AS koen
+        FROM ventas.fact_ventas fv
+        JOIN labels ON translate(upper(btrim(fv.nokofu)), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') = labels.lbl
+        WHERE fv.endo IS NOT NULL
       `);
       const rows = Array.isArray(r) ? r : (r as any).rows || [];
       koens = Array.from(new Set(
         rows.map((row: any) => (row.koen != null ? String(row.koen).trim() : '')).filter(Boolean)
       ));
       // Tiene ≥1 asignación pero ninguna resolvió a un koen real => ve NADA (no "ve todo").
-      if (rows.length > 0 && koens.length === 0) koens = [ENCARGADO_NO_SCOPE];
+      if (assignmentCount > 0 && koens.length === 0) koens = [ENCARGADO_NO_SCOPE];
     } catch (e) {
       console.warn('[encargado-scope] lookup failed:', e);
       koens = [];
