@@ -3021,6 +3021,13 @@ export function registerRoutes(app: Express): Server {
 
   // Lista liviana de clientes/sucursales para el selector de scope del encargado.
   // DEBE ir antes de /api/clients/:koen para no ser capturada como :koen="branches-tree".
+  // Incluye DOS tipos de fila:
+  //  - fichas ERP reales (koen IS NOT NULL), y
+  //  - sucursales de tienda creadas a mano (caso MCT): koen NULL pero con
+  //    parent_client_id Y branch_label seteados juntos por POST .../create-branch.
+  // El par (parent_client_id AND branch_label) captura exactamente esas sucursales y
+  // deja fuera fichas mínimas de link-client (koen NULL pero sin parent ni label) y
+  // filas huérfanas de imports. Sin esto, las sucursales MCT no aparecían en el selector.
   app.get('/api/clients/branches-tree', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
@@ -3028,6 +3035,7 @@ export function registerRoutes(app: Express): Server {
       SELECT id, koen, nokoen, rten, parent_client_id AS "parentClientId", branch_label AS "branchLabel"
       FROM clients
       WHERE koen IS NOT NULL
+         OR (parent_client_id IS NOT NULL AND branch_label IS NOT NULL)
       ORDER BY COALESCE(NULLIF(TRIM(rten), ''), nokoen), nokoen
     `);
     const rows = Array.isArray(r) ? r : (r as any).rows || [];
@@ -10251,10 +10259,19 @@ export function registerRoutes(app: Express): Server {
   // Scope de datos para el rol encargado_area: códigos de cliente (koen) de las
   // sucursales que tiene asignadas en user_branch_assignments. Se usa para acotar
   // TODO el dashboard (KPIs, gráficos, metas, top-N) a esas sucursales.
-  //   - Devuelve [] (sin restricción => ve todo) si el usuario NO es encargado_area,
-  //     o si es encargado_area pero todavía no tiene ninguna sucursal asignada.
-  //   - Devuelve la lista de koens si tiene ≥1 asignación => queda acotado a esas.
+  //   - Devuelve [] (sin restricción => ve todo) SOLO si el usuario NO es
+  //     encargado_area, o si NO tiene NINGUNA sucursal asignada.
+  //   - Devuelve la lista de koens efectivos si tiene asignaciones que resuelven.
+  //   - Devuelve [ENCARGADO_NO_SCOPE] si tiene asignaciones pero NINGUNA resuelve a
+  //     un koen real => el dashboard queda en CERO (ve NADA), nunca "ve todo".
   // Resultado cacheado 60s por usuario para no repetir el query en cada tarjeta.
+  //
+  // Sentinel: koens=[] significa "sin restricción" para getClientScopeConditions, así
+  // que un encargado con sucursales asignadas que no resuelven a koen (p.ej. una
+  // sucursal MCT koen-NULL cuya matriz tampoco tiene koen) NO debe devolver [] —
+  // eso filtraría como "ve TODA la empresa" (fuga de datos). Devolvemos un valor que
+  // jamás matchea un endo real, así "endo IN (...)" no trae filas (ve NADA).
+  const ENCARGADO_NO_SCOPE = '__no_scope__';
   const encargadoScopeCache = new Map<string, { koens: string[]; ts: number }>();
   const getEncargadoScopeKoens = async (user: any): Promise<string[]> => {
     if (!user || user.role !== 'encargado_area' || !user.id) return [];
@@ -10264,13 +10281,25 @@ export function registerRoutes(app: Express): Server {
     try {
       const { db } = await import('./db');
       const { sql } = await import('drizzle-orm');
+      // koen EFECTIVO de cada sucursal asignada: su propio koen si lo tiene (ficha ERP
+      // real) o, si es koen-NULL (sucursal de tienda creada a mano, caso MCT), el koen
+      // de su matriz (parent_client_id). Solo se camina HACIA ARRIBA: no se traen
+      // hermanas ni se agrupa por RUT — eso sobre-ampliaría el scope (cf. PR#169).
+      // LEFT JOIN para que TODA fila de asignación cuente, aunque su cliente/koen falte
+      // (necesario para distinguir "sin asignaciones" de "asignaciones sin koen").
       const r = await db.execute(sql`
-        SELECT c.koen FROM user_branch_assignments uba
-        JOIN clients c ON c.id = uba.client_id
-        WHERE uba.user_id = ${user.id} AND c.koen IS NOT NULL
+        SELECT COALESCE(c.koen, p.koen) AS koen
+        FROM user_branch_assignments uba
+        LEFT JOIN clients c ON c.id = uba.client_id
+        LEFT JOIN clients p ON p.id = c.parent_client_id
+        WHERE uba.user_id = ${user.id}
       `);
       const rows = Array.isArray(r) ? r : (r as any).rows || [];
-      koens = rows.map((row: any) => String(row.koen).trim()).filter(Boolean);
+      koens = Array.from(new Set(
+        rows.map((row: any) => (row.koen != null ? String(row.koen).trim() : '')).filter(Boolean)
+      ));
+      // Tiene ≥1 asignación pero ninguna resolvió a un koen real => ve NADA (no "ve todo").
+      if (rows.length > 0 && koens.length === 0) koens = [ENCARGADO_NO_SCOPE];
     } catch (e) {
       console.warn('[encargado-scope] lookup failed:', e);
       koens = [];
