@@ -412,6 +412,7 @@ export default function Dashboard() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isSyncAllRunning, setIsSyncAllRunning] = useState(false);
+  const [isCancellingSync, setIsCancellingSync] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   // Stock breaks modal state
@@ -534,6 +535,31 @@ export default function Dashboard() {
         variant: "destructive",
       });
       setShowSyncModal(false);
+    }
+  };
+
+  // Cancelar la sync en curso (libera el candado del server para poder
+  // relanzarla manualmente cuando demora demasiado).
+  const handleCancelSync = async () => {
+    if (isCancellingSync) return;
+    try {
+      setIsCancellingSync(true);
+      await apiRequest('/api/etl/sync-all/cancel', { method: 'POST' });
+      setIsSyncAllRunning(false);
+      setShowSyncModal(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-all/status'] });
+      toast({
+        title: "🛑 Sincronización cancelada",
+        description: "Podés volver a ejecutarla cuando quieras.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "❌ Error",
+        description: error.message || "No se pudo cancelar la sincronización",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancellingSync(false);
     }
   };
 
@@ -1755,14 +1781,20 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={handleSyncAll}
-                  disabled={syncBusy}
-                  className="h-9 w-9 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  onClick={syncBusy ? handleCancelSync : handleSyncAll}
+                  disabled={isCancellingSync}
+                  className={`group h-9 w-9 transition-colors rounded-lg border-gray-200 dark:border-gray-700 ${syncBusy ? 'hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200'}`}
                   data-testid="button-desktop-sync-all"
-                  title={syncBusy ? 'Sincronización en ejecución…' : (lastSyncDate ? `Última sync: ${new Date(lastSyncDate).toLocaleString('es-CL')}` : 'Sincronizar todo')}
+                  title={syncBusy ? 'Sincronización en curso — clic para cancelar' : (lastSyncDate ? `Última sync: ${new Date(lastSyncDate).toLocaleString('es-CL')}` : 'Sincronizar todo')}
                 >
-                  {syncBusy ? (
-                    <Loader2 className="h-4 w-4 text-orange-500 animate-spin" />
+                  {isCancellingSync ? (
+                    <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                  ) : syncBusy ? (
+                    <>
+                      {/* En reposo gira el spinner; al pasar el mouse aparece la X para cancelar */}
+                      <Loader2 className="h-4 w-4 text-orange-500 animate-spin group-hover:hidden" />
+                      <X className="hidden h-4 w-4 text-red-500 group-hover:block" />
+                    </>
                   ) : (
                     <Zap className="h-4 w-4 text-orange-500" />
                   )}
@@ -2080,13 +2112,27 @@ export default function Dashboard() {
           )}
 
           <DialogFooter>
-            <Button
-              onClick={() => setShowSyncModal(false)}
-              disabled={isSyncAllRunning}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              Cerrar
-            </Button>
+            {isSyncAllRunning ? (
+              <Button
+                onClick={handleCancelSync}
+                disabled={isCancellingSync}
+                variant="destructive"
+                data-testid="button-cancel-sync"
+              >
+                {isCancellingSync ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelando…</>
+                ) : (
+                  <><X className="h-4 w-4 mr-2" /> Cancelar sincronización</>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setShowSyncModal(false)}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Cerrar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
