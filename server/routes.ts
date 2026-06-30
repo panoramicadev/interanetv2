@@ -32332,21 +32332,64 @@ Instrucciones extra:
   // Sync All ETLs — Runs Ventas → GDV → NVV sequentially
   // ═══════════════════════════════════════════════════════════════
 
-  // Track sync-all state — live per-ETL status for real-time modal
-  let syncAllRunning = false;
+  // Track sync-all state — live per-ETL status for real-time modal.
+  // El candado guarda el INSTANTE de inicio (no un boolean): así podemos
+  // detectar y liberar candados "colgados". Antes, si un ETL se quedaba
+  // pegado (timeout de driver que nunca rechaza), la marca quedaba en true
+  // para siempre y TODO click posterior devolvía 409 hasta reiniciar el
+  // server — de ahí el "muchas veces me sale el error".
+  const SYNC_ALL_STALE_MS = 20 * 60 * 1000; // 20 min: si lo supera, se considera colgado
+  let syncAllStartedAt: number | null = null;
   let syncAllStatus: any = null; // Live status (updated during execution)
+  let syncAllWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+  const releaseSyncAll = () => {
+    syncAllStartedAt = null;
+    if (syncAllWatchdog) { clearTimeout(syncAllWatchdog); syncAllWatchdog = null; }
+  };
+
+  // ¿Hay una sync realmente en curso? Si la marca supera el TTL, se la
+  // considera colgada y se libera (recuperación automática).
+  const isSyncAllRunning = () => {
+    if (syncAllStartedAt === null) return false;
+    if (Date.now() - syncAllStartedAt >= SYNC_ALL_STALE_MS) {
+      console.warn('[SYNC-ALL] Candado colgado liberado por TTL (la sync previa nunca terminó)');
+      releaseSyncAll();
+      return false;
+    }
+    return true;
+  };
 
   app.post('/api/etl/sync-all', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      if (syncAllRunning) {
+      if (isSyncAllRunning()) {
+        const elapsedMin = Math.floor((Date.now() - (syncAllStartedAt as number)) / 60000);
         return res.status(409).json({
           success: false,
-          message: 'Ya hay una sincronización completa en ejecución',
+          message: `Ya hay una sincronización completa en ejecución (iniciada hace ${elapsedMin} min). Espera a que termine.`,
         });
       }
 
       console.log(`\n🔄 [SYNC-ALL] Iniciado por: ${req.user.email}`);
-      syncAllRunning = true;
+      syncAllStartedAt = Date.now();
+
+      // Watchdog: si la sync se cuelga (ETL pegado sin timeout), libera el
+      // candado igual para no bloquear futuros intentos y marca el estado.
+      if (syncAllWatchdog) clearTimeout(syncAllWatchdog);
+      syncAllWatchdog = setTimeout(() => {
+        console.error('[SYNC-ALL] Watchdog: timeout alcanzado — liberando candado colgado');
+        if (syncAllStatus) {
+          for (const k of ['ventas', 'gdv', 'nvv'] as const) {
+            if (syncAllStatus[k] && syncAllStatus[k].status === 'running') {
+              syncAllStatus[k] = { ...syncAllStatus[k], status: 'error', error: 'Tiempo de espera agotado (timeout)', progress: 0, progressMessage: '' };
+            }
+          }
+          syncAllStatus.completedAt = new Date().toISOString();
+        }
+        syncAllStartedAt = null;
+        syncAllWatchdog = null;
+      }, SYNC_ALL_STALE_MS);
+      if (typeof (syncAllWatchdog as any).unref === 'function') (syncAllWatchdog as any).unref();
 
       // Initialize live status — all pending (with progress fields)
       syncAllStatus = {
@@ -32446,12 +32489,12 @@ Instrucciones extra:
         syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0);
         syncAllStatus.totalTimeMs = Date.now() - startTime;
         syncAllStatus.completedAt = new Date().toISOString();
-        syncAllRunning = false;
+        releaseSyncAll();
 
         console.log(`\n✅ [SYNC-ALL] Completed: ${syncAllStatus.totalRecords} total records in ${(syncAllStatus.totalTimeMs / 1000).toFixed(1)}s`);
       })().catch((err) => {
         console.error('[SYNC-ALL] Unexpected error:', err);
-        syncAllRunning = false;
+        releaseSyncAll();
       });
 
       res.json({
@@ -32460,7 +32503,7 @@ Instrucciones extra:
         isRunning: true,
       });
     } catch (error: any) {
-      syncAllRunning = false;
+      releaseSyncAll();
       console.error('[SYNC-ALL] Error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
@@ -32469,7 +32512,7 @@ Instrucciones extra:
   // Check sync-all live status (polled by frontend modal)
   app.get('/api/etl/sync-all/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     res.json({
-      isRunning: syncAllRunning,
+      isRunning: isSyncAllRunning(),
       etls: syncAllStatus,
     });
   }));

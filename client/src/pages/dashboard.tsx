@@ -462,10 +462,22 @@ export default function Dashboard() {
   }, [showSyncModal]);
 
   // Fetch last sync timestamp
-  const { data: lastSyncInfo } = useQuery<{ createdAt?: string; completedAt?: string }>({ 
+  const { data: lastSyncInfo } = useQuery<{ createdAt?: string; completedAt?: string }>({
     queryKey: ['/api/etl/sync-sales/status'],
     refetchInterval: 60000,
   });
+
+  // Poll del estado del servidor para reflejar una sync en curso aunque la
+  // haya iniciado otra pestaña u otro admin. Antes el botón quedaba habilitado
+  // (estado solo local) y al hacer click devolvía 409 "ya hay una sincronización
+  // en ejecución". Mientras el modal está abierto, ese efecto ya hace el polling.
+  const { data: syncAllServerStatus } = useQuery<{ isRunning?: boolean }>({
+    queryKey: ['/api/etl/sync-all/status'],
+    refetchInterval: 20000,
+    enabled: !showSyncModal,
+  });
+  const serverSyncRunning = !!syncAllServerStatus?.isRunning;
+  const syncBusy = isSyncAllRunning || serverSyncRunning;
 
   // Stock breaks query - lightweight, fetches on demand
   const { data: stockBreaks, isLoading: isLoadingStockBreaks, error: stockBreaksError } = useQuery<{
@@ -1744,12 +1756,12 @@ export default function Dashboard() {
                   variant="outline"
                   size="icon"
                   onClick={handleSyncAll}
-                  disabled={isSyncAllRunning}
+                  disabled={syncBusy}
                   className="h-9 w-9 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-sync-all"
-                  title={lastSyncDate ? `Última sync: ${new Date(lastSyncDate).toLocaleString('es-CL')}` : 'Sincronizar todo'}
+                  title={syncBusy ? 'Sincronización en ejecución…' : (lastSyncDate ? `Última sync: ${new Date(lastSyncDate).toLocaleString('es-CL')}` : 'Sincronizar todo')}
                 >
-                  {isSyncAllRunning ? (
+                  {syncBusy ? (
                     <Loader2 className="h-4 w-4 text-orange-500 animate-spin" />
                   ) : (
                     <Zap className="h-4 w-4 text-orange-500" />
