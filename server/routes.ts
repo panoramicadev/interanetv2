@@ -32342,6 +32342,10 @@ Instrucciones extra:
   let syncAllStartedAt: number | null = null;
   let syncAllStatus: any = null; // Live status (updated during execution)
   let syncAllWatchdog: ReturnType<typeof setTimeout> | null = null;
+  // Generación de corrida: si el usuario cancela (o se relanza), incrementamos
+  // este id. La corrida vieja queda "muerta" (alive() === false) y deja de
+  // tocar estado/candado, así no pisa una corrida nueva ni libera su candado.
+  let syncAllRunId = 0;
 
   const releaseSyncAll = () => {
     syncAllStartedAt = null;
@@ -32372,11 +32376,14 @@ Instrucciones extra:
 
       console.log(`\n🔄 [SYNC-ALL] Iniciado por: ${req.user.email}`);
       syncAllStartedAt = Date.now();
+      const runId = ++syncAllRunId;       // identifica a ESTA corrida
+      const alive = () => syncAllRunId === runId; // false si fue cancelada/supersedida
 
       // Watchdog: si la sync se cuelga (ETL pegado sin timeout), libera el
       // candado igual para no bloquear futuros intentos y marca el estado.
       if (syncAllWatchdog) clearTimeout(syncAllWatchdog);
       syncAllWatchdog = setTimeout(() => {
+        if (!alive()) return; // corrida vieja: ignorar
         console.error('[SYNC-ALL] Watchdog: timeout alcanzado — liberando candado colgado');
         if (syncAllStatus) {
           for (const k of ['ventas', 'gdv', 'nvv'] as const) {
@@ -32386,8 +32393,7 @@ Instrucciones extra:
           }
           syncAllStatus.completedAt = new Date().toISOString();
         }
-        syncAllStartedAt = null;
-        syncAllWatchdog = null;
+        releaseSyncAll();
       }, SYNC_ALL_STALE_MS);
       if (typeof (syncAllWatchdog as any).unref === 'function') (syncAllWatchdog as any).unref();
 
@@ -32399,6 +32405,7 @@ Instrucciones extra:
         totalRecords: 0,
         totalTimeMs: 0,
         completedAt: null,
+        cancelled: false,
       };
 
       // Run in background
@@ -32407,10 +32414,11 @@ Instrucciones extra:
 
         // 1/3 — Ventas
         try {
-          syncAllStatus.ventas.status = 'running';
+          if (alive()) syncAllStatus.ventas.status = 'running';
           console.log('📊 [SYNC-ALL] (1/3) Starting Ventas...');
           // Listen to progress events
           const ventasProgressListener = (event: any) => {
+            if (!alive()) return;
             syncAllStatus.ventas.progress = event.percentage || 0;
             syncAllStatus.ventas.progressMessage = event.message || '';
           };
@@ -32419,73 +32427,86 @@ Instrucciones extra:
             const ventasResult = await executeIncrementalETL();
             // executeIncrementalETL no lanza: devuelve success:false con el error.
             // Sin este check, un ETL fallido se mostraba como "Listo — 0 registros".
-            if (ventasResult.success) {
-              syncAllStatus.ventas = { status: 'done', recordsProcessed: ventasResult.recordsProcessed, executionTimeMs: ventasResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
-              console.log(`✅ [SYNC-ALL] Ventas: ${ventasResult.recordsProcessed} registros`);
-            } else {
-              syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: ventasResult.executionTimeMs, error: ventasResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
-              console.error('[SYNC-ALL] Ventas failed:', ventasResult.error);
+            if (alive()) {
+              if (ventasResult.success) {
+                syncAllStatus.ventas = { status: 'done', recordsProcessed: ventasResult.recordsProcessed, executionTimeMs: ventasResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
+                console.log(`✅ [SYNC-ALL] Ventas: ${ventasResult.recordsProcessed} registros`);
+              } else {
+                syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: ventasResult.executionTimeMs, error: ventasResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+                console.error('[SYNC-ALL] Ventas failed:', ventasResult.error);
+              }
             }
           } finally {
             etlProgressEmitter.off('progress', ventasProgressListener);
           }
         } catch (error: any) {
-          syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          if (alive()) syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
           console.error('[SYNC-ALL] Ventas failed:', error.message);
         }
+        // Cancelada/supersedida: cortar la cadena (no lanzar GDV/NVV)
+        if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — se detiene antes de GDV'); return; }
 
         // 2/3 — GDV
         try {
-          syncAllStatus.gdv.status = 'running';
+          if (alive()) syncAllStatus.gdv.status = 'running';
           console.log('📊 [SYNC-ALL] (2/3) Starting GDV...');
           const gdvProgressListener = (event: any) => {
+            if (!alive()) return;
             syncAllStatus.gdv.progress = event.percentage || 0;
             syncAllStatus.gdv.progressMessage = event.message || '';
           };
           gdvEtlProgressEmitter.on('progress', gdvProgressListener);
           try {
             const gdvResult = await executeGDVETL();
-            if (gdvResult.success) {
-              syncAllStatus.gdv = { status: 'done', recordsProcessed: gdvResult.recordsProcessed, executionTimeMs: gdvResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
-              console.log(`✅ [SYNC-ALL] GDV: ${gdvResult.recordsProcessed} registros`);
-            } else {
-              syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: gdvResult.executionTimeMs, error: gdvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
-              console.error('[SYNC-ALL] GDV failed:', gdvResult.error);
+            if (alive()) {
+              if (gdvResult.success) {
+                syncAllStatus.gdv = { status: 'done', recordsProcessed: gdvResult.recordsProcessed, executionTimeMs: gdvResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
+                console.log(`✅ [SYNC-ALL] GDV: ${gdvResult.recordsProcessed} registros`);
+              } else {
+                syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: gdvResult.executionTimeMs, error: gdvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+                console.error('[SYNC-ALL] GDV failed:', gdvResult.error);
+              }
             }
           } finally {
             gdvEtlProgressEmitter.off('progress', gdvProgressListener);
           }
         } catch (error: any) {
-          syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          if (alive()) syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
           console.error('[SYNC-ALL] GDV failed:', error.message);
         }
+        if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — se detiene antes de NVV'); return; }
 
         // 3/3 — NVV
         try {
-          syncAllStatus.nvv.status = 'running';
+          if (alive()) syncAllStatus.nvv.status = 'running';
           console.log('📊 [SYNC-ALL] (3/3) Starting NVV...');
           const nvvProgressListener = (event: any) => {
+            if (!alive()) return;
             syncAllStatus.nvv.progress = event.percentage || 0;
             syncAllStatus.nvv.progressMessage = event.message || '';
           };
           nvvEtlProgressEmitter.on('progress', nvvProgressListener);
           try {
             const nvvResult = await executeNVVETL();
-            if (nvvResult.success) {
-              syncAllStatus.nvv = { status: 'done', recordsProcessed: nvvResult.records_processed, executionTimeMs: nvvResult.execution_time_ms, error: null, progress: 100, progressMessage: 'Completado' };
-              console.log(`✅ [SYNC-ALL] NVV: ${nvvResult.records_processed} registros`);
-            } else {
-              syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: nvvResult.execution_time_ms, error: nvvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
-              console.error('[SYNC-ALL] NVV failed:', nvvResult.error);
+            if (alive()) {
+              if (nvvResult.success) {
+                syncAllStatus.nvv = { status: 'done', recordsProcessed: nvvResult.records_processed, executionTimeMs: nvvResult.execution_time_ms, error: null, progress: 100, progressMessage: 'Completado' };
+                console.log(`✅ [SYNC-ALL] NVV: ${nvvResult.records_processed} registros`);
+              } else {
+                syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: nvvResult.execution_time_ms, error: nvvResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+                console.error('[SYNC-ALL] NVV failed:', nvvResult.error);
+              }
             }
           } finally {
             nvvEtlProgressEmitter.off('progress', nvvProgressListener);
           }
         } catch (error: any) {
-          syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          if (alive()) syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
           console.error('[SYNC-ALL] NVV failed:', error.message);
         }
 
+        // Si la corrida fue cancelada, no tocar estado ni candado (ya lo hizo el cancel)
+        if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — resultado descartado'); return; }
         syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0);
         syncAllStatus.totalTimeMs = Date.now() - startTime;
         syncAllStatus.completedAt = new Date().toISOString();
@@ -32494,7 +32515,7 @@ Instrucciones extra:
         console.log(`\n✅ [SYNC-ALL] Completed: ${syncAllStatus.totalRecords} total records in ${(syncAllStatus.totalTimeMs / 1000).toFixed(1)}s`);
       })().catch((err) => {
         console.error('[SYNC-ALL] Unexpected error:', err);
-        releaseSyncAll();
+        if (alive()) releaseSyncAll();
       });
 
       res.json({
@@ -32515,6 +32536,30 @@ Instrucciones extra:
       isRunning: isSyncAllRunning(),
       etls: syncAllStatus,
     });
+  }));
+
+  // Cancelar la sync en curso: libera el candado para poder relanzarla
+  // manualmente cuando demora demasiado. Los ETLs ya disparados no se pueden
+  // abortar a media query (no hay AbortSignal hilado), pero se invalida la
+  // corrida (syncAllRunId++) para que su resultado se descarte, no avance a los
+  // ETLs siguientes y no pise una corrida nueva.
+  app.post('/api/etl/sync-all/cancel', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    if (!isSyncAllRunning()) {
+      return res.status(409).json({ success: false, message: 'No hay ninguna sincronización en ejecución' });
+    }
+    console.log(`\n🛑 [SYNC-ALL] Cancelado por: ${req.user.email}`);
+    syncAllRunId++; // invalida la corrida actual (su closure deja de tocar estado/candado)
+    if (syncAllStatus) {
+      for (const k of ['ventas', 'gdv', 'nvv'] as const) {
+        if (syncAllStatus[k] && (syncAllStatus[k].status === 'running' || syncAllStatus[k].status === 'pending')) {
+          syncAllStatus[k] = { ...syncAllStatus[k], status: 'error', error: 'Cancelado por el usuario', progress: 0, progressMessage: '' };
+        }
+      }
+      syncAllStatus.cancelled = true;
+      syncAllStatus.completedAt = new Date().toISOString();
+    }
+    releaseSyncAll();
+    res.json({ success: true, message: 'Sincronización cancelada' });
   }));
 
   // ETL Progress Stream (Server-Sent Events) - Real-time progress updates
