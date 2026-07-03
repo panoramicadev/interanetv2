@@ -1289,6 +1289,24 @@ export const rolePermissions = pgTable("role_permissions", {
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type InsertRolePermission = typeof rolePermissions.$inferInsert;
 
+// Overrides de permisos por USUARIO (encima del rol). Se indexa por email
+// en minúsculas porque un mismo usuario puede existir en users y en
+// salespeople_users con ids distintos; el email es la identidad estable
+// que comparten (es la credencial de login). Sin fila = rige el rol.
+export const userPermissions = pgTable("user_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userEmail: varchar("user_email").notNull(),
+  permissionKey: varchar("permission_key").notNull(),
+  allowed: boolean("allowed").notNull().default(true),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueUserPermission: uniqueIndex("UQ_user_permissions_email_key").on(table.userEmail, table.permissionKey),
+}));
+
+export type UserPermission = typeof userPermissions.$inferSelect;
+export type InsertUserPermission = typeof userPermissions.$inferInsert;
+
 // Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
 export const userBranchAssignments = pgTable("user_branch_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

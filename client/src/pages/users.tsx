@@ -63,6 +63,72 @@ interface BranchRow {
 
 const normRut = (r: string | null) => (r || "").replace(/[.\-\s]/g, "").toUpperCase();
 const fmtRut = (r: string | null) => (r && r.trim() ? r.trim() : "sin RUT");
+// Debe coincidir con normalizeEmail del servidor (server/permissions.ts):
+// es la clave con la que se guardan los overrides de permisos por usuario.
+const normEmail = (e: string | null | undefined) => (e || "").trim().toLowerCase();
+
+// Permiso que gobierna la visibilidad del CRM de Seguimiento de Clientes.
+const CRM_PERMISSION_KEY = "clientes.seguimiento";
+
+interface UserPermissionsResponse {
+  overrides: Array<{ email: string; permissionKey: string; allowed: boolean }>;
+  roleDefaults: Record<string, Record<string, boolean>>;
+  storageAvailable: boolean;
+}
+
+// Switch de acceso al CRM por usuario. El efectivo es override ?? rol;
+// al tocar el switch se fija un override personal, "usar rol" lo limpia.
+function CrmAccessControl({
+  effective,
+  overridden,
+  isAdmin,
+  hasEmail,
+  disabled,
+  onSet,
+  onReset,
+}: {
+  effective: boolean;
+  overridden: boolean;
+  isAdmin: boolean;
+  hasEmail: boolean;
+  disabled: boolean;
+  onSet: (allowed: boolean) => void;
+  onReset: () => void;
+}) {
+  if (isAdmin) {
+    return <span className="text-[11px] text-muted-foreground">Siempre (admin)</span>;
+  }
+  if (!hasEmail) {
+    return <span className="text-[11px] text-muted-foreground">Requiere email</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={effective}
+          disabled={disabled}
+          onCheckedChange={onSet}
+          className="scale-90 data-[state=checked]:bg-indigo-600"
+        />
+        <span className={cn("text-[11px] font-medium", effective ? "text-emerald-600" : "text-muted-foreground")}>
+          {effective ? "Visible" : "Oculto"}
+        </span>
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {overridden ? (
+          <>
+            Personalizado ·{" "}
+            <button type="button" className="text-indigo-600 hover:underline" onClick={onReset} disabled={disabled}>
+              usar rol
+            </button>
+          </>
+        ) : (
+          "Por rol"
+        )}
+      </span>
+    </div>
+  );
+}
 
 // Caja de checkbox con buen affordance: vacía (borde) vs llena (azul + check).
 function CheckBox({ checked }: { checked: boolean }) {
@@ -391,6 +457,71 @@ export default function UsersPage() {
   const { data: branchCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/users/branch-assignment-counts"],
     enabled: !!user && (user?.role === 'admin' || user?.role === 'supervisor') && can('config.usuarios'),
+  });
+
+  // Acceso al CRM por usuario: overrides personales + lo que hoy permite
+  // cada rol, para computar el efectivo (override ?? rol). Solo lo
+  // gestionan admin y supervisor (el endpoint lo restringe igual).
+  const canManageCrmAccess = user?.role === 'admin' || user?.role === 'supervisor';
+  const { data: userPermsData } = useQuery<UserPermissionsResponse>({
+    queryKey: ["/api/admin/user-permissions"],
+    enabled: !!user && canManageCrmAccess && can('config.usuarios'),
+  });
+
+  const crmOverrides = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const o of userPermsData?.overrides || []) {
+      if (o.permissionKey === CRM_PERMISSION_KEY) map.set(o.email.toLowerCase(), o.allowed);
+    }
+    return map;
+  }, [userPermsData]);
+
+  const crmAccessFor = (rowUser: SalespersonUser): { effective: boolean; overridden: boolean } => {
+    if ((rowUser.role ?? '') === 'admin') return { effective: true, overridden: false };
+    const email = normEmail(rowUser.email);
+    if (email && crmOverrides.has(email)) {
+      return { effective: crmOverrides.get(email)!, overridden: true };
+    }
+    const roleDefault = userPermsData?.roleDefaults?.[rowUser.role ?? 'salesperson']?.[CRM_PERMISSION_KEY] ?? false;
+    return { effective: roleDefault, overridden: false };
+  };
+
+  // Un solo punto de render para la celda de acceso CRM (tabla y cards).
+  const renderCrmAccess = (rowUser: SalespersonUser) => {
+    const access = crmAccessFor(rowUser);
+    const email = normEmail(rowUser.email);
+    return (
+      <CrmAccessControl
+        effective={access.effective}
+        overridden={access.overridden}
+        isAdmin={(rowUser.role ?? '') === 'admin'}
+        hasEmail={!!email}
+        disabled={setCrmAccessMutation.isPending}
+        onSet={(allowed) => setCrmAccessMutation.mutate({ email, allowed })}
+        onReset={() => setCrmAccessMutation.mutate({ email, allowed: null })}
+      />
+    );
+  };
+
+  const setCrmAccessMutation = useMutation({
+    mutationFn: async ({ email, allowed }: { email: string; allowed: boolean | null }) => {
+      await apiRequest("PUT", "/api/admin/user-permissions", {
+        email,
+        permissionKey: CRM_PERMISSION_KEY,
+        allowed,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/user-permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "No se pudo actualizar el acceso al CRM",
+        description: error?.message || "Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
@@ -1526,6 +1657,9 @@ export default function UsersPage() {
                         <TableHead className="font-semibold text-xs uppercase tracking-wider">Supervisor</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider">Segmento</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider">Estado</TableHead>
+                        {canManageCrmAccess && (
+                          <TableHead className="font-semibold text-xs uppercase tracking-wider">Acceso CRM</TableHead>
+                        )}
                         <TableHead className="font-semibold text-xs uppercase tracking-wider w-[100px]">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1574,6 +1708,11 @@ export default function UsersPage() {
                               {user.isActive ? 'Activo' : 'Inactivo'}
                             </Badge>
                           </TableCell>
+                          {canManageCrmAccess && (
+                            <TableCell>
+                              {renderCrmAccess(user)}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Button
@@ -1645,6 +1784,14 @@ export default function UsersPage() {
                                 {getSegmentSuggestion(user.assignedSegment)}
                               </p>
                             </div>
+                            {canManageCrmAccess && (
+                              <div>
+                                <span className="text-muted-foreground">Acceso CRM:</span>
+                                <div className="mt-1">
+                                  {renderCrmAccess(user)}
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Actions */}
