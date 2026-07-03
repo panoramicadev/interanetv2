@@ -408,10 +408,17 @@ export default function SeguimientoClienteDetalle() {
   };
 
   const handleChangeEstado = (value: string) => {
+    if (!client) return;
+    // Cotización abre el Tomador de Pedidos 2 en otra pestaña, con el
+    // cliente precargado si el seguimiento tiene RUT vinculado.
+    if (value === "cotizacion") {
+      const params = client.rut ? `?clientRut=${encodeURIComponent(client.rut)}` : "";
+      window.open(`/tomador-pedidos-v2${params}`, "_blank");
+    }
     // Comparar contra el valor CRUDO: si el registro tiene un estado legacy
     // ("contactado" se muestra como "Seguimiento"), clickear la etapa
     // mostrada debe reescribirlo al valor canónico, no ser un no-op.
-    if (!client || value === client.estado) return;
+    if (value === client.estado) return;
     updateMutation.mutate({ estado: value });
   };
 
