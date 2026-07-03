@@ -17,7 +17,7 @@ import {
   Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users,
   Star, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical, RefreshCw,
   MapPin, Tags, List, LayoutGrid, Banknote, Flag, Send, Eye,
-  MessageSquare,
+  MessageSquare, Check, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -225,6 +225,54 @@ export default function SeguimientoClientes() {
     },
   });
 
+  // ─── Selección masiva (vista Tabla) ──────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch("/api/crm/seguimiento/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Error al eliminar los leads");
+      }
+      return res.json();
+    },
+    onSuccess: (data: { deleted: number; requested: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento/stats"] });
+      setSelectedIds(new Set());
+      toast({
+        title: `${data.deleted} ${data.deleted === 1 ? "lead eliminado" : "leads eliminados"}`,
+        description: data.deleted < data.requested
+          ? `${data.requested - data.deleted} no se eliminaron (sin acceso o ya eliminados).`
+          : undefined,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al eliminar", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`¿Eliminar ${ids.length} ${ids.length === 1 ? "lead" : "leads"} del seguimiento? Esta acción los quita del pipeline.`)) return;
+    bulkDeleteMutation.mutate(ids);
+  };
+
   // ─── Handlers ────────────────────────────────────────────────────
   const handleViewClient = (client: any) => {
     navigate(`/seguimiento-clientes/${client.id}`);
@@ -323,6 +371,12 @@ export default function SeguimientoClientes() {
     () => clientes.reduce((sum: number, c: any) => sum + (parseFloat(c.montoEstimado) || 0), 0),
     [clientes]
   );
+
+  // Select-all opera sobre las filas visibles (filtradas + ordenadas)
+  const allVisibleSelected = sortedClientes.length > 0 && sortedClientes.every((c: any) => selectedIds.has(c.id));
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(sortedClientes.map((c: any) => c.id)));
+  };
 
   const activeFilterCount = [
     busqueda !== "",
@@ -549,6 +603,42 @@ export default function SeguimientoClientes() {
           </div>
         </div>
 
+        {/* Barra de acciones de selección masiva */}
+        {view === "tabla" && selectedIds.size > 0 && (
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-2.5 flex flex-wrap items-center gap-3" data-testid="bulk-actions-bar">
+            <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+              {selectedIds.size} {selectedIds.size === 1 ? "lead seleccionado" : "leads seleccionados"}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+                className="h-7 text-xs text-muted-foreground"
+                data-testid="btn-cancelar-seleccion"
+              >
+                <X className="w-3.5 h-3.5 mr-1" />
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                className="h-7 text-xs"
+                data-testid="btn-eliminar-seleccionados"
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                )}
+                Eliminar seleccionados
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Contenido según vista */}
         {isLoading ? (
           <div className="rounded-xl border bg-card shadow-sm flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -564,6 +654,10 @@ export default function SeguimientoClientes() {
             onView={handleViewClient}
             onRegistrarHito={setHitoCliente}
             onNuevo={() => setShowCreateModal(true)}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            allSelected={allVisibleSelected}
           />
         ) : (
           <PipelineView
@@ -656,7 +750,26 @@ function VencidoBadge({ proximoContacto }: { proximoContacto: string }) {
 // del mismo contenedor que scrollea en X e Y.
 const TH_CLASS = "sticky top-0 z-10 bg-muted text-left h-9 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap shadow-[inset_0_-1px_0_0_hsl(var(--border))]";
 
-function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, onView, onRegistrarHito, onNuevo }: {
+// Checkbox de selección: mismo affordance que el resto de la app
+// (borde vacío vs indigo con check).
+function SelectBox({ checked, onToggle, testId }: { checked: boolean; onToggle: () => void; testId?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+        checked ? "border-indigo-600 bg-indigo-600 text-white" : "border-input bg-background hover:border-indigo-400"
+      }`}
+      data-testid={testId}
+      aria-checked={checked}
+      role="checkbox"
+    >
+      {checked && <Check className="h-3 w-3" />}
+    </button>
+  );
+}
+
+function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, onView, onRegistrarHito, onNuevo, selectedIds, onToggleSelect, onToggleSelectAll, allSelected }: {
   clientes: any[];
   sortContacto: "none" | "asc" | "desc";
   onToggleSort: () => void;
@@ -664,6 +777,10 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
   onView: (client: any) => void;
   onRegistrarHito: (client: any) => void;
   onNuevo: () => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: () => void;
+  allSelected: boolean;
 }) {
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -676,7 +793,10 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
         <table className="w-full min-w-[1300px] text-sm">
           <thead>
             <tr>
-              <th className={`${TH_CLASS} pl-4 w-[36px]`}></th>
+              <th className={`${TH_CLASS} pl-4 w-[36px]`}>
+                <SelectBox checked={allSelected} onToggle={onToggleSelectAll} testId="checkbox-select-all" />
+              </th>
+              <th className={`${TH_CLASS} w-[36px]`}></th>
               <th className={`${TH_CLASS} min-w-[190px]`}>Cliente</th>
               <th className={`${TH_CLASS} w-[90px]`}>Estado</th>
               <th className={`${TH_CLASS} w-[80px]`}>Prioridad</th>
@@ -703,14 +823,25 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
           <tbody>
             {clientes.map((client: any) => {
               const isStale = isStaleContact(client);
+              const isSelected = selectedIds.has(client.id);
               return (
                 <tr
                   key={client.id}
-                  className={`group cursor-pointer border-b border-border/60 last:border-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${client.destacado ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
+                  className={`group cursor-pointer border-b border-border/60 last:border-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${
+                    isSelected ? "bg-indigo-50/70 dark:bg-indigo-950/30" : client.destacado ? "bg-amber-50/40 dark:bg-amber-950/10" : ""
+                  }`}
                   onClick={() => onView(client)}
                 >
-                  {/* Destacado */}
+                  {/* Selección */}
                   <td className="py-2.5 pl-4" onClick={(e) => e.stopPropagation()}>
+                    <SelectBox
+                      checked={isSelected}
+                      onToggle={() => onToggleSelect(client.id)}
+                      testId={`checkbox-lead-${client.id}`}
+                    />
+                  </td>
+                  {/* Destacado */}
+                  <td className="py-2.5" onClick={(e) => e.stopPropagation()}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -861,7 +992,7 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
             })}
             {clientes.length === 0 && (
               <tr>
-                <td colSpan={13} className="text-center py-14 text-muted-foreground">
+                <td colSpan={14} className="text-center py-14 text-muted-foreground">
                   <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
                   <p className="text-sm font-medium">No se encontraron clientes</p>
                   <p className="text-xs mt-1 mb-4">Intenta ajustar los filtros o crear un nuevo cliente</p>

@@ -36582,6 +36582,42 @@ Instrucciones extra:
     res.json({ success: true });
   }));
 
+  // POST /api/crm/seguimiento/bulk-delete — Soft delete masivo de leads.
+  // Un vendedor solo elimina los suyos: la condición de vendedorId se
+  // aplica en el WHERE, así los ids ajenos simplemente no se tocan y la
+  // respuesta reporta cuántos se eliminaron realmente.
+  app.post('/api/crm/seguimiento/bulk-delete', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const ids = req.body?.ids;
+
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some((id: any) => typeof id !== 'string')) {
+      return res.status(400).json({ message: 'Se requiere una lista de ids' });
+    }
+    if (ids.length > 500) {
+      return res.status(400).json({ message: 'Máximo 500 leads por operación' });
+    }
+
+    const conditions: any[] = [
+      inArray(crmSeguimientoClientes.id, ids),
+      eq(crmSeguimientoClientes.active, true),
+    ];
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0) {
+        return res.status(403).json({ message: 'Usuario vendedor no encontrado' });
+      }
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
+    }
+
+    const deleted = await db.update(crmSeguimientoClientes)
+      .set({ active: false, updatedAt: new Date() })
+      .where(and(...conditions))
+      .returning({ id: crmSeguimientoClientes.id });
+
+    console.log(`🗑️ [CRM] Bulk delete: ${deleted.length}/${ids.length} leads eliminados por ${user.email}`);
+    res.json({ deleted: deleted.length, requested: ids.length });
+  }));
+
   // POST /api/crm/seguimiento/:id/hito — Add milestone
   app.post('/api/crm/seguimiento/:id/hito', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
