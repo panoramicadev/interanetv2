@@ -1110,8 +1110,8 @@ export default function SeguimientoClienteDetalle() {
                         onClick={() => setHitoForm((f) => ({ ...f, tipo: t.value }))}
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
                           active
-                            ? `${t.ring} ${t.color} ring-1 ring-inset ring-black/10 dark:ring-white/10`
-                            : "bg-background border text-muted-foreground hover:text-foreground"
+                            ? `${t.ring} ${t.color} ring-1 ring-inset ring-black/10 dark:ring-white/10 shadow-sm scale-[1.03]`
+                            : "bg-background border text-muted-foreground hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600"
                         }`}
                         data-testid={`hito-tipo-${t.value}`}
                       >
@@ -1121,31 +1121,53 @@ export default function SeguimientoClienteDetalle() {
                     );
                   })}
                 </div>
-                <Textarea
-                  value={hitoForm.descripcion}
-                  onChange={(e) => setHitoForm((f) => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="¿Qué pasó con este cliente? (llamada, visita, acuerdo, problema...)"
-                  rows={2}
-                  className="text-sm resize-none bg-background"
-                  data-testid="hito-descripcion"
-                />
-                <div className="flex items-center justify-between gap-2">
-                  {/* Hito en calendario: fecha opcional (agenda una visita, un
-                      seguimiento…). Sin fecha se registra como hasta ahora. */}
-                  <div className="flex items-center gap-1">
+                {/* Caja del composer: textarea + barra de acciones en un solo
+                    marco (estilo comment box), con foco índigo unificado */}
+                <div className="rounded-xl border bg-background shadow-sm overflow-hidden transition-all focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-500/15 dark:focus-within:border-indigo-700">
+                  <Textarea
+                    value={hitoForm.descripcion}
+                    onChange={(e) => setHitoForm((f) => ({ ...f, descripcion: e.target.value }))}
+                    placeholder="¿Qué pasó con este cliente? (llamada, visita, acuerdo, problema...)"
+                    rows={2}
+                    className="text-sm resize-none border-0 shadow-none bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                    data-testid="hito-descripcion"
+                  />
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/30">
+                    {/* Hito en calendario: fecha opcional (agenda una visita, un
+                        seguimiento…). Sin fecha se registra como hasta ahora. */}
                     <Popover open={fechaPickerOpen} onOpenChange={setFechaPickerOpen}>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={`text-xs ${hitoForm.fecha ? "border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300" : "text-muted-foreground"}`}
-                          data-testid="btn-hito-fecha"
-                        >
-                          <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
-                          {hitoForm.fecha
-                            ? hitoForm.fecha.toLocaleDateString("es-CL", { day: "2-digit", month: "short" })
-                            : "Agendar en calendario"}
-                        </Button>
+                        {hitoForm.fecha ? (
+                          <button
+                            className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 pl-2.5 pr-1 py-1 text-xs font-medium hover:bg-indigo-200/70 dark:hover:bg-indigo-900/60 transition-colors"
+                            data-testid="btn-hito-fecha"
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            {hitoForm.fecha.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
+                            <span
+                              role="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHitoForm((f) => ({ ...f, fecha: null }));
+                                setFechaPickerOpen(false);
+                              }}
+                              className="p-0.5 rounded-full hover:bg-indigo-300/50 dark:hover:bg-indigo-800 transition-colors"
+                              title="Quitar fecha"
+                              data-testid="btn-hito-fecha-clear"
+                            >
+                              <X className="w-3 h-3" />
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors"
+                            title="Agendar esta interacción en el calendario"
+                            data-testid="btn-hito-fecha"
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            Agendar
+                          </button>
+                        )}
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <CalendarUI
@@ -1159,54 +1181,46 @@ export default function SeguimientoClienteDetalle() {
                         />
                       </PopoverContent>
                     </Popover>
-                    {hitoForm.fecha && (
-                      <button
-                        onClick={() => setHitoForm((f) => ({ ...f, fecha: null }))}
-                        className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-                        title="Quitar fecha"
-                        data-testid="btn-hito-fecha-clear"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <Button
+                      size="sm"
+                      onClick={handleRegistrarActividad}
+                      disabled={!hitoForm.descripcion.trim() || addHitoMutation.isPending || createBitMutation.isPending}
+                      className="h-7 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                      data-testid="btn-agregar-hito"
+                    >
+                      {(addHitoMutation.isPending || createBitMutation.isPending) ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                      Registrar
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={handleRegistrarActividad}
-                    disabled={!hitoForm.descripcion.trim() || addHitoMutation.isPending || createBitMutation.isPending}
-                    className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                    data-testid="btn-agregar-hito"
-                  >
-                    {(addHitoMutation.isPending || createBitMutation.isPending) ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                    Registrar
-                  </Button>
                 </div>
               </div>
 
               {/* Vista calendario: hitos agendados + actividad registrada por día */}
               {vistaActividad === "calendario" ? (
                 <div className="space-y-3" data-testid="actividad-calendario">
-                  <CalendarUI
-                    mode="single"
-                    locale={es}
-                    selected={calDia ?? undefined}
-                    onSelect={(d) => setCalDia(d ?? null)}
-                    className="mx-auto"
-                    modifiers={{ agendado: calendario.agendados, registrado: calendario.registrados }}
-                    modifiersClassNames={{
-                      registrado: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-slate-400",
-                      agendado: "relative font-bold text-indigo-600 dark:text-indigo-400 after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-indigo-500",
-                    }}
-                  />
-                  <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Hito agendado
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      Actividad registrada
-                    </span>
+                  <div className="rounded-xl border bg-background shadow-sm overflow-hidden">
+                    <CalendarUI
+                      mode="single"
+                      locale={es}
+                      selected={calDia ?? undefined}
+                      onSelect={(d) => setCalDia(d ?? null)}
+                      className="mx-auto"
+                      modifiers={{ agendado: calendario.agendados, registrado: calendario.registrados }}
+                      modifiersClassNames={{
+                        registrado: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-slate-400",
+                        agendado: "relative font-bold text-indigo-600 dark:text-indigo-400 after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-indigo-500",
+                      }}
+                    />
+                    <div className="flex items-center justify-center gap-4 border-t bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        Hito agendado
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        Actividad registrada
+                      </span>
+                    </div>
                   </div>
                   <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-3.5" data-testid="calendario-dia-detalle">
                     <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
