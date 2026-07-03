@@ -474,7 +474,7 @@ const OPENAPI_SPEC = {
             telefono: { type: 'string' }, email: { type: 'string' }, empresa: { type: 'string' }, rut: { type: 'string' },
             estado: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'], default: 'cotizacion' },
             prioridad: { type: 'string', enum: ['baja', 'media', 'alta'], default: 'media' },
-            origen: { type: 'string', enum: ['manual', 'referido', 'web', 'llamada'], default: 'manual' },
+            origen: { type: 'string', enum: ['manual', 'digital_organico', 'digital_pagado', 'referido', 'web', 'llamada'], default: 'manual' },
             notas: { type: 'string' }, montoEstimado: { type: 'number' },
             proximoContacto: { type: 'string', format: 'date-time' },
             region: { type: 'string' }, comuna: { type: 'string' },

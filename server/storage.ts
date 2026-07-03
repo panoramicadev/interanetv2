@@ -659,7 +659,7 @@ export interface IStorage {
   getSimpleClients(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
-  searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string }>>;
+  searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>>;
 
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -6360,7 +6360,7 @@ export class DatabaseStorage implements IStorage {
     return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
   }
 
-  async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string }>> {
+  async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>> {
     const searchPattern = `%${searchTerm}%`;
     const result = await db
       .select({
@@ -6370,6 +6370,7 @@ export class DatabaseStorage implements IStorage {
         rten: clients.rten,
         email: clients.email,
         foen: clients.foen,
+        comuna: clients.comuna,
       })
       .from(clients)
       .where(
@@ -6378,7 +6379,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(clients.nokoen))
       .limit(50);
 
-    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string }>;
+    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>;
   }
 
   // Sales data for goals comparison
