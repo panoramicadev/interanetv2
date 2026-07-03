@@ -95,7 +95,7 @@ import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-ag
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
-import { registerPermissionRoutes } from "./permissions";
+import { registerPermissionRoutes, requirePermission } from "./permissions";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -36052,8 +36052,16 @@ Instrucciones extra:
   // CRM — SEGUIMIENTO DE CLIENTES (Pipeline de Ventas)
   // ==================================================================================
 
+  // Acceso configurable por rol Y por usuario (Gestión de Usuarios → Acceso CRM).
+  const requireCrmSeguimiento = requirePermission("clientes.seguimiento");
+
+  // Etapas canónicas del pipeline (espejo de ESTADOS en client/src/lib/
+  // crm-seguimiento.ts). Escribir valores fuera del catálogo desincroniza
+  // el kanban (que normaliza) de las stats (que agrupan por valor crudo).
+  const ESTADOS_PIPELINE = ["prospecto", "seguimiento", "cotizacion", "venta", "despacho"];
+
   // GET /api/crm/comunas — List unique comunas used in CRM for autocomplete
-  app.get('/api/crm/comunas', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/comunas', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     try {
       // Get unique comunas from CRM seguimiento records + comuna_region_mapping
       const crmComunas = await db.execute(sql`
@@ -36075,7 +36083,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento/segmentos — Available segments from stg_tabru
-  app.get('/api/crm/seguimiento/segmentos', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento/segmentos', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     try {
       const result = await db.execute(sql`SELECT koru, nokoru FROM ventas.stg_tabru ORDER BY nokoru`);
       const segmentos = (result.rows || []).map((r: any) => ({
@@ -36090,7 +36098,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento/stats — Pipeline statistics
-  app.get('/api/crm/seguimiento/stats', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento/stats', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
     const vendedorFilter = req.query.vendedor as string;
 
@@ -36138,7 +36146,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento — List tracked clients
-  app.get('/api/crm/seguimiento', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
     const { vendedor, estado, prioridad, busqueda, limit: limitStr, offset: offsetStr } = req.query;
 
@@ -36291,7 +36299,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento/:id — Client detail with milestones
-  app.get('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento/:id', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
 
@@ -36374,7 +36382,7 @@ Instrucciones extra:
   }));
 
   // POST /api/crm/seguimiento — Create new tracked client
-  app.post('/api/crm/seguimiento', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/crm/seguimiento', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
 
     // Find salesperson user
@@ -36406,6 +36414,10 @@ Instrucciones extra:
         vendedorId = user.id;
         vendedorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
       }
+    }
+
+    if (req.body.estado && !ESTADOS_PIPELINE.includes(req.body.estado)) {
+      return res.status(400).json({ message: `Estado inválido: ${req.body.estado}` });
     }
 
     const data = {
@@ -36463,7 +36475,7 @@ Instrucciones extra:
   }));
 
   // PATCH /api/crm/seguimiento/:id — Update tracked client
-  app.patch('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/crm/seguimiento/:id', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
 
@@ -36483,6 +36495,10 @@ Instrucciones extra:
       if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
         return res.status(403).json({ message: 'No tienes acceso a modificar este cliente' });
       }
+    }
+
+    if (req.body.estado !== undefined && !ESTADOS_PIPELINE.includes(req.body.estado)) {
+      return res.status(400).json({ message: `Estado inválido: ${req.body.estado}` });
     }
 
     const updateData: any = { updatedAt: new Date() };
@@ -36538,7 +36554,7 @@ Instrucciones extra:
   }));
 
   // DELETE /api/crm/seguimiento/:id — Soft delete
-  app.delete('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/crm/seguimiento/:id', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
 
@@ -36567,7 +36583,7 @@ Instrucciones extra:
   }));
 
   // POST /api/crm/seguimiento/:id/hito — Add milestone
-  app.post('/api/crm/seguimiento/:id/hito', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/crm/seguimiento/:id/hito', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
 
@@ -36619,7 +36635,7 @@ Instrucciones extra:
   }));
 
   // POST /api/crm/seguimiento/:id/vincular-rut — Link RUT
-  app.post('/api/crm/seguimiento/:id/vincular-rut', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/crm/seguimiento/:id/vincular-rut', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { rut } = req.body;
     const user = req.user;
@@ -36677,7 +36693,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento/:id/detectar-compras — Detect purchases by RUT
-  app.get('/api/crm/seguimiento/:id/detectar-compras', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento/:id/detectar-compras', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
 
     const [existing] = await db.select()
@@ -36763,7 +36779,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/seguimiento/:id/nvv — Get NVV (Notas de Venta) for a client
-  app.get('/api/crm/seguimiento/:id/nvv', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/seguimiento/:id/nvv', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
 
     const [existing] = await db.select()
@@ -36814,7 +36830,7 @@ Instrucciones extra:
   }));
 
   // GET /api/crm/vendedores — Get list of salespeople for admin/supervisor dropdown
-  app.get('/api/crm/vendedores', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/crm/vendedores', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const vendedores = await db.select({
       id: salespeopleUsers.id,
       salespersonName: salespeopleUsers.salespersonName,

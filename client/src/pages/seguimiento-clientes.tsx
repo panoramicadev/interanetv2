@@ -1,13 +1,23 @@
-import { useState } from "react";
+/**
+ * Seguimiento de Clientes (CRM) — página de lista del pipeline de ventas.
+ *
+ * Dos vistas intercambiables (preferencia en localStorage):
+ *  - Tabla: listado denso con todos los datos vinculados del ERP.
+ *  - Pipeline: kanban de 5 etapas con drag & drop para mover de estado.
+ *
+ * Constantes y helpers del CRM viven en @/lib/crm-seguimiento (compartidos
+ * con el detalle). Las pestañas de documentos ERP del detalle viven en
+ * @/components/crm/pedidos-nvv-tabs.
+ */
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Phone, Mail, Building2, User, Plus, Search, X,
-  Clock, CalendarDays, MessageSquare, PhoneCall, FileText,
-  MapPin, AlertTriangle, CheckCircle2, Truck, ShoppingCart,
-  UserCheck, Send, Link2, Sparkles, MoreVertical, Trash2, Edit3, RefreshCw, ChevronDown, Tags,
-  Star, ArrowUpDown, ArrowUp, ArrowDown
+  Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users,
+  Star, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical, RefreshCw,
+  MapPin, Tags, List, LayoutGrid, Banknote, Flag, Send, Eye,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,115 +25,39 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LayoutGrid, List } from "lucide-react";
+  ESTADOS, type EstadoValue, normalizeEstado, getEstadoConfig,
+  PRIORIDADES, getPrioridadConfig, HITO_TIPOS, SEGMENTOS_CRM,
+  timeAgo, formatDate, formatCLP, isOverdue, proximoContactoLabel,
+  fixEncoding, getInitials,
+} from "@/lib/crm-seguimiento";
 
-// ─── Constants ────────────────────────────────────────────────────────
-export const ESTADOS = [
-  { value: "prospecto", label: "Prospecto", icon: Sparkles, color: "from-cyan-400 to-cyan-600", bgCard: "bg-cyan-50 dark:bg-cyan-900/20", badge: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-800" },
-  { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "from-blue-400 to-blue-600", bgCard: "bg-blue-50 dark:bg-blue-900/20", badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800" },
-  { value: "cotizacion", label: "Cotización", icon: FileText, color: "from-amber-400 to-amber-600", bgCard: "bg-amber-50 dark:bg-amber-900/20", badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", border: "border-amber-200 dark:border-amber-800" },
-  { value: "venta", label: "Venta", icon: ShoppingCart, color: "from-emerald-400 to-emerald-600", bgCard: "bg-emerald-50 dark:bg-emerald-900/20", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-800" },
-  { value: "despacho", label: "Despacho", icon: Truck, color: "from-purple-400 to-purple-600", bgCard: "bg-purple-50 dark:bg-purple-900/20", badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300", border: "border-purple-200 dark:border-purple-800" },
-];
+type ViewMode = "tabla" | "pipeline";
 
-export const PRIORIDADES = [
-  { value: "baja", label: "Baja", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
-  { value: "media", label: "Media", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300" },
-  { value: "alta", label: "Alta", color: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
-];
+const VIEW_STORAGE_KEY = "crm-seguimiento-view";
 
-export const HITO_TIPOS = [
-  { value: "contacto", label: "Contacto", icon: UserCheck, color: "text-blue-500" },
-  { value: "llamada", label: "Llamada", icon: PhoneCall, color: "text-indigo-500" },
-  { value: "cotizacion", label: "Cotización", icon: FileText, color: "text-amber-500" },
-  { value: "visita", label: "Visita", icon: MapPin, color: "text-green-500" },
-  { value: "venta", label: "Venta", icon: ShoppingCart, color: "text-emerald-600" },
-  { value: "despacho", label: "Despacho", icon: Truck, color: "text-purple-500" },
-  { value: "nota", label: "Nota", icon: MessageSquare, color: "text-slate-500" },
-  { value: "sistema", label: "Sistema", icon: RefreshCw, color: "text-cyan-500" },
-];
-
-export function getEstadoConfig(estado: string) {
-  return ESTADOS.find(e => e.value === estado) || ESTADOS[0];
-}
-
-export function getPrioridadConfig(prioridad: string) {
-  return PRIORIDADES.find(p => p.value === prioridad) || PRIORIDADES[1];
-}
-
-export function getHitoConfig(tipo: string) {
-  return HITO_TIPOS.find(h => h.value === tipo) || HITO_TIPOS[6];
-}
-
-export function timeAgo(dateStr: string | null | undefined) {
-  if (!dateStr) return "Sin contacto";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "Hoy";
-  if (diffDays === 1) return "Ayer";
-  if (diffDays < 7) return `Hace ${diffDays} días`;
-  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem.`;
-  return `Hace ${Math.floor(diffDays / 30)} mes(es)`;
-}
-
-export function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-// Fix encoding issues from legacy Latin1 data (ñ → Ñ etc.)
-export function fixEncoding(str: string | null | undefined): string {
-  if (!str) return "—";
+function loadViewPreference(): ViewMode {
   try {
-    return str
-      .replace(/Ã'/g, 'Ñ')
-      .replace(/Ã±/g, 'ñ')
-      .replace(/Ã¡/g, 'á')
-      .replace(/Ã©/g, 'é')
-      .replace(/Ã­/g, 'í')
-      .replace(/Ã³/g, 'ó')
-      .replace(/Ãº/g, 'ú')
-      .replace(/Ã¼/g, 'ü')
-      .replace(/Ã\u0091/g, 'Ñ')
-      .replace(/\u00c3\u0091/g, 'Ñ')
-      .replace(/\u00c3\u00b1/g, 'ñ')
-      .replace(/\u00c3\u00a1/g, 'á')
-      .replace(/\u00c3\u00a9/g, 'é')
-      .replace(/\u00c3\u00ad/g, 'í')
-      .replace(/\u00c3\u00b3/g, 'ó')
-      .replace(/\u00c3\u00ba/g, 'ú')
-      .replace(/\ufffd/g, 'Ñ'); // Replacement char often means Ñ
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "pipeline" ? "pipeline" : "tabla";
   } catch {
-    return str;
+    return "tabla";
   }
 }
 
-// Fixed CRM segments
-export const SEGMENTOS_CRM = [
-  "Construcción",
-  "Ferretería",
-  "Digital",
-  "Modular",
-];
+/** Sin contacto hace más de 7 días (o nunca). */
+function isStaleContact(client: any) {
+  return !client.ultimoContacto ||
+    (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
+}
 
-// ─── Main Component ───────────────────────────────────────────────────
+// ─── Página ───────────────────────────────────────────────────────────
 export default function SeguimientoClientes() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -131,25 +65,48 @@ export default function SeguimientoClientes() {
   const [, navigate] = useLocation();
 
   const [busqueda, setBusqueda] = useState("");
+  const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
+  const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todos");
   const [filtroVendedor, setFiltroVendedor] = useState<string>("todos");
   const [filtroRegion, setFiltroRegion] = useState<string>("todos");
   const [filtroSegmento, setFiltroSegmento] = useState<string>("todos");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">("desc");
-  const [pinProblemas, setPinProblemas] = useState<boolean>(true);
   const [soloDestacados, setSoloDestacados] = useState<boolean>(false);
+  const [pinProblemas, setPinProblemas] = useState<boolean>(true);
+  const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">("desc");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [view, setView] = useState<ViewMode>(loadViewPreference);
+  // Cliente objetivo del dialog "Registrar hito" (null = cerrado)
+  const [hitoCliente, setHitoCliente] = useState<any>(null);
 
   const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
+  // Debounce de la búsqueda: la query usa el valor estabilizado
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
+    return () => clearTimeout(t);
+  }, [busqueda]);
+
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    try { localStorage.setItem(VIEW_STORAGE_KEY, v); } catch { /* ignore */ }
+  };
+
   // ─── Queries ─────────────────────────────────────────────────────
+  // La key completa se reutiliza en el update optimista del kanban.
+  // El estado NO se filtra en el servidor: hay registros con estados
+  // legacy ("nuevo"/"contactado") que un eq exacto excluiría de la etapa
+  // a la que pertenecen; se filtra en cliente vía normalizeEstado.
+  const listKey = ["/api/crm/seguimiento", filtroVendedor, filtroPrioridad, busquedaDebounced];
+
   const { data: clientes = [], isLoading } = useQuery({
-    queryKey: ["/api/crm/seguimiento", filtroVendedor, filtroEstado, busqueda],
+    queryKey: listKey,
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.set("limit", "500");
       if (filtroVendedor !== "todos") params.set("vendedor", filtroVendedor);
-      if (filtroEstado !== "todos") params.set("estado", filtroEstado);
-      if (busqueda) params.set("busqueda", busqueda);
+      if (filtroPrioridad !== "todos") params.set("prioridad", filtroPrioridad);
+      if (busquedaDebounced) params.set("busqueda", busquedaDebounced);
       const res = await fetch(`/api/crm/seguimiento?${params}`);
       if (!res.ok) throw new Error("Error al cargar clientes");
       return res.json();
@@ -218,72 +175,60 @@ export default function SeguimientoClientes() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/crm/seguimiento/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Error al eliminar");
+  // Mover de etapa (kanban): update optimista sobre la key actual + rollback
+  const moveEstadoMutation = useMutation({
+    mutationFn: async ({ id, estado }: { id: string; estado: EstadoValue }) => {
+      const res = await fetch(`/api/crm/seguimiento/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado }),
+      });
+      if (!res.ok) throw new Error("Error al actualizar el estado");
+      return res.json();
+    },
+    onMutate: async ({ id, estado }) => {
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const prev = queryClient.getQueryData<any[]>(listKey);
+      queryClient.setQueryData<any[]>(listKey, (old = []) =>
+        old.map((c: any) => (c.id === id ? { ...c, estado } : c))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(listKey, ctx.prev);
+      toast({ title: "Error", description: "No se pudo mover el cliente de etapa.", variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento/stats"] });
+    },
+  });
+
+  const hitoMutation = useMutation({
+    mutationFn: async ({ id, tipo, descripcion }: { id: string; tipo: string; descripcion: string }) => {
+      const res = await fetch(`/api/crm/seguimiento/${id}/hito`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, descripcion }),
+      });
+      if (!res.ok) throw new Error("Error al registrar hito");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento/stats"] });
-      toast({ title: "Cliente eliminado" });
+      toast({ title: "Hito registrado", description: "La interacción quedó en el historial del cliente." });
+      setHitoCliente(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
-
-
+  // ─── Handlers ────────────────────────────────────────────────────
   const handleViewClient = (client: any) => {
     navigate(`/seguimiento-clientes/${client.id}`);
   };
-
-  // ─── Derived data ───────────────────────────────────────────────
-  // Extract unique regions for filter dropdown
-  const uniqueRegiones = Array.from(
-    new Set(
-      clientes
-        .map((c: any) => (c.linkedRegion || c.linkedProvincia || c.region || "").trim())
-        .filter((r: string) => r && r !== "—")
-    )
-  ).sort() as string[];
-
-  // Apply client-side region + segmento filter
-  const filteredClientes = clientes.filter((c: any) => {
-    // Region filter
-    if (filtroRegion !== "todos") {
-      const region = (c.linkedRegion || c.linkedProvincia || c.region || "").trim();
-      if (region !== filtroRegion) return false;
-    }
-    // Segmento filter
-    if (filtroSegmento !== "todos") {
-      const seg = (c.segmento || c.linkedSegmento || "").trim();
-      if (seg !== filtroSegmento) return false;
-    }
-    // Solo destacados
-    if (soloDestacados && !c.destacado) return false;
-    return true;
-  });
-
-  // Sort: destacados first, optionally problemas first, then by último contacto
-  const sortedClientes = [...filteredClientes].sort((a: any, b: any) => {
-    // Destacados siempre primero
-    const aDest = a.destacado ? 1 : 0;
-    const bDest = b.destacado ? 1 : 0;
-    if (aDest !== bDest) return bDest - aDest;
-    // Problemas primero (opcional)
-    if (pinProblemas) {
-      const aProb = a.hasProblema ? 1 : 0;
-      const bProb = b.hasProblema ? 1 : 0;
-      if (aProb !== bProb) return bProb - aProb;
-    }
-    // Sort por último contacto
-    if (sortContacto !== "none") {
-      const aT = a.ultimoContacto ? new Date(a.ultimoContacto).getTime() : 0;
-      const bT = b.ultimoContacto ? new Date(b.ultimoContacto).getTime() : 0;
-      if (aT !== bT) return sortContacto === "asc" ? aT - bT : bT - aT;
-    }
-    return 0;
-  });
 
   const toggleDestacado = (client: any) => {
     updateMutation.mutate(
@@ -302,43 +247,224 @@ export default function SeguimientoClientes() {
     setSortContacto((prev) => (prev === "desc" ? "asc" : prev === "asc" ? "none" : "desc"));
   };
 
+  const handleMoveEstado = (client: any, estado: EstadoValue) => {
+    if (normalizeEstado(client.estado) === estado) return;
+    moveEstadoMutation.mutate({ id: client.id, estado });
+  };
+
+  const limpiarFiltros = () => {
+    setBusqueda("");
+    setBusquedaDebounced("");
+    setFiltroEstado("todos");
+    setFiltroPrioridad("todos");
+    setFiltroVendedor("todos");
+    setFiltroRegion("todos");
+    setFiltroSegmento("todos");
+    setSoloDestacados(false);
+  };
+
+  // ─── Derived data ────────────────────────────────────────────────
+  // Regiones disponibles según los datos vinculados de la lista cargada
+  const uniqueRegiones = useMemo(() => (
+    Array.from(
+      new Set(
+        clientes
+          .map((c: any) => (c.linkedRegion || c.linkedProvincia || c.region || "").trim())
+          .filter((r: string) => r && r !== "—")
+      )
+    ).sort() as string[]
+  ), [clientes]);
+
+  // Estado/región/segmento/destacados se filtran en cliente (estado, para
+  // que normalizeEstado absorba los valores legacy; el resto no lo soporta
+  // el endpoint)
+  const filteredClientes = useMemo(() => clientes.filter((c: any) => {
+    if (filtroEstado !== "todos" && normalizeEstado(c.estado) !== filtroEstado) return false;
+    if (filtroRegion !== "todos") {
+      const region = (c.linkedRegion || c.linkedProvincia || c.region || "").trim();
+      if (region !== filtroRegion) return false;
+    }
+    if (filtroSegmento !== "todos") {
+      const seg = (c.segmento || c.linkedSegmento || "").trim();
+      if (seg !== filtroSegmento) return false;
+    }
+    if (soloDestacados && !c.destacado) return false;
+    return true;
+  }), [clientes, filtroEstado, filtroRegion, filtroSegmento, soloDestacados]);
+
+  // Orden: destacados primero, luego problemas (opcional), luego último contacto
+  const sortedClientes = useMemo(() => [...filteredClientes].sort((a: any, b: any) => {
+    const aDest = a.destacado ? 1 : 0;
+    const bDest = b.destacado ? 1 : 0;
+    if (aDest !== bDest) return bDest - aDest;
+    if (pinProblemas) {
+      const aProb = a.hasProblema ? 1 : 0;
+      const bProb = b.hasProblema ? 1 : 0;
+      if (aProb !== bProb) return bProb - aProb;
+    }
+    if (sortContacto !== "none") {
+      const aT = a.ultimoContacto ? new Date(a.ultimoContacto).getTime() : 0;
+      const bT = b.ultimoContacto ? new Date(b.ultimoContacto).getTime() : 0;
+      if (aT !== bT) return sortContacto === "asc" ? aT - bT : bT - aT;
+    }
+    return 0;
+  }), [filteredClientes, pinProblemas, sortContacto]);
+
+  // Agrupación para el kanban — normalizeEstado absorbe estados legacy
+  const grupos = useMemo(() => {
+    const map: Record<EstadoValue, any[]> = {
+      prospecto: [], seguimiento: [], cotizacion: [], venta: [], despacho: [],
+    };
+    for (const c of sortedClientes) map[normalizeEstado(c.estado)].push(c);
+    return map;
+  }, [sortedClientes]);
+
+  const valorPipeline = useMemo(
+    () => clientes.reduce((sum: number, c: any) => sum + (parseFloat(c.montoEstimado) || 0), 0),
+    [clientes]
+  );
+
+  const activeFilterCount = [
+    busqueda !== "",
+    filtroEstado !== "todos",
+    filtroPrioridad !== "todos",
+    filtroVendedor !== "todos",
+    filtroRegion !== "todos",
+    filtroSegmento !== "todos",
+    soloDestacados,
+  ].filter(Boolean).length;
+
   // ─── Render ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen" data-testid="seguimiento-clientes-page">
-      {/* Header */}
-      <div className="border-b">
-        <div className="px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Seguimiento de Clientes
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Pipeline CRM — gestiona prospectos y oportunidades de venta
-              </p>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Seguimiento de Clientes</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Pipeline CRM — gestiona prospectos y oportunidades de venta
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Toggle de vista */}
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+              <button
+                type="button"
+                onClick={() => changeView("tabla")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  view === "tabla"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="btn-view-tabla"
+              >
+                <List className="w-3.5 h-3.5" />
+                Tabla
+              </button>
+              <button
+                type="button"
+                onClick={() => changeView("pipeline")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  view === "pipeline"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="btn-view-pipeline"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Pipeline
+              </button>
             </div>
             <Button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/30"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
               data-testid="btn-nuevo-cliente"
             >
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Cliente
             </Button>
           </div>
+        </div>
 
-          {/* Search and vendor filter */}
-          <div className="flex flex-wrap items-center gap-2 mt-3">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <KpiCard
+            icon={Users}
+            label="Total activos"
+            value={String(stats?.total ?? clientes.length)}
+            iconBox="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
+          />
+          <KpiCard
+            icon={Banknote}
+            label="Valor del pipeline"
+            value={formatCLP(valorPipeline)}
+            iconBox="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+          />
+          <KpiCard
+            icon={Clock}
+            label="Sin contacto hace 7+ días"
+            value={String(stats?.sinContacto7Dias ?? "—")}
+            iconBox="bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+            valueClass="text-amber-600 dark:text-amber-400"
+          />
+          <KpiCard
+            icon={Flag}
+            label="Alta prioridad"
+            value={String(stats?.porPrioridad?.alta ?? 0)}
+            iconBox="bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400"
+            valueClass="text-red-600 dark:text-red-400"
+          />
+        </div>
+
+        {/* Toolbar de filtros */}
+        <div className="rounded-xl border bg-card shadow-sm p-3">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar cliente, empresa, RUT..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="pl-9 bg-background/50"
+                className="pl-9"
                 data-testid="input-busqueda"
               />
             </div>
+
+            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+              <SelectTrigger className="w-[160px]" data-testid="select-estado-filter">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                {ESTADOS.map((e) => (
+                  <SelectItem key={e.value} value={e.value}>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${e.dot}`} />
+                      {e.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
+              <SelectTrigger className="w-[150px]" data-testid="select-prioridad-filter">
+                <SelectValue placeholder="Prioridad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Toda prioridad</SelectItem>
+                {PRIORIDADES.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${p.dot}`} />
+                      {p.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {isAdminOrSupervisor && (
               <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
@@ -355,7 +481,6 @@ export default function SeguimientoClientes() {
               </Select>
             )}
 
-            {/* Región filter */}
             <Select value={filtroRegion} onValueChange={setFiltroRegion}>
               <SelectTrigger className="w-[180px]" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
@@ -369,9 +494,8 @@ export default function SeguimientoClientes() {
               </SelectContent>
             </Select>
 
-            {/* Segmento filter */}
             <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
-              <SelectTrigger className="w-[180px]" data-testid="select-segmento-filter">
+              <SelectTrigger className="w-[160px]" data-testid="select-segmento-filter">
                 <Tags className="w-3.5 h-3.5 mr-1.5" />
                 <SelectValue placeholder="Segmento" />
               </SelectTrigger>
@@ -405,196 +529,65 @@ export default function SeguimientoClientes() {
               Problemas primero
             </Button>
 
-            <div className="ml-auto"></div>
+            {activeFilterCount > 0 && (
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Badge variant="secondary" className="text-[10px]">
+                  {activeFilterCount} {activeFilterCount === 1 ? "filtro activo" : "filtros activos"}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={limpiarFiltros}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  data-testid="btn-limpiar-filtros"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Limpiar
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Contenido según vista */}
+        {isLoading ? (
+          <div className="rounded-xl border bg-card shadow-sm flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <RefreshCw className="w-6 h-6 animate-spin mb-3" />
+            <p className="text-sm">Cargando clientes...</p>
+          </div>
+        ) : view === "tabla" ? (
+          <TablaView
+            clientes={sortedClientes}
+            sortContacto={sortContacto}
+            onToggleSort={toggleSortContacto}
+            onToggleDestacado={toggleDestacado}
+            onView={handleViewClient}
+            onRegistrarHito={setHitoCliente}
+            onNuevo={() => setShowCreateModal(true)}
+          />
+        ) : (
+          <PipelineView
+            grupos={grupos}
+            onCardClick={handleViewClient}
+            onMove={handleMoveEstado}
+            onRegistrarHito={setHitoCliente}
+            onToggleDestacado={toggleDestacado}
+            onNuevo={() => setShowCreateModal(true)}
+          />
+        )}
       </div>
 
-      {/* Content — Table */}
-      <div className="p-4 sm:p-6">
-        <div className="bg-background rounded-2xl border shadow-sm overflow-hidden">
-          {/* Table header summary */}
-          <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">
-              {sortedClientes.length} {sortedClientes.length === 1 ? 'cliente' : 'clientes'} en seguimiento
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <Table className="w-full min-w-[1090px] table-fixed">
-              <TableHeader>
-                <TableRow className="bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-50/80">
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pl-4 w-[32px]"></TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[180px]">Cliente</TableHead>
-                  <TableHead
-                    className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[85px] cursor-pointer select-none hover:text-foreground"
-                    onClick={toggleSortContacto}
-                    data-testid="th-contacto-sort"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Contacto
-                      {sortContacto === "asc" ? <ArrowUp className="w-3 h-3" /> : sortContacto === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUpDown className="w-3 h-3 opacity-50" />}
-                    </span>
-                  </TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[75px]">Región</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[72px]">Segmento</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[90px]">Teléfono</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[90px]">Cond. Pago</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[120px]">Vendedor</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[80px]">Últ. Pedido</TableHead>
-                  <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 w-[80px]">Estado</TableHead>
-                  <TableHead className="text-right font-semibold text-[10px] uppercase tracking-wider text-muted-foreground py-2.5 pr-4 w-[40px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedClientes.map((client: any) => {
-                  const isStale = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
-                  const initials = (client.nombre || '?').split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase();
+      {/* Dialog: registrar hito rápido */}
+      <RegistrarHitoDialog
+        client={hitoCliente}
+        onOpenChange={(open) => { if (!open) setHitoCliente(null); }}
+        onSubmit={(tipo, descripcion) => {
+          if (hitoCliente) hitoMutation.mutate({ id: hitoCliente.id, tipo, descripcion });
+        }}
+        isLoading={hitoMutation.isPending}
+      />
 
-                  return (
-                    <TableRow
-                      key={client.id}
-                      className={`group cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors border-b border-muted/50 last:border-0 ${client.destacado ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}`}
-                      onClick={() => handleViewClient(client)}
-                    >
-                      {/* Destacado */}
-                      <TableCell className="py-2.5 pl-4" onClick={e => e.stopPropagation()}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => toggleDestacado(client)}
-                              className="p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
-                              data-testid={`btn-destacar-${client.id}`}
-                            >
-                              <Star className={`w-4 h-4 transition-colors ${client.destacado ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/40 hover:text-amber-500'}`} />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="text-xs">
-                            {client.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TableCell>
-                      {/* Cliente */}
-                      <TableCell className="py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                            {initials}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1">
-                              <p className="font-semibold text-xs text-foreground truncate">{client.nombre}</p>
-                              {client.hasProblema && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" data-testid={`icon-problema-${client.id}`} />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Tiene un problema registrado en la bitácora
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                            {client.empresa && client.empresa !== client.nombre && (
-                              <p className="text-[10px] text-muted-foreground truncate">{client.empresa}</p>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      {/* Contacto */}
-                      <TableCell className="py-2.5">
-                        <div className="flex flex-col">
-                          <span className={`text-[11px] font-semibold ${isStale ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {timeAgo(client.ultimoContacto)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/60">
-                            {formatDate(client.ultimoContacto)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      {/* Región */}
-                      <TableCell className="py-2.5">
-                        <span className="text-[11px] text-foreground/80 truncate block">{fixEncoding(client.linkedRegion || client.linkedProvincia || client.region) || '—'}</span>
-                      </TableCell>
-                      {/* Segmento */}
-                      <TableCell className="py-2.5">
-                        {(client.segmento || client.linkedSegmento) ? (
-                          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700">
-                            {client.segmento || client.linkedSegmento}
-                          </Badge>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/50">—</span>
-                        )}
-                      </TableCell>
-                      {/* Teléfono */}
-                      <TableCell className="py-2.5">
-                        <div className="flex flex-col">
-                          <span className="text-[11px] tabular-nums truncate">{client.linkedFoen || client.telefono || '—'}</span>
-                          {(client.contactoEncargado || client.linkedPurchasingContact) && (
-                            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium truncate">{fixEncoding(client.contactoEncargado || client.linkedPurchasingContact)}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {/* Condición Pago */}
-                      <TableCell className="py-2.5">
-                        {(client.condicionPago || client.linkedCpen?.trim()) ? (
-                          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 border-slate-200 dark:border-slate-700 whitespace-nowrap">
-                            {client.condicionPago || client.linkedCpen.trim()}
-                          </Badge>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/50">—</span>
-                        )}
-                      </TableCell>
-                      {/* Vendedor */}
-                      <TableCell className="py-2.5">
-                        <span className="text-[11px] font-medium text-foreground/70 truncate block">{client.vendedorNombre || '—'}</span>
-                      </TableCell>
-                      {/* Último Pedido */}
-                      <TableCell className="py-2.5">
-                        <span className="text-[11px] text-foreground/70 whitespace-nowrap">
-                          {client.ultimaCompraDate ? formatDate(client.ultimaCompraDate) : '—'}
-                        </span>
-                      </TableCell>
-                      {/* Estado */}
-                      <TableCell className="py-2.5" onClick={e => e.stopPropagation()}>
-                        {(() => {
-                          const eConfig = getEstadoConfig(client.estado);
-                          return (
-                            <Badge className={`${eConfig.badge} border-0 text-[9px] font-medium px-1.5 py-0 whitespace-nowrap`}>
-                              <eConfig.icon className="w-2.5 h-2.5 mr-0.5" />
-                              {eConfig.label}
-                            </Badge>
-                          );
-                        })()}
-                      </TableCell>
-                      {/* Action */}
-                      <TableCell className="text-right py-2.5 pr-4" onClick={e => e.stopPropagation()}>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600"
-                          onClick={() => handleViewClient(client)}
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {sortedClientes.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
-                      <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                      <p className="text-sm font-medium">No se encontraron clientes</p>
-                      <p className="text-xs mt-1">Intenta ajustar los filtros o crear un nuevo cliente</p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </div>
-
-      {/* Create Modal */}
+      {/* Modal: nuevo cliente */}
       <CreateClientModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
@@ -603,121 +596,638 @@ export default function SeguimientoClientes() {
         vendedores={vendedores}
         isAdminOrSupervisor={isAdminOrSupervisor}
       />
-
     </div>
   );
 }
 
-// ─── Client Card ──────────────────────────────────────────────────────
-function ClientCard({ client, onClick, onUpdateEstado }: {
-  client: any;
-  onClick: () => void;
-  onUpdateEstado: (id: string, estado: string) => void;
+// ─── KPI card ─────────────────────────────────────────────────────────
+function KpiCard({ icon: Icon, label, value, iconBox, valueClass = "" }: {
+  icon: any;
+  label: string;
+  value: string;
+  iconBox: string;
+  valueClass?: string;
 }) {
-  const estadoConfig = getEstadoConfig(client.estado);
-  const lastContact = timeAgo(client.ultimoContacto);
-  const isStale = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
+  return (
+    <div className="rounded-xl border bg-card shadow-sm p-4 flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBox}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="min-w-0">
+        <p className={`text-2xl font-bold tracking-tight truncate ${valueClass}`}>{value}</p>
+        <p className="text-xs text-muted-foreground truncate">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Badges compartidos entre vistas ──────────────────────────────────
+function EstadoBadge({ estado }: { estado: string }) {
+  const config = getEstadoConfig(estado);
+  return (
+    <Badge className={`${config.badge} border-0 text-[10px] font-medium px-1.5 py-0 whitespace-nowrap`}>
+      <config.icon className="w-2.5 h-2.5 mr-1" />
+      {config.label}
+    </Badge>
+  );
+}
+
+function PrioridadBadge({ prioridad }: { prioridad: string }) {
+  const config = getPrioridadConfig(prioridad);
+  return (
+    <Badge className={`${config.color} border-0 text-[10px] font-medium px-1.5 py-0 whitespace-nowrap`}>
+      <span className={`w-1.5 h-1.5 rounded-full mr-1 ${config.dot}`} />
+      {config.label}
+    </Badge>
+  );
+}
+
+/** Badge rojo cuando el próximo contacto agendado ya venció. */
+function VencidoBadge({ proximoContacto }: { proximoContacto: string }) {
+  return (
+    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-0 text-[9px] font-medium px-1.5 py-0 whitespace-nowrap">
+      {proximoContactoLabel(proximoContacto)}
+    </Badge>
+  );
+}
+
+// ─── Vista Tabla ──────────────────────────────────────────────────────
+// Tabla nativa (no shadcn Table) para que el header sticky funcione dentro
+// del mismo contenedor que scrollea en X e Y.
+const TH_CLASS = "sticky top-0 z-10 bg-muted text-left h-9 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap shadow-[inset_0_-1px_0_0_hsl(var(--border))]";
+
+function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, onView, onRegistrarHito, onNuevo }: {
+  clientes: any[];
+  sortContacto: "none" | "asc" | "desc";
+  onToggleSort: () => void;
+  onToggleDestacado: (client: any) => void;
+  onView: (client: any) => void;
+  onRegistrarHito: (client: any) => void;
+  onNuevo: () => void;
+}) {
+  return (
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b bg-muted/30">
+        <p className="text-xs font-medium text-muted-foreground">
+          {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"} en seguimiento
+        </p>
+      </div>
+      <div className="overflow-auto max-h-[calc(100vh-240px)]">
+        <table className="w-full min-w-[1300px] text-sm">
+          <thead>
+            <tr>
+              <th className={`${TH_CLASS} pl-4 w-[36px]`}></th>
+              <th className={`${TH_CLASS} min-w-[190px]`}>Cliente</th>
+              <th className={`${TH_CLASS} w-[90px]`}>Estado</th>
+              <th className={`${TH_CLASS} w-[80px]`}>Prioridad</th>
+              <th
+                className={`${TH_CLASS} w-[95px] cursor-pointer select-none hover:text-foreground`}
+                onClick={onToggleSort}
+                data-testid="th-contacto-sort"
+              >
+                <span className="inline-flex items-center gap-1">
+                  Contacto
+                  {sortContacto === "asc" ? <ArrowUp className="w-3 h-3" /> : sortContacto === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUpDown className="w-3 h-3 opacity-50" />}
+                </span>
+              </th>
+              <th className={`${TH_CLASS} w-[110px]`}>Próx. contacto</th>
+              <th className={`${TH_CLASS} w-[100px]`}>Región</th>
+              <th className={`${TH_CLASS} w-[90px]`}>Segmento</th>
+              <th className={`${TH_CLASS} w-[110px]`}>Teléfono</th>
+              <th className={`${TH_CLASS} w-[100px]`}>Cond. Pago</th>
+              <th className={`${TH_CLASS} w-[120px]`}>Vendedor</th>
+              <th className={`${TH_CLASS} w-[85px]`}>Últ. Pedido</th>
+              <th className={`${TH_CLASS} pr-4 w-[44px] text-right`}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {clientes.map((client: any) => {
+              const isStale = isStaleContact(client);
+              return (
+                <tr
+                  key={client.id}
+                  className={`group cursor-pointer border-b border-border/60 last:border-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${client.destacado ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
+                  onClick={() => onView(client)}
+                >
+                  {/* Destacado */}
+                  <td className="py-2.5 pl-4" onClick={(e) => e.stopPropagation()}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => onToggleDestacado(client)}
+                          className="p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                          data-testid={`btn-destacar-${client.id}`}
+                        >
+                          <Star className={`w-4 h-4 transition-colors ${client.destacado ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40 hover:text-amber-500"}`} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="text-xs">
+                        {client.destacado ? "Quitar de destacados" : "Marcar como destacado"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </td>
+                  {/* Cliente */}
+                  <td className="py-2.5 px-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                        {getInitials(client.nombre)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <p className="font-semibold text-xs text-foreground truncate">{fixEncoding(client.nombre)}</p>
+                          {client.hasProblema && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" data-testid={`icon-problema-${client.id}`} />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Tiene un problema registrado en la bitácora
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {client.empresa && client.empresa !== client.nombre && (
+                          <p className="text-[10px] text-muted-foreground truncate">{fixEncoding(client.empresa)}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  {/* Estado */}
+                  <td className="py-2.5 px-2">
+                    <EstadoBadge estado={client.estado} />
+                  </td>
+                  {/* Prioridad */}
+                  <td className="py-2.5 px-2">
+                    <PrioridadBadge prioridad={client.prioridad} />
+                  </td>
+                  {/* Contacto */}
+                  <td className="py-2.5 px-2">
+                    <div className="flex flex-col">
+                      <span className={`text-[11px] font-semibold ${isStale ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {timeAgo(client.ultimoContacto)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">
+                        {formatDate(client.ultimoContacto)}
+                      </span>
+                    </div>
+                  </td>
+                  {/* Próximo contacto */}
+                  <td className="py-2.5 px-2">
+                    {client.proximoContacto ? (
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-[11px] whitespace-nowrap">{formatDate(client.proximoContacto)}</span>
+                        {isOverdue(client.proximoContacto) && (
+                          <VencidoBadge proximoContacto={client.proximoContacto} />
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  {/* Región */}
+                  <td className="py-2.5 px-2">
+                    <span className="text-[11px] text-foreground/80 truncate block max-w-[110px]">
+                      {fixEncoding(client.linkedRegion || client.linkedProvincia || client.region) || "—"}
+                    </span>
+                  </td>
+                  {/* Segmento */}
+                  <td className="py-2.5 px-2">
+                    {(client.segmento || client.linkedSegmento) ? (
+                      <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700">
+                        {client.segmento || client.linkedSegmento}
+                      </Badge>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  {/* Teléfono */}
+                  <td className="py-2.5 px-2">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] tabular-nums truncate max-w-[120px]">{client.linkedFoen || client.telefono || "—"}</span>
+                      {(client.contactoEncargado || client.linkedPurchasingContact) && (
+                        <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium truncate max-w-[120px]">
+                          {fixEncoding(client.contactoEncargado || client.linkedPurchasingContact)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  {/* Condición Pago */}
+                  <td className="py-2.5 px-2">
+                    {(client.condicionPago || client.linkedCpen?.trim()) ? (
+                      <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                        {client.condicionPago || client.linkedCpen.trim()}
+                      </Badge>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  {/* Vendedor */}
+                  <td className="py-2.5 px-2">
+                    <span className="text-[11px] font-medium text-foreground/70 truncate block max-w-[130px]">{client.vendedorNombre || "—"}</span>
+                  </td>
+                  {/* Último Pedido */}
+                  <td className="py-2.5 px-2">
+                    <span className="text-[11px] text-foreground/70 whitespace-nowrap">
+                      {client.ultimaCompraDate ? formatDate(client.ultimaCompraDate) : "—"}
+                    </span>
+                  </td>
+                  {/* Acciones */}
+                  <td className="py-2.5 px-2 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                          data-testid={`btn-menu-${client.id}`}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem onClick={() => onView(client)} className="text-xs">
+                          <Eye className="w-3.5 h-3.5 mr-2" />
+                          Ver detalle
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRegistrarHito(client)} className="text-xs">
+                          <MessageSquare className="w-3.5 h-3.5 mr-2" />
+                          Registrar hito
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              );
+            })}
+            {clientes.length === 0 && (
+              <tr>
+                <td colSpan={13} className="text-center py-14 text-muted-foreground">
+                  <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm font-medium">No se encontraron clientes</p>
+                  <p className="text-xs mt-1 mb-4">Intenta ajustar los filtros o crear un nuevo cliente</p>
+                  <Button variant="outline" size="sm" onClick={onNuevo}>
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    Nuevo Cliente
+                  </Button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Vista Pipeline (kanban) ──────────────────────────────────────────
+function PipelineView({ grupos, onCardClick, onMove, onRegistrarHito, onToggleDestacado, onNuevo }: {
+  grupos: Record<EstadoValue, any[]>;
+  onCardClick: (client: any) => void;
+  onMove: (client: any, estado: EstadoValue) => void;
+  onRegistrarHito: (client: any) => void;
+  onToggleDestacado: (client: any) => void;
+  onNuevo: () => void;
+}) {
+  const [dragId, setDragId] = useState<string | null>(null);
+  // Marca temporal del último dragEnd: evita que el drop dispare el click de la card
+  const dragEndAtRef = useRef(0);
+
+  const allClients = useMemo(() => Object.values(grupos).flat(), [grupos]);
+
+  const handleDrop = (e: React.DragEvent, estado: EstadoValue) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain") || dragId;
+    setDragId(null);
+    if (!id) return;
+    const client = allClients.find((c: any) => c.id === id);
+    if (client) onMove(client, estado);
+  };
+
+  const handleCardClick = (client: any) => {
+    // Ignorar el click residual que algunos navegadores emiten tras soltar el drag
+    if (Date.now() - dragEndAtRef.current < 250) return;
+    onCardClick(client);
+  };
+
+  const handleDragEnd = () => {
+    dragEndAtRef.current = Date.now();
+    setDragId(null);
+  };
+
+  return (
+    <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 -mx-1 px-1">
+      {ESTADOS.map((estado) => (
+        <KanbanColumn
+          key={estado.value}
+          estado={estado}
+          items={grupos[estado.value] || []}
+          dragId={dragId}
+          onDrop={handleDrop}
+          onCardClick={handleCardClick}
+          onDragStartCard={setDragId}
+          onDragEndCard={handleDragEnd}
+          onRegistrarHito={onRegistrarHito}
+          onMove={onMove}
+          onToggleDestacado={onToggleDestacado}
+          onNuevo={onNuevo}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Columna del kanban con su PROPIO estado de drag-target: cruzar el cursor
+// entre columnas durante un drag solo re-renderiza la columna hovereada,
+// no las 5 columnas con todas sus cards.
+function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartCard, onDragEndCard, onRegistrarHito, onMove, onToggleDestacado, onNuevo }: {
+  estado: (typeof ESTADOS)[number];
+  items: any[];
+  dragId: string | null;
+  onDrop: (e: React.DragEvent, estado: EstadoValue) => void;
+  onCardClick: (client: any) => void;
+  onDragStartCard: (id: string) => void;
+  onDragEndCard: () => void;
+  onRegistrarHito: (client: any) => void;
+  onMove: (client: any, estado: EstadoValue) => void;
+  onToggleDestacado: (client: any) => void;
+  onNuevo: () => void;
+}) {
+  const [isDragTarget, setIsDragTarget] = useState(false);
+  const totalMonto = useMemo(
+    () => items.reduce((sum: number, c: any) => sum + (parseFloat(c.montoEstimado) || 0), 0),
+    [items]
+  );
 
   return (
     <div
-      className="group relative bg-background rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer hover:-translate-y-1 hover:border-indigo-300 dark:hover:border-indigo-700 overflow-hidden"
-      onClick={onClick}
-      data-testid={`card-client-${client.id}`}
+      className={`flex-shrink-0 w-[290px] rounded-xl border flex flex-col ${estado.column} ${
+        isDragTarget ? "ring-2 ring-indigo-400 dark:ring-indigo-600 border-transparent" : estado.border
+      } transition-shadow`}
+      onDragOver={(e) => { e.preventDefault(); setIsDragTarget(true); }}
+      onDragLeave={(e) => {
+        // Solo limpiar si realmente se salió de la columna (no de un hijo)
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragTarget(false);
+      }}
+      onDrop={(e) => { setIsDragTarget(false); onDrop(e, estado.value); }}
+      data-testid={`kanban-col-${estado.value}`}
     >
-      {/* Estado color bar */}
-      <div className={`h-1.5 bg-gradient-to-r ${estadoConfig.color}`} />
+      {/* Header de columna */}
+      <div className="px-3 py-2.5 flex items-center gap-2 border-b border-inherit">
+        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${estado.dot}`} />
+        <span className="text-xs font-semibold text-foreground">{estado.label}</span>
+        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{items.length}</Badge>
+        <span className={`ml-auto text-[11px] font-semibold tabular-nums ${estado.text}`}>
+          {formatCLP(totalMonto)}
+        </span>
+      </div>
 
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-base truncate uppercase">{client.nombre}</h4>
-            {client.empresa && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{client.empresa}</p>
-            )}
-          </div>
-          <div onClick={e => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={`inline-flex items-center text-[10px] px-2 py-0.5 h-5 rounded-full font-medium ${estadoConfig.badge} border-0 flex-shrink-0 ml-2 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all`}>
-                  <estadoConfig.icon className="w-3 h-3 mr-1" />
-                  {estadoConfig.label}
-                  <ChevronDown className="w-2.5 h-2.5 ml-1 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                {ESTADOS.map(e => (
-                  <DropdownMenuItem
-                    key={e.value}
-                    onClick={() => onUpdateEstado(client.id, e.value)}
-                    disabled={e.value === client.estado}
-                    className="text-xs"
-                  >
-                    <e.icon className="w-3.5 h-3.5 mr-2" />
-                    {e.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Info items with icons */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
-              <User className="w-3.5 h-3.5 text-indigo-500" />
-            </div>
-            <span className="text-muted-foreground truncate">{client.vendedorNombre}</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${isStale ? 'bg-red-100 dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800'}`}>
-              <Clock className={`w-3.5 h-3.5 ${isStale ? 'text-red-500' : 'text-slate-500'}`} />
-            </div>
-            <span className={`${isStale ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>{lastContact}</span>
-          </div>
-
-          {client.rut && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-6 h-6 rounded-md bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                <Link2 className="w-3.5 h-3.5 text-green-500" />
-              </div>
-              <span className="font-mono text-xs text-muted-foreground">{client.rut}</span>
-            </div>
-          )}
-
-          {client.telefono && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                <Phone className="w-3.5 h-3.5 text-blue-500" />
-              </div>
-              <span className="text-muted-foreground">{client.telefono}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Last hito preview */}
-        {client.ultimoHito && (
-          <div className="mt-3 pt-3 border-t border-dashed">
-            <div className="flex items-start gap-2">
-              <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                {(() => { const H = getHitoConfig(client.ultimoHito.tipo); return <H.icon className={`w-3 h-3 ${H.color}`} />; })()}
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                <span className="font-medium text-foreground/80">{getHitoConfig(client.ultimoHito.tipo).label}:</span>{" "}
-                {client.ultimoHito.descripcion}
-              </p>
-            </div>
+      {/* Cards */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[240px] max-h-[calc(100vh-380px)]">
+        {items.map((client: any) => (
+          <KanbanCard
+            key={client.id}
+            client={client}
+            isDragging={dragId === client.id}
+            onClick={() => onCardClick(client)}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", client.id);
+              e.dataTransfer.effectAllowed = "move";
+              onDragStartCard(client.id);
+            }}
+            onDragEnd={() => { setIsDragTarget(false); onDragEndCard(); }}
+            onRegistrarHito={() => onRegistrarHito(client)}
+            onMove={(nuevoEstado) => onMove(client, nuevoEstado)}
+            onToggleDestacado={() => onToggleDestacado(client)}
+          />
+        ))}
+        {items.length === 0 && (
+          <div className="border border-dashed rounded-lg py-8 px-3 text-center text-muted-foreground">
+            <estado.icon className="w-6 h-6 mx-auto mb-2 opacity-30" />
+            <p className="text-xs font-medium">Sin clientes en esta etapa</p>
+            <Button variant="ghost" size="sm" onClick={onNuevo} className="h-7 text-xs mt-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700">
+              <Plus className="w-3 h-3 mr-1" />
+              Nuevo cliente
+            </Button>
           </div>
         )}
       </div>
-
     </div>
   );
 }
 
-// ─── Create Client Modal ──────────────────────────────────────────────
+function KanbanCard({ client, isDragging, onClick, onDragStart, onDragEnd, onRegistrarHito, onMove, onToggleDestacado }: {
+  client: any;
+  isDragging: boolean;
+  onClick: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onRegistrarHito: () => void;
+  onMove: (estado: EstadoValue) => void;
+  onToggleDestacado: () => void;
+}) {
+  const estadoActual = normalizeEstado(client.estado);
+  const monto = parseFloat(client.montoEstimado) || 0;
+  const vencido = isOverdue(client.proximoContacto);
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`group rounded-lg border bg-card shadow-sm p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all ${
+        isDragging ? "opacity-50" : ""
+      }`}
+      data-testid={`card-kanban-${client.id}`}
+    >
+      {/* Nombre + indicadores + menú */}
+      <div className="flex items-start gap-1.5">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            {client.destacado && <Star className="w-3 h-3 fill-amber-400 text-amber-500 flex-shrink-0" />}
+            {client.hasProblema && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" data-testid={`icon-problema-${client.id}`} />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Tiene un problema registrado en la bitácora
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <p className="font-semibold text-xs text-foreground truncate">{fixEncoding(client.nombre)}</p>
+          </div>
+          {client.empresa && client.empresa !== client.nombre && (
+            <p className="text-[10px] text-muted-foreground truncate mt-0.5">{fixEncoding(client.empresa)}</p>
+          )}
+        </div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 -mt-1 -mr-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                data-testid={`btn-menu-kanban-${client.id}`}
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={onClick} className="text-xs">
+                <Eye className="w-3.5 h-3.5 mr-2" />
+                Ver detalle
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onRegistrarHito} className="text-xs">
+                <MessageSquare className="w-3.5 h-3.5 mr-2" />
+                Registrar hito
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onToggleDestacado} className="text-xs">
+                <Star className={`w-3.5 h-3.5 mr-2 ${client.destacado ? "fill-amber-400 text-amber-500" : ""}`} />
+                {client.destacado ? "Quitar destacado" : "Destacar"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {/* Alternativa táctil al drag & drop */}
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Mover a…</DropdownMenuLabel>
+              {ESTADOS.map((e) => (
+                <DropdownMenuItem
+                  key={e.value}
+                  onClick={() => onMove(e.value)}
+                  disabled={e.value === estadoActual}
+                  className="text-xs"
+                >
+                  <span className={`w-2 h-2 rounded-full mr-2 ${e.dot}`} />
+                  {e.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Badges */}
+      <div className="flex flex-wrap items-center gap-1 mt-2">
+        <PrioridadBadge prioridad={client.prioridad} />
+        {(client.segmento || client.linkedSegmento) && (
+          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700">
+            {client.segmento || client.linkedSegmento}
+          </Badge>
+        )}
+        {vencido && <VencidoBadge proximoContacto={client.proximoContacto} />}
+      </div>
+
+      {/* Monto estimado */}
+      {monto > 0 && (
+        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-2 tabular-nums">
+          {formatCLP(monto)}
+        </p>
+      )}
+
+      {/* Footer: último contacto + avatar del vendedor */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-dashed">
+        <span className={`inline-flex items-center gap-1 text-[10px] ${isStaleContact(client) ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+          <Clock className="w-3 h-3" />
+          {timeAgo(client.ultimoContacto)}
+        </span>
+        {client.vendedorNombre && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                {getInitials(client.vendedorNombre)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {fixEncoding(client.vendedorNombre)}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dialog: registrar hito rápido ────────────────────────────────────
+function RegistrarHitoDialog({ client, onOpenChange, onSubmit, isLoading }: {
+  client: any;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (tipo: string, descripcion: string) => void;
+  isLoading: boolean;
+}) {
+  const [tipo, setTipo] = useState("contacto");
+  const [descripcion, setDescripcion] = useState("");
+  const open = !!client;
+
+  // Resetear el formulario cada vez que se abre para un cliente
+  useEffect(() => {
+    if (open) {
+      setTipo("contacto");
+      setDescripcion("");
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Registrar hito</DialogTitle>
+          <DialogDescription>
+            {client ? `Nueva interacción con ${fixEncoding(client.nombre)}.` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label>Tipo de Hito</Label>
+            <div className="grid grid-cols-4 gap-2 mt-1">
+              {HITO_TIPOS.filter((h) => h.value !== "sistema").map((h) => (
+                <button
+                  key={h.value}
+                  type="button"
+                  onClick={() => setTipo(h.value)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${
+                    tipo === h.value
+                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 shadow-sm"
+                      : "border-muted hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <h.icon className={`w-4 h-4 ${h.color}`} />
+                  {h.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label>Descripción *</Label>
+            <Textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Detalle de la interacción..."
+              rows={3}
+              data-testid="input-hito-descripcion"
+            />
+          </div>
+          <Button
+            onClick={() => onSubmit(tipo, descripcion.trim())}
+            disabled={isLoading || !descripcion.trim()}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+            data-testid="btn-agregar-hito"
+          >
+            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+            Registrar Hito
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Modal: nuevo cliente ─────────────────────────────────────────────
+const EMPTY_FORM = {
+  nombre: "", telefono: "", email: "", empresa: "", rut: "", notas: "",
+  origen: "manual", vendedorId: "", segmento: "",
+  estado: "prospecto", prioridad: "media", montoEstimado: "", proximoContacto: "",
+};
+
 function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores, isAdminOrSupervisor }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -726,24 +1236,33 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
   vendedores: any[];
   isAdminOrSupervisor: boolean;
 }) {
-  const [form, setForm] = useState({
-    nombre: "", telefono: "", email: "", empresa: "", rut: "", notas: "",
-    origen: "manual", vendedorId: "", segmento: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedExisting, setSelectedExisting] = useState<any>(null);
-  const searchTimeoutRef = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Search clients as user types
+  // El formulario se limpia al ABRIR el modal, no al enviar: si el POST
+  // falla, el modal queda abierto y el usuario conserva lo que escribió.
+  useEffect(() => {
+    if (open) {
+      setForm({ ...EMPTY_FORM });
+      setSearchQuery("");
+      setSelectedExisting(null);
+      setSearchResults([]);
+      setShowSuggestions(false);
+    }
+  }, [open]);
+
+  // Autocomplete contra la base de clientes del ERP mientras se escribe
   const handleNameSearch = async (value: string) => {
     setSearchQuery(value);
-    setForm(f => ({ ...f, nombre: value }));
+    setForm((f) => ({ ...f, nombre: value }));
     setSelectedExisting(null);
 
-    if (searchTimeoutRef[0]) clearTimeout(searchTimeoutRef[0]);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
     if (value.trim().length < 2) {
       setSearchResults([]);
@@ -751,7 +1270,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       return;
     }
 
-    searchTimeoutRef[0] = setTimeout(async () => {
+    searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(value.trim())}`);
@@ -767,7 +1286,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
 
   const handleSelectClient = (client: any) => {
     setSelectedExisting(client);
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       nombre: client.nokoen || client.name || "",
       rut: client.rten || client.rut || "",
@@ -785,11 +1304,9 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       ...form,
       vendedorId: form.vendedorId || undefined,
       segmento: form.segmento || undefined,
+      montoEstimado: form.montoEstimado ? Number(form.montoEstimado) : undefined,
+      proximoContacto: form.proximoContacto || undefined,
     });
-    setForm({ nombre: "", telefono: "", email: "", empresa: "", rut: "", notas: "", origen: "manual", vendedorId: "", segmento: "" });
-    setSearchQuery("");
-    setSelectedExisting(null);
-    setSearchResults([]);
   };
 
   return (
@@ -797,7 +1314,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
               <Plus className="w-4 h-4 text-white" />
             </div>
             Nuevo Cliente en Seguimiento
@@ -809,7 +1326,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="grid grid-cols-2 gap-3">
-            {/* Nombre with autocomplete */}
+            {/* Nombre con autocomplete */}
             <div className="col-span-2 relative">
               <Label htmlFor="nombre">Nombre *</Label>
               <div className="relative">
@@ -817,7 +1334,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                 <Input
                   id="nombre"
                   value={searchQuery}
-                  onChange={e => handleNameSearch(e.target.value)}
+                  onChange={(e) => handleNameSearch(e.target.value)}
                   onFocus={() => searchResults.length > 0 && setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   required
@@ -836,12 +1353,12 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                   <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                     Cliente existente vinculado — RUT: {selectedExisting.rten || "Sin RUT"}
                   </span>
-                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm(f => ({ ...f, nombre: "", rut: "", email: "", empresa: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm((f) => ({ ...f, nombre: "", rut: "", email: "", empresa: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-              {/* Dropdown suggestions */}
+              {/* Sugerencias */}
               {showSuggestions && searchResults.length > 0 && (
                 <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-lg max-h-56 overflow-y-auto">
                   {searchResults.map((c: any, i: number) => (
@@ -851,7 +1368,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors border-b last:border-0 flex items-center gap-3"
                       onMouseDown={(e) => { e.preventDefault(); handleSelectClient(c); }}
                     >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
                         <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -878,23 +1395,78 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
 
             <div>
               <Label htmlFor="telefono">Teléfono</Label>
-              <Input id="telefono" value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="+56 9..." />
+              <Input id="telefono" value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="+56 9..." />
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.cl" />
+              <Input id="email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.cl" />
             </div>
             <div>
               <Label htmlFor="empresa">Empresa</Label>
-              <Input id="empresa" value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} placeholder="Nombre de empresa" />
+              <Input id="empresa" value={form.empresa} onChange={(e) => setForm((f) => ({ ...f, empresa: e.target.value }))} placeholder="Nombre de empresa" />
             </div>
             <div>
               <Label htmlFor="rut">RUT (opcional)</Label>
-              <Input id="rut" value={form.rut} onChange={e => setForm(f => ({ ...f, rut: e.target.value }))} placeholder="12.345.678-9" />
+              <Input id="rut" value={form.rut} onChange={(e) => setForm((f) => ({ ...f, rut: e.target.value }))} placeholder="12.345.678-9" />
+            </div>
+            <div>
+              <Label htmlFor="estado-inicial">Estado inicial</Label>
+              <Select value={form.estado} onValueChange={(v) => setForm((f) => ({ ...f, estado: v }))}>
+                <SelectTrigger id="estado-inicial" data-testid="select-estado-inicial"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ESTADOS.map((e) => (
+                    <SelectItem key={e.value} value={e.value}>
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${e.dot}`} />
+                        {e.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="prioridad">Prioridad</Label>
+              <Select value={form.prioridad} onValueChange={(v) => setForm((f) => ({ ...f, prioridad: v }))}>
+                <SelectTrigger id="prioridad" data-testid="select-prioridad-inicial"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PRIORIDADES.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${p.dot}`} />
+                        {p.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="monto-estimado">Monto estimado (CLP)</Label>
+              <Input
+                id="monto-estimado"
+                type="number"
+                min="0"
+                step="1"
+                value={form.montoEstimado}
+                onChange={(e) => setForm((f) => ({ ...f, montoEstimado: e.target.value }))}
+                placeholder="0"
+                data-testid="input-monto-estimado"
+              />
+            </div>
+            <div>
+              <Label htmlFor="proximo-contacto">Próximo contacto</Label>
+              <Input
+                id="proximo-contacto"
+                type="date"
+                value={form.proximoContacto}
+                onChange={(e) => setForm((f) => ({ ...f, proximoContacto: e.target.value }))}
+                data-testid="input-proximo-contacto"
+              />
             </div>
             <div>
               <Label htmlFor="origen">Origen</Label>
-              <Select value={form.origen} onValueChange={v => setForm(f => ({ ...f, origen: v }))}>
+              <Select value={form.origen} onValueChange={(v) => setForm((f) => ({ ...f, origen: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Manual</SelectItem>
@@ -906,7 +1478,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
             </div>
             <div>
               <Label htmlFor="segmento">Segmento</Label>
-              <Select value={form.segmento} onValueChange={v => setForm(f => ({ ...f, segmento: v }))}>
+              <Select value={form.segmento} onValueChange={(v) => setForm((f) => ({ ...f, segmento: v }))}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>
                   {SEGMENTOS_CRM.map((s) => (
@@ -918,7 +1490,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
             {isAdminOrSupervisor && (
               <div>
                 <Label htmlFor="vendedor">Asignar a Vendedor</Label>
-                <Select value={form.vendedorId} onValueChange={v => setForm(f => ({ ...f, vendedorId: v }))}>
+                <Select value={form.vendedorId} onValueChange={(v) => setForm((f) => ({ ...f, vendedorId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     {vendedores.map((v: any) => (
@@ -930,7 +1502,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
             )}
             <div className="col-span-2">
               <Label htmlFor="notas">Notas Iniciales</Label>
-              <Textarea id="notas" value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Contexto del cliente, interés, productos..." rows={3} />
+              <Textarea id="notas" value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} placeholder="Contexto del cliente, interés, productos..." rows={3} />
             </div>
           </div>
 
@@ -939,7 +1511,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
             <Button
               type="submit"
               disabled={isLoading || !form.nombre}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
               data-testid="btn-submit-crear"
             >
               {isLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
@@ -949,881 +1521,5 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ─── Client Detail Modal ──────────────────────────────────────────────
-function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, vendedores, isAdminOrSupervisor, onUpdateVendedor, onUpdate }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  client: any;
-  onDelete: () => void;
-  onRefresh: () => void;
-  vendedores: any[];
-  isAdminOrSupervisor: boolean;
-  onUpdateVendedor: (vendedorId: string) => void;
-  onUpdate: (data: any) => void;
-}) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [hitoForm, setHitoForm] = useState({ tipo: "contacto", descripcion: "" });
-  const [rutInput, setRutInput] = useState(client.rut || "");
-  const [detectedPurchases, setDetectedPurchases] = useState<any[] | null>(null);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [showEditFields, setShowEditFields] = useState(false);
-
-  // Bitácora state
-  const [newBitNota, setNewBitNota] = useState("");
-  const [newBitTipo, setNewBitTipo] = useState("nota");
-
-  const BIT_TIPOS = [
-    { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-gray-100 text-gray-700" },
-    { value: "llamada", label: "Llamada", icon: PhoneCall, color: "bg-blue-100 text-blue-700" },
-    { value: "visita", label: "Visita", icon: MapPin, color: "bg-green-100 text-green-700" },
-    { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "bg-purple-100 text-purple-700" },
-    { value: "problema", label: "Problema", icon: AlertTriangle, color: "bg-red-100 text-red-700" },
-  ];
-
-  const estadoConfig = getEstadoConfig(client.estado);
-  const cv = client.clienteVinculado; // linked SAP client (may be null)
-
-  // Bitácora query
-  const { data: bitacoraEntries = [], isLoading: bitacoraLoading } = useQuery({
-    queryKey: ["/api/bitacora", "cliente", client.id],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        documentoTipo: "cliente",
-        documentoId: client.clienteId || client.id,
-      });
-      const response = await fetch(`/api/bitacora?${params}`, { credentials: "include" });
-      if (!response.ok) return [];
-      return response.json();
-    },
-    enabled: open,
-  });
-
-  const createBitMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch("/api/bitacora", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error("Error");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      setNewBitNota("");
-      setNewBitTipo("nota");
-      toast({ title: "✅ Entrada agregada a la bitácora" });
-    },
-    onError: () => {
-      toast({ title: "❌ Error al agregar entrada", variant: "destructive" });
-    },
-  });
-
-  const deleteBitMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/bitacora/${id}`, { method: "DELETE", credentials: "include" });
-      if (!response.ok) throw new Error("Error");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
-      toast({ title: "Entrada eliminada" });
-    },
-  });
-
-  const handleAddBit = () => {
-    if (!newBitNota.trim()) return;
-    createBitMutation.mutate({
-      documentoTipo: "cliente",
-      documentoId: client.clienteId || client.id,
-      documentoNumero: cv?.koen || null,
-      clienteNombre: client.nombre || cv?.nokoen,
-      clienteRut: client.rut || cv?.rten || null,
-      nota: newBitNota.trim(),
-      tipo: newBitTipo,
-    });
-  };
-
-  // Add milestone mutation
-  const addHitoMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await fetch(`/api/crm/seguimiento/${client.id}/hito`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Error al agregar hito");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      toast({ title: "Hito agregado" });
-      setHitoForm({ tipo: "contacto", descripcion: "" });
-      onRefresh();
-    },
-  });
-
-  // Link RUT mutation
-  const linkRutMutation = useMutation({
-    mutationFn: async (rut: string) => {
-      const res = await fetch(`/api/crm/seguimiento/${client.id}/vincular-rut`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rut }),
-      });
-      if (!res.ok) throw new Error("Error al vincular RUT");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      toast({
-        title: data.clienteVinculado ? "RUT vinculado exitosamente" : "RUT asociado",
-        description: data.clienteVinculado ? `Cliente encontrado: ${data.clienteVinculado.nokoen}` : "No se encontró cliente con ese RUT en la base de ventas.",
-      });
-      onRefresh();
-    },
-  });
-
-  // Detect purchases
-  const handleDetectPurchases = async () => {
-    setIsDetecting(true);
-    try {
-      const res = await fetch(`/api/crm/seguimiento/${client.id}/detectar-compras`);
-      if (!res.ok) throw new Error("Error");
-      const data = await res.json();
-      setDetectedPurchases(data.compras);
-      if (data.nuevosHitosCreados > 0) {
-        toast({ title: `${data.nuevosHitosCreados} documentos detectados`, description: "Se han creado hitos automáticos con las compras encontradas." });
-        queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-        onRefresh();
-      } else if (data.compras.length === 0) {
-        toast({ title: "Sin compras", description: "No se encontraron documentos de venta para este RUT." });
-      } else {
-        toast({ title: `${data.compras.length} documentos encontrados`, description: "Todos los documentos ya están registrados como hitos." });
-      }
-    } catch {
-      toast({ title: "Error", description: "No se pudieron detectar compras", variant: "destructive" });
-    } finally {
-      setIsDetecting(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Header with gradient */}
-        <div className={`bg-gradient-to-r ${estadoConfig.color} p-6 text-white rounded-t-lg`}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-xl font-bold uppercase">{client.nombre}</h2>
-              {client.empresa && (
-                <p className="flex items-center gap-1.5 text-white/80 mt-1">
-                  <Building2 className="w-4 h-4" />
-                  {client.empresa}
-                </p>
-              )}
-              <div className="flex items-center gap-3 mt-3">
-                <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm">
-                  <estadoConfig.icon className="w-3.5 h-3.5 mr-1" />
-                  {estadoConfig.label}
-                </Badge>
-                {client.rut && (
-                  <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm font-mono">
-                    <Link2 className="w-3 h-3 mr-1" />
-                    {client.rut}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white/80 hover:text-white hover:bg-white/10"
-              onClick={() => {
-                if (confirm("¿Eliminar este cliente del seguimiento?")) onDelete();
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-4">
-          {/* ─── Key Info Grid: Comuna, Región, Método de Pago ─── */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-2.5 rounded-lg bg-muted/30 border border-muted/50">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Comuna</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">
-                {fixEncoding(cv?.comuna || client.linkedComuna || client.ciudad) || "—"}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-muted/30 border border-muted/50">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Región</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">
-                {client.region || fixEncoding(cv?.provincia || client.linkedProvincia) || "—"}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-muted/30 border border-muted/50">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Método de Pago</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">
-                {(cv?.cpen || client.linkedCpen || "")?.trim() || "—"}
-              </p>
-            </div>
-          </div>
-
-          {/* ─── Anotaciones del Cliente ─── */}
-          <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">Anotaciones del Cliente</p>
-            </div>
-            <p className="text-sm text-foreground whitespace-pre-wrap">
-              {fixEncoding((cv?.oben || client.linkedOben || "")?.trim() || client.notas) || "Sin anotaciones"}
-            </p>
-          </div>
-
-          {/* ─── Teléfonos de Contacto ─── */}
-          <div className="p-3 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200/50 dark:border-blue-800/30">
-            <div className="flex items-center gap-2 mb-2">
-              <Phone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <p className="text-[10px] uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400">Teléfonos de Contacto</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{cv?.foen || client.linkedFoen || client.telefono || "Sin teléfono"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(cv?.purchasingContactName || client.linkedPurchasingContact)
-                      ? `Encargado: ${fixEncoding(cv?.purchasingContactName || client.linkedPurchasingContact)}`
-                      : "Contacto principal"}
-                  </p>
-                </div>
-                {(cv?.foen || client.linkedFoen || client.telefono) && (
-                  <Badge variant="outline" className="text-[10px] shrink-0 bg-blue-50 text-blue-700 border-blue-200">Principal</Badge>
-                )}
-              </div>
-              {(cv?.cnen || client.linkedCnen) && (
-                <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{cv?.cnen || client.linkedCnen}</p>
-                    <p className="text-xs text-muted-foreground">Contacto alternativo</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">Secundario</Badge>
-                </div>
-              )}
-              {(cv?.cnen2 || client.linkedCnen2) && (
-                <div className="flex items-center justify-between gap-2 border-t border-blue-100 dark:border-blue-800/30 pt-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{cv?.cnen2 || client.linkedCnen2}</p>
-                    <p className="text-xs text-muted-foreground">Contacto adicional</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">Adicional</Badge>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ─── Vendedor Row ─── */}
-          <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
-            <User className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-            <span className="text-xs font-medium text-muted-foreground flex-shrink-0">Vendedor:</span>
-            {isAdminOrSupervisor ? (
-              <select
-                className="text-sm bg-background border rounded-md px-3 py-1 cursor-pointer hover:border-indigo-400 transition-colors flex-1 max-w-xs"
-                value={vendedores.some((v: any) => v.id === client.vendedorId) ? client.vendedorId : ""}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onUpdateVendedor(e.target.value);
-                }}
-              >
-                {!vendedores.some((v: any) => v.id === client.vendedorId) && (
-                  <option value="" disabled>{client.vendedorNombre} (actual)</option>
-                )}
-                {vendedores.map((v: any) => (
-                  <option key={v.id} value={v.id}>{v.salespersonName}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-sm font-medium">{client.vendedorNombre}</span>
-            )}
-          </div>
-
-          {/* Collapsible Edit Section */}
-          {isAdminOrSupervisor && (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowEditFields(!showEditFields)}
-                className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                {showEditFields ? "Ocultar edición" : "Editar datos del cliente"}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showEditFields ? "rotate-180" : ""}`} />
-              </button>
-
-              {showEditFields && (
-                <div className="space-y-3 border rounded-lg p-3 bg-muted/10 animate-in slide-in-from-top-2 duration-200">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nombre</label>
-                      <input
-                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                        defaultValue={client.nombre}
-                        onBlur={(e) => {
-                          if (e.target.value !== client.nombre) onUpdate({ nombre: e.target.value });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Empresa</label>
-                      <input
-                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                        defaultValue={client.empresa || ""}
-                        placeholder="Nombre empresa"
-                        onBlur={(e) => {
-                          if (e.target.value !== (client.empresa || "")) onUpdate({ empresa: e.target.value });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Teléfono</label>
-                      <input
-                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                        defaultValue={client.telefono || ""}
-                        placeholder="+56 9..."
-                        onBlur={(e) => {
-                          if (e.target.value !== (client.telefono || "")) onUpdate({ telefono: e.target.value });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Email</label>
-                      <input
-                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                        defaultValue={client.email || ""}
-                        placeholder="correo@ejemplo.cl"
-                        onBlur={(e) => {
-                          if (e.target.value !== (client.email || "")) onUpdate({ email: e.target.value });
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Notas</label>
-                    <textarea
-                      className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none resize-none min-h-[60px]"
-                      defaultValue={client.notas || ""}
-                      placeholder="Notas del cliente..."
-                      rows={2}
-                      onBlur={(e) => {
-                        if (e.target.value !== (client.notas || "")) onUpdate({ notas: e.target.value });
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ─── BITÁCORA Section ─── */}
-          <div className="border-t pt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="h-4 w-4 text-indigo-600" />
-              <h3 className="text-sm font-bold text-foreground">Bitácora</h3>
-              <Badge variant="secondary" className="text-[10px] ml-auto">
-                {(bitacoraEntries as any[]).length} {(bitacoraEntries as any[]).length === 1 ? "entrada" : "entradas"}
-              </Badge>
-            </div>
-
-            {/* New entry form */}
-            <div className="space-y-2 border rounded-xl p-3 bg-gray-50/50 dark:bg-gray-900/30 mb-3">
-              <div className="flex items-center gap-2">
-                <Select value={newBitTipo} onValueChange={setNewBitTipo}>
-                  <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BIT_TIPOS.map(t => (
-                      <SelectItem key={t.value} value={t.value}>
-                        <div className="flex items-center gap-1.5">
-                          <t.icon className="h-3 w-3" />
-                          {t.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Textarea
-                placeholder="Escribir nota sobre este cliente..."
-                value={newBitNota}
-                onChange={(e) => setNewBitNota(e.target.value)}
-                className="min-h-[50px] text-sm rounded-lg resize-none"
-              />
-              <Button
-                size="sm"
-                onClick={handleAddBit}
-                disabled={!newBitNota.trim() || createBitMutation.isPending}
-                className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                {createBitMutation.isPending ? (
-                  <RefreshCw className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-1" />
-                )}
-                Agregar Entrada
-              </Button>
-            </div>
-
-            {/* Entries list */}
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {bitacoraLoading ? (
-                <div className="text-center py-6">
-                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400 mx-auto" />
-                </div>
-              ) : (bitacoraEntries as any[]).length === 0 ? (
-                <div className="text-center py-6 text-gray-400">
-                  <FileText className="h-7 w-7 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs">Sin entradas en la bitácora</p>
-                  <p className="text-[10px]">Agrega una nota para comenzar el seguimiento</p>
-                </div>
-              ) : (
-                (bitacoraEntries as any[]).map((entry: any) => {
-                  const typeConfig = BIT_TIPOS.find(t => t.value === entry.tipo) || BIT_TIPOS[0];
-                  const TypeIcon = typeConfig.icon;
-                  return (
-                    <div key={entry.id} className="border rounded-xl p-3 space-y-1 bg-white dark:bg-gray-900 hover:shadow-sm transition-shadow">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${typeConfig.color} text-[10px] gap-1`}>
-                            <TypeIcon className="w-2.5 h-2.5" />
-                            {typeConfig.label}
-                          </Badge>
-                          <span className="text-[10px] text-gray-400">
-                            {formatDate(entry.createdAt)} · {timeAgo(entry.createdAt)}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => deleteBitMutation.mutate(entry.id)}
-                          className="text-gray-300 hover:text-red-500 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{entry.nota}</p>
-                      <p className="text-[10px] text-gray-400">por {entry.autorNombre}</p>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* ─── Tabs: Historial, Nuevo Hito, NVV, Pedidos, RUT ─── */}
-          <Tabs defaultValue="hitos" className="w-full">
-            <TabsList className="w-full grid grid-cols-5">
-              <TabsTrigger value="hitos">Historial ({client.hitos?.length || 0})</TabsTrigger>
-              <TabsTrigger value="nuevo-hito">Nuevo Hito</TabsTrigger>
-              <TabsTrigger value="nvv">Pedidos en Curso</TabsTrigger>
-              <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
-              <TabsTrigger value="rut">RUT / Compras</TabsTrigger>
-            </TabsList>
-
-            {/* Historial Tab */}
-            <TabsContent value="hitos" className="mt-4">
-              <div className="space-y-0">
-                {(client.hitos || []).map((hito: any, i: number) => {
-                  const config = getHitoConfig(hito.tipo);
-                  return (
-                    <div key={hito.id} className="flex gap-3 relative">
-                      {i < (client.hitos?.length || 0) - 1 && (
-                        <div className="absolute left-[15px] top-8 w-0.5 h-[calc(100%-8px)] bg-border" />
-                      )}
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center bg-background z-10 ${hito.autoDetectado ? 'border-cyan-300' : 'border-muted-foreground/20'}`}>
-                        <config.icon className={`w-3.5 h-3.5 ${config.color}`} />
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold">{config.label}</span>
-                          {hito.autoDetectado && (
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 text-cyan-600 border-cyan-300">Auto</Badge>
-                          )}
-                          <span className="text-[11px] text-muted-foreground ml-auto">{formatDate(hito.createdAt)}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">{hito.descripcion}</p>
-                        {hito.documentoNumero && (
-                          <p className="text-xs text-muted-foreground mt-1 font-mono">Doc: {hito.documentoTipo} #{hito.documentoNumero}</p>
-                        )}
-                        <p className="text-[11px] text-muted-foreground/60 mt-0.5">por {hito.autorNombre}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-                {(!client.hitos || client.hitos.length === 0) && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Sin hitos registrados</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            {/* Nuevo Hito Tab */}
-            <TabsContent value="nuevo-hito" className="mt-4">
-              <div className="space-y-3">
-                <div>
-                  <Label>Tipo de Hito</Label>
-                  <div className="grid grid-cols-4 gap-2 mt-1">
-                    {HITO_TIPOS.filter(h => h.value !== "sistema").map(h => (
-                      <button
-                        key={h.value}
-                        type="button"
-                        onClick={() => setHitoForm(f => ({ ...f, tipo: h.value }))}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${
-                          hitoForm.tipo === h.value
-                            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 shadow-sm"
-                            : "border-muted hover:border-muted-foreground/30"
-                        }`}
-                      >
-                        <h.icon className={`w-4 h-4 ${h.color}`} />
-                        {h.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <Label>Descripción *</Label>
-                  <Textarea
-                    value={hitoForm.descripcion}
-                    onChange={e => setHitoForm(f => ({ ...f, descripcion: e.target.value }))}
-                    placeholder="Detalle de la interacción..."
-                    rows={3}
-                    data-testid="input-hito-descripcion"
-                  />
-                </div>
-                <Button
-                  onClick={() => addHitoMutation.mutate(hitoForm)}
-                  disabled={addHitoMutation.isPending || !hitoForm.descripcion}
-                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-                  data-testid="btn-agregar-hito"
-                >
-                  {addHitoMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                  Registrar Hito
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* RUT / Compras Tab */}
-            <TabsContent value="rut" className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label>Vincular RUT</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={rutInput}
-                    onChange={e => setRutInput(e.target.value)}
-                    placeholder="12.345.678-9"
-                    className="font-mono"
-                    data-testid="input-vincular-rut"
-                  />
-                  <Button
-                    onClick={() => linkRutMutation.mutate(rutInput)}
-                    disabled={linkRutMutation.isPending || !rutInput}
-                    variant="outline"
-                    data-testid="btn-vincular-rut"
-                  >
-                    {linkRutMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              {client.clienteVinculado && (
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
-                  <p className="text-xs font-medium text-green-700 dark:text-green-300 flex items-center gap-1.5 mb-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Cliente Vinculado
-                  </p>
-                  <p className="text-sm font-medium">{client.clienteVinculado.nokoen}</p>
-                  {client.clienteVinculado.ruen && <p className="text-xs text-muted-foreground">Segmento: {client.clienteVinculado.ruen}</p>}
-                  {client.clienteVinculado.cpen && <p className="text-xs text-muted-foreground">Condición: {client.clienteVinculado.cpen}</p>}
-                </div>
-              )}
-
-              {client.rut && (
-                <Button
-                  onClick={handleDetectPurchases}
-                  disabled={isDetecting}
-                  variant="outline"
-                  className="w-full"
-                  data-testid="btn-detectar-compras"
-                >
-                  {isDetecting ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  Detectar Compras Automáticamente
-                </Button>
-              )}
-
-              {detectedPurchases && detectedPurchases.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Documentos encontrados ({detectedPurchases.length})</p>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
-                    {detectedPurchases.map((p: any) => (
-                      <div key={p.id} className="text-xs bg-muted/30 rounded-lg p-2 flex items-center justify-between">
-                        <div>
-                          <span className="font-mono font-medium">{p.tido} #{p.nudo}</span>
-                          <p className="text-muted-foreground mt-0.5 truncate max-w-[300px]">{p.nokoprct}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">${parseFloat(p.vanedo || "0").toLocaleString("es-CL")}</p>
-                          <p className="text-muted-foreground">{formatDate(p.feemdo)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Seguimiento Pedido (NVV) Tab */}
-            <TabsContent value="nvv" className="mt-4">
-              <NVVTab client={client} />
-            </TabsContent>
-
-            {/* Pedidos Tab */}
-            <TabsContent value="pedidos" className="mt-4">
-              <PedidosTab client={client} />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Pedidos Tab (inside detail page) ────────────────────────────────
-export function PedidosTab({ client }: { client: any }) {
-  const [pedidos, setPedidos] = useState<any[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const loadPedidos = async () => {
-    if (!client.rut && !client.clienteId) {
-      setPedidos([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/crm/seguimiento/${client.id}/detectar-compras`);
-      if (res.ok) {
-        const data = await res.json();
-        setPedidos(data.compras || []);
-      }
-    } catch { /* ignore */ }
-    setIsLoading(false);
-  };
-
-  // Load on mount
-  useState(() => { loadPedidos(); });
-
-  if (!client.rut && !client.clienteId) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm font-medium">Sin RUT vinculado</p>
-        <p className="text-xs mt-1">Vincula un RUT en la pestaña "RUT / Compras" para ver pedidos.</p>
-      </div>
-    );
-  }
-
-  if (isLoading || pedidos === null) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (pedidos.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <ShoppingCart className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm font-medium">Sin pedidos registrados</p>
-        <p className="text-xs mt-1">No se encontraron documentos de venta para este cliente.</p>
-      </div>
-    );
-  }
-
-  // Group by document type
-  const estadoColors: Record<string, string> = {
-    "Facturado": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-    "Pendiente": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-    "Anulado": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-muted-foreground">{pedidos.length} documentos encontrados</p>
-        <Button variant="ghost" size="sm" onClick={loadPedidos} className="h-7 text-xs">
-          <RefreshCw className="w-3 h-3 mr-1" />
-          Actualizar
-        </Button>
-      </div>
-      <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
-        {pedidos.map((p: any, i: number) => {
-          const estadoLabel = p.eslido || "Pendiente";
-          const estadoClass = estadoColors[estadoLabel] || "bg-muted text-muted-foreground";
-          return (
-            <div key={p.id || i} className="bg-muted/20 border rounded-lg p-3 hover:bg-muted/30 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-semibold">{p.tido} #{p.nudo}</span>
-                    <Badge className={`text-[10px] px-1.5 py-0 h-5 border-0 ${estadoClass}`}>
-                      {estadoLabel}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{p.nokoprct || "Sin detalle de producto"}</p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    ${parseFloat(p.vanedo || "0").toLocaleString("es-CL")}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">{formatDate(p.feemdo)}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── NVV Tab (Seguimiento Pedido / Notas de Venta) ────────────────────
-export function NVVTab({ client }: { client: any }) {
-  const [nvvs, setNvvs] = useState<any[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const loadNVVs = async () => {
-    if (!client.rut && !client.clienteId) {
-      setNvvs([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/crm/seguimiento/${client.id}/nvv`);
-      if (res.ok) {
-        const data = await res.json();
-        setNvvs(data.nvvs || []);
-      }
-    } catch { /* ignore */ }
-    setIsLoading(false);
-  };
-
-  useState(() => { loadNVVs(); });
-
-  if (!client.rut && !client.clienteId) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm font-medium">Sin RUT vinculado</p>
-        <p className="text-xs mt-1">Vincula un RUT en la pestaña "RUT / Compras" para ver las NVV.</p>
-      </div>
-    );
-  }
-
-  if (isLoading || nvvs === null) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (nvvs.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm font-medium">Sin pedidos en curso</p>
-        <p className="text-xs mt-1">No se encontraron NVV o GDV para este cliente.</p>
-      </div>
-    );
-  }
-
-  const estadoColors: Record<string, string> = {
-    "Facturado": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-    "Pendiente": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-    "Anulado": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-    "En Proceso": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-    "Despachado": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  };
-
-  // Group by tido+nudo to show grouped docs
-  const groupedByNudo: Record<string, any[]> = {};
-  for (const nvv of nvvs) {
-    const key = `${nvv.tido}-${nvv.nudo || 'sin-numero'}`;
-    if (!groupedByNudo[key]) groupedByNudo[key] = [];
-    groupedByNudo[key].push(nvv);
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-muted-foreground">
-          {Object.keys(groupedByNudo).length} pedidos encontrados ({nvvs.length} líneas)
-        </p>
-        <Button variant="ghost" size="sm" onClick={loadNVVs} className="h-7 text-xs">
-          <RefreshCw className="w-3 h-3 mr-1" />
-          Actualizar
-        </Button>
-      </div>
-      <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
-        {Object.entries(groupedByNudo).map(([nudo, items]) => {
-          const firstItem = items[0];
-          const estadoLabel = firstItem.eslido || firstItem.esdo || "Pendiente";
-          const estadoClass = estadoColors[estadoLabel] || "bg-muted text-muted-foreground";
-          const totalMonto = items.reduce((sum: number, item: any) => sum + parseFloat(item.vanedo || "0"), 0);
-
-          return (
-            <div key={nudo} className="border rounded-lg overflow-hidden">
-              {/* NVV Header */}
-              <div className="bg-muted/30 px-3 py-2 flex items-center justify-between border-b">
-                <div className="flex items-center gap-2">
-                  <FileText className={`w-4 h-4 ${firstItem.tido === 'GDV' ? 'text-purple-500' : 'text-amber-500'}`} />
-                  <span className="font-mono text-sm font-semibold">{firstItem.tido} #{firstItem.nudo}</span>
-                  <Badge className={`text-[10px] px-1.5 py-0 h-5 border-0 ${estadoClass}`}>
-                    {estadoLabel}
-                  </Badge>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    ${totalMonto.toLocaleString("es-CL")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">{formatDate(firstItem.feemdo)}</p>
-                </div>
-              </div>
-              {/* Line items */}
-              <div className="divide-y">
-                {items.map((item: any, i: number) => (
-                  <div key={item.id || i} className="px-3 py-1.5 flex items-center justify-between text-xs hover:bg-muted/10">
-                    <span className="text-muted-foreground flex-1 truncate pr-2">
-                      {item.nokoprct || "Sin detalle"}
-                    </span>
-                    <span className="font-medium text-right flex-shrink-0">
-                      ${parseFloat(item.vanedo || "0").toLocaleString("es-CL")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
