@@ -729,7 +729,7 @@ export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, sho
   );
 };
 
-export default function TomadorPedidos({ variant = "v1", builderOnly = false, initialClientRut, onClose }: {
+export default function TomadorPedidos({ variant = "v1", builderOnly = false, initialClientRut, initialClientData, onClose }: {
   variant?: "v1" | "v2";
   /** Modo embebido: renderiza SOLO el constructor de presupuesto V2 como
    *  modal (sin la página), abierto de inmediato. Lo usa el detalle del
@@ -737,6 +737,10 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
   builderOnly?: boolean;
   /** RUT para precargar el cliente del constructor en modo embebido. */
   initialClientRut?: string;
+  /** Ficha del lead CRM para precargar el formulario de cliente en modo
+   *  embebido: se usa como fallback cuando el RUT no está en la base de
+   *  ventas (prospectos) y para completar campos que el ERP no tenga. */
+  initialClientData?: { nombre?: string; rut?: string; email?: string; telefono?: string; direccion?: string };
   /** Se llama cuando el constructor se cierra en modo embebido. */
   onClose?: () => void;
 } = {}) {
@@ -1905,11 +1909,24 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
 
   // Modo embebido (builderOnly): abrir el constructor apenas monta —
   // en blanco de inmediato para que no haya un instante vacío — y luego
-  // hidratar con el cliente resuelto por RUT si viene.
+  // hidratar con el cliente resuelto por RUT si viene. Los leads del CRM
+  // sin match en ventas (prospectos) se precargan desde su ficha.
   useEffect(() => {
     if (!builderOnly) return;
     let cancelled = false;
     handleCreateQuoteForNewClient();
+    const prefillFromCrm = () => {
+      if (!initialClientData) return false;
+      setQuoteForm((prev) => ({
+        ...prev,
+        clientName: initialClientData.nombre || "",
+        clientRut: initialClientData.rut || "",
+        clientEmail: initialClientData.email || "",
+        clientPhone: initialClientData.telefono || "",
+        clientAddress: initialClientData.direccion || "",
+      }));
+      return true;
+    };
     if (initialClientRut) {
       (async () => {
         try {
@@ -1918,15 +1935,28 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
           if (cancelled) return;
           if (data.found && data.client) {
             handleCreateQuoteForClient(data.client);
-          } else {
+            // Completar con la ficha CRM los campos que el ERP no tenga
+            if (initialClientData) {
+              setQuoteForm((prev) => ({
+                ...prev,
+                clientEmail: prev.clientEmail || initialClientData.email || "",
+                clientPhone: prev.clientPhone || initialClientData.telefono || "",
+                clientAddress: prev.clientAddress || initialClientData.direccion || "",
+              }));
+            }
+          } else if (!prefillFromCrm()) {
             toast({
               title: "Cliente no encontrado",
               description: `No hay cliente con RUT ${initialClientRut} en la base de ventas. Selecciónalo manualmente.`,
               variant: "destructive",
             });
           }
-        } catch { /* queda el constructor en blanco */ }
+        } catch {
+          if (!cancelled) prefillFromCrm();
+        }
       })();
+    } else {
+      prefillFromCrm();
     }
     return () => { cancelled = true; };
     // Solo al montar: el host desmonta el componente al cerrar.

@@ -686,6 +686,13 @@ export async function bootstrapDatabase(): Promise<void> {
     console.log('  🏷️  Verificando columna etiquetas en crm_seguimiento_clientes...');
     await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS etiquetas TEXT`);
 
+    // 15.2. Hitos/bitácora agendados en calendario (card Actividad del CRM).
+    // Mismo motivo que etiquetas: Drizzle enumera todas las columnas del
+    // schema en cada SELECT, así que deben existir antes de servir tráfico.
+    console.log('  📅 Verificando columna fecha_programada en hitos y bitácora...');
+    await db.execute(sql`ALTER TABLE crm_seguimiento_hitos ADD COLUMN IF NOT EXISTS fecha_programada TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE pedido_bitacora ADD COLUMN IF NOT EXISTS fecha_programada TIMESTAMP`);
+
     // 16. Crear tabla user_branch_assignments (relación muchos-a-muchos usuario ↔ sucursal)
     console.log('  🔗 Verificando tabla user_branch_assignments...');
     await db.execute(sql`
