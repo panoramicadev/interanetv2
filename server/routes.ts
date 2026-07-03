@@ -36060,6 +36060,15 @@ Instrucciones extra:
   // el kanban (que normaliza) de las stats (que agrupan por valor crudo).
   const ESTADOS_PIPELINE = ["prospecto", "seguimiento", "cotizacion", "venta", "despacho"];
 
+  // Un vendedor solo puede operar sobre SUS leads del seguimiento (los
+  // demás roles ven todo). Único punto de verdad del check de ownership:
+  // debe aplicarse en TODO endpoint que reciba un :id de seguimiento.
+  const canAccessSeguimiento = async (user: any, vendedorId: string | null): Promise<boolean> => {
+    if (user?.role !== 'salesperson') return true;
+    const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+    return spUser.length > 0 && spUser[0].id === vendedorId;
+  };
+
   // GET /api/crm/comunas — List unique comunas used in CRM for autocomplete
   app.get('/api/crm/comunas', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     try {
@@ -36330,11 +36339,8 @@ Instrucciones extra:
     }
 
     // Verify access
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0 || spUser[0].id !== cliente.vendedorId) {
-        return res.status(403).json({ message: 'No tienes acceso a este cliente' });
-      }
+    if (!(await canAccessSeguimiento(user, cliente.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
     const hitos = await db.select()
@@ -36490,11 +36496,8 @@ Instrucciones extra:
     }
 
     // Verify access for salesperson
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
-        return res.status(403).json({ message: 'No tienes acceso a modificar este cliente' });
-      }
+    if (!(await canAccessSeguimiento(user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a modificar este cliente' });
     }
 
     if (req.body.estado !== undefined && !ESTADOS_PIPELINE.includes(req.body.estado)) {
@@ -36568,11 +36571,8 @@ Instrucciones extra:
     }
 
     // Only admin or owner can delete
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
-        return res.status(403).json({ message: 'No tienes acceso a eliminar este cliente' });
-      }
+    if (!(await canAccessSeguimiento(user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a eliminar este cliente' });
     }
 
     await db.update(crmSeguimientoClientes)
@@ -36597,11 +36597,8 @@ Instrucciones extra:
     }
 
     // Verify access
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
-        return res.status(403).json({ message: 'No tienes acceso a este cliente' });
-      }
+    if (!(await canAccessSeguimiento(user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
     const { tipo, descripcion, documentoTipo, documentoNumero } = req.body;
@@ -36651,6 +36648,10 @@ Instrucciones extra:
 
     if (!existing) {
       return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    if (!(await canAccessSeguimiento(user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
     // Find client by RUT
@@ -36703,6 +36704,10 @@ Instrucciones extra:
 
     if (!existing || !existing.rut) {
       return res.json({ compras: [], message: 'Sin RUT asociado' });
+    }
+
+    if (!(await canAccessSeguimiento(req.user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
     // Find client by RUT in the clients table
@@ -36789,6 +36794,10 @@ Instrucciones extra:
 
     if (!existing || !existing.rut) {
       return res.json({ nvvs: [], message: 'Sin RUT asociado' });
+    }
+
+    if (!(await canAccessSeguimiento(req.user, existing.vendedorId))) {
+      return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
     const [linkedClient] = await db.select()
