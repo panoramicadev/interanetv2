@@ -729,8 +729,18 @@ export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, sho
   );
 };
 
-export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v2" } = {}) {
-  const isV2 = variant === "v2";
+export default function TomadorPedidos({ variant = "v1", builderOnly = false, initialClientRut, onClose }: {
+  variant?: "v1" | "v2";
+  /** Modo embebido: renderiza SOLO el constructor de presupuesto V2 como
+   *  modal (sin la página), abierto de inmediato. Lo usa el detalle del
+   *  CRM Seguimiento al pinchar la etapa "Cotización". */
+  builderOnly?: boolean;
+  /** RUT para precargar el cliente del constructor en modo embebido. */
+  initialClientRut?: string;
+  /** Se llama cuando el constructor se cierra en modo embebido. */
+  onClose?: () => void;
+} = {}) {
+  const isV2 = variant === "v2" || builderOnly;
   const { user } = useAuth();
   const [location, navigate] = useLocation();
 
@@ -1892,6 +1902,48 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
     setDefaultMobileTab("client"); // Start on client tab for new quotes
     setShowQuoteBuilder(true);
   };
+
+  // Modo embebido (builderOnly): abrir el constructor apenas monta —
+  // en blanco de inmediato para que no haya un instante vacío — y luego
+  // hidratar con el cliente resuelto por RUT si viene.
+  useEffect(() => {
+    if (!builderOnly) return;
+    let cancelled = false;
+    handleCreateQuoteForNewClient();
+    if (initialClientRut) {
+      (async () => {
+        try {
+          const res = await apiRequest(`/api/clients/search-by-rut?rut=${encodeURIComponent(initialClientRut)}`);
+          const data = await res.json();
+          if (cancelled) return;
+          if (data.found && data.client) {
+            handleCreateQuoteForClient(data.client);
+          } else {
+            toast({
+              title: "Cliente no encontrado",
+              description: `No hay cliente con RUT ${initialClientRut} en la base de ventas. Selecciónalo manualmente.`,
+              variant: "destructive",
+            });
+          }
+        } catch { /* queda el constructor en blanco */ }
+      })();
+    }
+    return () => { cancelled = true; };
+    // Solo al montar: el host desmonta el componente al cerrar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderOnly, initialClientRut]);
+
+  // Modo embebido: avisar al host cuando el constructor se cierra para
+  // que desmonte el componente.
+  const builderWasOpenRef = useRef(false);
+  useEffect(() => {
+    if (!builderOnly) return;
+    if (showQuoteBuilder) {
+      builderWasOpenRef.current = true;
+    } else if (builderWasOpenRef.current) {
+      onClose?.();
+    }
+  }, [builderOnly, showQuoteBuilder, onClose]);
 
   // Reset quote builder
   const resetQuoteBuilder = () => {
@@ -3805,6 +3857,9 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
 
   return (
     <>
+      {/* Página completa del tomador: se oculta en modo embebido
+          (builderOnly), donde solo vive el constructor modal de abajo */}
+      {!builderOnly && (<>
       {/* Minimalist Header with Action Buttons */}
       <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isMobile ? 'px-3 mt-5' : 'px-3 sm:px-4 lg:px-6 mt-8'}`}>
         <div className="flex items-center gap-3">
@@ -4326,6 +4381,7 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
           <Plus className="w-5 h-5" />
         </button>
       )}
+      </>)}
 
       {/* Tomador 2 (beta): modal "Constructor de Presupuesto" rediseñado */}
       {isV2 && showQuoteBuilder && renderV2Builder()}

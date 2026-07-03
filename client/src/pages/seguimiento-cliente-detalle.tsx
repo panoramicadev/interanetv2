@@ -9,7 +9,7 @@
  * @/components/crm/pedidos-nvv-tabs. Este archivo NO debe importar nada
  * desde ./seguimiento-clientes.
  */
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +45,11 @@ import {
   getInitials,
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
+
+// Constructor de presupuesto del Tomador 2, en modo modal embebido (se
+// abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
+// completo al entrar al detalle.
+const TomadorPedidos = lazy(() => import("./tomador-pedidos"));
 
 // Tipos de entrada de la bitácora (propios de esta página). Las entradas
 // viven en pedido_bitacora — NO migrar a hitos: el flag hasProblema del
@@ -118,6 +123,8 @@ export default function SeguimientoClienteDetalle() {
   // Borrador de la card "Notas" (null = sin cambios locales)
   const [notasDraft, setNotasDraft] = useState<string | null>(null);
   const [etiquetaInput, setEtiquetaInput] = useState("");
+  // Constructor de presupuesto embebido (etapa "Cotización")
+  const [showCotizador, setShowCotizador] = useState(false);
 
   // ─── Query detalle del cliente ──────────────────────────────────
   const { data: client, isLoading, refetch } = useQuery({
@@ -409,11 +416,10 @@ export default function SeguimientoClienteDetalle() {
 
   const handleChangeEstado = (value: string) => {
     if (!client) return;
-    // Cotización abre el Tomador de Pedidos 2 en otra pestaña, con el
-    // cliente precargado si el seguimiento tiene RUT vinculado.
+    // Cotización abre el constructor de presupuesto del Tomador 2 como
+    // modal sobre esta página, con el cliente precargado si hay RUT.
     if (value === "cotizacion") {
-      const params = client.rut ? `?clientRut=${encodeURIComponent(client.rut)}` : "";
-      window.open(`/tomador-pedidos-v2${params}`, "_blank");
+      setShowCotizador(true);
     }
     // Comparar contra el valor CRUDO: si el registro tiene un estado legacy
     // ("contactado" se muestra como "Seguimiento"), clickear la etapa
@@ -1304,6 +1310,24 @@ export default function SeguimientoClienteDetalle() {
           </Tabs>
         </div>
       </div>
+
+      {/* Constructor de presupuesto (Tomador 2) como modal sobre el detalle */}
+      {showCotizador && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[60] bg-slate-900/45 flex items-center justify-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-white" />
+            </div>
+          }
+        >
+          <TomadorPedidos
+            variant="v2"
+            builderOnly
+            initialClientRut={client.rut || undefined}
+            onClose={() => setShowCotizador(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
