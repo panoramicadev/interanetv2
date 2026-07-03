@@ -9,7 +9,7 @@
  * @/components/crm/pedidos-nvv-tabs. Este archivo NO debe importar nada
  * desde ./seguimiento-clientes.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +18,7 @@ import {
   MessageSquare, PhoneCall, FileText,
   MapPin, AlertTriangle, CheckCircle2, ShoppingCart,
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
-  ArrowLeft, Plus, Calendar, Clock, CreditCard, Save, X, Tags,
+  ArrowLeft, Calendar, Clock, CreditCard, Save, X, Tags,
   BookOpen, Target, ShieldCheck, Package, Star, DollarSign, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,9 @@ import {
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
 
-// Tipos de entrada de la bitácora (propios de esta página)
+// Tipos de entrada de la bitácora (propios de esta página). Las entradas
+// viven en pedido_bitacora — NO migrar a hitos: el flag hasProblema del
+// listado de leads (pin + ícono de alerta) se calcula desde esa tabla.
 const BIT_TIPOS = [
   { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
   { value: "llamada", label: "Llamada", icon: PhoneCall, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
@@ -56,6 +58,15 @@ const BIT_TIPOS = [
   { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
   { value: "problema", label: "Problema", icon: AlertTriangle, color: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
 ];
+
+// Tipos del composer que se guardan como BITÁCORA (no como hito): el
+// resto de los pills usa HITO_TIPOS. "Problema" debe ir a bitácora sí o
+// sí para que el dashboard de leads lo detecte.
+const COMPOSER_BIT_TIPOS = [
+  { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "text-purple-500", ring: "bg-purple-100 dark:bg-purple-900/40" },
+  { value: "problema", label: "Problema", icon: AlertTriangle, color: "text-red-500", ring: "bg-red-100 dark:bg-red-900/40" },
+];
+const BIT_COMPOSER_VALUES = new Set(COMPOSER_BIT_TIPOS.map((t) => t.value));
 
 // ─── Página de detalle ────────────────────────────────────────────────
 export default function SeguimientoClienteDetalle() {
@@ -71,8 +82,6 @@ export default function SeguimientoClienteDetalle() {
   // ─── Estado local ───────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-  const [newBitNota, setNewBitNota] = useState("");
-  const [newBitTipo, setNewBitTipo] = useState("nota");
   const [hitoForm, setHitoForm] = useState({ tipo: "contacto", descripcion: "" });
   const [rutInput, setRutInput] = useState("");
   const [detectedPurchases, setDetectedPurchases] = useState<any[] | null>(null);
@@ -137,6 +146,21 @@ export default function SeguimientoClienteDetalle() {
     },
     enabled: !!clientId && !!client,
   });
+
+  // Timeline unificado de Actividad: hitos del CRM + entradas de bitácora
+  // del cliente, mezclados por fecha (más reciente primero). La bitácora
+  // conserva su tabla y sus tipos (Problema alimenta el dashboard de leads).
+  const timeline = useMemo(() => {
+    const hitoItems = ((client?.hitos as any[]) || []).map((h: any) => (
+      { kind: "hito" as const, key: `h-${h.id}`, createdAt: h.createdAt, raw: h }
+    ));
+    const bitItems = ((bitacoraEntries as any[]) || []).map((b: any) => (
+      { kind: "bitacora" as const, key: `b-${b.id}`, createdAt: b.createdAt, raw: b }
+    ));
+    return [...hitoItems, ...bitItems].sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+    );
+  }, [client?.hitos, bitacoraEntries]);
 
   // ─── Mutations ──────────────────────────────────────────────────
   const updateMutation = useMutation({
@@ -211,8 +235,7 @@ export default function SeguimientoClienteDetalle() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      setNewBitNota("");
-      setNewBitTipo("nota");
+      setHitoForm({ tipo: "contacto", descripcion: "" });
       toast({ title: "✅ Entrada agregada a la bitácora" });
     },
     onError: () => {
@@ -283,18 +306,25 @@ export default function SeguimientoClienteDetalle() {
   });
 
   // ─── Handlers ───────────────────────────────────────────────────
-  const handleAddBit = () => {
-    if (!newBitNota.trim() || !client) return;
-    const cv = client.clienteVinculado;
-    createBitMutation.mutate({
-      documentoTipo: "cliente",
-      documentoId: client.clienteId || client.id,
-      documentoNumero: cv?.koen || null,
-      clienteNombre: client.nombre || cv?.nokoen,
-      clienteRut: client.rut || cv?.rten || null,
-      nota: newBitNota.trim(),
-      tipo: newBitTipo,
-    });
+  // Composer unificado de Actividad: los tipos de bitácora se guardan en
+  // pedido_bitacora; el resto se registra como hito del seguimiento.
+  const handleRegistrarActividad = () => {
+    const descripcion = hitoForm.descripcion.trim();
+    if (!descripcion || !client) return;
+    if (BIT_COMPOSER_VALUES.has(hitoForm.tipo)) {
+      const cv = client.clienteVinculado;
+      createBitMutation.mutate({
+        documentoTipo: "cliente",
+        documentoId: client.clienteId || client.id,
+        documentoNumero: cv?.koen || null,
+        clienteNombre: client.nombre || cv?.nokoen,
+        clienteRut: client.rut || cv?.rten || null,
+        nota: descripcion,
+        tipo: hitoForm.tipo,
+      });
+    } else {
+      addHitoMutation.mutate({ tipo: hitoForm.tipo, descripcion });
+    }
   };
 
   const startEditing = () => {
@@ -429,7 +459,6 @@ export default function SeguimientoClienteDetalle() {
   const contactoLabel = proximoContactoLabel(client.proximoContacto);
   const notasValue = notasDraft ?? (client.notas || "");
   const notasDirty = notasDraft !== null && notasDraft !== (client.notas || "");
-  const hitos: any[] = client.hitos || [];
 
   // ─── Render ─────────────────────────────────────────────────────
   return (
@@ -1007,15 +1036,15 @@ export default function SeguimientoClienteDetalle() {
                 <Sparkles className="w-4 h-4 text-indigo-500" />
                 Actividad
               </h2>
-              <span className="text-[11px] text-muted-foreground">{hitos.length} {hitos.length === 1 ? "hito" : "hitos"}</span>
+              <span className="text-[11px] text-muted-foreground">{timeline.length} {timeline.length === 1 ? "registro" : "registros"}</span>
             </div>
 
             <div className="p-4 sm:p-5 space-y-5">
-              {/* Composer: registrar interacción */}
+              {/* Composer: registrar interacción (hitos + tipos de bitácora) */}
               <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-3.5 space-y-2.5" data-testid="hito-composer">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Registrar interacción</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {HITO_TIPOS.filter((t) => t.value !== "sistema").map((t) => {
+                  {[...HITO_TIPOS.filter((t) => t.value !== "sistema"), ...COMPOSER_BIT_TIPOS].map((t) => {
                     const active = hitoForm.tipo === t.value;
                     return (
                       <button
@@ -1037,7 +1066,7 @@ export default function SeguimientoClienteDetalle() {
                 <Textarea
                   value={hitoForm.descripcion}
                   onChange={(e) => setHitoForm((f) => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="¿Qué pasó con este cliente? (llamada, visita, acuerdo...)"
+                  placeholder="¿Qué pasó con este cliente? (llamada, visita, acuerdo, problema...)"
                   rows={2}
                   className="text-sm resize-none bg-background"
                   data-testid="hito-descripcion"
@@ -1045,32 +1074,77 @@ export default function SeguimientoClienteDetalle() {
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    onClick={() => addHitoMutation.mutate(hitoForm)}
-                    disabled={!hitoForm.descripcion.trim() || addHitoMutation.isPending}
+                    onClick={handleRegistrarActividad}
+                    disabled={!hitoForm.descripcion.trim() || addHitoMutation.isPending || createBitMutation.isPending}
                     className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                     data-testid="btn-agregar-hito"
                   >
-                    {addHitoMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                    {(addHitoMutation.isPending || createBitMutation.isPending) ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
                     Registrar
                   </Button>
                 </div>
               </div>
 
-              {/* Timeline */}
-              {hitos.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm font-medium">Sin actividad registrada</p>
-                  <p className="text-xs mt-1">Registra la primera interacción con este cliente.</p>
-                </div>
+              {/* Timeline unificado: hitos + bitácora */}
+              {timeline.length === 0 ? (
+                bitacoraLoading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm font-medium">Sin actividad registrada</p>
+                    <p className="text-xs mt-1">Registra la primera interacción con este cliente.</p>
+                  </div>
+                )
               ) : (
                 <div data-testid="timeline-hitos">
-                  {hitos.map((hito: any, i: number) => {
+                  {timeline.map((item, i) => {
+                    const isLast = i === timeline.length - 1;
+                    if (item.kind === "bitacora") {
+                      const entry = item.raw;
+                      const typeConfig = BIT_TIPOS.find((t) => t.value === entry.tipo) || BIT_TIPOS[0];
+                      return (
+                        <div key={item.key} className="flex gap-3 relative">
+                          {!isLast && (
+                            <div className="absolute left-[17px] top-9 w-px h-[calc(100%-16px)] bg-border" />
+                          )}
+                          <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center z-10 ${typeConfig.color}`}>
+                            <typeConfig.icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0 pb-5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className={`${typeConfig.color} text-[10px] gap-1 border-0`} data-testid={`bitacora-tipo-${entry.tipo}`}>
+                                <typeConfig.icon className="w-2.5 h-2.5" />
+                                {typeConfig.label}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-muted-foreground">Bitácora</Badge>
+                              <span className="text-[11px] text-muted-foreground ml-auto whitespace-nowrap" title={formatDate(entry.createdAt)}>
+                                {timeAgo(entry.createdAt)}
+                              </span>
+                              <button
+                                onClick={() => deleteBitMutation.mutate(entry.id)}
+                                className="text-muted-foreground/30 hover:text-red-500 transition-colors p-0.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+                                title="Eliminar entrada"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">{entry.nota}</p>
+                            <p className="text-[11px] text-muted-foreground/60 mt-1">
+                              por {entry.autorNombre} · {formatDate(entry.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    const hito = item.raw;
                     const config = getHitoConfig(hito.tipo);
                     return (
-                      <div key={hito.id} className="flex gap-3 relative">
+                      <div key={item.key} className="flex gap-3 relative">
                         {/* Línea vertical conectora */}
-                        {i < hitos.length - 1 && (
+                        {!isLast && (
                           <div className="absolute left-[17px] top-9 w-px h-[calc(100%-16px)] bg-border" />
                         )}
                         <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center z-10 ${config.ring}`}>
@@ -1105,11 +1179,11 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Pestañas: Bitácora / Pedidos / NVV / RUT-Compras / Ayuda Memoria ═══ */}
+        {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras / Ayuda Memoria ═══ */}
+        {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
-          <Tabs defaultValue="bitacora" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 sm:grid-cols-5 h-auto">
-              <TabsTrigger value="bitacora" className="text-xs">Bitácora ({(bitacoraEntries as any[]).length})</TabsTrigger>
+          <Tabs defaultValue="pedidos" className="w-full">
+            <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto">
               <TabsTrigger value="pedidos" className="text-xs">Pedidos</TabsTrigger>
               <TabsTrigger value="nvv" className="text-xs">NVV</TabsTrigger>
               <TabsTrigger value="rut" className="text-xs">RUT / Compras</TabsTrigger>
@@ -1117,93 +1191,6 @@ export default function SeguimientoClienteDetalle() {
                 <BookOpen className="w-3 h-3" /> Ayuda Memoria
               </TabsTrigger>
             </TabsList>
-
-            {/* ─── Bitácora ─── */}
-            <TabsContent value="bitacora" className="mt-4 space-y-4">
-              {/* Composer */}
-              <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-3.5 space-y-2.5">
-                <Select value={newBitTipo} onValueChange={setNewBitTipo}>
-                  <SelectTrigger className="h-8 w-44 text-xs rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BIT_TIPOS.map(t => (
-                      <SelectItem key={t.value} value={t.value}>
-                        <div className="flex items-center gap-1.5">
-                          <t.icon className="h-3 w-3" />
-                          {t.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Textarea
-                  placeholder="Escribir nota sobre este cliente..."
-                  value={newBitNota}
-                  onChange={(e) => setNewBitNota(e.target.value)}
-                  className="min-h-[60px] text-sm rounded-lg resize-none bg-background"
-                />
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={handleAddBit}
-                    disabled={!newBitNota.trim() || createBitMutation.isPending}
-                    className="text-xs rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    {createBitMutation.isPending ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    ) : (
-                      <Plus className="h-3.5 w-3.5 mr-1.5" />
-                    )}
-                    Agregar Entrada
-                  </Button>
-                </div>
-              </div>
-
-              {/* Entradas */}
-              {bitacoraLoading ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
-                </div>
-              ) : (bitacoraEntries as any[]).length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs font-medium">Sin entradas en la bitácora</p>
-                  <p className="text-[10px] mt-1">Agrega una nota para comenzar el seguimiento</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(bitacoraEntries as any[]).map((entry: any) => {
-                    const typeConfig = BIT_TIPOS.find(t => t.value === entry.tipo) || BIT_TIPOS[0];
-                    const TypeIcon = typeConfig.icon;
-                    return (
-                      <div key={entry.id} className="border rounded-xl p-3 space-y-1.5 bg-background hover:shadow-sm transition-shadow">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge className={`${typeConfig.color} text-[10px] gap-1 border-0`}>
-                              <TypeIcon className="w-2.5 h-2.5" />
-                              {typeConfig.label}
-                            </Badge>
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatDate(entry.createdAt)} · {timeAgo(entry.createdAt)}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => deleteBitMutation.mutate(entry.id)}
-                            className="text-muted-foreground/30 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <p className="text-sm text-foreground whitespace-pre-wrap">{entry.nota}</p>
-                        <p className="text-[10px] text-muted-foreground">por {entry.autorNombre}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
 
             {/* ─── Pedidos ─── */}
             <TabsContent value="pedidos" className="mt-4">
