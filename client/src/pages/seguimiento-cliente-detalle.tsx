@@ -19,7 +19,7 @@ import {
   MapPin, AlertTriangle, CheckCircle2, ShoppingCart,
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
   ArrowLeft, Calendar, Clock, CreditCard, Save, X, Tags,
-  BookOpen, Target, ShieldCheck, Package, Star, Search,
+  Star, Search, Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,34 @@ const COMPOSER_BIT_TIPOS = [
 ];
 const BIT_COMPOSER_VALUES = new Set(COMPOSER_BIT_TIPOS.map((t) => t.value));
 
+// ─── Etiquetas del cliente (chips libres en la card Notas) ────────────
+// Se persisten como JSON array de strings en crm_seguimiento_clientes.etiquetas.
+const ETIQUETA_COLORS = [
+  "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+];
+
+// Hash estable para que cada etiqueta conserve su color entre renders
+function etiquetaColor(tag: string): string {
+  let h = 0;
+  for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0;
+  return ETIQUETA_COLORS[h % ETIQUETA_COLORS.length];
+}
+
+function parseEtiquetas(raw: unknown): string[] {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // ─── Página de detalle ────────────────────────────────────────────────
 export default function SeguimientoClienteDetalle() {
   const { user } = useAuth();
@@ -87,6 +115,9 @@ export default function SeguimientoClienteDetalle() {
   const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
   const comunaInputRef = useRef<HTMLInputElement>(null);
   const comunaDropdownRef = useRef<HTMLDivElement>(null);
+  // Borrador de la card "Notas" (null = sin cambios locales)
+  const [notasDraft, setNotasDraft] = useState<string | null>(null);
+  const [etiquetaInput, setEtiquetaInput] = useState("");
 
   // ─── Query detalle del cliente ──────────────────────────────────
   const { data: client, isLoading, refetch } = useQuery({
@@ -424,6 +455,24 @@ export default function SeguimientoClienteDetalle() {
   const displayEmail = client.email || cv?.email || "—";
   const displayCondicionPago = client.condicionPago || (cv?.cpen || client.linkedCpen || "")?.trim() || "—";
   const anotacionErp = (cv?.oben || client.linkedOben || "")?.trim();
+  const notasValue = notasDraft ?? (client.notas || "");
+  const notasDirty = notasDraft !== null && notasDraft !== (client.notas || "");
+  const etiquetas = parseEtiquetas(client.etiquetas);
+
+  const addEtiqueta = () => {
+    const tag = etiquetaInput.trim();
+    if (!tag) return;
+    if (etiquetas.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+      setEtiquetaInput("");
+      return;
+    }
+    updateMutation.mutate({ etiquetas: JSON.stringify([...etiquetas, tag]) });
+    setEtiquetaInput("");
+  };
+
+  const removeEtiqueta = (tag: string) => {
+    updateMutation.mutate({ etiquetas: JSON.stringify(etiquetas.filter((t) => t !== tag)) });
+  };
 
   // ─── Render ─────────────────────────────────────────────────────
   return (
@@ -636,7 +685,7 @@ export default function SeguimientoClienteDetalle() {
         {/* ═══ Layout 2 columnas ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5 items-start">
 
-          {/* ─── Columna izquierda: Información + Ayuda Memoria ─── */}
+          {/* ─── Columna izquierda: Información + Notas ─── */}
           <div className="space-y-5">
 
             {/* Card Información */}
@@ -877,9 +926,93 @@ export default function SeguimientoClienteDetalle() {
               </div>
             )}
 
-            {/* Card Ayuda Memoria (reemplaza a la antigua card "Notas") */}
-            <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
-              <AyudaMemoriaTab clientId={clientId!} clientNombre={client.nombre} clientRut={client.rut} />
+            {/* Card Notas + Etiquetas */}
+            <div className="rounded-xl border bg-card shadow-sm">
+              <div className="px-4 sm:px-5 py-3.5 border-b flex items-center justify-between">
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  Notas
+                </h2>
+                {notasDirty && (
+                  <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin guardar</Badge>
+                )}
+              </div>
+              <div className="p-4 sm:p-5 space-y-4">
+                {/* Etiquetas */}
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <Tags className="w-3 h-3" /> Etiquetas
+                  </p>
+                  <div className="flex flex-wrap gap-1.5" data-testid="etiquetas-list">
+                    {etiquetas.map((tag) => (
+                      <span
+                        key={tag}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${etiquetaColor(tag)}`}
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeEtiqueta(tag)}
+                          disabled={updateMutation.isPending}
+                          className="hover:opacity-60 transition-opacity"
+                          title="Quitar etiqueta"
+                          data-testid={`btn-quitar-etiqueta-${tag}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {etiquetas.length === 0 && (
+                      <span className="text-xs text-muted-foreground">Sin etiquetas aún</span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={etiquetaInput}
+                      onChange={(e) => setEtiquetaInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEtiqueta(); } }}
+                      placeholder="Nueva etiqueta..."
+                      className="h-8 text-sm"
+                      data-testid="input-etiqueta"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={addEtiqueta}
+                      disabled={!etiquetaInput.trim() || updateMutation.isPending}
+                      className="h-8 px-2.5"
+                      title="Agregar etiqueta"
+                      data-testid="btn-agregar-etiqueta"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Notas internas */}
+                <div className="space-y-2">
+                  <Textarea
+                    value={notasValue}
+                    onChange={(e) => setNotasDraft(e.target.value)}
+                    placeholder="Notas internas sobre este cliente..."
+                    rows={4}
+                    className="text-sm resize-none"
+                    data-testid="textarea-notas"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => updateMutation.mutate({ notas: notasValue }, { onSuccess: () => setNotasDraft(null) })}
+                      disabled={!notasDirty || updateMutation.isPending}
+                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+                      data-testid="btn-guardar-notas"
+                    >
+                      {updateMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                      Guardar notas
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1034,8 +1167,7 @@ export default function SeguimientoClienteDetalle() {
         </div>
 
         {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras ═══ */}
-        {/* La bitácora del cliente vive integrada en el timeline de Actividad; */}
-        {/* la Ayuda Memoria vive como card en la columna izquierda */}
+        {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
           <Tabs defaultValue="pedidos" className="w-full">
             <TabsList className="w-full grid grid-cols-3 h-auto">
@@ -1178,310 +1310,6 @@ function InfoItem({ icon: Icon, label, value }: { icon: any; label: string; valu
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium">{label}</p>
         <p className="text-sm font-medium text-foreground truncate" title={value}>{value}</p>
       </div>
-    </div>
-  );
-}
-
-// ─── Pestaña Ayuda Memoria ────────────────────────────────────────────
-const TIPOS_CLIENTE = [
-  { value: "ferreteria", label: "Ferretería" },
-  { value: "construccion", label: "Construcción" },
-  { value: "industrial", label: "Industrial" },
-  { value: "hogar", label: "Hogar" },
-  { value: "pintureria", label: "Pinturería" },
-  { value: "distribuidor", label: "Distribuidor" },
-  { value: "otro", label: "Otro" },
-];
-
-const FRECUENCIAS = [
-  { value: "semanal", label: "Semanal" },
-  { value: "quincenal", label: "Quincenal" },
-  { value: "mensual", label: "Mensual" },
-  { value: "bimestral", label: "Bimestral" },
-  { value: "trimestral", label: "Trimestral" },
-  { value: "esporadico", label: "Esporádico" },
-];
-
-function AyudaMemoriaTab({ clientId, clientNombre, clientRut }: { clientId: string; clientNombre: string; clientRut?: string }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  // Ficha de ayuda memoria existente para este cliente
-  const { data: fichas = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/crm/ayuda-memoria", "cliente", clientId],
-    queryFn: async () => {
-      const res = await fetch(`/api/crm/ayuda-memoria?busqueda=`);
-      if (!res.ok) return [];
-      const all = await res.json();
-      return all.filter((f: any) => f.clienteSeguimientoId === clientId);
-    },
-    enabled: !!clientId,
-  });
-
-  const ficha = fichas[0] || null;
-
-  const [form, setForm] = useState({
-    giro: "", direccion: "", ciudad: "", tipoCliente: "",
-    contactoPrincipal: "", telefonoContacto: "", emailContacto: "",
-    productosInteres: "", frecuenciaCompra: "", condicionesPago: "", competencia: "",
-    fortalezas: "", debilidades: "", oportunidades: "", observaciones: "",
-  });
-  const [initialized, setInitialized] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  // Inicializa el formulario cuando llega la ficha
-  useEffect(() => {
-    if (ficha && !initialized) {
-      setForm({
-        giro: ficha.giro || "",
-        direccion: ficha.direccion || "",
-        ciudad: ficha.ciudad || "",
-        tipoCliente: ficha.tipoCliente || "",
-        contactoPrincipal: ficha.contactoPrincipal || "",
-        telefonoContacto: ficha.telefonoContacto || "",
-        emailContacto: ficha.emailContacto || "",
-        productosInteres: ficha.productosInteres || "",
-        frecuenciaCompra: ficha.frecuenciaCompra || "",
-        condicionesPago: ficha.condicionesPago || "",
-        competencia: ficha.competencia || "",
-        fortalezas: ficha.fortalezas || "",
-        debilidades: ficha.debilidades || "",
-        oportunidades: ficha.oportunidades || "",
-        observaciones: ficha.observaciones || "",
-      });
-      setInitialized(true);
-    } else if (!ficha && !isLoading && !initialized) {
-      setInitialized(true);
-    }
-  }, [ficha, isLoading, initialized]);
-
-  const updateField = (field: string, value: string) => {
-    setForm(f => ({ ...f, [field]: value }));
-    setHasChanges(true);
-  };
-
-  // Guardar (crea o actualiza según exista ficha)
-  const saveMutation = useMutation({
-    mutationFn: async (data: any) => {
-      if (ficha) {
-        const res = await fetch(`/api/crm/ayuda-memoria/${ficha.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-        if (!res.ok) throw new Error("Error al guardar");
-        return res.json();
-      } else {
-        const res = await fetch("/api/crm/ayuda-memoria", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...data,
-            clienteSeguimientoId: clientId,
-            clienteNombre: clientNombre,
-            rut: clientRut || null,
-          }),
-        });
-        if (!res.ok) throw new Error("Error al crear");
-        return res.json();
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/crm/ayuda-memoria"] });
-      toast({ title: "✅ Ayuda memoria guardada" });
-      setHasChanges(false);
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const handleSave = () => {
-    saveMutation.mutate(form);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <RefreshCw className="w-5 h-5 animate-spin text-teal-500" />
-        <span className="ml-2 text-sm text-muted-foreground">Cargando ayuda memoria...</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5" data-testid="ayuda-memoria-tab">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-            <BookOpen className="w-3.5 h-3.5 text-teal-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-foreground">Ayuda Memoria</h3>
-            <p className="text-[10px] text-muted-foreground leading-none">
-              {ficha ? `Última actualización: ${formatDate(ficha.updatedAt)}` : "Sin información registrada aún"}
-            </p>
-          </div>
-        </div>
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={saveMutation.isPending || !hasChanges}
-          className={`text-xs transition-all duration-300 ${
-            hasChanges
-              ? "bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md shadow-teal-500/25"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {saveMutation.isPending ? (
-            <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Guardando...</>
-          ) : (
-            <><Save className="w-3.5 h-3.5 mr-1.5" /> Guardar</>
-          )}
-        </Button>
-      </div>
-
-      {/* Sección: Info del Negocio */}
-      <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/20 p-4 space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
-          <Building2 className="w-3 h-3" /> Datos del Negocio
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Giro</label>
-            <Input value={form.giro} onChange={e => updateField("giro", e.target.value)} placeholder="Rubro del negocio" className="h-8 text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Tipo de Cliente</label>
-            <Select value={form.tipoCliente} onValueChange={v => updateField("tipoCliente", v)}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-              <SelectContent>
-                {TIPOS_CLIENTE.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Dirección</label>
-            <Input value={form.direccion} onChange={e => updateField("direccion", e.target.value)} placeholder="Dirección principal" className="h-8 text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Ciudad</label>
-            <Input value={form.ciudad} onChange={e => updateField("ciudad", e.target.value)} placeholder="Ciudad" className="h-8 text-sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* Sección: Contacto */}
-      <div className="rounded-xl border bg-blue-50/30 dark:bg-blue-900/10 p-4 space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-          <Phone className="w-3 h-3" /> Contacto
-        </p>
-        {/* Apilado: la card vive en la columna angosta del layout */}
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Contacto Principal</label>
-            <Input value={form.contactoPrincipal} onChange={e => updateField("contactoPrincipal", e.target.value)} placeholder="Nombre" className="h-8 text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Teléfono</label>
-            <Input value={form.telefonoContacto} onChange={e => updateField("telefonoContacto", e.target.value)} placeholder="+56 9..." className="h-8 text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Email</label>
-            <Input value={form.emailContacto} onChange={e => updateField("emailContacto", e.target.value)} placeholder="correo@empresa.cl" className="h-8 text-sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* Sección: Comercial */}
-      <div className="rounded-xl border bg-amber-50/30 dark:bg-amber-900/10 p-4 space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-          <Package className="w-3 h-3" /> Información Comercial
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Productos de Interés</label>
-            <Textarea value={form.productosInteres} onChange={e => updateField("productosInteres", e.target.value)} placeholder="¿Qué suele comprar o le interesa?" rows={2} className="text-sm resize-none" />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Frecuencia de Compra</label>
-            <Select value={form.frecuenciaCompra} onValueChange={v => updateField("frecuenciaCompra", v)}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-              <SelectContent>
-                {FRECUENCIAS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Condiciones de Pago</label>
-            <Input value={form.condicionesPago} onChange={e => updateField("condicionesPago", e.target.value)} placeholder="Contado, Crédito 30 días..." className="h-8 text-sm" />
-          </div>
-          <div className="col-span-2">
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Competencia</label>
-            <Textarea value={form.competencia} onChange={e => updateField("competencia", e.target.value)} placeholder="¿Qué marcas de la competencia usa?" rows={2} className="text-sm resize-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Sección: Análisis FODA */}
-      <div className="space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-          <Target className="w-3 h-3" /> Análisis del Cliente
-        </p>
-        <div className="grid grid-cols-1 gap-3">
-          {/* Fortalezas */}
-          <div className="rounded-xl border overflow-hidden bg-emerald-50/40 dark:bg-emerald-900/10">
-            <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-600" />
-            <div className="p-3">
-              <label className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mb-1.5">
-                <ShieldCheck className="w-3 h-3" /> Fortalezas
-              </label>
-              <Textarea value={form.fortalezas} onChange={e => updateField("fortalezas", e.target.value)} placeholder="Puntos fuertes de la relación..." rows={3} className="text-sm resize-none border-emerald-200 dark:border-emerald-800 focus-visible:ring-emerald-400" />
-            </div>
-          </div>
-          {/* Debilidades */}
-          <div className="rounded-xl border overflow-hidden bg-red-50/40 dark:bg-red-900/10">
-            <div className="h-1 bg-gradient-to-r from-red-500 to-rose-600" />
-            <div className="p-3">
-              <label className="text-[10px] font-bold text-red-700 dark:text-red-400 flex items-center gap-1 mb-1.5">
-                <AlertTriangle className="w-3 h-3" /> Debilidades
-              </label>
-              <Textarea value={form.debilidades} onChange={e => updateField("debilidades", e.target.value)} placeholder="Puntos débiles o riesgos..." rows={3} className="text-sm resize-none border-red-200 dark:border-red-800 focus-visible:ring-red-400" />
-            </div>
-          </div>
-          {/* Oportunidades */}
-          <div className="rounded-xl border overflow-hidden bg-blue-50/40 dark:bg-blue-900/10">
-            <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
-            <div className="p-3">
-              <label className="text-[10px] font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1 mb-1.5">
-                <Sparkles className="w-3 h-3" /> Oportunidades
-              </label>
-              <Textarea value={form.oportunidades} onChange={e => updateField("oportunidades", e.target.value)} placeholder="Oportunidades de crecimiento..." rows={3} className="text-sm resize-none border-blue-200 dark:border-blue-800 focus-visible:ring-blue-400" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Observaciones */}
-      <div className="rounded-xl border bg-purple-50/30 dark:bg-purple-900/10 p-4 space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-          <FileText className="w-3 h-3" /> Observaciones Generales
-        </p>
-        <Textarea value={form.observaciones} onChange={e => updateField("observaciones", e.target.value)} placeholder="Notas adicionales sobre el cliente..." rows={3} className="text-sm resize-none" />
-      </div>
-
-      {/* Recordatorio de cambios sin guardar */}
-      {hasChanges && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <CheckCircle2 className="w-4 h-4 text-teal-600 flex-shrink-0" />
-          <p className="text-xs text-teal-700 dark:text-teal-300 flex-1">Tienes cambios sin guardar</p>
-          <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending} className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white">
-            {saveMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
-            Guardar ahora
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
