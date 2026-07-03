@@ -19,7 +19,7 @@ import {
   MapPin, AlertTriangle, CheckCircle2, ShoppingCart,
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
   ArrowLeft, Calendar, Clock, CreditCard, Save, X, Tags,
-  BookOpen, Target, ShieldCheck, Package, Star, DollarSign, Search,
+  BookOpen, Target, ShieldCheck, Package, Star, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,8 +41,6 @@ import {
   timeAgo,
   formatDate,
   formatCLP,
-  isOverdue,
-  proximoContactoLabel,
   fixEncoding,
   getInitials,
 } from "@/lib/crm-seguimiento";
@@ -89,13 +87,6 @@ export default function SeguimientoClienteDetalle() {
   const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
   const comunaInputRef = useRef<HTMLInputElement>(null);
   const comunaDropdownRef = useRef<HTMLDivElement>(null);
-  // Editores inline de la fila de datos clave
-  const [editingMonto, setEditingMonto] = useState(false);
-  const [montoDraft, setMontoDraft] = useState("");
-  const [editingFecha, setEditingFecha] = useState(false);
-  const [fechaDraft, setFechaDraft] = useState("");
-  // Borrador de la card "Notas" (null = sin cambios locales)
-  const [notasDraft, setNotasDraft] = useState<string | null>(null);
 
   // ─── Query detalle del cliente ──────────────────────────────────
   const { data: client, isLoading, refetch } = useQuery({
@@ -393,28 +384,6 @@ export default function SeguimientoClienteDetalle() {
     updateMutation.mutate({ estado: value });
   };
 
-  const openMontoEditor = () => {
-    const n = client?.montoEstimado != null ? parseFloat(client.montoEstimado) : NaN;
-    setMontoDraft(isNaN(n) ? "" : String(Math.round(n)));
-    setEditingMonto(true);
-  };
-
-  const saveMonto = () => {
-    const n = parseFloat(montoDraft);
-    updateMutation.mutate({ montoEstimado: montoDraft.trim() === "" || isNaN(n) ? null : n });
-    setEditingMonto(false);
-  };
-
-  const openFechaEditor = () => {
-    setFechaDraft(client?.proximoContacto ? new Date(client.proximoContacto).toISOString().slice(0, 10) : "");
-    setEditingFecha(true);
-  };
-
-  const saveFecha = () => {
-    updateMutation.mutate({ proximoContacto: fechaDraft || null });
-    setEditingFecha(false);
-  };
-
   // ─── Carga / no encontrado ──────────────────────────────────────
   if (isLoading) {
     return (
@@ -455,10 +424,6 @@ export default function SeguimientoClienteDetalle() {
   const displayEmail = client.email || cv?.email || "—";
   const displayCondicionPago = client.condicionPago || (cv?.cpen || client.linkedCpen || "")?.trim() || "—";
   const anotacionErp = (cv?.oben || client.linkedOben || "")?.trim();
-  const contactoOverdue = isOverdue(client.proximoContacto);
-  const contactoLabel = proximoContactoLabel(client.proximoContacto);
-  const notasValue = notasDraft ?? (client.notas || "");
-  const notasDirty = notasDraft !== null && notasDraft !== (client.notas || "");
 
   // ─── Render ─────────────────────────────────────────────────────
   return (
@@ -630,8 +595,8 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Fila de datos clave editables inline ═══ */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* ═══ Fila de datos clave ═══ */}
+        <div className="grid grid-cols-2 gap-3">
           {/* Prioridad */}
           <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-prioridad">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2">Prioridad</p>
@@ -656,87 +621,6 @@ export default function SeguimientoClienteDetalle() {
             </div>
           </div>
 
-          {/* Monto estimado */}
-          <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-monto">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2 flex items-center gap-1">
-              <DollarSign className="w-3 h-3" /> Monto estimado
-            </p>
-            {editingMonto ? (
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min={0}
-                  value={montoDraft}
-                  onChange={(e) => setMontoDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveMonto(); if (e.key === "Escape") setEditingMonto(false); }}
-                  placeholder="0"
-                  className="h-8 text-sm"
-                  autoFocus
-                />
-                <Button size="sm" onClick={saveMonto} className="h-8 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">
-                  <Save className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditingMonto(false)} className="h-8 px-2">
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <button
-                onClick={openMontoEditor}
-                className="text-lg font-bold text-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                title="Click para editar"
-                data-testid="btn-editar-monto"
-              >
-                {formatCLP(client.montoEstimado)}
-              </button>
-            )}
-          </div>
-
-          {/* Próximo contacto */}
-          <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-proximo-contacto">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Próximo contacto
-            </p>
-            {editingFecha ? (
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="date"
-                  value={fechaDraft}
-                  onChange={(e) => setFechaDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveFecha(); if (e.key === "Escape") setEditingFecha(false); }}
-                  className="h-8 text-sm"
-                  autoFocus
-                />
-                <Button size="sm" onClick={saveFecha} className="h-8 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">
-                  <Save className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditingFecha(false)} className="h-8 px-2">
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <button
-                onClick={openFechaEditor}
-                className="flex flex-wrap items-center gap-2 text-left"
-                title="Click para agendar"
-                data-testid="btn-editar-proximo-contacto"
-              >
-                <span className="text-sm font-semibold text-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                  {formatDate(client.proximoContacto)}
-                </span>
-                {contactoLabel && (
-                  <Badge className={`text-[10px] border-0 ${
-                    contactoOverdue
-                      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                      : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
-                  }`}>
-                    {contactoLabel}
-                  </Badge>
-                )}
-              </button>
-            )}
-          </div>
-
           {/* Último pedido real (solo lectura) */}
           <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-ultimo-pedido">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2 flex items-center gap-1">
@@ -752,7 +636,7 @@ export default function SeguimientoClienteDetalle() {
         {/* ═══ Layout 2 columnas ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5 items-start">
 
-          {/* ─── Columna izquierda: Información + Notas ─── */}
+          {/* ─── Columna izquierda: Información + Ayuda Memoria ─── */}
           <div className="space-y-5">
 
             {/* Card Información */}
@@ -993,39 +877,9 @@ export default function SeguimientoClienteDetalle() {
               </div>
             )}
 
-            {/* Card Notas */}
-            <div className="rounded-xl border bg-card shadow-sm">
-              <div className="px-4 sm:px-5 py-3.5 border-b flex items-center justify-between">
-                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-indigo-500" />
-                  Notas
-                </h2>
-                {notasDirty && (
-                  <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin guardar</Badge>
-                )}
-              </div>
-              <div className="p-4 sm:p-5 space-y-2">
-                <Textarea
-                  value={notasValue}
-                  onChange={(e) => setNotasDraft(e.target.value)}
-                  placeholder="Notas internas sobre este cliente..."
-                  rows={4}
-                  className="text-sm resize-none"
-                  data-testid="textarea-notas"
-                />
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => updateMutation.mutate({ notas: notasValue }, { onSuccess: () => setNotasDraft(null) })}
-                    disabled={!notasDirty || updateMutation.isPending}
-                    className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
-                    data-testid="btn-guardar-notas"
-                  >
-                    {updateMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-                    Guardar notas
-                  </Button>
-                </div>
-              </div>
+            {/* Card Ayuda Memoria (reemplaza a la antigua card "Notas") */}
+            <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
+              <AyudaMemoriaTab clientId={clientId!} clientNombre={client.nombre} clientRut={client.rut} />
             </div>
           </div>
 
@@ -1179,17 +1033,15 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras / Ayuda Memoria ═══ */}
-        {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
+        {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras ═══ */}
+        {/* La bitácora del cliente vive integrada en el timeline de Actividad; */}
+        {/* la Ayuda Memoria vive como card en la columna izquierda */}
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
           <Tabs defaultValue="pedidos" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto">
+            <TabsList className="w-full grid grid-cols-3 h-auto">
               <TabsTrigger value="pedidos" className="text-xs">Pedidos</TabsTrigger>
               <TabsTrigger value="nvv" className="text-xs">NVV</TabsTrigger>
               <TabsTrigger value="rut" className="text-xs">RUT / Compras</TabsTrigger>
-              <TabsTrigger value="ayuda-memoria" className="text-xs flex items-center gap-1">
-                <BookOpen className="w-3 h-3" /> Ayuda Memoria
-              </TabsTrigger>
             </TabsList>
 
             {/* ─── Pedidos ─── */}
@@ -1310,10 +1162,6 @@ export default function SeguimientoClienteDetalle() {
               </div>
             </TabsContent>
 
-            {/* ─── Ayuda Memoria ─── */}
-            <TabsContent value="ayuda-memoria" className="mt-4">
-              <AyudaMemoriaTab clientId={clientId!} clientNombre={client.nombre} clientRut={client.rut} />
-            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -1529,7 +1377,8 @@ function AyudaMemoriaTab({ clientId, clientNombre, clientRut }: { clientId: stri
         <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
           <Phone className="w-3 h-3" /> Contacto
         </p>
-        <div className="grid grid-cols-3 gap-3">
+        {/* Apilado: la card vive en la columna angosta del layout */}
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">Contacto Principal</label>
             <Input value={form.contactoPrincipal} onChange={e => updateField("contactoPrincipal", e.target.value)} placeholder="Nombre" className="h-8 text-sm" />
@@ -1580,7 +1429,7 @@ function AyudaMemoriaTab({ clientId, clientNombre, clientRut }: { clientId: stri
         <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
           <Target className="w-3 h-3" /> Análisis del Cliente
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {/* Fortalezas */}
           <div className="rounded-xl border overflow-hidden bg-emerald-50/40 dark:bg-emerald-900/10">
             <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-600" />

@@ -1354,9 +1354,9 @@ function RegistrarHitoDialog({ client, onOpenChange, onSubmit, isLoading }: {
 
 // ─── Modal: nuevo cliente ─────────────────────────────────────────────
 const EMPTY_FORM = {
-  nombre: "", telefono: "", email: "", empresa: "", rut: "", notas: "",
+  nombre: "", telefono: "", email: "", empresa: "", rut: "", comuna: "", notas: "",
   origen: "manual", vendedorId: "", segmento: "",
-  estado: "prospecto", prioridad: "media", montoEstimado: "", proximoContacto: "",
+  estado: "prospecto", prioridad: "media",
 };
 
 function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores, isAdminOrSupervisor }: {
@@ -1374,6 +1374,17 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
   const [isSearching, setIsSearching] = useState(false);
   const [selectedExisting, setSelectedExisting] = useState<any>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Comunas existentes (autocomplete, mismo endpoint que el detalle)
+  const { data: comunasSugeridas = [] } = useQuery<string[]>({
+    queryKey: ["/api/crm/comunas"],
+    queryFn: async () => {
+      const res = await fetch("/api/crm/comunas");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open,
+  });
 
   // El formulario se limpia al ABRIR el modal, no al enviar: si el POST
   // falla, el modal queda abierto y el usuario conserva lo que escribió.
@@ -1424,6 +1435,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       email: client.email || "",
       empresa: client.nokoen || "",
       telefono: client.foen || client.phone || f.telefono,
+      comuna: client.comuna ? fixEncoding(client.comuna) : f.comuna,
     }));
     setSearchQuery(client.nokoen || client.name || "");
     setShowSuggestions(false);
@@ -1435,8 +1447,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       ...form,
       vendedorId: form.vendedorId || undefined,
       segmento: form.segmento || undefined,
-      montoEstimado: form.montoEstimado ? Number(form.montoEstimado) : undefined,
-      proximoContacto: form.proximoContacto || undefined,
+      comuna: form.comuna.trim() || undefined,
     });
   };
 
@@ -1541,6 +1552,34 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
               <Input id="rut" value={form.rut} onChange={(e) => setForm((f) => ({ ...f, rut: e.target.value }))} placeholder="12.345.678-9" />
             </div>
             <div>
+              <Label htmlFor="comuna">Comuna</Label>
+              <Input
+                id="comuna"
+                list="comunas-sugeridas"
+                value={form.comuna}
+                onChange={(e) => setForm((f) => ({ ...f, comuna: e.target.value }))}
+                placeholder="Escribir o seleccionar comuna..."
+                autoComplete="off"
+                data-testid="input-comuna"
+              />
+              <datalist id="comunas-sugeridas">
+                {comunasSugeridas.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <Label htmlFor="segmento">Segmento</Label>
+              <Select value={form.segmento} onValueChange={(v) => setForm((f) => ({ ...f, segmento: v }))}>
+                <SelectTrigger id="segmento"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectContent>
+                  {SEGMENTOS_CRM.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label htmlFor="estado-inicial">Estado inicial</Label>
               <Select value={form.estado} onValueChange={(v) => setForm((f) => ({ ...f, estado: v }))}>
                 <SelectTrigger id="estado-inicial" data-testid="select-estado-inicial"><SelectValue /></SelectTrigger>
@@ -1573,48 +1612,13 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
               </Select>
             </div>
             <div>
-              <Label htmlFor="monto-estimado">Monto estimado (CLP)</Label>
-              <Input
-                id="monto-estimado"
-                type="number"
-                min="0"
-                step="1"
-                value={form.montoEstimado}
-                onChange={(e) => setForm((f) => ({ ...f, montoEstimado: e.target.value }))}
-                placeholder="0"
-                data-testid="input-monto-estimado"
-              />
-            </div>
-            <div>
-              <Label htmlFor="proximo-contacto">Próximo contacto</Label>
-              <Input
-                id="proximo-contacto"
-                type="date"
-                value={form.proximoContacto}
-                onChange={(e) => setForm((f) => ({ ...f, proximoContacto: e.target.value }))}
-                data-testid="input-proximo-contacto"
-              />
-            </div>
-            <div>
               <Label htmlFor="origen">Origen</Label>
               <Select value={form.origen} onValueChange={(v) => setForm((f) => ({ ...f, origen: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Manual</SelectItem>
-                  <SelectItem value="referido">Referido</SelectItem>
-                  <SelectItem value="web">Web</SelectItem>
-                  <SelectItem value="llamada">Llamada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="segmento">Segmento</Label>
-              <Select value={form.segmento} onValueChange={(v) => setForm((f) => ({ ...f, segmento: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>
-                  {SEGMENTOS_CRM.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
+                  <SelectItem value="digital_organico">Digital Orgánico</SelectItem>
+                  <SelectItem value="digital_pagado">Digital Pagado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

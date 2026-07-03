@@ -36441,6 +36441,7 @@ Instrucciones extra:
       montoEstimado: req.body.montoEstimado || null,
       origen: req.body.origen || 'manual',
       region: req.body.region || null,
+      comuna: req.body.comuna || null,
       segmento: req.body.segmento || null,
     };
 
