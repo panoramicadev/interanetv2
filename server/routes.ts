@@ -36060,13 +36060,23 @@ Instrucciones extra:
   // el kanban (que normaliza) de las stats (que agrupan por valor crudo).
   const ESTADOS_PIPELINE = ["prospecto", "seguimiento", "cotizacion", "venta", "despacho"];
 
-  // Un vendedor solo puede operar sobre SUS leads del seguimiento (los
-  // demás roles ven todo). Único punto de verdad del check de ownership:
-  // debe aplicarse en TODO endpoint que reciba un :id de seguimiento.
-  const canAccessSeguimiento = async (user: any, vendedorId: string | null): Promise<boolean> => {
-    if (user?.role !== 'salesperson') return true;
+  // Scope de vendedor del CRM: solo el admin ve todos los leads. Cualquier
+  // otro usuario cuyo email esté vinculado a un vendedor (salespeople_users)
+  // queda acotado a SUS leads — cubre supervisores/encargados que además
+  // venden. Un no-admin sin vínculo conserva el comportamiento de su rol.
+  const getVendedorScope = async (user: any): Promise<{ id: string; name: string } | null> => {
+    if (!user || user.role === 'admin') return null;
     const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-    return spUser.length > 0 && spUser[0].id === vendedorId;
+    return spUser.length > 0 ? { id: spUser[0].id, name: spUser[0].salespersonName } : null;
+  };
+
+  // Único punto de verdad del check de ownership sobre un lead: debe
+  // aplicarse en TODO endpoint que reciba un :id de seguimiento.
+  const canAccessSeguimiento = async (user: any, vendedorId: string | null): Promise<boolean> => {
+    const scope = await getVendedorScope(user);
+    if (scope) return scope.id === vendedorId;
+    // Sin vínculo a vendedor: un salesperson no opera nada; el resto sí.
+    return user?.role !== 'salesperson';
   };
 
   // GET /api/crm/comunas — List unique comunas used in CRM for autocomplete
@@ -36114,14 +36124,13 @@ Instrucciones extra:
     // Build where conditions
     const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
 
-    if (user.role === 'salesperson') {
-      // Salespeople only see their own clients
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length > 0) {
-        conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
-      } else {
-        return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
-      }
+    const scope = await getVendedorScope(user);
+    if (scope) {
+      // Usuario vinculado a vendedor (incluye supervisor que vende):
+      // solo sus propios leads, ignorando el filtro de vendedor.
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+    } else if (user.role === 'salesperson') {
+      return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
     } else if (vendedorFilter && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
     }
@@ -36161,14 +36170,14 @@ Instrucciones extra:
 
     const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
 
-    // Role-based filtering
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length > 0) {
-        conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
-      } else {
-        return res.json([]);
-      }
+    // Role-based filtering: un usuario acotado a su scope de vendedor
+    // solo lista sus leads; el filtro ?vendedor= queda para el admin (o
+    // supervisor/encargado sin vínculo a vendedor).
+    const scope = await getVendedorScope(user);
+    if (scope) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+    } else if (user.role === 'salesperson') {
+      return res.json([]);
     } else if (vendedor && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
     }
@@ -36395,15 +36404,16 @@ Instrucciones extra:
     let vendedorId: string;
     let vendedorNombre: string;
 
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0) {
-        return res.status(400).json({ message: 'Usuario vendedor no encontrado' });
-      }
-      vendedorId = spUser[0].id;
-      vendedorNombre = spUser[0].salespersonName;
+    const scope = await getVendedorScope(user);
+    if (scope) {
+      // Usuario vinculado a vendedor (incluye supervisor que vende): sus
+      // leads nuevos siempre quedan asignados a sí mismo.
+      vendedorId = scope.id;
+      vendedorNombre = scope.name;
+    } else if (user.role === 'salesperson') {
+      return res.status(400).json({ message: 'Usuario vendedor no encontrado' });
     } else if (req.body.vendedorId && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
-      // Admin/supervisor can assign to a specific salesperson
+      // Admin (o supervisor/encargado sin vínculo) can assign to a specific salesperson
       const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
       if (spUser.length === 0) {
         return res.status(400).json({ message: 'Vendedor especificado no encontrado' });
@@ -36411,7 +36421,7 @@ Instrucciones extra:
       vendedorId = spUser[0].id;
       vendedorNombre = spUser[0].salespersonName;
     } else {
-      // Admin/supervisor creating for themselves - try to find their salespeople record
+      // Admin creating for themselves - try to find their salespeople record
       const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
       if (spUser.length > 0) {
         vendedorId = spUser[0].id;
@@ -36518,8 +36528,9 @@ Instrucciones extra:
       }
     }
 
-    // Handle vendedor reassignment (admin/supervisor only)
-    if (req.body.vendedorId && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
+    // Handle vendedor reassignment: solo admin (o supervisor/encargado sin
+    // vínculo a vendedor); un usuario acotado a su scope no reasigna leads.
+    if (req.body.vendedorId && !(await getVendedorScope(user)) && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
       const [newVendedor] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
       if (newVendedor) {
         updateData.vendedorId = newVendedor.id;
@@ -36602,12 +36613,11 @@ Instrucciones extra:
       inArray(crmSeguimientoClientes.id, ids),
       eq(crmSeguimientoClientes.active, true),
     ];
-    if (user.role === 'salesperson') {
-      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-      if (spUser.length === 0) {
-        return res.status(403).json({ message: 'Usuario vendedor no encontrado' });
-      }
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
+    const scope = await getVendedorScope(user);
+    if (scope) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+    } else if (user.role === 'salesperson') {
+      return res.status(403).json({ message: 'Usuario vendedor no encontrado' });
     }
 
     const deleted = await db.update(crmSeguimientoClientes)
@@ -36875,8 +36885,14 @@ Instrucciones extra:
     });
   }));
 
-  // GET /api/crm/vendedores — Get list of salespeople for admin/supervisor dropdown
+  // GET /api/crm/vendedores — Get list of salespeople for admin/supervisor dropdown.
+  // Un usuario acotado a su scope de vendedor solo se ve a sí mismo, así los
+  // dropdowns de filtro/asignación del frontend no ofrecen otros vendedores.
   app.get('/api/crm/vendedores', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
+    const scope = await getVendedorScope(req.user);
+    const conditions = [eq(salespeopleUsers.isActive, true)];
+    if (scope) conditions.push(eq(salespeopleUsers.id, scope.id));
+
     const vendedores = await db.select({
       id: salespeopleUsers.id,
       salespersonName: salespeopleUsers.salespersonName,
@@ -36884,7 +36900,7 @@ Instrucciones extra:
       isActive: salespeopleUsers.isActive,
     })
       .from(salespeopleUsers)
-      .where(eq(salespeopleUsers.isActive, true))
+      .where(and(...conditions))
       .orderBy(asc(salespeopleUsers.salespersonName));
 
     res.json(vendedores);
