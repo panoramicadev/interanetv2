@@ -130,7 +130,10 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "dashboard", item: { href: "/", label: "Dashboard", icon: LayoutDashboard } },
   { key: "productos", item: { href: "/productos", label: "Productos", icon: Package } },
   { key: "clientes", item: { href: "/clientes", label: "Clientes", icon: Users } },
-  { key: "clientes.seguimiento", item: { href: "/seguimiento-clientes", label: "Seguimiento Clientes", icon: UserCheck } },
+  // Para roles cuyo sidebar base ya trae el grupo Panorámica Market, el CRM
+  // vive como hijo del grupo (sidebar-config); este extra solo aplica a
+  // roles sin ese grupo (ej: vendedor habilitado desde Gestión de Usuarios).
+  { key: "clientes.seguimiento", item: { href: "/seguimiento-clientes", label: "CRM", icon: UserCheck } },
   { key: "clientes.ayuda_memoria", item: { href: "/ayuda-memoria", label: "Ayuda Memoria", icon: BookOpen } },
   { key: "tomador_pedidos", item: { href: "/tomador-pedidos", label: "Tomador de Pedidos", icon: ClipboardCheck } },
   { key: "seguimiento_pedidos", item: { href: "/seguimiento-pedidos", label: "Pedidos", icon: PackageSearch } },
