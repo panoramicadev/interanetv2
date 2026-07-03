@@ -796,6 +796,33 @@ export default function TomadorPedidos({ variant = "v1" }: { variant?: "v1" | "v
     }
   }, [location]);
 
+  // Abrir el constructor con un cliente precargado (clientRut en la URL).
+  // Lo usa el detalle del CRM Seguimiento: la etapa "Cotización" abre el
+  // Tomador 2 con el cliente del seguimiento ya seleccionado.
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const clientRut = searchParams.get('clientRut');
+    if (!clientRut) return;
+
+    (async () => {
+      try {
+        const res = await apiRequest(`/api/clients/search-by-rut?rut=${encodeURIComponent(clientRut)}`);
+        const data = await res.json();
+        if (data.found && data.client) {
+          handleCreateQuoteForClient(data.client);
+        } else {
+          toast({
+            title: "Cliente no encontrado",
+            description: `No hay cliente con RUT ${clientRut} en la base de ventas. Selecciónalo manualmente.`,
+            variant: "destructive",
+          });
+        }
+      } catch {
+        // Sin red o sin permiso: el tomador queda usable en blanco
+      }
+    })();
+  }, [location]);
+
   // Function to load a quote for editing
   const loadQuoteForEditing = async (quoteId: string) => {
     try {

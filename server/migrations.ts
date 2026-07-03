@@ -680,6 +680,12 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_creado_por" ON crm_ayuda_memoria (creado_por)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ayuda_mem_created" ON crm_ayuda_memoria (created_at)`);
 
+    // 15.1. Etiquetas libres del cliente en seguimiento (JSON array en texto).
+    // Drizzle enumera todas las columnas del schema en cada SELECT, así que
+    // esta columna DEBE existir antes de servir tráfico del CRM.
+    console.log('  🏷️  Verificando columna etiquetas en crm_seguimiento_clientes...');
+    await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS etiquetas TEXT`);
+
     // 16. Crear tabla user_branch_assignments (relación muchos-a-muchos usuario ↔ sucursal)
     console.log('  🔗 Verificando tabla user_branch_assignments...');
     await db.execute(sql`

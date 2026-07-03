@@ -36506,7 +36506,7 @@ Instrucciones extra:
     }
 
     const updateData: any = { updatedAt: new Date() };
-    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado'];
+    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'etiquetas', 'montoEstimado', 'origen', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado'];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {

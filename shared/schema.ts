@@ -7316,6 +7316,7 @@ export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
   estado: varchar("estado").notNull().default("nuevo"), // nuevo, contactado, cotizacion, venta, despacho, completado, perdido
   prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta
   notas: text("notas"), // Notas iniciales
+  etiquetas: text("etiquetas"), // Tags libres del cliente (JSON array de strings)
   ultimoContacto: timestamp("ultimo_contacto"), // Fecha del último contacto registrado
   proximoContacto: timestamp("proximo_contacto"), // Fecha programada del próximo contacto
   montoEstimado: numeric("monto_estimado", { precision: 15, scale: 2 }), // Monto estimado de la oportunidad
