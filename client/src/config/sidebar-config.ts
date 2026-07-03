@@ -91,12 +91,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         //   label: "Cotizaciones",
         //   icon: FileText,
         // },
-        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
-        // {
-        //   href: "/seguimiento-clientes",
-        //   label: "Seguimiento",
-        //   icon: UserCheck,
-        // },
+        {
+          href: "/seguimiento-clientes",
+          label: "CRM",
+          icon: UserCheck,
+        },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -425,12 +424,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         //   label: "Cotizaciones",
         //   icon: FileText,
         // },
-        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
-        // {
-        //   href: "/seguimiento-clientes",
-        //   label: "Seguimiento",
-        //   icon: UserCheck,
-        // },
+        {
+          href: "/seguimiento-clientes",
+          label: "CRM",
+          icon: UserCheck,
+        },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -609,12 +607,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         //   label: "Cotizaciones",
         //   icon: FileText,
         // },
-        // Seguimiento oculto del sidebar (ruta /seguimiento-clientes sigue activa)
-        // {
-        //   href: "/seguimiento-clientes",
-        //   label: "Seguimiento",
-        //   icon: UserCheck,
-        // },
+        {
+          href: "/seguimiento-clientes",
+          label: "CRM",
+          icon: UserCheck,
+        },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
@@ -819,6 +816,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         //   label: "Cotizaciones",
         //   icon: FileText,
         // },
+        // Solo visible si a la recepcionista se le habilita el CRM
+        // (Gestión de Usuarios → Acceso CRM); el filtro por permiso lo oculta.
+        {
+          href: "/seguimiento-clientes",
+          label: "CRM",
+          icon: UserCheck,
+        },
         {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
