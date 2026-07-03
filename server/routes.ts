@@ -35984,10 +35984,17 @@ Instrucciones extra:
   // Create bitácora entry
   app.post('/api/bitacora', requireAuth, async (req: any, res) => {
     try {
-      const { documentoTipo, documentoId, documentoNumero, clienteNombre, clienteRut, nota, tipo } = req.body;
+      const { documentoTipo, documentoId, documentoNumero, clienteNombre, clienteRut, nota, tipo, fechaProgramada } = req.body;
 
       if (!documentoTipo || !documentoId || !nota) {
         return res.status(400).json({ message: 'documentoTipo, documentoId y nota son requeridos' });
+      }
+
+      // Fecha agendada opcional: la entrada queda anclada a ese día en el calendario
+      let fechaProg: Date | null = null;
+      if (fechaProgramada) {
+        const parsed = new Date(fechaProgramada);
+        if (!isNaN(parsed.getTime())) fechaProg = parsed;
       }
 
       const [entry] = await db
@@ -36002,6 +36009,7 @@ Instrucciones extra:
           tipo: tipo || 'nota',
           autorId: req.user.id,
           autorNombre: req.user.fullName || req.user.username || 'Sistema',
+          fechaProgramada: fechaProg,
         })
         .returning();
 
@@ -36009,10 +36017,14 @@ Instrucciones extra:
       if (documentoTipo === 'cliente' && documentoId) {
         try {
           // documentoId can be either the clienteId (linked SAP client) or the CRM seguimiento id
-          // Try matching by clienteId first, then by id
+          // Try matching by clienteId first, then by id. Una entrada agendada
+          // a futuro fija proximoContacto en vez de marcar ultimoContacto.
+          const contactUpdates = fechaProg && fechaProg.getTime() > Date.now()
+            ? { proximoContacto: fechaProg }
+            : { ultimoContacto: new Date() };
           const updated = await db
             .update(crmSeguimientoClientes)
-            .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+            .set({ ...contactUpdates, updatedAt: new Date() })
             .where(
               or(
                 eq(crmSeguimientoClientes.clienteId, documentoId),
@@ -36638,10 +36650,17 @@ Instrucciones extra:
       return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
-    const { tipo, descripcion, documentoTipo, documentoNumero } = req.body;
+    const { tipo, descripcion, documentoTipo, documentoNumero, fechaProgramada } = req.body;
 
     if (!tipo || !descripcion) {
       return res.status(400).json({ message: 'Tipo y descripción son requeridos' });
+    }
+
+    // Fecha agendada opcional: el hito queda anclado a ese día en el calendario
+    let fechaProg: Date | null = null;
+    if (fechaProgramada) {
+      const parsed = new Date(fechaProgramada);
+      if (!isNaN(parsed.getTime())) fechaProg = parsed;
     }
 
     const autorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
@@ -36655,13 +36674,22 @@ Instrucciones extra:
       documentoTipo: documentoTipo || null,
       documentoNumero: documentoNumero || null,
       autoDetectado: false,
+      fechaProgramada: fechaProg,
     }).returning();
 
-    // Update ultimo contacto on the seguimiento record
+    // Update ultimo/proximo contacto on the seguimiento record: un hito
+    // agendado a futuro fija proximoContacto (no es un contacto ocurrido);
+    // el resto conserva el comportamiento de marcar ultimoContacto.
     const contactTypes = ['contacto', 'llamada', 'cotizacion', 'visita', 'venta'];
-    if (contactTypes.includes(tipo)) {
+    const contactUpdates: Record<string, Date> = {};
+    if (fechaProg && fechaProg.getTime() > Date.now()) {
+      contactUpdates.proximoContacto = fechaProg;
+    } else if (contactTypes.includes(tipo)) {
+      contactUpdates.ultimoContacto = new Date();
+    }
+    if (Object.keys(contactUpdates).length > 0) {
       await db.update(crmSeguimientoClientes)
-        .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+        .set({ ...contactUpdates, updatedAt: new Date() })
         .where(eq(crmSeguimientoClientes.id, id));
     }
 

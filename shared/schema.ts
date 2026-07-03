@@ -7238,6 +7238,7 @@ export const pedidoBitacora = pgTable("pedido_bitacora", {
   tipo: varchar("tipo", { length: 30 }).notNull().default("nota"), // 'nota', 'llamada', 'visita', 'seguimiento', 'problema'
   autorId: varchar("autor_id").notNull(),
   autorNombre: varchar("autor_nombre", { length: 255 }).notNull(),
+  fechaProgramada: timestamp("fecha_programada"), // Entrada agendada en calendario (opcional)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
@@ -7345,6 +7346,7 @@ export const crmSeguimientoHitos = pgTable("crm_seguimiento_hitos", {
   documentoTipo: varchar("documento_tipo"), // nvv, gdv, factura
   documentoNumero: varchar("documento_numero"),
   autoDetectado: boolean("auto_detectado").default(false), // Si fue detectado automáticamente
+  fechaProgramada: timestamp("fecha_programada"), // Hito agendado en calendario (opcional)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   seguimientoIdx: index("IDX_crm_hito_seguimiento").on(table.seguimientoId),
