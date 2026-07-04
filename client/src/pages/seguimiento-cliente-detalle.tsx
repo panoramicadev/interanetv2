@@ -504,12 +504,6 @@ export default function SeguimientoClienteDetalle() {
       const [h, m] = hitoForm.hora ? hitoForm.hora.split(":").map(Number) : [12, 0];
       fechaProgramada = new Date(hitoForm.fecha.getFullYear(), hitoForm.fecha.getMonth(), hitoForm.fecha.getDate(), h, m).toISOString();
     }
-    // Al agendar, saltar a la vista calendario con el día del evento
-    // seleccionado para confirmar visualmente dónde quedó.
-    const fechaSel = hitoForm.fecha;
-    const opts = fechaSel
-      ? { onSuccess: () => { setVistaActividad("calendario"); setCalDia(fechaSel); } }
-      : undefined;
     if (BIT_COMPOSER_VALUES.has(hitoForm.tipo)) {
       const cv = client.clienteVinculado;
       createBitMutation.mutate({
@@ -521,9 +515,9 @@ export default function SeguimientoClienteDetalle() {
         nota: descripcion,
         tipo: hitoForm.tipo,
         fechaProgramada,
-      }, opts);
+      });
     } else {
-      addHitoMutation.mutate({ tipo: hitoForm.tipo, descripcion, fechaProgramada }, opts);
+      addHitoMutation.mutate({ tipo: hitoForm.tipo, descripcion, fechaProgramada });
     }
   };
 
@@ -1334,19 +1328,21 @@ export default function SeguimientoClienteDetalle() {
                 <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
                   <button
                     onClick={() => setVistaActividad("lista")}
-                    className={`p-1 rounded-md transition-colors ${vistaActividad === "lista" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    title="Vista timeline"
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "lista" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    title="Ver como línea de tiempo"
                     data-testid="btn-vista-lista"
                   >
                     <List className="w-3.5 h-3.5" />
+                    Lista
                   </button>
                   <button
                     onClick={() => setVistaActividad("calendario")}
-                    className={`p-1 rounded-md transition-colors ${vistaActividad === "calendario" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    title="Vista calendario"
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "calendario" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    title="Ver en calendario"
                     data-testid="btn-vista-calendario"
                   >
                     <CalendarDays className="w-3.5 h-3.5" />
+                    Calendario
                   </button>
                 </div>
               </div>
@@ -1678,7 +1674,17 @@ export default function SeguimientoClienteDetalle() {
                       locale={es}
                       selected={calDia ?? undefined}
                       onSelect={(d) => setCalDia(d ?? null)}
-                      className="mx-auto"
+                      className="w-full p-4"
+                      classNames={{
+                        months: "w-full",
+                        month: "w-full space-y-4",
+                        table: "w-full border-collapse space-y-1",
+                        head_row: "flex w-full",
+                        head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem]",
+                        row: "flex w-full mt-2",
+                        cell: "flex-1 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                        day: "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10 mx-auto p-0 font-normal aria-selected:opacity-100",
+                      }}
                       modifiers={{ agendado: calendario.agendados, registrado: calendario.registrados }}
                       modifiersClassNames={{
                         registrado: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-slate-400",
