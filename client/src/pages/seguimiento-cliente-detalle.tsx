@@ -20,7 +20,7 @@ import {
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
   ArrowLeft, Calendar, Clock, CreditCard, Save, X, Tags,
   Star, Search, Plus, CalendarClock, CalendarDays, List,
-  Mic, Square, Wand2,
+  Mic, Square, Wand2, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,6 +151,10 @@ export default function SeguimientoClienteDetalle() {
 
   // ─── Estado local ───────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
+  // En móvil las secciones Información / Notas arrancan colapsadas para que
+  // la Actividad quede al alcance sin scroll; en desktop siempre visibles.
+  const [infoOpenMobile, setInfoOpenMobile] = useState(false);
+  const [notasOpenMobile, setNotasOpenMobile] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [hitoForm, setHitoForm] = useState<{ tipo: string; descripcion: string; fecha: Date | null; hora: string }>({ tipo: "llamada", descripcion: "", fecha: null, hora: "" });
   const [fechaPickerOpen, setFechaPickerOpen] = useState(false);
@@ -992,23 +996,33 @@ export default function SeguimientoClienteDetalle() {
         </div>
 
         {/* ═══ Layout 2 columnas ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5 items-start">
+        {/* En móvil la Actividad va primero (order-first); Información y Notas
+            quedan debajo y colapsadas. En desktop vuelve al orden normal. */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 sm:gap-5 items-start">
 
           {/* ─── Columna izquierda: Información + Notas ─── */}
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5 order-2 lg:order-none">
 
             {/* Card Información */}
             <div className="rounded-xl border bg-card shadow-sm">
-              <div className="px-4 sm:px-5 py-3.5 border-b flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setInfoOpenMobile((v) => !v)}
+                className="w-full px-4 sm:px-5 py-3.5 border-b flex items-center justify-between text-left lg:cursor-default"
+              >
                 <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <User className="w-4 h-4 text-indigo-500" />
                   Información
                 </h2>
-                {isEditing && (
-                  <Badge className="text-[10px] border-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Editando</Badge>
-                )}
-              </div>
+                <div className="flex items-center gap-2">
+                  {isEditing && (
+                    <Badge className="text-[10px] border-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Editando</Badge>
+                  )}
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform lg:hidden ${infoOpenMobile || isEditing ? "rotate-180" : ""}`} />
+                </div>
+              </button>
 
+              <div className={`${infoOpenMobile || isEditing ? "" : "hidden"} lg:block`}>
               {!isEditing ? (
                 <div className="p-4 sm:p-5 space-y-4">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">
@@ -1222,6 +1236,7 @@ export default function SeguimientoClienteDetalle() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Anotaciones de la ficha ERP (solo lectura) */}
@@ -1237,16 +1252,23 @@ export default function SeguimientoClienteDetalle() {
 
             {/* Card Notas + Etiquetas */}
             <div className="rounded-xl border bg-card shadow-sm">
-              <div className="px-4 sm:px-5 py-3.5 border-b flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setNotasOpenMobile((v) => !v)}
+                className="w-full px-4 sm:px-5 py-3.5 border-b flex items-center justify-between text-left lg:cursor-default"
+              >
                 <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <FileText className="w-4 h-4 text-indigo-500" />
                   Notas
                 </h2>
-                {notasDirty && (
-                  <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin guardar</Badge>
-                )}
-              </div>
-              <div className="p-4 sm:p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  {notasDirty && (
+                    <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin guardar</Badge>
+                  )}
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform lg:hidden ${notasOpenMobile ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+              <div className={`${notasOpenMobile ? "" : "hidden"} lg:block p-4 sm:p-5 space-y-4`}>
                 {/* Etiquetas */}
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -1326,7 +1348,7 @@ export default function SeguimientoClienteDetalle() {
           </div>
 
           {/* ─── Columna derecha: Timeline de actividad ─── */}
-          <div className="rounded-xl border bg-card shadow-sm">
+          <div className="rounded-xl border bg-card shadow-sm order-1 lg:order-none">
             <div className="px-4 sm:px-5 py-3.5 border-b flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-500" />
