@@ -78,12 +78,21 @@ const COMPOSER_BIT_TIPOS = [
 ];
 const BIT_COMPOSER_VALUES = new Set(COMPOSER_BIT_TIPOS.map((t) => t.value));
 
+// Tipos visibles en el composer modo "Registrar": se excluye "contacto"
+// (todos los tipos son formas de contacto, es redundante) y "nota" (ya
+// existe la card Notas para eso). Se suma "correo" (definido en
+// AGENDA_TIPOS) para poder registrar un correo que ya se envió.
+const REGISTRAR_TIPOS = [
+  ...HITO_TIPOS.filter((t) => !["contacto", "nota", "sistema"].includes(t.value)),
+  AGENDA_TIPOS.find((t) => t.value === "correo")!,
+  ...COMPOSER_BIT_TIPOS,
+];
+
 // Universo de tipos para el panel de confirmación del dictado por voz:
 // pills de registrar + agendar + bitácora, deduplicados por value.
 const TIPO_OPCIONES = [
-  ...HITO_TIPOS.filter((t) => t.value !== "sistema"),
+  ...REGISTRAR_TIPOS,
   ...AGENDA_TIPOS,
-  ...COMPOSER_BIT_TIPOS,
 ].filter((t, i, arr) => arr.findIndex((x) => x.value === t.value) === i);
 
 // Interacción detectada por la IA a partir del dictado, editable en el
@@ -143,7 +152,7 @@ export default function SeguimientoClienteDetalle() {
   // ─── Estado local ───────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-  const [hitoForm, setHitoForm] = useState<{ tipo: string; descripcion: string; fecha: Date | null; hora: string }>({ tipo: "contacto", descripcion: "", fecha: null, hora: "" });
+  const [hitoForm, setHitoForm] = useState<{ tipo: string; descripcion: string; fecha: Date | null; hora: string }>({ tipo: "llamada", descripcion: "", fecha: null, hora: "" });
   const [fechaPickerOpen, setFechaPickerOpen] = useState(false);
   // Modo del composer: registrar lo que ya pasó vs agendar un evento a
   // futuro (reunión, llamada, correo…) que cae en el calendario.
@@ -485,7 +494,7 @@ export default function SeguimientoClienteDetalle() {
     setHitoForm((f) =>
       modo === "agendar"
         ? { ...f, tipo: "reunion" }
-        : { ...f, tipo: "contacto", fecha: null, hora: "" },
+        : { ...f, tipo: "llamada", fecha: null, hora: "" },
     );
   };
 
@@ -1318,40 +1327,38 @@ export default function SeguimientoClienteDetalle() {
 
           {/* ─── Columna derecha: Timeline de actividad ─── */}
           <div className="rounded-xl border bg-card shadow-sm">
-            <div className="px-4 sm:px-5 py-3.5 border-b flex items-center justify-between">
+            <div className="px-4 sm:px-5 py-3.5 border-b flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-500" />
                 Actividad
+                <span className="text-[11px] font-normal text-muted-foreground">({timeline.length})</span>
               </h2>
-              <div className="flex items-center gap-2.5">
-                <span className="text-[11px] text-muted-foreground">{timeline.length} {timeline.length === 1 ? "registro" : "registros"}</span>
-                <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
-                  <button
-                    onClick={() => setVistaActividad("lista")}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "lista" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    title="Ver como línea de tiempo"
-                    data-testid="btn-vista-lista"
-                  >
-                    <List className="w-3.5 h-3.5" />
-                    Lista
-                  </button>
-                  <button
-                    onClick={() => setVistaActividad("calendario")}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "calendario" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    title="Ver en calendario"
-                    data-testid="btn-vista-calendario"
-                  >
-                    <CalendarDays className="w-3.5 h-3.5" />
-                    Calendario
-                  </button>
-                </div>
+              <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+                <button
+                  onClick={() => setVistaActividad("lista")}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "lista" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  title="Ver como línea de tiempo"
+                  data-testid="btn-vista-lista"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  Lista
+                </button>
+                <button
+                  onClick={() => setVistaActividad("calendario")}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${vistaActividad === "calendario" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  title="Ver en calendario"
+                  data-testid="btn-vista-calendario"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  Calendario
+                </button>
               </div>
             </div>
 
             <div className="p-4 sm:p-5 space-y-5">
               {/* Composer: registrar interacción (hitos + tipos de bitácora) */}
               <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-3.5 space-y-2.5" data-testid="hito-composer">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     {modoComposer === "agendar" ? "Agendar en el calendario" : "Registrar interacción"}
                   </p>
@@ -1383,10 +1390,7 @@ export default function SeguimientoClienteDetalle() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {(modoComposer === "agendar"
-                    ? AGENDA_TIPOS
-                    : [...HITO_TIPOS.filter((t) => t.value !== "sistema"), ...COMPOSER_BIT_TIPOS]
-                  ).map((t) => {
+                  {(modoComposer === "agendar" ? AGENDA_TIPOS : REGISTRAR_TIPOS).map((t) => {
                     const active = hitoForm.tipo === t.value;
                     return (
                       <button
@@ -1418,7 +1422,7 @@ export default function SeguimientoClienteDetalle() {
                     className="text-sm resize-none border-0 shadow-none bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                     data-testid="hito-descripcion"
                   />
-                  <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/30">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/30">
                     <div className="flex items-center gap-1 flex-wrap">
                     {/* Dictar por voz: el transcript cae al textarea y al
                         detener, la IA separa las interacciones para confirmar */}
@@ -1869,9 +1873,12 @@ export default function SeguimientoClienteDetalle() {
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
           <Tabs defaultValue="pedidos" className="w-full">
             <TabsList className="w-full grid grid-cols-3 h-auto">
-              <TabsTrigger value="pedidos" className="text-xs">Pedidos</TabsTrigger>
-              <TabsTrigger value="nvv" className="text-xs">NVV</TabsTrigger>
-              <TabsTrigger value="rut" className="text-xs">RUT / Compras</TabsTrigger>
+              <TabsTrigger value="pedidos" className="text-xs px-1.5">Pedidos</TabsTrigger>
+              <TabsTrigger value="nvv" className="text-xs px-1.5">NVV</TabsTrigger>
+              <TabsTrigger value="rut" className="text-xs px-1.5">
+                <span className="sm:hidden">RUT</span>
+                <span className="hidden sm:inline">RUT / Compras</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* ─── Pedidos ─── */}

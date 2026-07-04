@@ -36168,11 +36168,53 @@ Instrucciones extra:
       }
     }
 
+    // "seguimiento" incluye el legacy "contactado" (ver LEGACY_ESTADOS en
+    // client/src/lib/crm-seguimiento.ts, no reutilizable server-side).
+    const prospectosEnSeguimiento = (porEstado['seguimiento'] || 0) + (porEstado['contactado'] || 0);
+
+    // Tiempo promedio de cierre: para cada cliente que llegó a "venta",
+    // se usa el primer hito de sistema "Estado cambiado ... a "venta""
+    // (no hay columna dedicada) contra crm_seguimiento_clientes.created_at.
+    let tiempoCierrePromedioDias: number | null = null;
+    const clientIds = allClients.map((c) => c.id);
+    if (clientIds.length > 0) {
+      const cierreHitos = await db.select({
+        seguimientoId: crmSeguimientoHitos.seguimientoId,
+        createdAt: crmSeguimientoHitos.createdAt,
+      })
+        .from(crmSeguimientoHitos)
+        .where(and(
+          eq(crmSeguimientoHitos.tipo, 'sistema'),
+          ilike(crmSeguimientoHitos.descripcion, '%a "venta"%'),
+          inArray(crmSeguimientoHitos.seguimientoId, clientIds),
+        ));
+
+      const primerCierre = new Map<string, Date>();
+      for (const h of cierreHitos) {
+        const prev = primerCierre.get(h.seguimientoId);
+        if (!prev || h.createdAt < prev) primerCierre.set(h.seguimientoId, h.createdAt);
+      }
+
+      const clientesPorId = new Map(allClients.map((c) => [c.id, c]));
+      const dias: number[] = [];
+      for (const [id, cierreAt] of Array.from(primerCierre.entries())) {
+        const cliente = clientesPorId.get(id);
+        if (!cliente) continue;
+        const diffDias = (cierreAt.getTime() - new Date(cliente.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDias >= 0) dias.push(diffDias);
+      }
+      if (dias.length > 0) {
+        tiempoCierrePromedioDias = Math.round(dias.reduce((a, b) => a + b, 0) / dias.length);
+      }
+    }
+
     res.json({
       total: allClients.length,
       porEstado,
       porPrioridad,
       sinContacto7Dias,
+      prospectosEnSeguimiento,
+      tiempoCierrePromedioDias,
     });
   }));
 

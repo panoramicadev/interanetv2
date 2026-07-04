@@ -14,9 +14,9 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users,
+  Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users, UserCheck,
   Star, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical, RefreshCw,
-  MapPin, Tags, List, LayoutGrid, Banknote, Flag, Send, Eye,
+  MapPin, Tags, List, LayoutGrid, Banknote, Send, Eye,
   MessageSquare, Check, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -367,11 +367,6 @@ export default function SeguimientoClientes() {
     return map;
   }, [sortedClientes]);
 
-  const valorPipeline = useMemo(
-    () => clientes.reduce((sum: number, c: any) => sum + (parseFloat(c.montoEstimado) || 0), 0),
-    [clientes]
-  );
-
   // Select-all opera sobre las filas visibles (filtradas + ordenadas)
   const allVisibleSelected = sortedClientes.length > 0 && sortedClientes.every((c: any) => selectedIds.has(c.id));
   const toggleSelectAll = () => {
@@ -451,24 +446,23 @@ export default function SeguimientoClientes() {
             iconBox="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
           />
           <KpiCard
-            icon={Banknote}
-            label="Valor del pipeline"
-            value={formatCLP(valorPipeline)}
-            iconBox="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+            icon={UserCheck}
+            label="Prospectos en seguimiento"
+            value={String(stats?.prospectosEnSeguimiento ?? "—")}
+            iconBox="bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400"
           />
           <KpiCard
             icon={Clock}
-            label="Sin contacto hace 7+ días"
+            label="Sin interacción (7+ días)"
             value={String(stats?.sinContacto7Dias ?? "—")}
             iconBox="bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
             valueClass="text-amber-600 dark:text-amber-400"
           />
           <KpiCard
-            icon={Flag}
-            label="Alta prioridad"
-            value={String(stats?.porPrioridad?.alta ?? 0)}
-            iconBox="bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400"
-            valueClass="text-red-600 dark:text-red-400"
+            icon={Banknote}
+            label="Tiempo promedio de cierre"
+            value={stats?.tiempoCierrePromedioDias != null ? `${stats.tiempoCierrePromedioDias} días` : "—"}
+            iconBox="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
           />
         </div>
 
