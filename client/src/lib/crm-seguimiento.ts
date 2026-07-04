@@ -6,6 +6,7 @@
 import {
   Sparkles, UserCheck, FileText, ShoppingCart, Truck,
   PhoneCall, MapPin, MessageSquare, RefreshCw,
+  Users, Mail, Video,
 } from "lucide-react";
 import { getTodayAtMidnight } from "@/lib/dateUtils";
 
@@ -121,8 +122,25 @@ export const HITO_TIPOS = [
   { value: "sistema", label: "Sistema", icon: RefreshCw, color: "text-cyan-500", ring: "bg-cyan-100 dark:bg-cyan-900/40" },
 ];
 
+// ─── Tipos agendables (modo "Agendar" del composer de Actividad) ──────
+// Eventos a futuro que caen en el calendario: reuniones, llamadas,
+// correos… Se guardan como hitos con fechaProgramada, salvo "seguimiento"
+// que va a la bitácora (BIT_COMPOSER_VALUES en el detalle).
+export const AGENDA_TIPOS = [
+  { value: "reunion", label: "Reunión", icon: Users, color: "text-violet-500", ring: "bg-violet-100 dark:bg-violet-900/40" },
+  { value: "llamada", label: "Llamada", icon: PhoneCall, color: "text-indigo-500", ring: "bg-indigo-100 dark:bg-indigo-900/40" },
+  { value: "videollamada", label: "Videollamada", icon: Video, color: "text-fuchsia-500", ring: "bg-fuchsia-100 dark:bg-fuchsia-900/40" },
+  { value: "correo", label: "Correo", icon: Mail, color: "text-sky-500", ring: "bg-sky-100 dark:bg-sky-900/40" },
+  { value: "visita", label: "Visita", icon: MapPin, color: "text-green-500", ring: "bg-green-100 dark:bg-green-900/40" },
+  { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "text-purple-500", ring: "bg-purple-100 dark:bg-purple-900/40" },
+];
+
 export function getHitoConfig(tipo: string | null | undefined) {
-  return HITO_TIPOS.find((h) => h.value === tipo) || HITO_TIPOS[6];
+  return (
+    HITO_TIPOS.find((h) => h.value === tipo) ||
+    AGENDA_TIPOS.find((h) => h.value === tipo) ||
+    HITO_TIPOS[6]
+  );
 }
 
 // ─── Catálogos fijos ──────────────────────────────────────────────────
@@ -199,6 +217,20 @@ export function formatDate(dateStr: string | null | undefined) {
   const d = asCalendarDate(dateStr);
   if (!d) return "—";
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/**
+ * Hora de un evento agendado: "HH:mm", o null si es "todo el día".
+ * El composer guarda las 12:00 exactas como sentinela de sin-hora (además
+ * evita que el día se corra al pasar por UTC), así que esa hora no se
+ * muestra.
+ */
+export function formatHoraAgendada(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  if (d.getHours() === 12 && d.getMinutes() === 0) return null;
+  return d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Monto en pesos chilenos: "$1.234.567". Null/inválido → "—". */

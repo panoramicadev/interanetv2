@@ -93,6 +93,7 @@ import { parseOrdenDeCompra } from "./oc-parser";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
+import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
 import { registerPermissionRoutes, requirePermission } from "./permissions";
@@ -36704,6 +36705,26 @@ Instrucciones extra:
     }
 
     res.status(201).json(hito);
+  }));
+
+  // POST /api/crm/seguimiento/parse-actividad — Interpreta actividad dictada
+  // por voz/texto y la separa en interacciones estructuradas (tipo, modo
+  // registrar/agendar, fecha, hora). No inserta nada: el frontend muestra lo
+  // detectado para confirmar y usa los endpoints de hito/bitácora normales.
+  app.post('/api/crm/seguimiento/parse-actividad', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
+    const { text } = req.body || {};
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ message: 'El texto dictado no puede estar vacío.' });
+    }
+
+    try {
+      const entradas = await parseActividadCrm(text.trim());
+      res.json({ entradas });
+    } catch (error: any) {
+      console.error('[crm-voz] parse error:', error);
+      res.status(500).json({ message: error?.message || 'No se pudo interpretar el dictado.' });
+    }
   }));
 
   // POST /api/crm/seguimiento/:id/vincular-rut — Link RUT
