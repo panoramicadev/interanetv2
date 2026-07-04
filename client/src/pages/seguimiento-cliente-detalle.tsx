@@ -20,6 +20,7 @@ import {
   UserCheck, Send, Link2, Sparkles, Trash2, Edit3, RefreshCw,
   ArrowLeft, Calendar, Clock, CreditCard, Save, X, Tags,
   Star, Search, Plus, CalendarClock, CalendarDays, List,
+  Mic, Square, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,9 @@ import {
   getEstadoConfig,
   PRIORIDADES,
   HITO_TIPOS,
+  AGENDA_TIPOS,
   getHitoConfig,
+  formatHoraAgendada,
   SEGMENTOS_CRM,
   REGIONES_CHILE,
   CONDICIONES_PAGO,
@@ -74,6 +77,24 @@ const COMPOSER_BIT_TIPOS = [
   { value: "problema", label: "Problema", icon: AlertTriangle, color: "text-red-500", ring: "bg-red-100 dark:bg-red-900/40" },
 ];
 const BIT_COMPOSER_VALUES = new Set(COMPOSER_BIT_TIPOS.map((t) => t.value));
+
+// Universo de tipos para el panel de confirmación del dictado por voz:
+// pills de registrar + agendar + bitácora, deduplicados por value.
+const TIPO_OPCIONES = [
+  ...HITO_TIPOS.filter((t) => t.value !== "sistema"),
+  ...AGENDA_TIPOS,
+  ...COMPOSER_BIT_TIPOS,
+].filter((t, i, arr) => arr.findIndex((x) => x.value === t.value) === i);
+
+// Interacción detectada por la IA a partir del dictado, editable en el
+// panel de confirmación antes de insertarse.
+type VozEntrada = {
+  modo: "registrar" | "agendar";
+  tipo: string;
+  descripcion: string;
+  fecha: Date | null;
+  hora: string; // "" = sin hora ("todo el día")
+};
 
 // ─── Etiquetas del cliente (chips libres en la card Notas) ────────────
 // Se persisten como JSON array de strings en crm_seguimiento_clientes.etiquetas.
@@ -122,8 +143,21 @@ export default function SeguimientoClienteDetalle() {
   // ─── Estado local ───────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-  const [hitoForm, setHitoForm] = useState<{ tipo: string; descripcion: string; fecha: Date | null }>({ tipo: "contacto", descripcion: "", fecha: null });
+  const [hitoForm, setHitoForm] = useState<{ tipo: string; descripcion: string; fecha: Date | null; hora: string }>({ tipo: "contacto", descripcion: "", fecha: null, hora: "" });
   const [fechaPickerOpen, setFechaPickerOpen] = useState(false);
+  // Modo del composer: registrar lo que ya pasó vs agendar un evento a
+  // futuro (reunión, llamada, correo…) que cae en el calendario.
+  const [modoComposer, setModoComposer] = useState<"registrar" | "agendar">("registrar");
+  // Dictado por voz: el transcript cae en el textarea del composer; al
+  // detener, la IA lo separa en interacciones que se confirman antes de
+  // insertar (vozDraft = panel de confirmación).
+  const [vozListening, setVozListening] = useState(false);
+  const [vozParsing, setVozParsing] = useState(false);
+  const [vozDraft, setVozDraft] = useState<VozEntrada[] | null>(null);
+  const [vozFechaOpen, setVozFechaOpen] = useState<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const vozTextoRef = useRef("");        // último transcript (evita estado stale en onend)
+  const vozAutoDetectRef = useRef(false); // detener con auto-detección vs abortar
   // Vista de la card Actividad: timeline cronológico o calendario mensual
   const [vistaActividad, setVistaActividad] = useState<"lista" | "calendario">("lista");
   const [calDia, setCalDia] = useState<Date | null>(new Date());
@@ -138,6 +172,13 @@ export default function SeguimientoClienteDetalle() {
   const [etiquetaInput, setEtiquetaInput] = useState("");
   // Constructor de presupuesto embebido (etapa "Cotización")
   const [showCotizador, setShowCotizador] = useState(false);
+
+  // Cortar el reconocimiento de voz si se desmonta la página
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.stop(); } catch { /* noop */ }
+    };
+  }, []);
 
   // ─── Query detalle del cliente ──────────────────────────────────
   const { data: client, isLoading, refetch } = useQuery({
@@ -220,6 +261,13 @@ export default function SeguimientoClienteDetalle() {
       porDia.get(key)!.push(item);
       (item.raw.fechaProgramada ? agendados : registrados).push(d);
     }
+    // Dentro de cada día, los eventos van en orden horario (mañana primero)
+    for (const items of Array.from(porDia.values())) {
+      items.sort((a, b) =>
+        new Date(a.raw.fechaProgramada || a.createdAt || 0).getTime() -
+        new Date(b.raw.fechaProgramada || b.createdAt || 0).getTime(),
+      );
+    }
     return { porDia, agendados, registrados };
   }, [timeline]);
 
@@ -293,11 +341,11 @@ export default function SeguimientoClienteDetalle() {
       if (!response.ok) throw new Error("Error");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      setHitoForm({ tipo: "contacto", descripcion: "", fecha: null });
-      toast({ title: "✅ Entrada agregada a la bitácora" });
+      setHitoForm({ tipo: modoComposer === "agendar" ? "reunion" : "contacto", descripcion: "", fecha: null, hora: "" });
+      toast({ title: variables?.fechaProgramada ? "📅 Agendado en el calendario" : "✅ Entrada agregada a la bitácora" });
     },
     onError: () => {
       toast({ title: "❌ Error al agregar entrada", variant: "destructive" });
@@ -329,14 +377,76 @@ export default function SeguimientoClienteDetalle() {
       if (!res.ok) throw new Error("Error al agregar hito");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      toast({ title: "Hito agregado" });
-      setHitoForm({ tipo: "contacto", descripcion: "", fecha: null });
+      toast({ title: variables?.fechaProgramada ? "📅 Agendado en el calendario" : "Hito agregado" });
+      setHitoForm({ tipo: modoComposer === "agendar" ? "reunion" : "contacto", descripcion: "", fecha: null, hora: "" });
       refetch();
     },
     onError: (err: Error) => {
       toast({ title: "Error al registrar el hito", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Inserta en lote las interacciones confirmadas del panel de voz,
+  // ruteando cada una a bitácora o hitos según su tipo (mismo criterio
+  // que el composer manual). Secuencial para conservar el orden dictado.
+  const insertVozMutation = useMutation({
+    mutationFn: async (entradas: VozEntrada[]) => {
+      if (!client) return 0;
+      for (const e of entradas) {
+        let fechaProgramada: string | null = null;
+        if (e.fecha) {
+          const [h, m] = e.hora ? e.hora.split(":").map(Number) : [12, 0];
+          fechaProgramada = new Date(e.fecha.getFullYear(), e.fecha.getMonth(), e.fecha.getDate(), h, m).toISOString();
+        }
+        let res: Response;
+        if (BIT_COMPOSER_VALUES.has(e.tipo)) {
+          const cv = client.clienteVinculado;
+          res = await fetch("/api/bitacora", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              documentoTipo: "cliente",
+              documentoId: client.clienteId || client.id,
+              documentoNumero: cv?.koen || null,
+              clienteNombre: client.nombre || cv?.nokoen,
+              clienteRut: client.rut || cv?.rten || null,
+              nota: e.descripcion,
+              tipo: e.tipo,
+              fechaProgramada,
+            }),
+          });
+        } else {
+          res = await fetch(`/api/crm/seguimiento/${clientId}/hito`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tipo: e.tipo, descripcion: e.descripcion, fechaProgramada }),
+          });
+        }
+        if (!res.ok) throw new Error(`No se pudo insertar "${e.descripcion.slice(0, 50)}"`);
+      }
+      return entradas.length;
+    },
+    onSuccess: (n) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+      refetch();
+      setVozDraft(null);
+      setHitoForm((f) => ({ ...f, descripcion: "" }));
+      toast({ title: `✅ ${n} ${n === 1 ? "interacción insertada" : "interacciones insertadas"}` });
+    },
+    onError: (err: Error) => {
+      // Inserción secuencial: las entradas previas al error sí quedaron
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+      refetch();
+      toast({
+        title: "Error al insertar",
+        description: `${err.message}. Algunas entradas anteriores pueden haberse guardado; revisa el timeline.`,
+        variant: "destructive",
+      });
     },
   });
 
@@ -367,16 +477,39 @@ export default function SeguimientoClienteDetalle() {
   });
 
   // ─── Handlers ───────────────────────────────────────────────────
+  // Cambia el modo del composer conservando el texto escrito. Al volver a
+  // "registrar" se descarta la fecha para no agendar por accidente.
+  const switchModoComposer = (modo: "registrar" | "agendar") => {
+    setModoComposer(modo);
+    setFechaPickerOpen(false);
+    setHitoForm((f) =>
+      modo === "agendar"
+        ? { ...f, tipo: "reunion" }
+        : { ...f, tipo: "contacto", fecha: null, hora: "" },
+    );
+  };
+
   // Composer unificado de Actividad: los tipos de bitácora se guardan en
-  // pedido_bitacora; el resto se registra como hito del seguimiento.
+  // pedido_bitacora; el resto se registra como hito del seguimiento. En
+  // modo "agendar" la fecha es obligatoria y la hora opcional.
   const handleRegistrarActividad = () => {
     const descripcion = hitoForm.descripcion.trim();
     if (!descripcion || !client) return;
-    // Fecha agendada al mediodía local: evita que el día se corra al
-    // convertir a UTC (Chile es UTC-3/-4)
-    const fechaProgramada = hitoForm.fecha
-      ? new Date(hitoForm.fecha.getFullYear(), hitoForm.fecha.getMonth(), hitoForm.fecha.getDate(), 12).toISOString()
-      : null;
+    if (modoComposer === "agendar" && !hitoForm.fecha) return;
+    // Sin hora se guarda al mediodía local: evita que el día se corra al
+    // convertir a UTC (Chile es UTC-3/-4) y es el sentinela "todo el día"
+    // que formatHoraAgendada no muestra.
+    let fechaProgramada: string | null = null;
+    if (hitoForm.fecha) {
+      const [h, m] = hitoForm.hora ? hitoForm.hora.split(":").map(Number) : [12, 0];
+      fechaProgramada = new Date(hitoForm.fecha.getFullYear(), hitoForm.fecha.getMonth(), hitoForm.fecha.getDate(), h, m).toISOString();
+    }
+    // Al agendar, saltar a la vista calendario con el día del evento
+    // seleccionado para confirmar visualmente dónde quedó.
+    const fechaSel = hitoForm.fecha;
+    const opts = fechaSel
+      ? { onSuccess: () => { setVistaActividad("calendario"); setCalDia(fechaSel); } }
+      : undefined;
     if (BIT_COMPOSER_VALUES.has(hitoForm.tipo)) {
       const cv = client.clienteVinculado;
       createBitMutation.mutate({
@@ -388,10 +521,132 @@ export default function SeguimientoClienteDetalle() {
         nota: descripcion,
         tipo: hitoForm.tipo,
         fechaProgramada,
-      });
+      }, opts);
     } else {
-      addHitoMutation.mutate({ tipo: hitoForm.tipo, descripcion, fechaProgramada });
+      addHitoMutation.mutate({ tipo: hitoForm.tipo, descripcion, fechaProgramada }, opts);
     }
+  };
+
+  // ─── Dictado por voz ────────────────────────────────────────────
+  const SpeechRecognitionCtor =
+    typeof window !== "undefined"
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : undefined;
+  const speechSupported = !!SpeechRecognitionCtor;
+
+  // La IA separa el texto dictado (o escrito) en interacciones; el
+  // resultado va al panel de confirmación, NO se inserta directo.
+  const detectarVoz = async (textoParam?: string) => {
+    const texto = (textoParam ?? hitoForm.descripcion).trim();
+    if (!texto) return;
+    setVozParsing(true);
+    try {
+      const res = await fetch("/api/crm/seguimiento/parse-actividad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: texto }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "No se pudo interpretar el dictado");
+      }
+      const data = await res.json();
+      const entradas: VozEntrada[] = ((data.entradas as any[]) || []).map((e) => {
+        let fecha: Date | null = null;
+        if (e.fecha) {
+          // "YYYY-MM-DD" parseado como fecha local (new Date(str) la
+          // correría un día hacia atrás en Chile)
+          const [y, m, d] = String(e.fecha).split("-").map(Number);
+          fecha = new Date(y, m - 1, d);
+        }
+        return {
+          modo: e.modo === "agendar" ? "agendar" : "registrar",
+          tipo: String(e.tipo || "nota"),
+          descripcion: String(e.descripcion || ""),
+          fecha,
+          hora: e.hora || "",
+        };
+      });
+      if (entradas.length === 0) {
+        toast({ title: "No se detectaron interacciones", description: "Intenta reformular o registra manualmente." });
+        return;
+      }
+      setVozDraft(entradas);
+    } catch (e: any) {
+      toast({ title: "Error al interpretar", description: e?.message, variant: "destructive" });
+    } finally {
+      setVozParsing(false);
+    }
+  };
+
+  const startVoz = () => {
+    if (!SpeechRecognitionCtor) return;
+    const rec = new SpeechRecognitionCtor();
+    rec.lang = "es-CL";
+    rec.continuous = true;
+    rec.interimResults = true;
+    let baseText = hitoForm.descripcion ? hitoForm.descripcion.trim() + " " : "";
+
+    rec.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          baseText += transcript + " ";
+        } else {
+          interim += transcript;
+        }
+      }
+      const texto = (baseText + interim).replace(/\s+/g, " ").trimStart();
+      vozTextoRef.current = texto;
+      setHitoForm((f) => ({ ...f, descripcion: texto }));
+    };
+    rec.onerror = (e: any) => {
+      setVozListening(false);
+      vozAutoDetectRef.current = false;
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        toast({
+          title: "Micrófono no disponible",
+          description: "Permite el acceso al micrófono o escribe la interacción.",
+          variant: "destructive",
+        });
+      }
+    };
+    // onend corre después del último onresult: acá disparamos la
+    // detección con el transcript completo (el estado React puede venir
+    // atrasado, por eso se lee del ref).
+    rec.onend = () => {
+      setVozListening(false);
+      if (vozAutoDetectRef.current) {
+        vozAutoDetectRef.current = false;
+        if (vozTextoRef.current.trim()) detectarVoz(vozTextoRef.current);
+      }
+    };
+
+    recognitionRef.current = rec;
+    vozTextoRef.current = baseText;
+    try {
+      rec.start();
+      setVozListening(true);
+    } catch {
+      setVozListening(false);
+    }
+  };
+
+  const stopVoz = () => {
+    vozAutoDetectRef.current = true;
+    try { recognitionRef.current?.stop(); } catch { /* noop */ }
+  };
+
+  const updateVozEntrada = (idx: number, patch: Partial<VozEntrada>) => {
+    setVozDraft((d) => (d ? d.map((e, i) => (i === idx ? { ...e, ...patch } : e)) : d));
+  };
+
+  const removeVozEntrada = (idx: number) => {
+    setVozDraft((d) => {
+      const next = (d || []).filter((_, i) => i !== idx);
+      return next.length > 0 ? next : null;
+    });
   };
 
   const startEditing = () => {
@@ -1100,9 +1355,42 @@ export default function SeguimientoClienteDetalle() {
             <div className="p-4 sm:p-5 space-y-5">
               {/* Composer: registrar interacción (hitos + tipos de bitácora) */}
               <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-3.5 space-y-2.5" data-testid="hito-composer">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Registrar interacción</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {modoComposer === "agendar" ? "Agendar en el calendario" : "Registrar interacción"}
+                  </p>
+                  {/* Toggle registrar (lo que ya pasó) / agendar (evento futuro) */}
+                  <div className="flex items-center rounded-lg border bg-background p-0.5">
+                    <button
+                      onClick={() => switchModoComposer("registrar")}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+                        modoComposer === "registrar"
+                          ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      data-testid="composer-modo-registrar"
+                    >
+                      Registrar
+                    </button>
+                    <button
+                      onClick={() => switchModoComposer("agendar")}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+                        modoComposer === "agendar"
+                          ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      data-testid="composer-modo-agendar"
+                    >
+                      <CalendarClock className="w-3 h-3" />
+                      Agendar
+                    </button>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {[...HITO_TIPOS.filter((t) => t.value !== "sistema"), ...COMPOSER_BIT_TIPOS].map((t) => {
+                  {(modoComposer === "agendar"
+                    ? AGENDA_TIPOS
+                    : [...HITO_TIPOS.filter((t) => t.value !== "sistema"), ...COMPOSER_BIT_TIPOS]
+                  ).map((t) => {
                     const active = hitoForm.tipo === t.value;
                     return (
                       <button
@@ -1127,72 +1415,258 @@ export default function SeguimientoClienteDetalle() {
                   <Textarea
                     value={hitoForm.descripcion}
                     onChange={(e) => setHitoForm((f) => ({ ...f, descripcion: e.target.value }))}
-                    placeholder="¿Qué pasó con este cliente? (llamada, visita, acuerdo, problema...)"
+                    placeholder={modoComposer === "agendar"
+                      ? "¿Qué quieres agendar? (reunión con el cliente, llamada de seguimiento, enviar correo...)"
+                      : "¿Qué pasó con este cliente? (llamada, visita, acuerdo, problema...)"}
                     rows={2}
                     className="text-sm resize-none border-0 shadow-none bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                     data-testid="hito-descripcion"
                   />
                   <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/30">
-                    {/* Hito en calendario: fecha opcional (agenda una visita, un
-                        seguimiento…). Sin fecha se registra como hasta ahora. */}
-                    <Popover open={fechaPickerOpen} onOpenChange={setFechaPickerOpen}>
-                      <PopoverTrigger asChild>
-                        {hitoForm.fecha ? (
-                          <button
-                            className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 pl-2.5 pr-1 py-1 text-xs font-medium hover:bg-indigo-200/70 dark:hover:bg-indigo-900/60 transition-colors"
-                            data-testid="btn-hito-fecha"
-                          >
-                            <CalendarClock className="w-3.5 h-3.5" />
-                            {hitoForm.fecha.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
-                            <span
-                              role="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHitoForm((f) => ({ ...f, fecha: null }));
+                    <div className="flex items-center gap-1 flex-wrap">
+                    {/* Dictar por voz: el transcript cae al textarea y al
+                        detener, la IA separa las interacciones para confirmar */}
+                    {speechSupported && (
+                      <button
+                        onClick={vozListening ? stopVoz : startVoz}
+                        className={`p-1.5 rounded-full transition-colors ${
+                          vozListening
+                            ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 animate-pulse"
+                            : "text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30"
+                        }`}
+                        title={vozListening ? "Detener y detectar interacciones" : "Dictar por voz (la IA detecta las interacciones)"}
+                        data-testid="btn-voz"
+                      >
+                        {vozListening ? <Square className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+                    {vozListening ? (
+                      <span className="text-[11px] font-medium text-red-500 animate-pulse">Escuchando…</span>
+                    ) : hitoForm.descripcion.trim() && !vozDraft ? (
+                      <button
+                        onClick={() => detectarVoz()}
+                        disabled={vozParsing}
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-50"
+                        title="Detectar tipo, fechas e interacciones con IA"
+                        data-testid="btn-detectar-ia"
+                      >
+                        {vozParsing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                        Detectar
+                      </button>
+                    ) : null}
+                    {modoComposer === "agendar" ? (
+                      /* Fecha (obligatoria) + hora (opcional) del evento */
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Popover open={fechaPickerOpen} onOpenChange={setFechaPickerOpen}>
+                          <PopoverTrigger asChild>
+                            {hitoForm.fecha ? (
+                              <button
+                                className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 pl-2.5 pr-1 py-1 text-xs font-medium hover:bg-indigo-200/70 dark:hover:bg-indigo-900/60 transition-colors"
+                                data-testid="btn-hito-fecha"
+                              >
+                                <CalendarClock className="w-3.5 h-3.5" />
+                                {hitoForm.fecha.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
+                                <span
+                                  role="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setHitoForm((f) => ({ ...f, fecha: null }));
+                                    setFechaPickerOpen(false);
+                                  }}
+                                  className="p-0.5 rounded-full hover:bg-indigo-300/50 dark:hover:bg-indigo-800 transition-colors"
+                                  title="Quitar fecha"
+                                  data-testid="btn-hito-fecha-clear"
+                                >
+                                  <X className="w-3 h-3" />
+                                </span>
+                              </button>
+                            ) : (
+                              <button
+                                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-indigo-300 dark:border-indigo-700 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                                title="Elegir el día del evento"
+                                data-testid="btn-hito-fecha"
+                              >
+                                <CalendarClock className="w-3.5 h-3.5" />
+                                Elegir fecha
+                              </button>
+                            )}
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarUI
+                              mode="single"
+                              locale={es}
+                              selected={hitoForm.fecha ?? undefined}
+                              onSelect={(d) => {
+                                setHitoForm((f) => ({ ...f, fecha: d ?? null }));
                                 setFechaPickerOpen(false);
                               }}
-                              className="p-0.5 rounded-full hover:bg-indigo-300/50 dark:hover:bg-indigo-800 transition-colors"
-                              title="Quitar fecha"
-                              data-testid="btn-hito-fecha-clear"
-                            >
-                              <X className="w-3 h-3" />
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors"
-                            title="Agendar esta interacción en el calendario"
-                            data-testid="btn-hito-fecha"
-                          >
-                            <CalendarClock className="w-3.5 h-3.5" />
-                            Agendar
-                          </button>
-                        )}
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarUI
-                          mode="single"
-                          locale={es}
-                          selected={hitoForm.fecha ?? undefined}
-                          onSelect={(d) => {
-                            setHitoForm((f) => ({ ...f, fecha: d ?? null }));
-                            setFechaPickerOpen(false);
-                          }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <input
+                          type="time"
+                          value={hitoForm.hora}
+                          onChange={(e) => setHitoForm((f) => ({ ...f, hora: e.target.value }))}
+                          className="h-7 rounded-lg border bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          title="Hora (opcional)"
+                          data-testid="input-hito-hora"
                         />
-                      </PopoverContent>
-                    </Popover>
+                      </div>
+                    ) : (
+                      /* Acceso rápido al modo agendar desde registrar */
+                      <button
+                        onClick={() => switchModoComposer("agendar")}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors"
+                        title="Agendar una reunión, llamada o correo en el calendario"
+                        data-testid="btn-ir-agendar"
+                      >
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        Agendar
+                      </button>
+                    )}
+                    </div>
                     <Button
                       size="sm"
                       onClick={handleRegistrarActividad}
-                      disabled={!hitoForm.descripcion.trim() || addHitoMutation.isPending || createBitMutation.isPending}
+                      disabled={
+                        !hitoForm.descripcion.trim() ||
+                        (modoComposer === "agendar" && !hitoForm.fecha) ||
+                        addHitoMutation.isPending || createBitMutation.isPending
+                      }
                       className="h-7 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
                       data-testid="btn-agregar-hito"
                     >
-                      {(addHitoMutation.isPending || createBitMutation.isPending) ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                      Registrar
+                      {(addHitoMutation.isPending || createBitMutation.isPending)
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        : modoComposer === "agendar"
+                          ? <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
+                          : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                      {modoComposer === "agendar" ? "Agendar" : "Registrar"}
                     </Button>
                   </div>
                 </div>
+
+                {/* Interpretando el dictado con IA */}
+                {vozParsing && !vozDraft && (
+                  <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                    Interpretando lo dictado…
+                  </div>
+                )}
+
+                {/* Panel de confirmación: interacciones detectadas por la IA,
+                    editables (tipo, fecha, hora, texto) antes de insertar */}
+                {vozDraft && (
+                  <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-3 space-y-2.5" data-testid="voz-confirmacion">
+                    <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {vozDraft.length === 1 ? "1 interacción detectada" : `${vozDraft.length} interacciones detectadas`} — revisa y confirma
+                    </p>
+                    <div className="space-y-2">
+                      {vozDraft.map((e, idx) => {
+                        const cfg = TIPO_OPCIONES.find((t) => t.value === e.tipo) || TIPO_OPCIONES[0];
+                        return (
+                          <div key={idx} className="rounded-lg border bg-background p-2.5 space-y-1.5" data-testid={`voz-entrada-${idx}`}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${cfg.ring}`}>
+                                <cfg.icon className={`w-3 h-3 ${cfg.color}`} />
+                              </span>
+                              <select
+                                value={e.tipo}
+                                onChange={(ev) => updateVozEntrada(idx, { tipo: ev.target.value })}
+                                className="text-xs bg-background border rounded-md px-1.5 py-0.5 cursor-pointer"
+                                data-testid={`voz-tipo-${idx}`}
+                              >
+                                {TIPO_OPCIONES.map((t) => (
+                                  <option key={t.value} value={t.value}>{t.label}</option>
+                                ))}
+                              </select>
+                              <Popover open={vozFechaOpen === idx} onOpenChange={(o) => setVozFechaOpen(o ? idx : null)}>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                      e.fecha
+                                        ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 hover:bg-indigo-200/70 dark:hover:bg-indigo-900/60"
+                                        : e.modo === "agendar"
+                                          ? "border border-dashed border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                                          : "text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30"
+                                    }`}
+                                    title={e.fecha ? "Cambiar fecha" : e.modo === "agendar" ? "Se dictó como agendado: falta elegir la fecha" : "Agendar en el calendario"}
+                                    data-testid={`voz-fecha-${idx}`}
+                                  >
+                                    <CalendarClock className="w-3 h-3" />
+                                    {e.fecha
+                                      ? e.fecha.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })
+                                      : e.modo === "agendar" ? "Falta fecha" : "Agendar"}
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <CalendarUI
+                                    mode="single"
+                                    locale={es}
+                                    selected={e.fecha ?? undefined}
+                                    onSelect={(d) => {
+                                      updateVozEntrada(idx, { fecha: d ?? null });
+                                      setVozFechaOpen(null);
+                                    }}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              {e.fecha && (
+                                <>
+                                  <input
+                                    type="time"
+                                    value={e.hora}
+                                    onChange={(ev) => updateVozEntrada(idx, { hora: ev.target.value })}
+                                    className="h-6 rounded-md border bg-background px-1.5 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                    title="Hora (opcional)"
+                                  />
+                                  <button
+                                    onClick={() => updateVozEntrada(idx, { fecha: null, hora: "" })}
+                                    className="p-0.5 rounded-full text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                                    title="Quitar fecha"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={() => removeVozEntrada(idx)}
+                                className="ml-auto p-1 rounded-md text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                title="Descartar esta interacción"
+                                data-testid={`voz-eliminar-${idx}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <Textarea
+                              value={e.descripcion}
+                              onChange={(ev) => updateVozEntrada(idx, { descripcion: ev.target.value })}
+                              rows={2}
+                              className="text-xs resize-none min-h-0 py-1.5"
+                              data-testid={`voz-descripcion-${idx}`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setVozDraft(null)} data-testid="btn-voz-descartar">
+                        Descartar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => insertVozMutation.mutate(vozDraft.filter((e) => e.descripcion.trim()))}
+                        disabled={insertVozMutation.isPending || vozDraft.every((e) => !e.descripcion.trim())}
+                        className="h-7 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                        data-testid="btn-voz-confirmar"
+                      >
+                        {insertVozMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+                        Insertar {vozDraft.length === 1 ? "interacción" : `${vozDraft.length} interacciones`}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Vista calendario: hitos agendados + actividad registrada por día */}
@@ -1214,7 +1688,7 @@ export default function SeguimientoClienteDetalle() {
                     <div className="flex items-center justify-center gap-4 border-t bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                        Hito agendado
+                        Evento agendado
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
@@ -1256,7 +1730,7 @@ export default function SeguimientoClienteDetalle() {
                                           : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
                                       }`}>
                                         <CalendarClock className="w-2.5 h-2.5" />
-                                        Agendado
+                                        Agendado{formatHoraAgendada(raw.fechaProgramada) ? ` · ${formatHoraAgendada(raw.fechaProgramada)}` : ""}
                                       </Badge>
                                     )}
                                   </div>
@@ -1312,7 +1786,7 @@ export default function SeguimientoClienteDetalle() {
                                     : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
                                 }`}>
                                   <CalendarClock className="w-2.5 h-2.5" />
-                                  {formatDate(entry.fechaProgramada)}
+                                  {formatDate(entry.fechaProgramada)}{formatHoraAgendada(entry.fechaProgramada) ? ` · ${formatHoraAgendada(entry.fechaProgramada)}` : ""}
                                 </Badge>
                               )}
                               <span className="text-[11px] text-muted-foreground ml-auto whitespace-nowrap" title={formatDate(entry.createdAt)}>
@@ -1363,7 +1837,7 @@ export default function SeguimientoClienteDetalle() {
                                   : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
                               }`}>
                                 <CalendarClock className="w-2.5 h-2.5" />
-                                {formatDate(hito.fechaProgramada)}
+                                {formatDate(hito.fechaProgramada)}{formatHoraAgendada(hito.fechaProgramada) ? ` · ${formatHoraAgendada(hito.fechaProgramada)}` : ""}
                               </Badge>
                             )}
                             <span className="text-[11px] text-muted-foreground ml-auto whitespace-nowrap" title={formatDate(hito.createdAt)}>
