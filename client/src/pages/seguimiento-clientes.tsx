@@ -17,7 +17,7 @@ import {
   Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users, UserCheck,
   Star, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical, RefreshCw,
   MapPin, Tags, List, LayoutGrid, Banknote, Send, Eye,
-  MessageSquare, Check, Trash2,
+  MessageSquare, Check, Trash2, CalendarClock, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -438,22 +438,25 @@ export default function SeguimientoClientes() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-4 gap-2 sm:gap-4">
           <KpiCard
             icon={Users}
             label="Total activos"
+            shortLabel="Activos"
             value={String(stats?.total ?? clientes.length)}
             iconBox="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
           />
           <KpiCard
             icon={UserCheck}
             label="Prospectos en seguimiento"
+            shortLabel="Prospectos"
             value={String(stats?.prospectosEnSeguimiento ?? "—")}
             iconBox="bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400"
           />
           <KpiCard
             icon={Clock}
             label="Sin interacción (7+ días)"
+            shortLabel="Sin interac."
             value={String(stats?.sinContacto7Dias ?? "—")}
             iconBox="bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
             valueClass="text-amber-600 dark:text-amber-400"
@@ -461,6 +464,7 @@ export default function SeguimientoClientes() {
           <KpiCard
             icon={Banknote}
             label="Tiempo promedio de cierre"
+            shortLabel="Cierre prom."
             value={stats?.tiempoCierrePromedioDias != null ? `${stats.tiempoCierrePromedioDias} días` : "—"}
             iconBox="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
           />
@@ -468,8 +472,8 @@ export default function SeguimientoClientes() {
 
         {/* Toolbar de filtros */}
         <div className="rounded-xl border bg-card shadow-sm p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+            <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar cliente, empresa, RUT..."
@@ -480,8 +484,11 @@ export default function SeguimientoClientes() {
               />
             </div>
 
+            {/* Filtros: en móvil una tira horizontal deslizable (estilo app);
+                en desktop participan del flex-wrap normal (sm:contents) */}
+            <div className="flex items-center gap-2 overflow-x-auto sm:overflow-visible sm:contents -mx-1 px-1 sm:mx-0 sm:px-0 pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-              <SelectTrigger className="w-[160px]" data-testid="select-estado-filter">
+              <SelectTrigger className="w-[160px] shrink-0" data-testid="select-estado-filter">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -498,7 +505,7 @@ export default function SeguimientoClientes() {
             </Select>
 
             <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
-              <SelectTrigger className="w-[150px]" data-testid="select-prioridad-filter">
+              <SelectTrigger className="w-[150px] shrink-0" data-testid="select-prioridad-filter">
                 <SelectValue placeholder="Prioridad" />
               </SelectTrigger>
               <SelectContent>
@@ -516,7 +523,7 @@ export default function SeguimientoClientes() {
 
             {isAdminOrSupervisor && (
               <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
-                <SelectTrigger className="w-[180px]" data-testid="select-vendedor-filter">
+                <SelectTrigger className="w-[180px] shrink-0" data-testid="select-vendedor-filter">
                   <User className="w-3.5 h-3.5 mr-1.5" />
                   <SelectValue placeholder="Vendedor" />
                 </SelectTrigger>
@@ -530,7 +537,7 @@ export default function SeguimientoClientes() {
             )}
 
             <Select value={filtroRegion} onValueChange={setFiltroRegion}>
-              <SelectTrigger className="w-[180px]" data-testid="select-region-filter">
+              <SelectTrigger className="w-[180px] shrink-0" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
                 <SelectValue placeholder="Región" />
               </SelectTrigger>
@@ -543,7 +550,7 @@ export default function SeguimientoClientes() {
             </Select>
 
             <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
-              <SelectTrigger className="w-[160px]" data-testid="select-segmento-filter">
+              <SelectTrigger className="w-[160px] shrink-0" data-testid="select-segmento-filter">
                 <Tags className="w-3.5 h-3.5 mr-1.5" />
                 <SelectValue placeholder="Segmento" />
               </SelectTrigger>
@@ -559,7 +566,7 @@ export default function SeguimientoClientes() {
               variant={soloDestacados ? "default" : "outline"}
               size="sm"
               onClick={() => setSoloDestacados((v) => !v)}
-              className={soloDestacados ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+              className={`shrink-0 ${soloDestacados ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
               data-testid="btn-filtro-destacados"
             >
               <Star className={`w-3.5 h-3.5 mr-1.5 ${soloDestacados ? "fill-current" : ""}`} />
@@ -570,12 +577,13 @@ export default function SeguimientoClientes() {
               variant={pinProblemas ? "default" : "outline"}
               size="sm"
               onClick={() => setPinProblemas((v) => !v)}
-              className={pinProblemas ? "bg-red-500 hover:bg-red-600 text-white" : ""}
+              className={`shrink-0 ${pinProblemas ? "bg-red-500 hover:bg-red-600 text-white" : ""}`}
               data-testid="btn-pin-problemas"
             >
               <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
               Problemas primero
             </Button>
+            </div>
 
             {activeFilterCount > 0 && (
               <div className="flex items-center gap-1.5 ml-auto">
@@ -689,21 +697,24 @@ export default function SeguimientoClientes() {
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────
-function KpiCard({ icon: Icon, label, value, iconBox, valueClass = "" }: {
+function KpiCard({ icon: Icon, label, shortLabel, value, iconBox, valueClass = "" }: {
   icon: any;
   label: string;
+  shortLabel?: string;
   value: string;
   iconBox: string;
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl border bg-card shadow-sm p-4 flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBox}`}>
-        <Icon className="w-5 h-5" />
+    <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+      <div className={`w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBox}`}>
+        <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
       </div>
       <div className="min-w-0">
-        <p className={`text-2xl font-bold tracking-tight truncate ${valueClass}`}>{value}</p>
-        <p className="text-xs text-muted-foreground truncate">{label}</p>
+        <p className={`text-lg sm:text-2xl font-bold tracking-tight leading-none truncate ${valueClass}`}>{value}</p>
+        {/* En móvil una etiqueta corta; en desktop la descripción completa */}
+        <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5 sm:hidden">{shortLabel ?? label}</p>
+        <p className="text-xs text-muted-foreground truncate mt-0.5 hidden sm:block">{label}</p>
       </div>
     </div>
   );
@@ -783,7 +794,73 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
           {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"} en seguimiento
         </p>
       </div>
-      <div className="overflow-auto max-h-[calc(100vh-240px)]">
+      {/* ─── Vista móvil: tarjetas compactas (prioridad al cliente) ─── */}
+      <div className="sm:hidden divide-y divide-border/60">
+        {clientes.map((client: any) => {
+          const isStale = isStaleContact(client);
+          return (
+            <div
+              key={client.id}
+              onClick={() => onView(client)}
+              className={`flex items-start gap-3 px-3 py-3 cursor-pointer active:bg-indigo-50/60 dark:active:bg-indigo-950/30 transition-colors ${
+                client.destacado ? "bg-amber-50/40 dark:bg-amber-950/10" : ""
+              }`}
+              data-testid={`card-cliente-${client.id}`}
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleDestacado(client); }}
+                className="pt-0.5 shrink-0"
+                data-testid={`btn-destacar-m-${client.id}`}
+              >
+                <Star className={`w-4 h-4 ${client.destacado ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40"}`} />
+              </button>
+              <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 flex items-center justify-center text-[11px] font-bold shrink-0">
+                {getInitials(client.nombre)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-semibold text-sm text-foreground truncate">{fixEncoding(client.nombre)}</p>
+                  {client.hasProblema && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                </div>
+                {client.empresa && client.empresa !== client.nombre && (
+                  <p className="text-xs text-muted-foreground truncate">{fixEncoding(client.empresa)}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <EstadoBadge estado={client.estado} />
+                  <PrioridadBadge prioridad={client.prioridad} />
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 text-[11px]">
+                  <span className={`inline-flex items-center gap-1 font-medium ${isStale ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    <Clock className="w-3 h-3" />
+                    {timeAgo(client.ultimoContacto)}
+                  </span>
+                  {client.proximoContacto && (
+                    <span className={`inline-flex items-center gap-1 ${isOverdue(client.proximoContacto) ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                      <CalendarClock className="w-3 h-3" />
+                      {formatDate(client.proximoContacto)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-2" />
+            </div>
+          );
+        })}
+        {clientes.length === 0 && (
+          <div className="text-center py-14 text-muted-foreground">
+            <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
+            <p className="text-sm font-medium">No se encontraron clientes</p>
+            <p className="text-xs mt-1 mb-4">Ajusta los filtros o crea un nuevo cliente</p>
+            <Button variant="outline" size="sm" onClick={onNuevo}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Nuevo Cliente
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Vista desktop: tabla completa ─── */}
+      <div className="hidden sm:block overflow-auto max-h-[calc(100vh-240px)]">
         <table className="w-full min-w-[1300px] text-sm">
           <thead>
             <tr>
