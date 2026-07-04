@@ -759,7 +759,7 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /crm/seguimiento/:id/bitacora': { filters: ['limit'], note: 'Lista entradas de la BITÁCORA (panel derecho), distinta del timeline /hito' },
       'POST /crm/seguimiento/:id/bitacora': { body: ['nota*', 'tipo (nota|llamada|visita|seguimiento|problema)', 'autor'], note: 'Refresca ultimoContacto del CRM' },
       'DELETE /crm/seguimiento/:id/bitacora/:entryId': { note: 'Eliminar entrada' },
-      'GET /crm/seguimiento/stats': { filters: ['vendedor'], note: '{ total, porEstado, porPrioridad, sinContacto7Dias }' },
+      'GET /crm/seguimiento/stats': { filters: ['vendedor'], note: '{ total, porEstado, porPrioridad, sinContacto7Dias, prospectosEnSeguimiento, tiempoCierrePromedioDias }' },
       'GET /crm/seguimiento/segmentos': { note: 'Catálogo de segmentos del ERP' },
       'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
       'GET /listas-precio': { note: 'lists LP01 (base) + custom price lists (LP02 Mix, LP03 etc)' },
