@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
+import { segmentEq, segmentSqlEq, segmentFilterValues, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
@@ -3909,7 +3910,7 @@ export function registerRoutes(app: Express): Server {
         conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE nokofu = ${salesperson as string})`);
       }
       if (segment) {
-        conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE noruen = ${segment as string})`);
+        conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, segment as string)})`);
       }
       if (client) conditions.push(eq(factVentas.nokoen, client as string));
 
@@ -4592,7 +4593,7 @@ export function registerRoutes(app: Express): Server {
         conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate}`);
       }
       if (segment) {
-        conditions.push(eq(factVentas.noruen, segment as string));
+        conditions.push(segmentEq(factVentas.noruen, segment as string));
       }
       if (salesperson) {
         conditions.push(eq(factVentas.nokofu, salesperson as string));
@@ -4637,7 +4638,7 @@ export function registerRoutes(app: Express): Server {
         'Fecha': row.fecha || '',
         'Tipo Documento': row.tipoDocumento || '',
         'Nro Documento': row.numeroDocumento || '',
-        'Segmento': row.segmento || '',
+        'Segmento': canonicalSegmentName(row.segmento) || '',
         'Sucursal': row.sucursal || '',
         'Vendedor': row.vendedor || '',
         'Cliente': row.cliente || '',
@@ -5766,7 +5767,10 @@ export function registerRoutes(app: Express): Server {
       let salespersonFilter = '';
       if (salesperson) salespersonFilter = ` AND nokofu = '${(salesperson as string).replace(/'/g, "''")}'`;
       let segmentFilter = '';
-      if (segment) segmentFilter = ` AND noruen = '${(segment as string).replace(/'/g, "''")}'`;
+      if (segment) {
+        const segIn = segmentFilterValues(segment as string).map(v => `'${v.replace(/'/g, "''")}'`).join(', ');
+        segmentFilter = ` AND noruen IN (${segIn})`;
+      }
       let clientFilter = '';
       if (client) clientFilter = ` AND nokoen = '${(client as string).replace(/'/g, "''")}'`;
 
@@ -6098,7 +6102,8 @@ export function registerRoutes(app: Express): Server {
         additionalFilters += ` AND nokofu = '${salespersonCode}'`;
       }
       if (viewType === 'segment' && segment && segment !== 'all') {
-        additionalFilters += ` AND noruen = '${segment}'`;
+        const segIn = segmentFilterValues(String(segment)).map(v => `'${v.replace(/'/g, "''")}'`).join(', ');
+        additionalFilters += ` AND noruen IN (${segIn})`;
       }
 
       // Query historical monthly sales from fact_ventas
@@ -17665,7 +17670,8 @@ export function registerRoutes(app: Express): Server {
         'FERRETERIAS': 'Ferreterías',
         'CONSTRUCCION': 'Construcción',
         'CANALES DIGITALES': 'Canales Digitales',
-        'FABRICACION MODULAR': 'Fabricación Modular',
+        'INDUSTRIAL': 'Industrial',
+        'FABRICACION MODULAR': 'Industrial', // retrocompat: cotizaciones viejas
         'PANORAMICA STORE': 'Panorámica Store',
         'OTRO': 'Otro',
       };
@@ -22121,8 +22127,9 @@ export function registerRoutes(app: Express): Server {
 
       const segments: Record<string, { count: number; amount: number }> = {};
       segmentResults.forEach(result => {
-        if (result.segment) {
-          segments[result.segment] = {
+        const seg = canonicalSegmentName(result.segment);
+        if (seg) {
+          segments[seg] = {
             count: 1,
             amount: 0 // We can calculate this later if needed
           };
@@ -22202,7 +22209,7 @@ export function registerRoutes(app: Express): Server {
           const code = result.kofulido.trim();
           // Only set if not already set (keep first match)
           if (!kofulidoToSegment[code]) {
-            kofulidoToSegment[code] = result.nombre_segmento_cliente.trim();
+            kofulidoToSegment[code] = canonicalSegmentName(result.nombre_segmento_cliente.trim()) || result.nombre_segmento_cliente.trim();
           }
         }
       });
@@ -22216,9 +22223,9 @@ export function registerRoutes(app: Express): Server {
         ORDER BY nombre_segmento_cliente
       `);
 
-      const segments: string[] = uniqueSegmentsResult.rows
-        .map((r: any) => r.nombre_segmento_cliente?.trim())
-        .filter((s: string) => s);
+      const segments: string[] = canonicalizeSegmentList(
+        uniqueSegmentsResult.rows.map((r: any) => r.nombre_segmento_cliente?.trim())
+      );
 
       res.json({
         kofulidoToName,
@@ -28983,7 +28990,7 @@ export function registerRoutes(app: Express): Server {
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
             ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+            ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         )
         SELECT COUNT(*) AS total
         FROM fcv f
@@ -29009,7 +29016,7 @@ export function registerRoutes(app: Express): Server {
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
             ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+            ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         ),
         agg AS (
           SELECT
@@ -29125,7 +29132,7 @@ export function registerRoutes(app: Express): Server {
           ${s ? sql`AND fv."feemdo" >= ${s}::date` : sql``}
           ${e ? sql`AND fv."feemdo" <= ${e}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+          ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
       `;
 
       // 1. Overview del período actual + anterior
@@ -29253,7 +29260,7 @@ export function registerRoutes(app: Express): Server {
         const marginPct = r.margin_pct != null ? Number(r.margin_pct) : null;
         const prevMarginPct = r.prev_margin_pct != null ? Number(r.prev_margin_pct) : null;
         return {
-          segment: r.segment,
+          segment: canonicalSegmentName(r.segment) ?? r.segment,
           revenue,
           cost,
           marginAmount: revenue - cost,
@@ -29458,7 +29465,7 @@ export function registerRoutes(app: Express): Server {
             ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
             ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
             ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-            ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+            ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         )
         SELECT
           COALESCE(l.salesperson, '(sin vendedor)') AS salesperson,
@@ -29517,7 +29524,7 @@ export function registerRoutes(app: Express): Server {
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+          ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         GROUP BY ss.segment
         ORDER BY SUM(fv."monto") DESC
       `);

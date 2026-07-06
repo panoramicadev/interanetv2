@@ -354,6 +354,7 @@ import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
+import { segmentEq, segmentSqlEq, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -2702,7 +2703,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(factVentas.nokofu, salesperson));
       }
       if (segment) {
-        conditions.push(eq(factVentas.noruen, segment));
+        conditions.push(segmentEq(factVentas.noruen, segment));
       }
     }
     if (client) {
@@ -2886,7 +2887,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -2948,7 +2949,7 @@ export class DatabaseStorage implements IStorage {
         AND fv."feemdo" <= ${endDate}::date
         AND fv."tido" != 'GDV'
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
         ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
@@ -2993,7 +2994,7 @@ export class DatabaseStorage implements IStorage {
         AND fv."feemdo" <= ${endDate}::date
         AND fv."tido" != 'GDV'
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
         ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
@@ -3034,7 +3035,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`UPPER(TRIM(${factGdv.nokofu})) = ${salesperson.toUpperCase().trim()}`);
     }
     if (segment) {
-      conditions.push(eq(factGdv.noruen, segment));
+      conditions.push(segmentEq(factGdv.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factGdv.nokoen, client));
@@ -3123,7 +3124,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.tido} != 'GDV'`
     ];
     if (filters?.segment) {
-      baseConditions.push(eq(factVentas.noruen, filters.segment));
+      baseConditions.push(segmentEq(factVentas.noruen, filters.segment));
     }
     if (filters?.salesperson) {
       baseConditions.push(eq(factVentas.nokofu, filters.salesperson));
@@ -3194,7 +3195,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.tido} != 'GDV'`
     ];
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(segmentEq(factVentas.noruen, filters.segment));
     }
     if (filters?.salesperson) {
       conditions.push(eq(factVentas.nokofu, filters.salesperson));
@@ -3248,7 +3249,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (segment) {
-      conditions.push(sql`${factVentas.noruen} = ${segment}`);
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -3318,7 +3319,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -3375,7 +3376,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -3466,7 +3467,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
@@ -3531,7 +3532,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     const whereClause = and(...conditions);
@@ -3618,7 +3619,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     const whereClause = and(...conditions);
@@ -3686,7 +3687,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3775,7 +3776,7 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3966,7 +3967,7 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -4158,7 +4159,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE nokofu = ${salesperson})`);
     }
     if (segment) {
-      conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE noruen = ${segment})`);
+      conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, segment)})`);
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -5233,7 +5234,7 @@ export class DatabaseStorage implements IStorage {
     if (filters.startDate) conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     if (filters.endDate) conditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
     if (filters.family) conditions.push(sql`TRIM(${factVentas.nofmpr}) = ${filters.family.trim()}`);
-    if (filters.segment) conditions.push(eq(factVentas.noruen, filters.segment));
+    if (filters.segment) conditions.push(segmentEq(factVentas.noruen, filters.segment));
     if (filters.salesperson) conditions.push(eq(factVentas.nokofu, filters.salesperson));
     if (filters.branch) conditions.push(eq(factVentas.nosudo, filters.branch));
 
@@ -5387,7 +5388,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: Number(p.transactionCount),
       })),
       segmentBreakdown: segmentResults.map(s => ({
-        segment: s.segment || '',
+        segment: canonicalSegmentName(s.segment) || '',
         totalSales: Number(s.totalSales),
         totalUnits: Number(s.totalUnits),
         clientCount: Number(s.clientCount),
@@ -5437,7 +5438,7 @@ export class DatabaseStorage implements IStorage {
       dateConditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      dateConditions.push(eq(factVentas.noruen, segment));
+      dateConditions.push(segmentEq(factVentas.noruen, segment));
     }
     dateConditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
@@ -5467,11 +5468,20 @@ export class DatabaseStorage implements IStorage {
 
     const totalSales = Number(totalSalesResult.total);
 
-    const segResult = results.map(r => ({
-      segment: r.segment || '',
-      totalSales: Number(r.totalSales),
-      percentage: totalSales > 0 ? (Number(r.totalSales) / totalSales) * 100 : 0,
-    }));
+    // Unifica los alias de un mismo segmento (ej. "Fabricación Modular" + "Industrial")
+    // sumando sus ventas, por si el histórico y lo nuevo del ERP conviven.
+    const mergedSales = new Map<string, number>();
+    for (const r of results) {
+      const seg = canonicalSegmentName(r.segment || '') || '';
+      mergedSales.set(seg, (mergedSales.get(seg) || 0) + Number(r.totalSales));
+    }
+    const segResult = Array.from(mergedSales.entries())
+      .map(([segment, sales]) => ({
+        segment,
+        totalSales: sales,
+        percentage: totalSales > 0 ? (sales / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
 
     this.setCache(segCacheKey, segResult, 60000); // Cache 60 seconds
     return segResult;
@@ -5501,7 +5511,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -5673,7 +5683,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, filters.salesperson));
     }
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(segmentEq(factVentas.noruen, filters.segment));
     }
     if (filters?.branch) {
       conditions.push(eq(factVentas.nosudo, filters.branch));
@@ -6232,7 +6242,9 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
       .orderBy(factVentas.noruen);
 
-    const segments = result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
+    const rawSegments = result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
+    // Colapsa "Fabricación Modular" / "Industrial" en una sola etiqueta "Industrial".
+    const segments = canonicalizeSegmentList(rawSegments);
     this.setCache('uniqueSegments', segments, 300000); // 5 min cache
     return segments;
   }
@@ -6414,7 +6426,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(
         and(
-          eq(factVentas.noruen, segment),
+          segmentEq(factVentas.noruen, segment),
           sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`,
           ...DatabaseStorage.getClientScopeConditions(clientScope)
         )
@@ -6451,7 +6463,7 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
+      segmentEq(factVentas.noruen, segmentName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -6543,7 +6555,7 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
+      segmentEq(factVentas.noruen, segmentName),
       sql`${factVentas.tido} != 'GDV'`,
       sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year}`
     ];
@@ -6582,7 +6594,7 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
+      segmentEq(factVentas.noruen, segmentName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -6742,7 +6754,7 @@ export class DatabaseStorage implements IStorage {
         -- Get all unique clients who purchased in the segment during the period
         SELECT DISTINCT nokoen as client_name
         FROM ventas.fact_ventas
-        WHERE noruen = ${segmentName}
+        WHERE ${segmentSqlEq(sql`noruen`, segmentName)}
           AND tido != 'GDV'
           AND DATE(feemdo) >= ${periodStartDate}::date
           AND DATE(feemdo) <= ${periodEndDate}::date
@@ -6754,7 +6766,7 @@ export class DatabaseStorage implements IStorage {
           nokoen as client_name,
           MIN(DATE(feemdo)) as first_sale_date
         FROM ventas.fact_ventas
-        WHERE noruen = ${segmentName}
+        WHERE ${segmentSqlEq(sql`noruen`, segmentName)}
           AND tido != 'GDV'
           AND nokoen IS NOT NULL
         GROUP BY nokoen
@@ -7230,7 +7242,7 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     // Apply date filters if period is provided
@@ -7356,7 +7368,7 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(segmentEq(factVentas.noruen, segment));
     }
 
     // Apply date filters if period is provided
@@ -7517,11 +7529,19 @@ export class DatabaseStorage implements IStorage {
 
     const totalSales = result.reduce((sum, segment) => sum + Number(segment.totalSales), 0);
 
-    return result.map(segment => ({
-      segment: segment.segment || 'Sin segmento',
-      totalSales: Number(segment.totalSales),
-      percentage: totalSales > 0 ? (Number(segment.totalSales) / totalSales) * 100 : 0
-    }));
+    // Unifica los alias de un mismo segmento (ej. "Fabricación Modular" + "Industrial").
+    const merged = new Map<string, number>();
+    for (const seg of result) {
+      const name = canonicalSegmentName(seg.segment || 'Sin segmento') || 'Sin segmento';
+      merged.set(name, (merged.get(name) || 0) + Number(seg.totalSales));
+    }
+    return Array.from(merged.entries())
+      .map(([segment, sales]) => ({
+        segment,
+        totalSales: sales,
+        percentage: totalSales > 0 ? (sales / totalSales) * 100 : 0
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
   }
 
   // Client detail operations
@@ -11492,7 +11512,7 @@ export class DatabaseStorage implements IStorage {
           COUNT(*) as total_transactions,
           SUM(CAST(monto as numeric)) as total_sales
         FROM sales_transactions 
-        WHERE noruen = ${segment}
+        WHERE ${segmentSqlEq(sql`noruen`, segment)}
           AND nokofu IS NOT NULL 
           AND nokofu != ''
           AND nokofu NOT IN (
@@ -11816,11 +11836,19 @@ export class DatabaseStorage implements IStorage {
     // Calculate total unique clients across all segments for percentage
     const totalUniqueClients = segments.reduce((sum, segment) => sum + Number(segment.uniqueClients), 0);
 
-    return segments.map(segment => ({
-      segment: segment.segment || '',
-      uniqueClients: Number(segment.uniqueClients),
-      percentage: totalUniqueClients > 0 ? (Number(segment.uniqueClients) / totalUniqueClients) * 100 : 0
-    })).sort((a, b) => b.uniqueClients - a.uniqueClients);
+    // Unifica los alias de un mismo segmento (ej. "Fabricación Modular" + "Industrial").
+    const mergedClients = new Map<string, number>();
+    for (const seg of segments) {
+      const name = canonicalSegmentName(seg.segment || '') || '';
+      mergedClients.set(name, (mergedClients.get(name) || 0) + Number(seg.uniqueClients));
+    }
+    return Array.from(mergedClients.entries())
+      .map(([segment, uniqueClients]) => ({
+        segment,
+        uniqueClients,
+        percentage: totalUniqueClients > 0 ? (uniqueClients / totalUniqueClients) * 100 : 0
+      }))
+      .sort((a, b) => b.uniqueClients - a.uniqueClients);
   }
 
   // Comunas analysis - sales by comuna with filters
@@ -11856,7 +11884,7 @@ export class DatabaseStorage implements IStorage {
 
     // Add segment filter
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(segmentEq(factVentas.noruen, filters.segment));
     }
 
     // Get total sales for percentage calculation (includes ALL transactions)
@@ -11950,7 +11978,7 @@ export class DatabaseStorage implements IStorage {
 
     // Add segment filter
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(segmentEq(factVentas.noruen, filters.segment));
     }
 
     // Get total sales for percentage calculation (includes ALL transactions)
@@ -12276,7 +12304,7 @@ export class DatabaseStorage implements IStorage {
       // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
       // ventas en ese segmento.
       conditions.push(
-        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE noruen = ${filters.segment})`
+        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, filters.segment)})`
       );
     }
 
@@ -12499,7 +12527,7 @@ export class DatabaseStorage implements IStorage {
         lastTransactionDate: metrics?.last_transaction_date || undefined,
         salespersonName: metrics?.salesperson_name || undefined,
         lastTransactionAmount: metrics ? Number(metrics.last_transaction_amount) : undefined,
-        salesSegment: metrics?.segment_name || undefined,
+        salesSegment: canonicalSegmentName(metrics?.segment_name) || undefined,
       };
     });
 
@@ -12601,7 +12629,7 @@ export class DatabaseStorage implements IStorage {
       // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
       // ventas en ese segmento.
       conditions.push(
-        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE noruen = ${filters.segment})`
+        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, filters.segment)})`
       );
     }
 
@@ -25293,7 +25321,7 @@ export class DatabaseStorage implements IStorage {
 
       return results.map(r => ({
         clientName: r.clientName || '',
-        segment: r.segment || '',
+        segment: canonicalSegmentName(r.segment) || '',
         salespersonName: r.salespersonName || '',
         purchaseCount: Number(r.purchaseCount) || 0,
         lastPurchaseDate: r.lastPurchaseDate,
@@ -25727,7 +25755,7 @@ export class DatabaseStorage implements IStorage {
 
       // SAME AS DASHBOARD: Filter by segment (line 2202)
       if (filters?.segment && filters.segment !== 'all') {
-        salesConditions.push(sql`${factVentas.noruen} = ${filters.segment}`);
+        salesConditions.push(segmentEq(factVentas.noruen, filters.segment));
       }
 
       // Get sales data with filters applied
@@ -25848,7 +25876,7 @@ export class DatabaseStorage implements IStorage {
 
       // Filter by segment if provided
       if (filters?.segment && filters.segment !== 'all') {
-        monthlySalesConditions.push(sql`${factVentas.noruen} = ${filters.segment}`);
+        monthlySalesConditions.push(segmentEq(factVentas.noruen, filters.segment));
       }
 
       // Query for monthly breakdown (with month filter applied)
@@ -25985,7 +26013,7 @@ export class DatabaseStorage implements IStorage {
             isNotNull(factVentas.nokofu),
             sql`${factVentas.nokofu} != ''`,
             sql`${factVentas.nokofu} != '.'`,
-            eq(factVentas.noruen, segment)
+            segmentEq(factVentas.noruen, segment)
           )
         )
         .orderBy(factVentas.nokofu);
@@ -26036,10 +26064,16 @@ export class DatabaseStorage implements IStorage {
         )
         .orderBy(factVentas.noruen);
 
-      return results.map(r => ({
-        code: r.segment!,
-        name: r.segment!,
-      }));
+      // Colapsa los alias de "Industrial" (ex "Fabricación Modular") en una sola entrada.
+      const seen = new Set<string>();
+      const list: Array<{ code: string; name: string }> = [];
+      for (const r of results) {
+        const canonical = canonicalSegmentName(r.segment!);
+        if (!canonical || seen.has(canonical)) continue;
+        seen.add(canonical);
+        list.push({ code: canonical, name: canonical });
+      }
+      return list;
     } catch (error: any) {
       console.error('Error fetching segments list:', error.message);
       return [];
@@ -27858,7 +27892,7 @@ export class DatabaseStorage implements IStorage {
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+          ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
           ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
       ),
       por_producto AS (
@@ -28002,7 +28036,7 @@ export class DatabaseStorage implements IStorage {
       const cost = Number(r.cost || 0);
       const marginAmount = revenue - cost;
       return {
-        segment: r.segment,
+        segment: canonicalSegmentName(r.segment) ?? r.segment,
         revenue,
         cost,
         marginAmount,
@@ -28061,7 +28095,7 @@ export class DatabaseStorage implements IStorage {
         AND fv."monto" IS NOT NULL
         ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
         ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
-        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
       GROUP BY fv."nokofu"
       HAVING SUM(fv."monto") > 0
       ORDER BY SUM(fv."monto") DESC
@@ -28139,7 +28173,7 @@ export class DatabaseStorage implements IStorage {
           ${startDate ? sql`AND fv."feemdo" >= ${startDate}::date` : sql``}
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
-          ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+          ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
         GROUP BY fv."nokoprct"
         HAVING SUM(fv."monto") > 0
       )

@@ -42,7 +42,7 @@ const MESES_FULL = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Juli
 const KNOWN_CATEGORIES = [
     "MCT", "PANORAMICA STORE", "CONSTRUCCION", "CONSTRUCCIÓN",
     "CANALES DIGITALES", "FERRETERIAS", "FERRETERÍAS",
-    "FABRICACION MODULAR", "FABRICACIÓN MODULAR"
+    "FABRICACION MODULAR", "FABRICACIÓN MODULAR", "INDUSTRIAL"
 ];
 
 const SKIP_ROWS = ["TOTAL", "META"];
@@ -184,9 +184,9 @@ export default function PresupuestoVentas() {
                         continue;
                     }
 
-                    // Skip TOTAL rows (except for FABRICACION MODULAR which only has a total)
+                    // Skip TOTAL rows (except for INDUSTRIAL / ex-"FABRICACION MODULAR" which only has a total)
                     if (firstCell === "TOTAL" || secondCell === "TOTAL") {
-                        if (!currentCategory.includes("FABRICACION MODULAR") && !currentCategory.includes("FABRICACIÓN MODULAR")) {
+                        if (!currentCategory.includes("FABRICACION MODULAR") && !currentCategory.includes("FABRICACIÓN MODULAR") && !currentCategory.includes("INDUSTRIAL")) {
                             continue;
                         }
                     }
