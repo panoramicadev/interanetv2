@@ -413,6 +413,10 @@ import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
+import {
+  mapRowToLead, CRM_IMPORT_COLUMNS, CRM_ESTADO_LABELS, CRM_ORIGEN_LABELS,
+  CRM_PRIORIDAD_LABELS, csvRow, normalizeEstadoImport,
+} from "@shared/crm-import";
 import crypto from "crypto";
 
 interface TokenPayload {
@@ -36369,6 +36373,262 @@ Instrucciones extra:
     }));
 
     res.json(finalResults);
+  }));
+
+  // GET /api/crm/seguimiento/export — Exporta leads a CSV (formato español).
+  // Respeta el mismo scope y filtros que el listado. Debe ir ANTES de la ruta
+  // GET /:id para que "export" no se interprete como un id.
+  app.get('/api/crm/seguimiento/export', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { vendedor, estado, prioridad, busqueda } = req.query;
+
+    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+    const scope = await getVendedorScope(user);
+    if (scope) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+    } else if (user.role === 'salesperson') {
+      // Vendedor sin vínculo: nada que exportar.
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="crm-seguimiento.csv"');
+      return res.send('\uFEFF');
+    } else if (vendedor && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area')) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
+    }
+    if (estado) {
+      // El kanban agrupa por etapa canónica normalizando estados legacy
+      // ("nuevo" → prospecto). Para que el export por estado no pierda esos
+      // registros, se expande la etapa a sus sinónimos legacy.
+      const ESTADO_SYNONYMS: Record<string, string[]> = {
+        prospecto: ['prospecto', 'nuevo', 'perdido'],
+        seguimiento: ['seguimiento', 'contactado'],
+        cotizacion: ['cotizacion'],
+        venta: ['venta', 'completado'],
+        despacho: ['despacho'],
+      };
+      const syn = ESTADO_SYNONYMS[normalizeEstadoImport(estado as string)] || [estado as string];
+      conditions.push(inArray(crmSeguimientoClientes.estado, syn));
+    }
+    if (prioridad) conditions.push(eq(crmSeguimientoClientes.prioridad, prioridad as string));
+    if (busqueda) {
+      const s = `%${busqueda}%`;
+      conditions.push(or(
+        ilike(crmSeguimientoClientes.nombre, s),
+        ilike(crmSeguimientoClientes.empresa, s),
+        ilike(crmSeguimientoClientes.rut, s),
+        ilike(crmSeguimientoClientes.email, s),
+      )!);
+    }
+
+    const rows = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        vendedorEmail: salespeopleUsers.email,
+      })
+      .from(crmSeguimientoClientes)
+      .leftJoin(salespeopleUsers, eq(crmSeguimientoClientes.vendedorId, salespeopleUsers.id))
+      .where(and(...conditions))
+      .orderBy(desc(crmSeguimientoClientes.updatedAt))
+      .limit(5000);
+
+    const fmtDate = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+    const fmtTags = (t: any) => {
+      if (!t) return '';
+      try { const a = JSON.parse(t); return Array.isArray(a) ? a.join(', ') : String(t); }
+      catch { return String(t); }
+    };
+
+    const headers = [
+      ...CRM_IMPORT_COLUMNS.filter((c) => c.key !== 'vendedorEmail').map((c) => c.label),
+      'Vendedor', 'Correo del vendedor', 'Última actualización',
+    ];
+    const lines = [csvRow(headers)];
+    for (const r of rows as any[]) {
+      lines.push(csvRow([
+        r.nombre || '', r.empresa || '', r.rut || '', r.telefono || '', r.email || '',
+        r.region || '', r.comuna || '', r.contactoEncargado || '', r.segmento || '', r.condicionPago || '',
+        CRM_ESTADO_LABELS[normalizeEstadoImport(r.estado)] || r.estado || '',
+        CRM_PRIORIDAD_LABELS[r.prioridad] || r.prioridad || '',
+        CRM_ORIGEN_LABELS[r.origen || 'manual'] || r.origen || '',
+        r.montoEstimado != null ? String(r.montoEstimado) : '',
+        fmtDate(r.proximoContacto), r.notas || '', fmtTags(r.etiquetas),
+        r.vendedorNombre || '', r.vendedorEmail || '', fmtDate(r.updatedAt),
+      ]));
+    }
+
+    // BOM para que Excel reconozca UTF-8; CRLF por compatibilidad.
+    const csv = '\uFEFF' + lines.join('\r\n');
+    const fname = `crm-seguimiento-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+    res.send(csv);
+  }));
+
+  // POST /api/crm/seguimiento/import — Importación masiva desde CSV.
+  // El frontend parsea el CSV (Papa) y envía las filas crudas en `rows`; acá
+  // se mapean con mapRowToLead (fuente única). Reglas de asignación:
+  //  - Usuario acotado a un vendedor: todo se asigna a sí mismo (ignora correo).
+  //  - Admin/supervisor sin vínculo: usa "Correo del vendedor" por fila y, si la
+  //    fila no lo trae, el defaultVendedorEmail elegido en pantalla.
+  // Duplicados (mismo RUT o correo dentro de los leads del vendedor): se ACTUALIZA
+  // el lead existente en lugar de crear uno nuevo.
+  app.post('/api/crm/seguimiento/import', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const rows = req.body?.rows;
+    const defaultVendedorEmail: string | null = (req.body?.defaultVendedorEmail || '').toString().trim() || null;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ message: 'No se recibieron filas para importar' });
+    }
+    if (rows.length > 1000) {
+      return res.status(400).json({ message: 'Máximo 1000 filas por importación' });
+    }
+
+    const scope = await getVendedorScope(user);
+    if (!scope && user.role === 'salesperson') {
+      return res.status(403).json({ message: 'Usuario vendedor no encontrado' });
+    }
+
+    // Resolución de vendedor por correo con caché para no golpear la BD por fila.
+    const vendedorCache = new Map<string, { id: string; name: string } | null>();
+    const resolveVendedorByEmail = async (email: string) => {
+      const key = email.toLowerCase();
+      if (vendedorCache.has(key)) return vendedorCache.get(key)!;
+      const [sp] = await db.select().from(salespeopleUsers)
+        .where(and(ilike(salespeopleUsers.email, email), eq(salespeopleUsers.isActive, true)))
+        .limit(1);
+      const val = sp ? { id: sp.id, name: sp.salespersonName } : null;
+      vendedorCache.set(key, val);
+      return val;
+    };
+
+    let created = 0, updated = 0;
+    const skipped: { fila: number; nombre: string; motivo: string }[] = [];
+    const autorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+    for (let i = 0; i < rows.length; i++) {
+      const filaNum = i + 2; // +1 encabezado, +1 base-1 (número visible en Excel)
+      try {
+        const lead = mapRowToLead(rows[i] || {});
+        if (!lead.nombre) {
+          skipped.push({ fila: filaNum, nombre: '', motivo: 'Falta el nombre (columna obligatoria)' });
+          continue;
+        }
+
+        // Resolver vendedor destino
+        let vendedorId: string, vendedorNombre: string;
+        if (scope) {
+          vendedorId = scope.id;
+          vendedorNombre = scope.name;
+        } else {
+          const email = lead.vendedorEmail || defaultVendedorEmail;
+          if (!email) {
+            skipped.push({ fila: filaNum, nombre: lead.nombre, motivo: 'Sin correo de vendedor y sin vendedor por defecto' });
+            continue;
+          }
+          const v = await resolveVendedorByEmail(email);
+          if (!v) {
+            skipped.push({ fila: filaNum, nombre: lead.nombre, motivo: `Vendedor no encontrado: ${email}` });
+            continue;
+          }
+          vendedorId = v.id;
+          vendedorNombre = v.name;
+        }
+
+        // Vincular con cliente ERP por RUT (opcional)
+        let clienteId: string | null = null;
+        if (lead.rut) {
+          const [ec] = await db.select({ id: clients.id }).from(clients).where(eq(clients.rten, lead.rut)).limit(1);
+          if (ec) clienteId = ec.id;
+        }
+
+        // Dedup por RUT o correo dentro de los leads del MISMO vendedor
+        const ors: any[] = [];
+        if (lead.rut) ors.push(eq(crmSeguimientoClientes.rut, lead.rut));
+        if (lead.email) ors.push(ilike(crmSeguimientoClientes.email, lead.email));
+        let existing: any = null;
+        if (ors.length) {
+          [existing] = await db.select().from(crmSeguimientoClientes)
+            .where(and(
+              eq(crmSeguimientoClientes.active, true),
+              eq(crmSeguimientoClientes.vendedorId, vendedorId),
+              or(...ors)!,
+            ))
+            .limit(1);
+        }
+
+        if (existing) {
+          // Actualizar: solo pisar campos que vengan con valor en el CSV.
+          const upd: any = { updatedAt: new Date() };
+          const setIf = (k: string, v: any) => { if (v !== null && v !== undefined) upd[k] = v; };
+          setIf('nombre', lead.nombre);
+          setIf('empresa', lead.empresa);
+          setIf('telefono', lead.telefono);
+          setIf('email', lead.email);
+          setIf('rut', lead.rut);
+          setIf('region', lead.region);
+          setIf('comuna', lead.comuna);
+          setIf('contactoEncargado', lead.contactoEncargado);
+          setIf('segmento', lead.segmento);
+          setIf('condicionPago', lead.condicionPago);
+          setIf('estado', lead.estado);
+          setIf('prioridad', lead.prioridad);
+          setIf('origen', lead.origen);
+          setIf('montoEstimado', lead.montoEstimado);
+          setIf('notas', lead.notas);
+          setIf('etiquetas', lead.etiquetas);
+          if (lead.proximoContacto) upd.proximoContacto = new Date(lead.proximoContacto);
+          if (clienteId && !existing.clienteId) upd.clienteId = clienteId;
+
+          await db.update(crmSeguimientoClientes).set(upd).where(eq(crmSeguimientoClientes.id, existing.id));
+          await db.insert(crmSeguimientoHitos).values({
+            seguimientoId: existing.id,
+            tipo: 'sistema',
+            descripcion: 'Actualizado por importación masiva (CSV)',
+            autorId: user.id,
+            autorNombre,
+          });
+          updated++;
+        } else {
+          const [ins] = await db.insert(crmSeguimientoClientes).values({
+            nombre: lead.nombre,
+            empresa: lead.empresa,
+            telefono: lead.telefono,
+            email: lead.email,
+            rut: lead.rut,
+            region: lead.region,
+            comuna: lead.comuna,
+            contactoEncargado: lead.contactoEncargado,
+            segmento: lead.segmento,
+            condicionPago: lead.condicionPago,
+            estado: lead.estado || 'prospecto',
+            prioridad: lead.prioridad || 'media',
+            origen: lead.origen || 'manual',
+            montoEstimado: lead.montoEstimado,
+            notas: lead.notas,
+            etiquetas: lead.etiquetas,
+            proximoContacto: lead.proximoContacto ? new Date(lead.proximoContacto) : null,
+            vendedorId,
+            vendedorNombre,
+            clienteId,
+            ultimoContacto: new Date(),
+          }).returning({ id: crmSeguimientoClientes.id });
+
+          await db.insert(crmSeguimientoHitos).values({
+            seguimientoId: ins.id,
+            tipo: 'sistema',
+            descripcion: 'Creado por importación masiva (CSV)',
+            autorId: user.id,
+            autorNombre,
+          });
+          created++;
+        }
+      } catch (e: any) {
+        const nombre = (rows[i]?.Nombre || rows[i]?.nombre || '').toString();
+        skipped.push({ fila: filaNum, nombre, motivo: e?.message || 'Error al procesar la fila' });
+      }
+    }
+
+    console.log(`📥 [CRM] Import de ${user.email}: ${created} creados, ${updated} actualizados, ${skipped.length} omitidos`);
+    res.json({ created, updated, skipped, total: rows.length });
   }));
 
   // GET /api/crm/seguimiento/:id — Client detail with milestones

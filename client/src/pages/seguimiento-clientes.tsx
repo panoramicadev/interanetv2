@@ -17,7 +17,7 @@ import {
   Plus, Search, X, Clock, AlertTriangle, CheckCircle2, User, Users, UserCheck,
   Star, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical, RefreshCw,
   MapPin, Tags, List, LayoutGrid, Banknote, Send, Eye,
-  MessageSquare, Check, Trash2, CalendarClock, ChevronRight,
+  MessageSquare, Check, Trash2, CalendarClock, ChevronRight, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import {
   timeAgo, formatDate, formatCLP, isOverdue, proximoContactoLabel,
   fixEncoding, getInitials,
 } from "@/lib/crm-seguimiento";
+import ImportExportClientes from "@/components/crm/import-export-clientes";
 
 type ViewMode = "tabla" | "pipeline";
 
@@ -75,6 +76,7 @@ export default function SeguimientoClientes() {
   const [pinProblemas, setPinProblemas] = useState<boolean>(true);
   const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">("desc");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportExport, setShowImportExport] = useState(false);
   const [view, setView] = useState<ViewMode>(loadViewPreference);
   // Cliente objetivo del dialog "Registrar hito" (null = cerrado)
   const [hitoCliente, setHitoCliente] = useState<any>(null);
@@ -383,6 +385,16 @@ export default function SeguimientoClientes() {
     soloDestacados,
   ].filter(Boolean).length;
 
+  // Filtros que el export replica en el server (mismo scope que el listado).
+  const exportQuery = (() => {
+    const p = new URLSearchParams();
+    if (filtroVendedor !== "todos") p.set("vendedor", filtroVendedor);
+    if (filtroPrioridad !== "todos") p.set("prioridad", filtroPrioridad);
+    if (filtroEstado !== "todos") p.set("estado", filtroEstado);
+    if (busquedaDebounced) p.set("busqueda", busquedaDebounced);
+    return p.toString();
+  })();
+
   // ─── Render ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen" data-testid="seguimiento-clientes-page">
@@ -426,6 +438,15 @@ export default function SeguimientoClientes() {
                 Pipeline
               </button>
             </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowImportExport(true)}
+              data-testid="btn-import-export"
+              title="Importar o exportar leads (CSV)"
+            >
+              <Upload className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Importar / Exportar</span>
+            </Button>
             <Button
               onClick={() => setShowCreateModal(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -691,6 +712,19 @@ export default function SeguimientoClientes() {
         isLoading={createMutation.isPending}
         vendedores={vendedores}
         isAdminOrSupervisor={isAdminOrSupervisor}
+      />
+
+      {/* Modal: importación / exportación masiva */}
+      <ImportExportClientes
+        open={showImportExport}
+        onOpenChange={setShowImportExport}
+        isAdminOrSupervisor={isAdminOrSupervisor}
+        vendedores={vendedores}
+        exportQuery={exportQuery}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento/stats"] });
+        }}
       />
     </div>
   );
