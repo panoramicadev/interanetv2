@@ -491,7 +491,8 @@ export default function SeguimientoClientes() {
           />
         </div>
 
-        {/* Toolbar de filtros */}
+        {/* Toolbar de filtros — solo administrador (los demás ven su cartera ya scopeada por rol) */}
+        {user?.role === 'admin' && (
         <div className="rounded-xl border bg-card shadow-sm p-3">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
             <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
@@ -625,6 +626,7 @@ export default function SeguimientoClientes() {
             )}
           </div>
         </div>
+        )}
 
         {/* Barra de acciones de selección masiva */}
         {view === "tabla" && selectedIds.size > 0 && (
