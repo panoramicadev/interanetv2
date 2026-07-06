@@ -66,7 +66,7 @@ import { z } from "zod";
 const SEGMENTOS = [
   { value: "ferreterias", label: "Ferreterías" },
   { value: "construccion", label: "Construcción" },
-  { value: "digital", label: "Digital" },
+  { value: "digital", label: "Industrial" },
   { value: "marketing", label: "Marketing" },
 ] as const;
 
