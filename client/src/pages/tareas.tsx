@@ -1207,8 +1207,8 @@ export default function TareasPage() {
             </div>
           )}
 
-          {/* Filters and View Toggle - hidden for salesperson (simple flat list) */}
-          {!isSalesperson && (
+          {/* Filters and View Toggle - solo administrador (los demás roles ven el listado ya scopeado por su rol) */}
+          {user.role === 'admin' && (
           <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
@@ -1377,8 +1377,8 @@ export default function TareasPage() {
           </Card>
           )}
 
-          {/* Simple task count for salesperson */}
-          {isSalesperson && (
+          {/* Contador compacto para roles sin filtros (todos menos administrador) */}
+          {user.role !== 'admin' && (
             <div className="flex items-center justify-between">
               <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
