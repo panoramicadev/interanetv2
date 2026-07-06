@@ -693,23 +693,29 @@ export default function TareasPage() {
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
 
+  // KPIs presentacionales — reutilizan la misma lógica de completado que las tarjetas
+  const isTaskDone = (t: typeof filteredTasks[number]) =>
+    t.status === 'completada' || t.assignments.some((a) => a.status === 'completed');
+  const kpiTotal = filteredTasks.length;
+  const kpiCompletadas = filteredTasks.filter(isTaskDone).length;
+  const kpiPendientes = kpiTotal - kpiCompletadas;
+  const kpiVencidas = filteredTasks.filter(
+    (t) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t)
+  ).length;
+
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
-      {/* Header Premium */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl shadow-xl border border-slate-700/50 p-6 sm:p-8 mb-4 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:20px_20px]" />
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700" />
-
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-blue-400 text-sm font-medium mb-1">
-              <div className="w-8 h-[2px] bg-blue-500/50" />
-              <span>Gestión de Equipo</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Panel de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Trabajo</span>
+      {/* Header */}
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="space-y-0.5">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                <CheckSquare className="w-5 h-5" />
+              </span>
+              Panel de Trabajo
             </h1>
-            <p className="text-slate-400 text-sm sm:text-base max-w-2xl font-medium">
+            <p className="text-sm text-muted-foreground">
               Gestiona tareas del equipo, estimaciones de ventas y seguimiento de clientes
             </p>
           </div>
@@ -721,22 +727,21 @@ export default function TareasPage() {
                 }
               }}>
               <DialogTrigger asChild>
-                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg text-white font-bold border-none transition-all duration-300 hover:scale-105 active:scale-95" data-testid="button-create-task">
-                  <Plus className="h-5 w-5 mr-2" />
+                <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" data-testid="button-create-task">
+                  <Plus className="h-4 w-4 mr-2" />
                   Nueva Tarea
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                {/* Premium Header */}
-                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 relative overflow-hidden">
-                  <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
-                  <div className="relative flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-2.5 shadow-lg">
+                {/* Header */}
+                <div className="px-6 py-5 border-b bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-indigo-600 rounded-lg p-2.5 shadow-sm">
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <DialogTitle className="text-xl font-bold text-white">Nueva Tarea</DialogTitle>
-                      <DialogDescription className="text-slate-400 text-sm">
+                      <DialogTitle className="text-lg font-bold text-foreground">Nueva Tarea</DialogTitle>
+                      <DialogDescription className="text-sm text-muted-foreground">
                         Completa los detalles y asigna a miembros del equipo
                       </DialogDescription>
                     </div>
@@ -995,7 +1000,7 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-supervisor-${supervisor.id}`}
-                                            className="data-[state=checked]:bg-blue-600"
+                                            className="data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -1036,7 +1041,7 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-salesperson-${salesperson.id}`}
-                                            className="data-[state=checked]:bg-blue-600"
+                                            className="data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -1082,7 +1087,7 @@ export default function TareasPage() {
                       <Button
                         type="submit"
                         disabled={createTaskMutation.isPending}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-200/50 px-6 font-semibold transition-all duration-200 hover:shadow-lg"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6 font-semibold transition-colors"
                         data-testid="button-submit-task"
                       >
                         {createTaskMutation.isPending ? (
@@ -1105,17 +1110,17 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-2 bg-slate-100/50 p-1 border border-slate-200/60 rounded-xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
             </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
-              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
                 <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
               </TabsTrigger>
             )}
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
               <CalendarIcon className="h-4 w-4 mr-2 hidden sm:inline" />
               Calendario
             </TabsTrigger>
@@ -1123,6 +1128,46 @@ export default function TareasPage() {
         </div>
 
         <TabsContent value="tareas" className="space-y-6">
+
+          {/* KPIs */}
+          <div className="grid grid-cols-4 gap-2 sm:gap-4">
+            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
+                <CheckSquare className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiTotal}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Tareas</div>
+              </div>
+            </div>
+            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400">
+                <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiPendientes}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Pendientes</div>
+              </div>
+            </div>
+            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">
+                <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiVencidas}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Vencidas</div>
+              </div>
+            </div>
+            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                <CheckCircle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiCompletadas}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Completadas</div>
+              </div>
+            </div>
+          </div>
 
           {/* Segment Tabs - hidden for salesperson */}
           {!isSalesperson && (
@@ -1132,7 +1177,7 @@ export default function TareasPage() {
                   key={seg.value}
                   onClick={() => setSegmentoFilter(seg.value)}
                   className={`px-4 py-2 sm:py-2.5 rounded-full sm:rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                    ? "bg-indigo-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                 >
@@ -1144,7 +1189,7 @@ export default function TareasPage() {
 
           {/* Filters and View Toggle - hidden for salesperson (simple flat list) */}
           {!isSalesperson && (
-          <Card className="border-0 shadow-sm bg-white">
+          <Card className="border shadow-sm">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
               <div className="lg:hidden">
@@ -1154,9 +1199,9 @@ export default function TareasPage() {
                   data-testid="button-toggle-filters"
                 >
                   <div className="flex items-center gap-3">
-                    <Filter className="h-5 w-5 text-blue-600" />
+                    <Filter className="h-5 w-5 text-indigo-600" />
                     <span className="font-semibold text-sm text-gray-900">Filtros</span>
-                    <Badge className="bg-blue-100 text-blue-700 text-xs font-medium">
+                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium">
                       {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
@@ -1303,7 +1348,7 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
+                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
                     {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -1315,7 +1360,7 @@ export default function TareasPage() {
           {/* Simple task count for salesperson */}
           {isSalesperson && (
             <div className="flex items-center justify-between">
-              <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
+              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
             </div>
@@ -1330,13 +1375,13 @@ export default function TareasPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowCreateGroup(true)}
-                  className="text-xs border-dashed border-slate-300 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
+                  className="text-xs border-dashed border-slate-300 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
                   Nuevo Grupo
                 </Button>
               ) : (
-                <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-1.5 shadow-sm">
+                <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm">
                   <Input
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
@@ -1352,7 +1397,7 @@ export default function TareasPage() {
                   />
                   <Button
                     size="sm"
-                    className="h-6 px-2 text-[10px] bg-blue-600 hover:bg-blue-700"
+                    className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-700"
                     disabled={!newGroupName.trim() || createGroupMutation.isPending}
                     onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter })}
                   >
@@ -1370,7 +1415,7 @@ export default function TareasPage() {
           <div className="space-y-6">
             {tasksQuery.isLoading ? (
               <div className="text-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-3 border-indigo-200 border-t-indigo-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
               </div>
             ) : filteredTasks.length === 0 ? (
@@ -1390,7 +1435,7 @@ export default function TareasPage() {
                       }
                       setShowCreateDialog(true);
                     }}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-200/50"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primera tarea
@@ -1435,7 +1480,7 @@ export default function TareasPage() {
                         ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
                         : isOverdue
                           ? 'bg-white border-red-200 hover:border-red-300'
-                          : 'bg-white border-slate-200 hover:border-blue-200'
+                          : 'bg-white border-slate-200 hover:border-indigo-200'
                     }`}
                     onClick={() => setSelectedTaskId(task.id)}
                   >
@@ -3117,26 +3162,25 @@ function TaskDetailDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent hideCloseButton className="max-w-[95vw] lg:max-w-[1100px] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
-        {/* Premium Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 relative overflow-hidden flex-shrink-0">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
-          <div className="relative flex items-start justify-between gap-4">
+        {/* Header */}
+        <div className="px-6 py-5 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={`rounded-xl p-2.5 shadow-lg flex-shrink-0 ${
-                isCompleted ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
-                task.priority === 'high' ? 'bg-gradient-to-br from-red-500 to-rose-600' :
-                'bg-gradient-to-br from-blue-500 to-indigo-600'
+              <div className={`rounded-lg p-2.5 shadow-sm flex-shrink-0 ${
+                isCompleted ? 'bg-emerald-600' :
+                task.priority === 'high' ? 'bg-red-600' :
+                'bg-indigo-600'
               }`}>
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <DialogTitle className="text-xl font-bold text-white truncate">
+                <DialogTitle className="text-lg font-bold text-foreground truncate">
                   {task.title}
                 </DialogTitle>
-                <DialogDescription className="text-slate-300 text-sm mt-0.5 flex items-center gap-3 flex-wrap">
+                <DialogDescription className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                   <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
-                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-xs">
+                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-0 text-xs">
                       {(task as any).segmento}
                     </Badge>
                   )}
@@ -3144,17 +3188,17 @@ function TaskDetailDialog({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Badge className={`text-xs font-semibold border ${
-                task.priority === 'high' ? 'bg-red-600 text-white border-red-500' :
-                task.priority === 'low' ? 'bg-slate-600 text-white border-slate-500' :
-                'bg-white text-slate-800 border-slate-300'
+              <Badge className={`text-xs font-semibold border-0 ${
+                task.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
+                task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
+                'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
               }`}>
                 {task.priority === 'high' ? 'Alta' : task.priority === 'low' ? 'Baja' : 'Media'}
               </Badge>
-              <Badge className={`text-xs font-semibold flex items-center gap-1 border ${
-                task.status === 'completada' ? 'bg-green-600 text-white border-green-500' :
-                task.status === 'en_progreso' ? 'bg-amber-500 text-white border-amber-400' :
-                'bg-white text-slate-800 border-slate-300'
+              <Badge className={`text-xs font-semibold flex items-center gap-1 border-0 ${
+                task.status === 'completada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                task.status === 'en_progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
               }`}>
                 {task.status === 'completada' ? <CheckSquare className="h-3.5 w-3.5" /> :
                  task.status === 'en_progreso' ? <AlertCircle className="h-3.5 w-3.5" /> :
@@ -3163,7 +3207,7 @@ function TaskDetailDialog({
               </Badge>
               <button
                 onClick={onClose}
-                className="ml-2 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all"
+                className="ml-2 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
                 title="Cerrar"
               >
                 <X className="h-5 w-5" />
@@ -3186,8 +3230,8 @@ function TaskDetailDialog({
                   key={seg.value}
                   className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 border ${
                     isActive
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:text-indigo-600'
                   }`}
                   disabled={updateTaskSegmentoMutation.isPending}
                   onClick={() => {
@@ -3267,7 +3311,7 @@ function TaskDetailDialog({
                               updateDueDateMutation.mutate({ taskId: task.id, dueDate });
                             }}
                             disabled={updateDueDateMutation.isPending}
-                            className="flex-1 text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
+                            className="flex-1 text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
                           >
                             {updateDueDateMutation.isPending ? 'Guardando...' : 'Guardar'}
                           </button>
@@ -3371,7 +3415,7 @@ function TaskDetailDialog({
                   {hasChanged && (
                     <Button
                       size="sm"
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-sm"
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm"
                       disabled={assignTaskToGroupMutation.isPending}
                       onClick={() => {
                         const groupId = selectedGroupId === "__none__" ? null : selectedGroupId;
@@ -3402,7 +3446,7 @@ function TaskDetailDialog({
                       className={`text-xs transition-all ${task.status === status 
                         ? status === 'completada' ? 'bg-green-600 hover:bg-green-700' 
                           : status === 'en_progreso' ? 'bg-amber-500 hover:bg-amber-600'
-                          : 'bg-blue-600 hover:bg-blue-700'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
                         : ''
                       }`}
                       onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status })}
@@ -3432,7 +3476,7 @@ function TaskDetailDialog({
                   
                   return (
                     <div key={assignment.id} className={`bg-white border rounded-xl p-4 transition-all ${
-                      myAssignment ? 'border-blue-200 bg-blue-50/30 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                      myAssignment ? 'border-indigo-200 bg-indigo-50/30 shadow-sm' : 'border-slate-200 hover:border-slate-300'
                     }`}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -3451,7 +3495,7 @@ function TaskDetailDialog({
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {getStatusBadge(assignment.status ?? 'pendiente')}
                           {assignment.readAt && (
-                            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                            <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700">
                               <Eye className="h-3 w-3 mr-1" />
                               Leída
                             </Badge>
@@ -3465,7 +3509,7 @@ function TaskDetailDialog({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 px-2.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                            className="h-7 px-2.5 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                             onClick={() => markAsReadMutation.mutate({
                               taskId: task.id,
                               assignmentId: assignment.id
@@ -3541,7 +3585,7 @@ function TaskDetailDialog({
             <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                  <MessageSquare className="h-4 w-4 text-indigo-600" />
                   Bitácora / Chat
                 </h4>
                 {task.assignments.length > 1 && (
@@ -3917,7 +3961,7 @@ function CommentsThread({
       ) : (
         <button
           onClick={onStartEditing}
-          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-gray-500 hover:text-blue-600 transition-all group"
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-gray-500 hover:text-indigo-600 transition-all group"
           data-testid={`button-add-comment-${assignmentId}`}
         >
           <div className="w-6 h-6 rounded-full bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
@@ -4016,7 +4060,7 @@ function CalendarViewTab({
         <CardHeader className="py-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-blue-600" />
+              <CalendarIcon className="h-5 w-5 text-indigo-600" />
               Vista Calendario
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -4082,7 +4126,7 @@ function CalendarViewTab({
                 >
                   {/* Número del día */}
                   <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
-                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-blue-600 text-white' : ''
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-indigo-600 text-white' : ''
                       }`}>
                       {format(day, 'd')}
                     </span>
