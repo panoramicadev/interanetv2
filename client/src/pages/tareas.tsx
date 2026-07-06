@@ -66,7 +66,7 @@ import { z } from "zod";
 const SEGMENTOS = [
   { value: "ferreterias", label: "Ferreterías" },
   { value: "construccion", label: "Construcción" },
-  { value: "digital", label: "Digital" },
+  { value: "digital", label: "Industrial" },
   { value: "marketing", label: "Marketing" },
 ] as const;
 
@@ -710,7 +710,7 @@ export default function TareasPage() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/25">
                 <CheckSquare className="w-5 h-5" />
               </span>
               Panel de Trabajo
@@ -727,16 +727,16 @@ export default function TareasPage() {
                 }
               }}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" data-testid="button-create-task">
+                <Button className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 transition-all" data-testid="button-create-task">
                   <Plus className="h-4 w-4 mr-2" />
                   Nueva Tarea
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-5 border-b bg-muted/30">
+                <div className="px-6 py-5 border-b bg-gradient-to-br from-indigo-50 via-white to-violet-50/60 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
                   <div className="flex items-center gap-3">
-                    <div className="bg-indigo-600 rounded-lg p-2.5 shadow-sm">
+                    <div className="bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl p-2.5 shadow-md shadow-indigo-500/25">
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -754,11 +754,13 @@ export default function TareasPage() {
 
                       {/* Section: Información */}
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center justify-center">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </span>
                           Información de la tarea
                         </div>
-                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
+                        <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-4">
                           <FormField
                             control={form.control}
                             name="title"
@@ -766,7 +768,7 @@ export default function TareasPage() {
                               <FormItem>
                                 <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título *</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-400/20" {...field} data-testid="input-task-title" />
+                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -781,7 +783,7 @@ export default function TareasPage() {
                                 <FormControl>
                                   <Textarea
                                     placeholder="Agrega detalles, instrucciones o contexto..."
-                                    className="resize-none bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-400/20"
+                                    className="resize-none bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20"
                                     rows={3}
                                     {...field}
                                     data-testid="textarea-task-description"
@@ -796,11 +798,13 @@ export default function TareasPage() {
 
                       {/* Section: Clasificación */}
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="w-6 h-6 rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400 flex items-center justify-center">
+                            <CalendarIcon className="w-3.5 h-3.5" />
+                          </span>
                           Clasificación y plazo
                         </div>
-                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
+                        <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <FormField
                               control={form.control}
@@ -877,17 +881,19 @@ export default function TareasPage() {
 
                       {/* Section: Cliente */}
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 flex items-center justify-center">
+                            <Building2 className="w-3.5 h-3.5" />
+                          </span>
                           Asociaciones
                         </div>
-                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-3">
+                        <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-3">
                           <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                             <Building2 className="h-3.5 w-3.5" />
                             Cliente Asociado (Opcional)
                           </Label>
                           {selectedClienteTask ? (
-                            <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl">
                               <div className="flex-1">
                                 <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
                                 <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
@@ -926,7 +932,7 @@ export default function TareasPage() {
                                     <button
                                       key={cliente.id}
                                       type="button"
-                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                                      className="w-full px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/30 border-b last:border-b-0 transition-colors"
                                       onClick={() => {
                                         setSelectedClienteTask(cliente);
                                         form.setValue("clienteId", cliente.koen);
@@ -951,11 +957,13 @@ export default function TareasPage() {
 
                       {/* Section: Equipo */}
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center">
+                            <Users className="w-3.5 h-3.5" />
+                          </span>
                           Equipo asignado *
                         </div>
-                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-3">
+                        <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-3">
                           {/* Search filter for team members */}
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -969,7 +977,7 @@ export default function TareasPage() {
                           {/* Selected count badge */}
                           {(form.watch('assignments') || []).length > 0 && (
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                              <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800">
                                 <Users className="h-3 w-3 mr-1" />
                                 {(form.watch('assignments') || []).length} seleccionado{(form.watch('assignments') || []).length !== 1 ? 's' : ''}
                               </Badge>
@@ -988,7 +996,7 @@ export default function TareasPage() {
                                     render={({ field }) => {
                                       const isChecked = field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id);
                                       return (
-                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/50 ${isChecked ? 'bg-blue-50/80' : ''}`}>
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 ${isChecked ? 'bg-indigo-50/80 dark:bg-indigo-950/30' : ''}`}>
                                           <Checkbox
                                             checked={isChecked}
                                             onCheckedChange={(checked) => {
@@ -1029,7 +1037,7 @@ export default function TareasPage() {
                                     render={({ field }) => {
                                       const isChecked = field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id);
                                       return (
-                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/50 ${isChecked ? 'bg-blue-50/80' : ''}`}>
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 ${isChecked ? 'bg-indigo-50/80 dark:bg-indigo-950/30' : ''}`}>
                                           <Checkbox
                                             checked={isChecked}
                                             onCheckedChange={(checked) => {
@@ -1087,7 +1095,7 @@ export default function TareasPage() {
                       <Button
                         type="submit"
                         disabled={createTaskMutation.isPending}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6 font-semibold transition-colors"
+                        className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 px-6 font-semibold transition-all"
                         data-testid="button-submit-task"
                       >
                         {createTaskMutation.isPending ? (
@@ -1109,7 +1117,7 @@ export default function TareasPage() {
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-2 bg-slate-100/50 p-1 border border-slate-200/60 rounded-xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
@@ -1130,55 +1138,67 @@ export default function TareasPage() {
         <TabsContent value="tareas" className="space-y-6">
 
           {/* KPIs */}
-          <div className="grid grid-cols-4 gap-2 sm:gap-4">
-            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
-                <CheckSquare className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiTotal}</div>
-                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Tareas</div>
-              </div>
-            </div>
-            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400">
-                <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiPendientes}</div>
-                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Pendientes</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-0.5 transition-all duration-300">
+              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-indigo-100 dark:bg-indigo-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30">
+                  <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiTotal}</div>
+                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Tareas</div>
+                </div>
               </div>
             </div>
-            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">
-                <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiVencidas}</div>
-                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Vencidas</div>
+            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-0.5 transition-all duration-300">
+              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/30">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiPendientes}</div>
+                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Pendientes</div>
+                </div>
               </div>
             </div>
-            <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-              <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
-                <CheckCircle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-0.5 transition-all duration-300">
+              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-rose-100 dark:bg-rose-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-rose-500 to-red-500 text-white shadow-md shadow-rose-500/30">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiVencidas}</div>
+                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Vencidas</div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <div className="text-lg sm:text-2xl font-bold tracking-tight leading-none">{kpiCompletadas}</div>
-                <div className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Completadas</div>
+            </div>
+            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300">
+              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiCompletadas}</div>
+                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Completadas</div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Segment Tabs - hidden for salesperson */}
           {!isSalesperson && (
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
               {SEGMENTOS.map((seg) => (
                 <button
                   key={seg.value}
                   onClick={() => setSegmentoFilter(seg.value)}
-                  className={`px-4 py-2 sm:py-2.5 rounded-full sm:rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25"
+                    : "bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/40 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
                     }`}
                 >
                   {seg.label}
@@ -1187,9 +1207,9 @@ export default function TareasPage() {
             </div>
           )}
 
-          {/* Filters and View Toggle - hidden for salesperson (simple flat list) */}
-          {!isSalesperson && (
-          <Card className="border shadow-sm">
+          {/* Filters and View Toggle - solo administrador (los demás roles ven el listado ya scopeado por su rol) */}
+          {user.role === 'admin' && (
+          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
               <div className="lg:hidden">
@@ -1357,8 +1377,8 @@ export default function TareasPage() {
           </Card>
           )}
 
-          {/* Simple task count for salesperson */}
-          {isSalesperson && (
+          {/* Contador compacto para roles sin filtros (todos menos administrador) */}
+          {user.role !== 'admin' && (
             <div className="flex items-center justify-between">
               <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
@@ -1420,11 +1440,14 @@ export default function TareasPage() {
               </div>
             ) : filteredTasks.length === 0 ? (
               <div className="text-center py-20">
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 mx-auto mb-4 flex items-center justify-center">
-                  <CheckSquare className="h-8 w-8 text-slate-300" />
+                <div className="relative w-20 h-20 mx-auto mb-5">
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 blur-lg opacity-25" />
+                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                    <CheckSquare className="h-9 w-9 text-white" />
+                  </div>
                 </div>
-                <h3 className="text-base font-semibold text-slate-800 mb-1">No hay tareas</h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">No hay tareas</h3>
+                <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
                   {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
                 </p>
                 {canCreateTasks && (
@@ -1435,7 +1458,7 @@ export default function TareasPage() {
                       }
                       setShowCreateDialog(true);
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                    className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 transition-all"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primera tarea
@@ -3759,7 +3782,7 @@ function DetailChatInput({ taskId, assignmentId }: { taskId: string; assignmentI
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Escribe un mensaje..."
-          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
+          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20 rounded-xl"
           rows={1}
           data-testid="chat-input-detail"
         />
