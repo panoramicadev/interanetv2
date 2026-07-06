@@ -510,7 +510,7 @@ export default function SeguimientoClientes() {
             <div className="flex items-center gap-2 overflow-x-auto sm:overflow-visible sm:contents -mx-1 px-1 sm:mx-0 sm:px-0 pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Select value={filtroEstado} onValueChange={setFiltroEstado}>
               <SelectTrigger className="w-[160px] shrink-0" data-testid="select-estado-filter">
-                <SelectValue placeholder="Estado" />
+                {filtroEstado === "todos" ? <span className="text-muted-foreground">Estado</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
@@ -527,7 +527,7 @@ export default function SeguimientoClientes() {
 
             <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
               <SelectTrigger className="w-[150px] shrink-0" data-testid="select-prioridad-filter">
-                <SelectValue placeholder="Prioridad" />
+                {filtroPrioridad === "todos" ? <span className="text-muted-foreground">Prioridad</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Toda prioridad</SelectItem>
@@ -546,7 +546,7 @@ export default function SeguimientoClientes() {
               <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
                 <SelectTrigger className="w-[180px] shrink-0" data-testid="select-vendedor-filter">
                   <User className="w-3.5 h-3.5 mr-1.5" />
-                  <SelectValue placeholder="Vendedor" />
+                  {filtroVendedor === "todos" ? <span className="text-muted-foreground">Vendedor</span> : <SelectValue />}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los vendedores</SelectItem>
@@ -560,7 +560,7 @@ export default function SeguimientoClientes() {
             <Select value={filtroRegion} onValueChange={setFiltroRegion}>
               <SelectTrigger className="w-[180px] shrink-0" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue placeholder="Región" />
+                {filtroRegion === "todos" ? <span className="text-muted-foreground">Región</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas las regiones</SelectItem>
@@ -573,7 +573,7 @@ export default function SeguimientoClientes() {
             <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
               <SelectTrigger className="w-[160px] shrink-0" data-testid="select-segmento-filter">
                 <Tags className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue placeholder="Segmento" />
+                {filtroSegmento === "todos" ? <span className="text-muted-foreground">Segmento</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los segmentos</SelectItem>
