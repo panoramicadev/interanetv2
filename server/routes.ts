@@ -36767,6 +36767,8 @@ Instrucciones extra:
       origen: req.body.origen || 'manual',
       region: req.body.region || null,
       comuna: req.body.comuna || null,
+      contactoEncargado: req.body.contactoEncargado || null,
+      condicionPago: req.body.condicionPago || null,
       segmento: req.body.segmento || null,
     };
 
@@ -36774,9 +36776,20 @@ Instrucciones extra:
       return res.status(400).json({ message: 'El nombre es requerido' });
     }
 
-    // If RUT is provided, try to link with existing client
+    // Vínculo con la base de clientes. Preferir el clienteId explícito que envía
+    // el alta cuando el usuario elige un cliente del autocomplete (vínculo garantizado,
+    // aunque el cliente no tenga RUT o el formato difiera). Fallback: match por RUT.
     let clienteId: string | null = null;
-    if (data.rut) {
+    if (req.body.clienteId) {
+      const [picked] = await db.select({ id: clients.id })
+        .from(clients)
+        .where(eq(clients.id, req.body.clienteId))
+        .limit(1);
+      if (picked) {
+        clienteId = picked.id;
+      }
+    }
+    if (!clienteId && data.rut) {
       const [existingClient] = await db.select()
         .from(clients)
         .where(eq(clients.rten, data.rut))

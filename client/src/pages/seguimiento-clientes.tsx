@@ -510,7 +510,7 @@ export default function SeguimientoClientes() {
             <div className="flex items-center gap-2 overflow-x-auto sm:overflow-visible sm:contents -mx-1 px-1 sm:mx-0 sm:px-0 pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Select value={filtroEstado} onValueChange={setFiltroEstado}>
               <SelectTrigger className="w-[160px] shrink-0" data-testid="select-estado-filter">
-                <SelectValue placeholder="Estado" />
+                {filtroEstado === "todos" ? <span className="text-muted-foreground">Estado</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
@@ -527,7 +527,7 @@ export default function SeguimientoClientes() {
 
             <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
               <SelectTrigger className="w-[150px] shrink-0" data-testid="select-prioridad-filter">
-                <SelectValue placeholder="Prioridad" />
+                {filtroPrioridad === "todos" ? <span className="text-muted-foreground">Prioridad</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Toda prioridad</SelectItem>
@@ -546,7 +546,7 @@ export default function SeguimientoClientes() {
               <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
                 <SelectTrigger className="w-[180px] shrink-0" data-testid="select-vendedor-filter">
                   <User className="w-3.5 h-3.5 mr-1.5" />
-                  <SelectValue placeholder="Vendedor" />
+                  {filtroVendedor === "todos" ? <span className="text-muted-foreground">Vendedor</span> : <SelectValue />}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los vendedores</SelectItem>
@@ -560,7 +560,7 @@ export default function SeguimientoClientes() {
             <Select value={filtroRegion} onValueChange={setFiltroRegion}>
               <SelectTrigger className="w-[180px] shrink-0" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue placeholder="Región" />
+                {filtroRegion === "todos" ? <span className="text-muted-foreground">Región</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas las regiones</SelectItem>
@@ -573,7 +573,7 @@ export default function SeguimientoClientes() {
             <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
               <SelectTrigger className="w-[160px] shrink-0" data-testid="select-segmento-filter">
                 <Tags className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue placeholder="Segmento" />
+                {filtroSegmento === "todos" ? <span className="text-muted-foreground">Segmento</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los segmentos</SelectItem>
@@ -1462,6 +1462,7 @@ const EMPTY_FORM = {
   nombre: "", telefono: "", email: "", empresa: "", rut: "", comuna: "", notas: "",
   origen: "manual", vendedorId: "", segmento: "",
   estado: "prospecto", prioridad: "media",
+  region: "", contactoEncargado: "", condicionPago: "", clienteId: "",
 };
 
 function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores, isAdminOrSupervisor }: {
@@ -1541,6 +1542,14 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       empresa: client.nokoen || "",
       telefono: client.foen || client.phone || f.telefono,
       comuna: client.comuna ? fixEncoding(client.comuna) : f.comuna,
+      // Campos extra auto-rellenados desde la base de clientes
+      region: client.region ? fixEncoding(client.region) : f.region,
+      contactoEncargado: (client.purchasingContactName || client.cnen)
+        ? fixEncoding(client.purchasingContactName || client.cnen)
+        : f.contactoEncargado,
+      condicionPago: (client.cpen || "").trim() || f.condicionPago,
+      // Garantiza el vínculo con el cliente maestro (independiente del RUT)
+      clienteId: client.id || "",
     }));
     setSearchQuery(client.nokoen || client.name || "");
     setShowSuggestions(false);
@@ -1553,6 +1562,10 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       vendedorId: form.vendedorId || undefined,
       segmento: form.segmento || undefined,
       comuna: form.comuna.trim() || undefined,
+      region: form.region.trim() || undefined,
+      contactoEncargado: form.contactoEncargado.trim() || undefined,
+      condicionPago: form.condicionPago.trim() || undefined,
+      clienteId: form.clienteId || undefined,
     });
   };
 
@@ -1600,7 +1613,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                   <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                     Cliente existente vinculado — RUT: {selectedExisting.rten || "Sin RUT"}
                   </span>
-                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm((f) => ({ ...f, nombre: "", rut: "", email: "", empresa: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm((f) => ({ ...f, nombre: "", rut: "", email: "", empresa: "", comuna: "", region: "", contactoEncargado: "", condicionPago: "", clienteId: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1672,6 +1685,18 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                   <option key={c} value={c} />
                 ))}
               </datalist>
+            </div>
+            <div>
+              <Label htmlFor="region">Región</Label>
+              <Input id="region" value={form.region} onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))} placeholder="Región" data-testid="input-region" />
+            </div>
+            <div>
+              <Label htmlFor="contactoEncargado">Contacto encargado</Label>
+              <Input id="contactoEncargado" value={form.contactoEncargado} onChange={(e) => setForm((f) => ({ ...f, contactoEncargado: e.target.value }))} placeholder="Nombre del contacto" data-testid="input-contacto" />
+            </div>
+            <div>
+              <Label htmlFor="condicionPago">Condición de pago</Label>
+              <Input id="condicionPago" value={form.condicionPago} onChange={(e) => setForm((f) => ({ ...f, condicionPago: e.target.value }))} placeholder="CONTADO, CRÉDITO 30 DÍAS..." data-testid="input-condicion-pago" />
             </div>
             <div>
               <Label htmlFor="segmento">Segmento</Label>

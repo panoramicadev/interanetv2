@@ -659,7 +659,7 @@ export interface IStorage {
   getSimpleClients(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
-  searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>>;
+  searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>>;
 
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -6360,7 +6360,7 @@ export class DatabaseStorage implements IStorage {
     return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
   }
 
-  async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>> {
+  async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>> {
     const searchPattern = `%${searchTerm}%`;
     const result = await db
       .select({
@@ -6371,6 +6371,12 @@ export class DatabaseStorage implements IStorage {
         email: clients.email,
         foen: clients.foen,
         comuna: clients.comuna,
+        // Campos extra para pre-rellenar el alta del CRM desde la base de clientes
+        region: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('cliente_region'),
+        cpen: clients.cpen,
+        purchasingContactName: clients.purchasingContactName,
+        cnen: clients.cnen,
+        dien: clients.dien,
       })
       .from(clients)
       .where(
@@ -6379,7 +6385,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(clients.nokoen))
       .limit(50);
 
-    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string }>;
+    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>;
   }
 
   // Sales data for goals comparison
