@@ -148,7 +148,7 @@ export const SEGMENTOS_CRM = [
   "Construcción",
   "Ferretería",
   "Digital",
-  "Modular",
+  "Industrial",
 ];
 
 export const REGIONES_CHILE = [

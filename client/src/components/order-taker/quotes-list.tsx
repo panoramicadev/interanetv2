@@ -1260,7 +1260,7 @@ export default function QuotesList({ onEditQuote, onCountChange }: QuotesListPro
                           <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
                           <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
                           <SelectItem value="CANALES DIGITALES">Canales Digitales</SelectItem>
-                          <SelectItem value="FABRICACION MODULAR">Fabricación Modular</SelectItem>
+                          <SelectItem value="INDUSTRIAL">Industrial</SelectItem>
                           <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
                           <SelectItem value="OTRO">Otro</SelectItem>
                         </SelectContent>
