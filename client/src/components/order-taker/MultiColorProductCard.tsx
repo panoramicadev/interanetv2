@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { getFormatQuantityRules } from "@shared/format-utils";
 
 // ============================================================================
 // MultiColorProductCard — versión PIXEL-EXACTA del prototipo
@@ -152,13 +153,15 @@ export function MultiColorProductCard({
     resolve(color)?.imageUrl || product.colors[color]?.[0]?.imageUrl || null;
 
   // Toggle del color para el ENVASE activo: cada uno vive bajo su SKU propio.
+  // La cantidad inicial es el MÍNIMO del formato (Galón → 4, 1/4 Galón → 6,
+  // Baldes/Unidad → 1), igual que la tienda online.
   const toggleColor = (color: string) => {
     const v = resolve(color);
     if (!v) return;
     setSelected((prev) => {
       const next = { ...prev };
       if (next[v.sku]) delete next[v.sku];
-      else next[v.sku] = { color, format, tier: "lista", qty: 1 };
+      else next[v.sku] = { color, format, tier: "lista", qty: getFormatQuantityRules(format).minQuantity };
       return next;
     });
   };
@@ -166,11 +169,31 @@ export function MultiColorProductCard({
     setSelected((prev) => { const next = { ...prev }; delete next[sku]; return next; });
   const setTier = (sku: string, tier: string) =>
     setSelected((p) => ({ ...p, [sku]: { ...p[sku], tier } }));
-  const bumpQty = (sku: string, d: number) =>
-    setSelected((p) => ({ ...p, [sku]: { ...p[sku], qty: Math.max(1, p[sku].qty + d) } }));
-  // Cantidad escrita a mano: fija un valor absoluto (acotado 1..99999).
+  // +/- avanzan en múltiplos del salto del formato (Galón → de a 4, 1/4 → de a 6),
+  // sin bajar del mínimo. `dir` es ±1.
+  const bumpQty = (sku: string, dir: number) =>
+    setSelected((p) => {
+      const line = p[sku];
+      if (!line) return p;
+      const { minQuantity, stepQuantity } = getFormatQuantityRules(line.format);
+      const next = Math.max(minQuantity, line.qty + dir * stepQuantity);
+      return { ...p, [sku]: { ...line, qty: next } };
+    });
+  // Cantidad escrita a mano: fija un valor absoluto (acotado 1..99999). El ajuste
+  // al múltiplo válido del formato se hace al perder el foco (snapQty).
   const setQty = (sku: string, n: number) =>
     setSelected((p) => ({ ...p, [sku]: { ...p[sku], qty: Math.min(99999, Math.max(1, n)) } }));
+  // Al salir del input, redondea al múltiplo válido más cercano ≥ mínimo del formato.
+  const snapQty = (sku: string) =>
+    setSelected((p) => {
+      const line = p[sku];
+      if (!line) return p;
+      const { minQuantity, stepQuantity } = getFormatQuantityRules(line.format);
+      const snapped = stepQuantity > 1
+        ? Math.max(minQuantity, Math.round(line.qty / stepQuantity) * stepQuantity)
+        : Math.max(minQuantity, line.qty);
+      return { ...p, [sku]: { ...line, qty: snapped } };
+    });
 
   // Solo colores disponibles para el envase (formato) seleccionado
   const colorsForFormat = colors.filter((c) => product.colors[c]?.some((v) => v.format === format));
@@ -283,10 +306,14 @@ export function MultiColorProductCard({
               const line = selected[sku];
               const v = variantBySku[sku];
               const tiers = getAvailableTiers(v);
+              const { stepQuantity: lineStep } = getFormatQuantityRules(line.format);
               const colorFormat = (
                 <div style={{ minWidth: compact ? 0 : 92, flex: compact ? 1 : undefined, display: "flex", flexDirection: "column", gap: 3 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{line.color}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, alignSelf: "flex-start", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
+                    {lineStep > 1 && <span style={{ fontSize: 9, fontWeight: 600, color: "#94a3b8", whiteSpace: "nowrap" }}>de a {lineStep}</span>}
+                  </span>
                 </div>
               );
               const tierSelect = (
@@ -304,7 +331,7 @@ export function MultiColorProductCard({
                     value={line.qty}
                     onChange={(e) => { const value = parseInt(e.target.value, 10) || 1; setQty(sku, value); }}
                     onFocus={(e) => e.currentTarget.select()}
-                    onBlur={(e) => { if (!e.currentTarget.value || parseInt(e.currentTarget.value, 10) < 1) setQty(sku, 1); }}
+                    onBlur={() => snapQty(sku)}
                     aria-label={`Cantidad ${line.color}`}
                     style={{ width: 34, fontSize: 13, fontWeight: 700, textAlign: "center", border: "none", outline: "none", background: "transparent", padding: 0, fontFamily: FONT, color: "#0f172a" }}
                   />
