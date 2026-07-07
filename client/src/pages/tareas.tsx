@@ -53,7 +53,8 @@ import {
   X,
   ArrowLeft,
   FolderOpen,
-  Pencil
+  Pencil,
+  HelpCircle
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -186,6 +187,25 @@ export default function TareasPage() {
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
+  // Selección múltiple / eliminación masiva (solo administrador)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  // Burbuja/tutorial sobre para qué sirven los grupos (recordada por navegador)
+  const [showGroupsTutorial, setShowGroupsTutorial] = useState<boolean>(() => {
+    try { return localStorage.getItem('tareas_groups_tutorial_dismissed') !== '1'; } catch { return true; }
+  });
+  const dismissGroupsTutorial = () => {
+    setShowGroupsTutorial(false);
+    try { localStorage.setItem('tareas_groups_tutorial_dismissed', '1'); } catch {}
+  };
+  const reopenGroupsTutorial = () => {
+    setShowGroupsTutorial(true);
+    try { localStorage.removeItem('tareas_groups_tutorial_dismissed'); } catch {}
+  };
+
   // Consolidated init query - fetches everything in one HTTP roundtrip
   const { data: tareasInit } = useQuery<{
     taskGroups: any[];
@@ -268,6 +288,32 @@ export default function TareasPage() {
     },
   });
 
+  // Eliminación masiva: borra las tareas seleccionadas (incluidas las de grupos
+  // seleccionados) y luego los grupos ya vaciados.
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async ({ taskIds, groupIds }: { taskIds: string[]; groupIds: string[] }) => {
+      for (const id of taskIds) {
+        await apiRequest('DELETE', `/api/tasks/${id}`);
+      }
+      for (const id of groupIds) {
+        await apiRequest('DELETE', `/api/task-groups/${id}`);
+      }
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tareas/init'] });
+      const partes: string[] = [];
+      if (vars.taskIds.length) partes.push(`${vars.taskIds.length} tarea${vars.taskIds.length !== 1 ? 's' : ''}`);
+      if (vars.groupIds.length) partes.push(`${vars.groupIds.length} grupo${vars.groupIds.length !== 1 ? 's' : ''}`);
+      toast({ title: "Eliminación completada", description: partes.length ? `Se eliminó ${partes.join(' y ')}.` : undefined });
+      exitSelectionMode();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "No se pudo completar la eliminación masiva.", variant: "destructive" });
+    },
+  });
+
   const assignTaskToGroupMutation = useMutation({
     mutationFn: async ({ taskId, groupId }: { taskId: string; groupId: string | null }) => {
       await apiRequest("PATCH", `/api/tasks/${taskId}`, { groupId });
@@ -303,6 +349,48 @@ export default function TareasPage() {
     else next.add(groupId);
     setCollapsedGroups(next);
   };
+
+  const toggleTaskSelected = (taskId: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const toggleGroupSelected = (groupId: string) => {
+    setSelectedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedTaskIds(new Set());
+    setSelectedGroupIds(new Set());
+  }
+
+  // Resuelve las tareas y grupos a eliminar: las tareas marcadas individualmente
+  // más todas las tareas visibles de los grupos marcados.
+  const getBulkDeletionTargets = () => {
+    const allTasks = (tasksQuery.data || tareasInit?.tasks || []) as Array<{ id: string; groupId?: string | null }>;
+    const taskIds = new Set<string>(selectedTaskIds);
+    allTasks.forEach(t => {
+      if (t.groupId && selectedGroupIds.has(t.groupId)) taskIds.add(t.id);
+    });
+    return { taskIds: Array.from(taskIds), groupIds: Array.from(selectedGroupIds) };
+  };
+
+  // Al cambiar de segmento o de vista, limpiar la selección para no arrastrar
+  // tareas/grupos de otro contexto a una eliminación masiva.
+  useEffect(() => {
+    setSelectedTaskIds(new Set());
+    setSelectedGroupIds(new Set());
+  }, [segmentoFilter, viewMode]);
 
   const toggleTaskExpanded = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
@@ -1209,7 +1297,7 @@ export default function TareasPage() {
 
           {/* Filters and View Toggle - solo administrador (los demás roles ven el listado ya scopeado por su rol) */}
           {user.role === 'admin' && (
-          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
+          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80 overflow-hidden">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
               <div className="lg:hidden">
@@ -1298,77 +1386,102 @@ export default function TareasPage() {
                 )}
               </div>
 
-              {/* Desktop: Always Visible Filters */}
-              <div className="hidden lg:block py-5 px-6">
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              {/* Desktop: Always Visible Filters - barra moderna tipo combobox */}
+              <div className="hidden lg:block px-4 py-3">
+                <div className="flex items-center gap-1.5 flex-wrap justify-between">
+                  <div className="flex items-center gap-0.5 flex-wrap">
                     {/* View Mode Toggle */}
                     {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
-                      <div className="flex items-center gap-3">
-                        <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
-                        <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                          <SelectTrigger className="w-40 border-gray-300" data-testid="select-view-mode">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="my-tasks">Mis Tareas</SelectItem>
-                            <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <>
+                        <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400 flex-shrink-0">
+                            <Eye className="h-4 w-4" />
+                          </div>
+                          <div className="flex flex-col leading-none">
+                            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Vista</span>
+                            <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                              <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-view-mode">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                                <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
+                      </>
                     )}
 
                     {/* Status Filter */}
-                    <div className="flex items-center gap-3">
-                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Estado:</Label>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-36 border-gray-300" data-testid="select-status-filter">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="pendiente">Pendientes</SelectItem>
-                          <SelectItem value="en_progreso">En Progreso</SelectItem>
-                          <SelectItem value="completada">Completadas</SelectItem>
-                          <SelectItem value="bloqueada">Bloqueadas</SelectItem>
-                          <SelectItem value="cancelada">Canceladas</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col leading-none">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Estado</span>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-status-filter">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="pendiente">Pendientes</SelectItem>
+                            <SelectItem value="en_progreso">En Progreso</SelectItem>
+                            <SelectItem value="completada">Completadas</SelectItem>
+                            <SelectItem value="bloqueada">Bloqueadas</SelectItem>
+                            <SelectItem value="cancelada">Canceladas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                    <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
 
                     {/* Priority Filter */}
-                    <div className="flex items-center gap-3">
-                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Prioridad:</Label>
-                      <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                        <SelectTrigger className="w-32 border-gray-300" data-testid="select-priority-filter">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas</SelectItem>
-                          <SelectItem value="high">Alta</SelectItem>
-                          <SelectItem value="medium">Media</SelectItem>
-                          <SelectItem value="low">Baja</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 flex-shrink-0">
+                        <AlertTriangle className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col leading-none">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Prioridad</span>
+                        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-priority-filter">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas</SelectItem>
+                            <SelectItem value="high">Alta</SelectItem>
+                            <SelectItem value="medium">Media</SelectItem>
+                            <SelectItem value="low">Baja</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                    <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
 
                     {/* Cliente Filter */}
-                    <div className="flex items-center gap-3">
-                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Cliente:</Label>
-                      <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                        <SelectTrigger className="w-36 border-gray-300" data-testid="select-cliente-filter-desktop">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="with-client">Con Cliente</SelectItem>
-                          <SelectItem value="without-client">Sin Cliente</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 flex-shrink-0">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col leading-none">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Cliente</span>
+                        <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-cliente-filter-desktop">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="with-client">Con Cliente</SelectItem>
+                            <SelectItem value="without-client">Sin Cliente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
-                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
+                  <Badge className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-indigo-500/25 rounded-full">
                     {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -1391,6 +1504,7 @@ export default function TareasPage() {
           {!isSalesperson && segmentoFilter !== "all" && (
             <div className="flex items-center gap-2">
               {!showCreateGroup ? (
+                <>
                 <Button
                   variant="outline"
                   size="sm"
@@ -1400,6 +1514,17 @@ export default function TareasPage() {
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
                   Nuevo Grupo
                 </Button>
+                {!showGroupsTutorial && (
+                  <button
+                    onClick={reopenGroupsTutorial}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
+                    title="¿Para qué sirven los grupos?"
+                    aria-label="¿Para qué sirven los grupos?"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </button>
+                )}
+                </>
               ) : (
                 <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm">
                   <Input
@@ -1428,6 +1553,63 @@ export default function TareasPage() {
                   </button>
                 </div>
               )}
+
+              {/* Selección múltiple para eliminación masiva - solo administrador */}
+              {user.role === 'admin' && (
+                selectionMode ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exitSelectionMode}
+                    className="text-xs border-slate-300 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1.5" />
+                    Cancelar selección
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectionMode(true)}
+                    className="text-xs border-slate-300 text-slate-600 hover:text-red-600 hover:border-red-300 hover:bg-red-50/50 transition-all"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
+                    Seleccionar
+                  </Button>
+                )
+              )}
+            </div>
+          )}
+
+          {/* Burbuja tutorial: ¿para qué sirven los grupos? - cerrable */}
+          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && (
+            <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
+              {/* Puntita que apunta al botón "Nuevo Grupo" */}
+              <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-indigo-600 dark:bg-indigo-500" />
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white p-4 pr-10 shadow-lg shadow-indigo-500/25">
+                {/* Brillo decorativo */}
+                <div className="pointer-events-none absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+                <button
+                  onClick={dismissGroupsTutorial}
+                  className="absolute top-3 right-3 p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/15 transition-colors"
+                  title="Cerrar"
+                  aria-label="Cerrar tutorial"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="relative flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <FolderOpen className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold mb-1">¿Para qué sirven los grupos?</h4>
+                    <p className="text-xs text-white/90 leading-relaxed max-w-2xl">
+                      Los grupos ordenan tus tareas por <strong>proyecto, campaña o área</strong> (por ejemplo "Meta Ads", "Sitio Web" o "App Panorámica").
+                      Crea uno con <strong>Nuevo Grupo</strong>, asigna tareas y sigue el avance de cada uno con su barra de progreso.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1494,22 +1676,38 @@ export default function TareasPage() {
                 const canComplete = targetAssignment &&
                   (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || (myAssignment && myAssignment.assigneeId === user.id));
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+                const lockedByGroup = !!(task as any).groupId && selectedGroupIds.has((task as any).groupId);
+                const isTaskSelected = selectedTaskIds.has(task.id) || lockedByGroup;
 
                 return (
                   <div
                     key={task.id}
                     className={`group flex items-start gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
-                      isCompleted
+                      selectionMode && isTaskSelected
+                        ? 'bg-red-50 border-red-300 ring-1 ring-red-300'
+                        : isCompleted
                         ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
                         : isOverdue
                           ? 'bg-white border-red-200 hover:border-red-300'
                           : 'bg-white border-slate-200 hover:border-indigo-200'
                     }`}
-                    onClick={() => setSelectedTaskId(task.id)}
+                    onClick={() => {
+                      if (!selectionMode) { setSelectedTaskId(task.id); return; }
+                      if (lockedByGroup) return; // controlada por la selección del grupo
+                      toggleTaskSelected(task.id);
+                    }}
                   >
-                    {/* Todo Circle Checkbox */}
+                    {/* Selection checkbox (modo selección admin) o círculo de completado */}
                     <div className="flex-shrink-0 pt-0.5">
-                      {canComplete || (targetAssignment && targetAssignment.status === "completed") ? (
+                      {selectionMode ? (
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          isTaskSelected
+                            ? 'bg-red-600 border-red-600 text-white'
+                            : 'border-slate-300 bg-white'
+                        } ${lockedByGroup ? 'opacity-70' : ''}`}>
+                          {isTaskSelected && <Check className="h-3 w-3" />}
+                        </div>
+                      ) : canComplete || (targetAssignment && targetAssignment.status === "completed") ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1622,17 +1820,33 @@ export default function TareasPage() {
                     const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
                     const borderColor = group.color || groupColors[groupIndex % groupColors.length];
                     const isCollapsed = collapsedGroups.has(group.id);
+                    const isGroupSelected = selectedGroupIds.has(group.id);
 
                     return (
                       <div
                         key={group.id}
-                        className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md"
+                        className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md ${
+                          selectionMode && isGroupSelected ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200'
+                        }`}
                         style={{ borderLeftWidth: '4px', borderLeftColor: borderColor }}
                       >
                         {/* Group Header */}
+                        <div className="flex items-center">
+                          {selectionMode && user.role === 'admin' && (
+                            <div
+                              className="pl-2.5 sm:pl-4 flex items-center flex-shrink-0"
+                              onClick={(e) => { e.stopPropagation(); toggleGroupSelected(group.id); }}
+                            >
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${
+                                isGroupSelected ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300 bg-white hover:border-red-400'
+                              }`}>
+                                {isGroupSelected && <Check className="h-3 w-3" />}
+                              </div>
+                            </div>
+                          )}
                         <button
                           onClick={() => toggleGroupCollapsed(group.id)}
-                          className="w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
+                          className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
                         >
                           <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
                           <div
@@ -1662,14 +1876,17 @@ export default function TareasPage() {
                             </div>
                           )}
 
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
-                            className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
-                            title="Eliminar grupo"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {!selectionMode && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
+                              className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
+                              title="Eliminar grupo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </button>
+                        </div>
 
                         {/* Task List */}
                         {!isCollapsed && (
@@ -1710,6 +1927,85 @@ export default function TareasPage() {
               );
             })()}
           </div>
+
+          {/* Barra flotante de acción para eliminación masiva - solo administrador */}
+          {selectionMode && user.role === 'admin' && (() => {
+            const { taskIds, groupIds } = getBulkDeletionTargets();
+            const partes: string[] = [];
+            if (taskIds.length) partes.push(`${taskIds.length} tarea${taskIds.length !== 1 ? 's' : ''}`);
+            if (groupIds.length) partes.push(`${groupIds.length} grupo${groupIds.length !== 1 ? 's' : ''}`);
+            const label = partes.join(' y ');
+            const total = taskIds.length + groupIds.length;
+            // Concordancia: solo tareas → femenino; si hay grupos → masculino
+            const suffix = groupIds.length === 0
+              ? (taskIds.length === 1 ? 'a' : 'as')
+              : (total === 1 ? 'o' : 'os');
+            return (
+              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-2.5 border border-slate-700">
+                <span className="text-sm font-medium whitespace-nowrap">
+                  {total === 0 ? 'Selecciona tareas o grupos' : `${label} seleccionad${suffix}`}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={exitSelectionMode}
+                  className="h-8 text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={total === 0 || bulkDeleteMutation.isPending}
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="h-8 bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
+                >
+                  {bulkDeleteMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <><Trash2 className="h-4 w-4 mr-1.5" /> Eliminar</>
+                  )}
+                </Button>
+              </div>
+            );
+          })()}
+
+          {/* Confirmación de eliminación masiva */}
+          <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar la selección?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {(() => {
+                    const { taskIds, groupIds } = getBulkDeletionTargets();
+                    const partes: string[] = [];
+                    if (taskIds.length) partes.push(`${taskIds.length} tarea${taskIds.length !== 1 ? 's' : ''}`);
+                    if (groupIds.length) partes.push(`${groupIds.length} grupo${groupIds.length !== 1 ? 's' : ''}`);
+                    return (
+                      <>
+                        Se eliminará{taskIds.length + groupIds.length !== 1 ? 'n' : ''} <strong>{partes.join(' y ')}</strong>.
+                        {groupIds.length > 0 && ' Al eliminar un grupo también se eliminan las tareas que contiene.'}
+                        {' '}Esta acción no se puede deshacer.
+                      </>
+                    );
+                  })()}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => {
+                    bulkDeleteMutation.mutate(getBulkDeletionTargets());
+                    setShowBulkDeleteConfirm(false);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Diálogo de Detalle de Tarea */}
           {selectedTask && (
             <TaskDetailDialog
