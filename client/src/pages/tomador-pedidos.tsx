@@ -3686,6 +3686,9 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
             );
           })}
         </div>
+        <button onClick={() => setShowCustomProductModal(true)} style={{ width: "100%", marginBottom: 16, padding: "12px", borderRadius: 12, border: `1.5px dashed ${ORANGE}`, background: "#fff7ed", color: ORANGE, fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Plus style={{ width: 16, height: 16 }} /> Agregar Producto Personalizado
+        </button>
         {renderV2Catalog(filteredCatalog)}
         <button onClick={() => setShowCustomProductModal(true)} style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 12, border: "1.5px dashed #cbd5e1", background: "#fff", color: ORANGE, fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Plus style={{ width: 16, height: 16 }} /> Agregar Producto Personalizado
@@ -6019,7 +6022,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
       />
 
       <Dialog open={showCustomProductModal} onOpenChange={setShowCustomProductModal}>
-        <DialogContent className="max-w-xl mx-4 sm:mx-auto rounded-xl border-0 shadow-xl">
+        <DialogContent overlayClassName="z-[70]" className="max-w-xl mx-4 sm:mx-auto rounded-xl border-0 shadow-xl z-[70]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
@@ -6343,7 +6346,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
 
       {/* Custom Price/Discount Dialog */}
       <Dialog open={!!editingPriceItem} onOpenChange={() => setEditingPriceItem(null)}>
-        <DialogContent className={`${isMobile ? 'max-w-[95vw]' : 'max-w-md'}`}>
+        <DialogContent overlayClassName="z-[70]" className={`${isMobile ? 'max-w-[95vw]' : 'max-w-md'} z-[70]`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="w-5 h-5" />
