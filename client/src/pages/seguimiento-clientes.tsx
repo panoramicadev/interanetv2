@@ -43,12 +43,24 @@ import ImportExportClientes from "@/components/crm/import-export-clientes";
 type ViewMode = "tabla" | "pipeline";
 
 const VIEW_STORAGE_KEY = "crm-seguimiento-view";
+// La búsqueda se persiste en sessionStorage para no perderla al entrar a un
+// cliente y volver (la lista se desmonta al cambiar de ruta). Es transitoria:
+// se limpia al cerrar la pestaña, no queda guardada para siempre.
+const SEARCH_STORAGE_KEY = "crm-seguimiento-busqueda";
 
 function loadViewPreference(): ViewMode {
   try {
     return localStorage.getItem(VIEW_STORAGE_KEY) === "pipeline" ? "pipeline" : "tabla";
   } catch {
     return "tabla";
+  }
+}
+
+function loadSearchPreference(): string {
+  try {
+    return sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
   }
 }
 
@@ -65,8 +77,8 @@ export default function SeguimientoClientes() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const [busqueda, setBusqueda] = useState("");
-  const [busquedaDebounced, setBusquedaDebounced] = useState("");
+  const [busqueda, setBusqueda] = useState(loadSearchPreference);
+  const [busquedaDebounced, setBusquedaDebounced] = useState(loadSearchPreference);
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todos");
   const [filtroVendedor, setFiltroVendedor] = useState<string>("todos");
@@ -83,8 +95,11 @@ export default function SeguimientoClientes() {
 
   const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
-  // Debounce de la búsqueda: la query usa el valor estabilizado
+  // Debounce de la búsqueda: la query usa el valor estabilizado.
+  // Se persiste de inmediato (no debounced) para no perderla si el usuario
+  // entra a un cliente antes de que dispare el timeout.
   useEffect(() => {
+    try { sessionStorage.setItem(SEARCH_STORAGE_KEY, busqueda); } catch { /* ignore */ }
     const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
     return () => clearTimeout(t);
   }, [busqueda]);
