@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -150,6 +150,28 @@ export default function TareasPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [segmentoFilter, setSegmentoFilter] = useState<string>(isSalesperson ? "all" : "ferreterias");
+
+  // Supervisor: solo puede ver la pestaña de su segmento asignado
+  // (ej: Patricio "Industrial" → assignedSegment "digital"). Los demás roles con acceso
+  // al panel ven todos los segmentos. Fallback: si no tiene segmento asignado, ve todos.
+  const isSupervisor = user?.role === 'supervisor';
+  const assignedSegment = ((user as any)?.assignedSegment as string | undefined)?.toLowerCase() ?? "";
+  const visibleSegmentos = useMemo(() => {
+    if (isSupervisor && assignedSegment) {
+      const scoped = SEGMENTOS.filter((seg) => assignedSegment.includes(seg.value));
+      if (scoped.length > 0) return scoped;
+    }
+    return SEGMENTOS;
+  }, [isSupervisor, assignedSegment]);
+
+  // Si el segmento activo no está entre los visibles (ej: supervisor con el default "ferreterias"),
+  // reposicionar al primer segmento permitido para que aterrice directo en su área.
+  useEffect(() => {
+    if (isSalesperson) return;
+    if (visibleSegmentos.length > 0 && !visibleSegmentos.some((seg) => seg.value === segmentoFilter)) {
+      setSegmentoFilter(visibleSegmentos[0].value);
+    }
+  }, [visibleSegmentos, isSalesperson, segmentoFilter]);
 
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -1277,10 +1299,10 @@ export default function TareasPage() {
             </div>
           </div>
 
-          {/* Segment Tabs - hidden for salesperson */}
+          {/* Segment Tabs - hidden for salesperson. Supervisor solo ve su segmento asignado */}
           {!isSalesperson && (
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
-              {SEGMENTOS.map((seg) => (
+            <div className={`flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0 ${visibleSegmentos.length > 1 ? 'sm:grid sm:grid-cols-4' : 'sm:flex'}`}>
+              {visibleSegmentos.map((seg) => (
                 <button
                   key={seg.value}
                   onClick={() => setSegmentoFilter(seg.value)}
