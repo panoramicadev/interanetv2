@@ -3424,28 +3424,6 @@ function TaskDetailDialog({
     task.assignments[0]?.id || ""
   );
   const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
-  const [selectedSegmento, setSelectedSegmento] = useState<string>((task as any).segmento || "__none__");
-
-  // Update task segmento mutation
-  const updateTaskSegmentoMutation = useMutation({
-    mutationFn: async ({ taskId, segmento }: { taskId: string; segmento: string | null }) => {
-      return await apiRequest("PATCH", `/api/tasks/${taskId}`, { segmento });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
-      toast({
-        title: "Departamento actualizado",
-        description: "El departamento de la tarea se ha actualizado.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el departamento.",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Delete task mutation
   const deleteTaskMutation = useMutation({
@@ -3521,8 +3499,9 @@ function TaskDetailDialog({
                 <DialogDescription className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                   <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
-                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-0 text-xs">
-                      {(task as any).segmento}
+                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-0 text-xs flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      Pestaña: {SEGMENTOS.find((s) => s.value === (task as any).segmento)?.label || (task as any).segmento}
                     </Badge>
                   )}
                 </DialogDescription>
@@ -3556,38 +3535,6 @@ function TaskDetailDialog({
             </div>
           </div>
         </div>
-
-        {/* Department Change Bar */}
-        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id) && (
-          <div className="flex items-center gap-2 px-6 py-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 overflow-x-auto">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />
-              Pestaña:
-            </span>
-            {SEGMENTOS.map((seg) => {
-              const isActive = (task as any).segmento === seg.value;
-              return (
-                <button
-                  key={seg.value}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 border ${
-                    isActive
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:text-indigo-600'
-                  }`}
-                  disabled={updateTaskSegmentoMutation.isPending}
-                  onClick={() => {
-                    if (!isActive) {
-                      updateTaskSegmentoMutation.mutate({ taskId: task.id, segmento: seg.value });
-                      setSelectedSegmento(seg.value);
-                    }
-                  }}
-                >
-                  {seg.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Two-Panel Layout */}
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
