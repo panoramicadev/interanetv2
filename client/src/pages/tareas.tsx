@@ -54,7 +54,9 @@ import {
   ArrowLeft,
   FolderOpen,
   Pencil,
-  HelpCircle
+  HelpCircle,
+  Link2,
+  ExternalLink
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -309,6 +311,52 @@ export default function TareasPage() {
       toast({ title: "Grupo eliminado" });
     },
   });
+
+  // Renombrar grupo (inline). Solo el dueño del grupo o un administrador (backend lo valida).
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const renameGroupMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await apiRequest('PATCH', `/api/task-groups/${id}`, { name });
+      return await res.json();
+    },
+    onMutate: async ({ id, name }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/task-groups'] });
+      const previousGroups = queryClient.getQueriesData({ queryKey: ['/api/task-groups'] });
+      queryClient.setQueriesData({ queryKey: ['/api/task-groups'] }, (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((g: any) => g.id === id ? { ...g, name } : g);
+      });
+      setEditingGroupId(null);
+      setEditingGroupName("");
+      return { previousGroups };
+    },
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tareas/init'] });
+      toast({ title: "Grupo actualizado" });
+    },
+    onError: (error: any, _vars, context: any) => {
+      if (context?.previousGroups) {
+        context.previousGroups.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+      toast({ title: "Error", description: error?.message || "No se pudo renombrar el grupo.", variant: "destructive" });
+    },
+  });
+  const startEditingGroup = (id: string, currentName: string) => {
+    setEditingGroupId(id);
+    setEditingGroupName(currentName);
+  };
+  const submitEditingGroup = () => {
+    const name = editingGroupName.trim();
+    if (editingGroupId && name) {
+      renameGroupMutation.mutate({ id: editingGroupId, name });
+    } else {
+      setEditingGroupId(null);
+    }
+  };
 
   // Eliminación masiva: borra las tareas seleccionadas (incluidas las de grupos
   // seleccionados) y luego los grupos ya vaciados.
@@ -1866,6 +1914,38 @@ export default function TareasPage() {
                               </div>
                             </div>
                           )}
+                        {editingGroupId === group.id ? (
+                          <div className="flex-1 min-w-0 flex items-center gap-2 px-2.5 sm:px-4 py-2.5">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: borderColor }} />
+                            <Input
+                              autoFocus
+                              value={editingGroupName}
+                              onChange={(e) => setEditingGroupName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { e.preventDefault(); submitEditingGroup(); }
+                                if (e.key === 'Escape') { e.preventDefault(); setEditingGroupId(null); }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-8 text-sm flex-1 min-w-0 border-orange-300 focus-visible:ring-orange-400/30"
+                              placeholder="Nombre del grupo"
+                            />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); submitEditingGroup(); }}
+                              disabled={renameGroupMutation.isPending || !editingGroupName.trim()}
+                              className="p-1.5 rounded-lg text-white bg-orange-600 hover:bg-orange-700 transition-all flex-shrink-0 disabled:opacity-50"
+                              title="Guardar nombre"
+                            >
+                              {renameGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingGroupId(null); }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all flex-shrink-0"
+                              title="Cancelar"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
                         <button
                           onClick={() => toggleGroupCollapsed(group.id)}
                           className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
@@ -1898,16 +1978,33 @@ export default function TareasPage() {
                             </div>
                           )}
 
-                          {!selectionMode && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
-                              className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
-                              title="Eliminar grupo"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                          {/* Editar / eliminar grupo: solo el dueño del grupo o un administrador */}
+                          {!selectionMode && (user.role === 'admin' || group.userId === user.id) && (
+                            <div className={`flex items-center flex-shrink-0 ${totalCount > 0 ? '' : 'ml-auto'}`}>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => { e.stopPropagation(); startEditingGroup(group.id, group.name); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); startEditingGroup(group.id, group.name); } }}
+                                className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-orange-50 text-slate-300 hover:text-orange-600 transition-all cursor-pointer"
+                                title="Renombrar grupo"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </span>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteGroupMutation.mutate(group.id); } }}
+                                className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all cursor-pointer"
+                                title="Eliminar grupo"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
                           )}
                         </button>
+                        )}
                         </div>
 
                         {/* Task List */}
@@ -3426,6 +3523,61 @@ function TaskDetailDialog({
   const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
   const [selectedSegmento, setSelectedSegmento] = useState<string>((task as any).segmento || "__none__");
 
+  // Quién puede editar el contenido de la tarea (descripción, enlaces, etc.)
+  const canEditTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
+
+  // Edición de la descripción (inline)
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState<string>(task.description || "");
+  const updateDescriptionMutation = useMutation({
+    mutationFn: async (description: string) => {
+      return await apiRequest("PATCH", `/api/tasks/${task.id}`, { description });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tareas/init"], type: "all" });
+      setIsEditingDescription(false);
+      toast({ title: "Descripción actualizada" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "No se pudo actualizar la descripción.", variant: "destructive" });
+    },
+  });
+
+  // Enlaces de Google Drive (guardados en payload.driveLinks)
+  const driveLinks: Array<{ url: string; label?: string }> = Array.isArray((task as any).payload?.driveLinks)
+    ? (task as any).payload.driveLinks
+    : [];
+  const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const updateDriveLinksMutation = useMutation({
+    mutationFn: async (links: Array<{ url: string; label?: string }>) => {
+      return await apiRequest("PATCH", `/api/tasks/${task.id}`, { driveLinks: links });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tareas/init"], type: "all" });
+      setNewLinkUrl("");
+      setNewLinkLabel("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "No se pudo guardar el enlace.", variant: "destructive" });
+    },
+  });
+  const normalizeUrl = (raw: string) => {
+    const t = raw.trim();
+    if (!t) return "";
+    return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  };
+  const addDriveLink = () => {
+    const url = normalizeUrl(newLinkUrl);
+    if (!url) return;
+    updateDriveLinksMutation.mutate([...driveLinks, { url, label: newLinkLabel.trim() || undefined }]);
+  };
+  const removeDriveLink = (index: number) => {
+    updateDriveLinksMutation.mutate(driveLinks.filter((_, i) => i !== index));
+  };
+
   // Update task segmento mutation
   const updateTaskSegmentoMutation = useMutation({
     mutationFn: async ({ taskId, segmento }: { taskId: string; segmento: string | null }) => {
@@ -3507,10 +3659,10 @@ function TaskDetailDialog({
         <div className="px-6 py-5 border-b bg-muted/30 flex-shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={`rounded-lg p-2.5 shadow-sm flex-shrink-0 ${
+              <div className={`rounded-xl p-2.5 shadow-sm flex-shrink-0 ${
                 isCompleted ? 'bg-emerald-600' :
                 task.priority === 'high' ? 'bg-red-600' :
-                'bg-indigo-600'
+                'bg-gradient-to-br from-orange-500 to-orange-600'
               }`}>
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
@@ -3521,8 +3673,8 @@ function TaskDetailDialog({
                 <DialogDescription className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                   <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
-                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-0 text-xs">
-                      {(task as any).segmento}
+                    <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-0 text-xs">
+                      {SEGMENTOS.find(s => s.value === (task as any).segmento)?.label || (task as any).segmento}
                     </Badge>
                   )}
                 </DialogDescription>
@@ -3559,7 +3711,7 @@ function TaskDetailDialog({
 
         {/* Department Change Bar */}
         {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id) && (
-          <div className="flex items-center gap-2 px-6 py-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 overflow-x-auto">
+          <div className="flex items-center gap-2 px-6 py-3 bg-orange-50/70 border-b border-orange-100 flex-shrink-0 overflow-x-auto">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5" />
               Pestaña:
@@ -3571,8 +3723,8 @@ function TaskDetailDialog({
                   key={seg.value}
                   className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 border ${
                     isActive
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:text-indigo-600'
+                      ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-orange-400 hover:text-orange-600'
                   }`}
                   disabled={updateTaskSegmentoMutation.isPending}
                   onClick={() => {
@@ -3593,13 +3745,69 @@ function TaskDetailDialog({
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Left Panel: Task Info */}
           <div className="lg:w-[55%] overflow-y-auto border-r border-slate-200 p-5 space-y-5">
-            {/* Description */}
-            {task.description && (
+            {/* Description - Editable */}
+            {(task.description || canEditTask) && (
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</h4>
-                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-4 border border-slate-100 whitespace-pre-wrap">
-                  {task.description}
-                </p>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</h4>
+                  {canEditTask && !isEditingDescription && (
+                    <button
+                      onClick={() => { setDescriptionDraft(task.description || ""); setIsEditingDescription(true); }}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg px-2 py-1 transition-colors"
+                      title="Editar descripción"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Editar
+                    </button>
+                  )}
+                </div>
+                {isEditingDescription ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      autoFocus
+                      value={descriptionDraft}
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                      placeholder="Describe la tarea..."
+                      className="w-full min-h-[110px] text-sm resize-y border-orange-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400 rounded-xl bg-white"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm"
+                        disabled={updateDescriptionMutation.isPending}
+                        onClick={() => updateDescriptionMutation.mutate(descriptionDraft.trim())}
+                      >
+                        {updateDescriptionMutation.isPending ? (
+                          <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Guardando...</>
+                        ) : (
+                          <><Check className="h-3.5 w-3.5 mr-1.5" /> Guardar</>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs text-slate-500 hover:bg-slate-100"
+                        onClick={() => { setIsEditingDescription(false); setDescriptionDraft(task.description || ""); }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : task.description ? (
+                  <p
+                    onClick={() => canEditTask && (setDescriptionDraft(task.description || ""), setIsEditingDescription(true))}
+                    className={`text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-4 border border-slate-100 whitespace-pre-wrap ${canEditTask ? 'cursor-pointer hover:border-orange-200 hover:bg-orange-50/40 transition-colors' : ''}`}
+                  >
+                    {task.description}
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => { setDescriptionDraft(""); setIsEditingDescription(true); }}
+                    className="w-full text-left text-sm text-slate-400 italic bg-slate-50 rounded-xl p-4 border border-dashed border-slate-200 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/40 transition-colors"
+                  >
+                    Agregar una descripción…
+                  </button>
+                )}
               </div>
             )}
 
@@ -3643,7 +3851,7 @@ function TaskDetailDialog({
                           type="datetime-local"
                           value={dateValue}
                           onChange={(e) => setDateValue(e.target.value)}
-                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400"
                         />
                         <div className="flex items-center gap-1.5">
                           <button
@@ -3652,7 +3860,7 @@ function TaskDetailDialog({
                               updateDueDateMutation.mutate({ taskId: task.id, dueDate });
                             }}
                             disabled={updateDueDateMutation.isPending}
-                            className="flex-1 text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
+                            className="flex-1 text-[11px] font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
                           >
                             {updateDueDateMutation.isPending ? 'Guardando...' : 'Guardar'}
                           </button>
@@ -3716,7 +3924,93 @@ function TaskDetailDialog({
               </div>
             </div>
 
+            {/* Google Drive Links */}
+            {(driveLinks.length > 0 || canEditTask) && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                  <Link2 className="h-3.5 w-3.5" />
+                  Enlaces de Google Drive
+                </h4>
 
+                {driveLinks.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {driveLinks.map((link, i) => (
+                      <div
+                        key={`${link.url}-${i}`}
+                        className="group flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-orange-200 hover:shadow-sm transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
+                          <Link2 className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-w-0 flex-1"
+                          title={link.url}
+                        >
+                          <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-orange-700 transition-colors">
+                            {link.label || 'Enlace de Drive'}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">{link.url}</p>
+                        </a>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all flex-shrink-0"
+                          title="Abrir enlace"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                        {canEditTask && (
+                          <button
+                            onClick={() => removeDriveLink(i)}
+                            disabled={updateDriveLinksMutation.isPending}
+                            className="p-1.5 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all flex-shrink-0 disabled:opacity-50"
+                            title="Quitar enlace"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Sin enlaces todavía.</p>
+                )}
+
+                {canEditTask && (
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <Input
+                      value={newLinkLabel}
+                      onChange={(e) => setNewLinkLabel(e.target.value)}
+                      placeholder="Nombre (opcional)"
+                      className="h-9 text-sm sm:w-[38%] border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                    />
+                    <Input
+                      value={newLinkUrl}
+                      onChange={(e) => setNewLinkUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDriveLink(); } }}
+                      placeholder="Pega el enlace de Drive…"
+                      className="h-9 text-sm flex-1 border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm flex-shrink-0"
+                      disabled={updateDriveLinksMutation.isPending || !newLinkUrl.trim()}
+                      onClick={addDriveLink}
+                    >
+                      {updateDriveLinksMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <><Plus className="h-3.5 w-3.5 mr-1" /> Agregar</>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Group Assignment */}
             {(() => {
@@ -3756,7 +4050,7 @@ function TaskDetailDialog({
                   {hasChanged && (
                     <Button
                       size="sm"
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm"
+                      className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm"
                       disabled={assignTaskToGroupMutation.isPending}
                       onClick={() => {
                         const groupId = selectedGroupId === "__none__" ? null : selectedGroupId;
@@ -3784,10 +4078,10 @@ function TaskDetailDialog({
                       key={status}
                       size="sm"
                       variant={task.status === status ? "default" : "outline"}
-                      className={`text-xs transition-all ${task.status === status 
-                        ? status === 'completada' ? 'bg-green-600 hover:bg-green-700' 
+                      className={`text-xs transition-all ${task.status === status
+                        ? status === 'completada' ? 'bg-green-600 hover:bg-green-700'
                           : status === 'en_progreso' ? 'bg-amber-500 hover:bg-amber-600'
-                          : 'bg-indigo-600 hover:bg-indigo-700'
+                          : 'bg-orange-600 hover:bg-orange-700'
                         : ''
                       }`}
                       onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status })}
@@ -3817,7 +4111,7 @@ function TaskDetailDialog({
                   
                   return (
                     <div key={assignment.id} className={`bg-white border rounded-xl p-4 transition-all ${
-                      myAssignment ? 'border-indigo-200 bg-indigo-50/30 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                      myAssignment ? 'border-orange-200 bg-orange-50/40 shadow-sm' : 'border-slate-200 hover:border-slate-300'
                     }`}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -3836,7 +4130,7 @@ function TaskDetailDialog({
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {getStatusBadge(assignment.status ?? 'pendiente')}
                           {assignment.readAt && (
-                            <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700">
+                            <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700">
                               <Eye className="h-3 w-3 mr-1" />
                               Leída
                             </Badge>
@@ -3850,7 +4144,7 @@ function TaskDetailDialog({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 px-2.5 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                            className="h-7 px-2.5 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
                             onClick={() => markAsReadMutation.mutate({
                               taskId: task.id,
                               assignmentId: assignment.id
@@ -3926,7 +4220,7 @@ function TaskDetailDialog({
             <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-indigo-600" />
+                  <MessageSquare className="h-4 w-4 text-orange-600" />
                   Bitácora / Chat
                 </h4>
                 {task.assignments.length > 1 && (
@@ -4021,10 +4315,10 @@ function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { tas
       {comments.map((comment) => (
         <div
           key={comment.id}
-          className="group bg-white rounded-xl p-3.5 border border-slate-200 hover:border-blue-200 hover:shadow-sm transition-all"
+          className="group bg-white rounded-xl p-3.5 border border-slate-200 hover:border-orange-200 hover:shadow-sm transition-all"
         >
           <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
               {comment.authorName?.charAt(0).toUpperCase() || 'U'}
             </div>
             <span className="text-xs font-semibold text-slate-800 truncate">{comment.authorName}</span>
@@ -4100,14 +4394,14 @@ function DetailChatInput({ taskId, assignmentId }: { taskId: string; assignmentI
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Escribe un mensaje..."
-          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20 rounded-xl"
+          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
           rows={1}
           data-testid="chat-input-detail"
         />
         <Button
           type="submit"
           size="sm"
-          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-md"
+          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md"
           disabled={addCommentMutation.isPending || !text.trim()}
           data-testid="button-send-chat"
         >
