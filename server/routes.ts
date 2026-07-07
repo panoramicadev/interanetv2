@@ -14037,6 +14037,11 @@ export function registerRoutes(app: Express): Server {
         status: z.enum(["pendiente", "en_progreso", "completada"]).optional(),
         segmento: z.string().optional().or(z.null()),
         groupId: z.string().nullable().optional(),
+        // Enlaces de Google Drive (u otros); se guardan dentro de payload.driveLinks
+        driveLinks: z.array(z.object({
+          url: z.string().url("URL inválida"),
+          label: z.string().max(200).optional(),
+        })).max(30).optional(),
       }).partial();
 
       // Validate request body with Zod
@@ -14069,7 +14074,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Convert dueDate string to Date if present, handle all cases properly
-      const { dueDate, ...otherUpdates } = updates;
+      const { dueDate, driveLinks, ...otherUpdates } = updates;
       const processedUpdates: Partial<InsertTask> = {
         ...otherUpdates,
         // Handle dueDate conversion properly
@@ -14077,6 +14082,10 @@ export function registerRoutes(app: Express): Server {
           dueDate: typeof dueDate === 'string'
             ? new Date(dueDate)
             : dueDate // Already Date or null
+        }),
+        // Merge driveLinks into the existing payload (jsonb) without clobbering other keys
+        ...(driveLinks !== undefined && {
+          payload: { ...((task.payload as Record<string, any>) || {}), driveLinks }
         })
       };
 
@@ -14329,7 +14338,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       const { id } = req.params;
       const { name, color, sortOrder } = req.body;
-      const group = await storage.updateTaskGroup(id, user.id, { name, color, sortOrder });
+      const group = await storage.updateTaskGroup(id, user.id, { name, color, sortOrder }, user.role === 'admin');
       res.json(group);
     } catch (error: any) {
       console.error("Error updating task group:", error);
@@ -14345,7 +14354,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { id } = req.params;
-      await storage.deleteTaskGroup(id, user.id);
+      await storage.deleteTaskGroup(id, user.id, user.role === 'admin');
       res.json({ message: "Group deleted successfully" });
     } catch (error) {
       console.error("Error deleting task group:", error);

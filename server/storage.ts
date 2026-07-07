@@ -13679,26 +13679,29 @@ export class DatabaseStorage implements IStorage {
     return group;
   }
 
-  async updateTaskGroup(id: string, userId: string, data: { name?: string; color?: string; sortOrder?: number }): Promise<TaskGroup> {
+  async updateTaskGroup(id: string, userId: string, data: { name?: string; color?: string; sortOrder?: number }, isAdmin = false): Promise<TaskGroup> {
+    // El dueño del grupo puede editarlo; un administrador puede editar cualquiera.
+    const scope = isAdmin ? eq(taskGroups.id, id) : and(eq(taskGroups.id, id), eq(taskGroups.userId, userId));
     const [group] = await db
       .update(taskGroups)
       .set(data)
-      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)))
+      .where(scope)
       .returning();
     if (!group) throw new Error('Group not found or access denied');
     return group;
   }
 
-  async deleteTaskGroup(id: string, userId: string): Promise<void> {
+  async deleteTaskGroup(id: string, userId: string, isAdmin = false): Promise<void> {
     // Ungroup tasks first
     await db
       .update(tasks)
       .set({ groupId: null })
       .where(eq(tasks.groupId, id));
-    // Delete group
+    // Delete group — el dueño borra el suyo; un administrador puede borrar cualquiera.
+    const scope = isAdmin ? eq(taskGroups.id, id) : and(eq(taskGroups.id, id), eq(taskGroups.userId, userId));
     await db
       .delete(taskGroups)
-      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)));
+      .where(scope);
   }
 
   async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
