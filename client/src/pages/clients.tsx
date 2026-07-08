@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { isValidRut, formatRut } from "@shared/rut";
 import {
   Loader2,
   Search,
@@ -207,6 +208,13 @@ export default function Clients() {
     dien: "",
     purchasingContactName: "",
   });
+  // Errores de validación por campo del formulario de nuevo cliente.
+  const [newClientErrors, setNewClientErrors] = useState<{
+    nokoen?: string;
+    rten?: string;
+    email?: string;
+    foen?: string;
+  }>({});
 
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
@@ -595,6 +603,7 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/clients/search'] });
       setIsNewClientModalOpen(false);
+      setNewClientErrors({});
       setNewClientData({
         nokoen: "",
         koen: "",
@@ -604,9 +613,18 @@ export default function Clients() {
         dien: "",
         purchasingContactName: "",
       });
+      toast({
+        title: "Cliente creado",
+        description: "El cliente se creó correctamente.",
+      });
     },
     onError: (error) => {
       console.error('Error creating client:', error);
+      toast({
+        title: "No se pudo crear el cliente",
+        description: error instanceof Error ? error.message : "Ocurrió un error al crear el cliente",
+        variant: "destructive",
+      });
     }
   });
 
@@ -655,11 +673,41 @@ export default function Clients() {
     }
   };
 
+  // Valida los campos obligatorios del nuevo cliente. Devuelve los errores encontrados.
+  const validateNewClient = (data: typeof newClientData) => {
+    const errors: typeof newClientErrors = {};
+    if (!data.nokoen.trim()) {
+      errors.nokoen = "El nombre es obligatorio";
+    }
+    if (!data.rten.trim()) {
+      errors.rten = "El RUT es obligatorio";
+    } else if (!isValidRut(data.rten)) {
+      errors.rten = "El RUT no es válido. Revisa el número y el dígito verificador";
+    }
+    if (!data.email.trim()) {
+      errors.email = "El email es obligatorio";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
+      errors.email = "El email no tiene un formato válido";
+    }
+    if (!data.foen.trim()) {
+      errors.foen = "El teléfono es obligatorio";
+    }
+    return errors;
+  };
+
   const handleCreateClient = () => {
-    if (!newClientData.nokoen.trim()) {
+    // Normaliza el RUT al formato estándar antes de validar y enviar.
+    const normalized = {
+      ...newClientData,
+      rten: newClientData.rten.trim() ? formatRut(newClientData.rten) : "",
+    };
+    const errors = validateNewClient(normalized);
+    setNewClientErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setNewClientData(normalized);
       return;
     }
-    createClientMutation.mutate(newClientData);
+    createClientMutation.mutate(normalized);
   };
 
   const downloadTemplate = () => {
@@ -1434,73 +1482,105 @@ export default function Clients() {
               <Plus className="h-5 w-5 mr-2 text-green-600" />
               Nuevo Cliente
             </DialogTitle>
+            <DialogDescription>
+              Completa los datos del cliente. Los campos con{" "}
+              <span className="text-red-500">*</span> son obligatorios.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* ── Datos obligatorios ── */}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Nombre <span className="text-red-500">*</span>
+                Nombre o Razón Social <span className="text-red-500">*</span>
               </label>
               <Input
                 value={newClientData.nokoen}
-                onChange={(e) => setNewClientData({ ...newClientData, nokoen: e.target.value })}
-                placeholder="Nombre del cliente"
-                className="mt-1"
+                onChange={(e) => {
+                  setNewClientData({ ...newClientData, nokoen: e.target.value });
+                  if (newClientErrors.nokoen) setNewClientErrors({ ...newClientErrors, nokoen: undefined });
+                }}
+                placeholder="Ej: Constructora Los Andes SpA"
+                className={`mt-1 ${newClientErrors.nokoen ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                 data-testid="input-client-name"
               />
+              {newClientErrors.nokoen && (
+                <p className="text-xs text-red-500 mt-1">{newClientErrors.nokoen}</p>
+              )}
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Código de Cliente
-              </label>
-              <Input
-                value={newClientData.koen}
-                onChange={(e) => setNewClientData({ ...newClientData, koen: e.target.value })}
-                placeholder="Código único del cliente"
-                className="mt-1"
-                data-testid="input-client-code"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                RUT
+                RUT <span className="text-red-500">*</span>
               </label>
               <Input
                 value={newClientData.rten}
-                onChange={(e) => setNewClientData({ ...newClientData, rten: e.target.value })}
+                onChange={(e) => {
+                  setNewClientData({ ...newClientData, rten: e.target.value });
+                  if (newClientErrors.rten) setNewClientErrors({ ...newClientErrors, rten: undefined });
+                }}
+                onBlur={() => {
+                  if (newClientData.rten.trim()) {
+                    setNewClientData((prev) => ({ ...prev, rten: formatRut(prev.rten) }));
+                  }
+                }}
                 placeholder="12.345.678-9"
-                className="mt-1"
+                className={`mt-1 ${newClientErrors.rten ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                 data-testid="input-client-rut"
               />
+              {newClientErrors.rten ? (
+                <p className="text-xs text-red-500 mt-1">{newClientErrors.rten}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Con el RUT identificamos al cliente y cruzamos sus compras automáticamente cuando registre su primera venta.
+                </p>
+              )}
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email
+                Email <span className="text-red-500">*</span>
               </label>
               <Input
                 type="email"
                 value={newClientData.email}
-                onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                onChange={(e) => {
+                  setNewClientData({ ...newClientData, email: e.target.value });
+                  if (newClientErrors.email) setNewClientErrors({ ...newClientErrors, email: undefined });
+                }}
                 placeholder="correo@ejemplo.com"
-                className="mt-1"
+                className={`mt-1 ${newClientErrors.email ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                 data-testid="input-client-email"
               />
+              {newClientErrors.email && (
+                <p className="text-xs text-red-500 mt-1">{newClientErrors.email}</p>
+              )}
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Teléfono
+                Teléfono <span className="text-red-500">*</span>
               </label>
               <Input
                 value={newClientData.foen}
-                onChange={(e) => setNewClientData({ ...newClientData, foen: e.target.value })}
+                onChange={(e) => {
+                  setNewClientData({ ...newClientData, foen: e.target.value });
+                  if (newClientErrors.foen) setNewClientErrors({ ...newClientErrors, foen: undefined });
+                }}
                 placeholder="+56 9 1234 5678"
-                className="mt-1"
+                className={`mt-1 ${newClientErrors.foen ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                 data-testid="input-client-phone"
               />
+              {newClientErrors.foen && (
+                <p className="text-xs text-red-500 mt-1">{newClientErrors.foen}</p>
+              )}
+            </div>
+
+            {/* ── Datos opcionales ── */}
+            <div className="border-t pt-4">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Datos adicionales (opcional)
+              </span>
             </div>
 
             <div>
@@ -1523,10 +1603,26 @@ export default function Clients() {
               <Input
                 value={newClientData.purchasingContactName}
                 onChange={(e) => setNewClientData({ ...newClientData, purchasingContactName: e.target.value })}
-                placeholder="Nombre del encargado de compras"
+                placeholder="Nombre de la persona que hace los pedidos"
                 className="mt-1"
                 data-testid="input-client-purchasing-contact"
               />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Código de Cliente (ERP)
+              </label>
+              <Input
+                value={newClientData.koen}
+                onChange={(e) => setNewClientData({ ...newClientData, koen: e.target.value })}
+                placeholder="Se asigna automáticamente"
+                className="mt-1"
+                data-testid="input-client-code"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Lo asigna el sistema automáticamente cuando el cliente registra su primera compra. Déjalo vacío si aún no lo conoces.
+              </p>
             </div>
           </div>
 
@@ -1535,6 +1631,7 @@ export default function Clients() {
               variant="outline"
               onClick={() => {
                 setIsNewClientModalOpen(false);
+                setNewClientErrors({});
                 setNewClientData({
                   nokoen: "",
                   koen: "",
@@ -1551,7 +1648,7 @@ export default function Clients() {
             </Button>
             <Button
               onClick={handleCreateClient}
-              disabled={!newClientData.nokoen.trim() || createClientMutation.isPending}
+              disabled={createClientMutation.isPending}
               className="bg-green-600 hover:bg-green-700 text-white"
               data-testid="button-save-new-client"
             >
