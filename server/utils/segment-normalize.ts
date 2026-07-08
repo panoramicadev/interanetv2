@@ -20,7 +20,9 @@ import type { PgColumn } from "drizzle-orm/pg-core";
  * se comportan exactamente igual que antes (mismo filtro, mismo display).
  */
 
-export const INDUSTRIAL_LABEL = "Industrial";
+// En MAYÚSCULA para ser consistente con los demás segmentos del dashboard
+// (que muestran el `noruen` crudo: CONSTRUCCION, FERRETERIAS, MCT, …).
+export const INDUSTRIAL_LABEL = "INDUSTRIAL";
 
 /** ¿El valor (crudo o etiqueta) corresponde al segmento Industrial? */
 export function isIndustrialSegment(value: string | null | undefined): boolean {
