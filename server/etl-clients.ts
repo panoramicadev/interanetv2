@@ -3,6 +3,7 @@ import { db } from './db';
 import { sql, eq } from 'drizzle-orm';
 import { EventEmitter } from 'events';
 import { clients, etlExecutionLog, etlConfig } from '../shared/schema';
+import { normalizeRut } from '../shared/rut';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
 
@@ -223,11 +224,26 @@ export async function executeClientETL(): Promise<ClientETLResult> {
 
     console.log(`   📋 ${existingKoens.size} clientes existentes en la base local\n`);
 
+    // Clientes cargados a mano (sin código ERP) indexados por RUT normalizado.
+    // Permiten CRUZAR: cuando el ERP asigna un código a un cliente que ya existía
+    // como prospecto manual, se fusiona ese registro en vez de duplicarlo.
+    const manualByRut = new Map<string, string>(); // rut normalizado -> client.id
+    const manualResult = await db.execute(sql`
+      SELECT id, rten FROM clients
+      WHERE (koen IS NULL OR koen = '') AND rten IS NOT NULL AND rten <> ''
+    `);
+    for (const r of (manualResult as any).rows) {
+      const nr = normalizeRut(r.rten);
+      if (nr && !manualByRut.has(nr)) manualByRut.set(nr, r.id);
+    }
+    console.log(`   🔗 ${manualByRut.size} clientes cargados a mano disponibles para cruce por RUT\n`);
+
     // ── PASO 4: UPSERT en lotes ──────────────────────────────────────────
     emitProgress(4, TOTAL_STEPS, 'Sincronizando clientes', 'Insertando y actualizando...');
 
     let newClients = 0;
     let updatedClients = 0;
+    let crossedClients = 0;
     let errorCount = 0;
     const BATCH_SIZE = 100;
 
@@ -298,14 +314,28 @@ export async function executeClientETL(): Promise<ClientETLResult> {
               .where(eq(clients.koen, koen));
             updatedClients++;
           } else {
-            // INSERT: nuevo cliente
-            await db.insert(clients).values({
-              koen,
-              nokoen,
-              ...erpData,
-            } as any);
-            newClients++;
-            existingKoens.add(koen); // Evitar duplicados dentro del mismo batch
+            // ¿Existe ya como prospecto cargado a mano (mismo RUT, sin código)?
+            const nr = normalizeRut(erpData.rten);
+            const manualId = nr ? manualByRut.get(nr) : undefined;
+            if (manualId) {
+              // CRUCE: asignar el código ERP y volcar datos oficiales sobre el
+              // registro manual, preservando sus campos CRM (no vienen en erpData).
+              await db.update(clients)
+                .set({ koen, ...erpData })
+                .where(eq(clients.id, manualId));
+              manualByRut.delete(nr);
+              existingKoens.add(koen);
+              crossedClients++;
+            } else {
+              // INSERT: nuevo cliente
+              await db.insert(clients).values({
+                koen,
+                nokoen,
+                ...erpData,
+              } as any);
+              newClients++;
+              existingKoens.add(koen); // Evitar duplicados dentro del mismo batch
+            }
           }
         } catch (rowError: any) {
           errorCount++;
@@ -320,11 +350,12 @@ export async function executeClientETL(): Promise<ClientETLResult> {
       }
     }
 
-    const recordsProcessed = newClients + updatedClients;
+    const recordsProcessed = newClients + updatedClients + crossedClients;
 
     console.log(`\n📊 Resultado de sincronización:`);
     console.log(`   ✅ Nuevos clientes: ${newClients}`);
     console.log(`   🔄 Actualizados: ${updatedClients}`);
+    if (crossedClients > 0) console.log(`   🔗 Cruzados con carga manual: ${crossedClients}`);
     if (errorCount > 0) console.log(`   ⚠️  Errores: ${errorCount}`);
     console.log(`   📋 Total procesados: ${recordsProcessed}\n`);
 
@@ -340,6 +371,7 @@ export async function executeClientETL(): Promise<ClientETLResult> {
         statistics: JSON.stringify({
           newClients,
           updatedClients,
+          crossedClients,
           errorCount,
           totalERP: erpClients.length,
           totalLocal: existingKoens.size,

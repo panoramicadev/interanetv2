@@ -414,6 +414,7 @@ import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
+import { isValidRut, formatRut } from "@shared/rut";
 import {
   mapRowToLead, CRM_IMPORT_COLUMNS, CRM_ESTADO_LABELS, CRM_ORIGEN_LABELS,
   CRM_PRIORIDAD_LABELS, csvRow, normalizeEstadoImport,
@@ -2927,7 +2928,48 @@ export function registerRoutes(app: Express): Server {
   // Create new client manually
   app.post('/api/clients', requireAuth, async (req, res) => {
     try {
-      const validatedData = insertClientSchema.parse(req.body);
+      const body = req.body ?? {};
+
+      // Validación de campos obligatorios (red de seguridad del formulario).
+      const nokoen = typeof body.nokoen === 'string' ? body.nokoen.trim() : '';
+      const rtenRaw = typeof body.rten === 'string' ? body.rten.trim() : '';
+      const email = typeof body.email === 'string' ? body.email.trim() : '';
+      const foen = typeof body.foen === 'string' ? body.foen.trim() : '';
+
+      const fields: Record<string, string> = {};
+      if (!nokoen) fields.nokoen = 'El nombre es obligatorio';
+      if (!rtenRaw) fields.rten = 'El RUT es obligatorio';
+      else if (!isValidRut(rtenRaw)) fields.rten = 'El RUT no es válido';
+      if (!email) fields.email = 'El email es obligatorio';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fields.email = 'El email no tiene un formato válido';
+      if (!foen) fields.foen = 'El teléfono es obligatorio';
+
+      if (Object.keys(fields).length > 0) {
+        return res.status(400).json({ error: 'Datos inválidos', fields });
+      }
+
+      // RUT en formato canónico "12.345.678-9".
+      const rten = formatRut(rtenRaw);
+
+      // Cruce por RUT: no duplicar un cliente que ya existe (cargado a mano o desde el ERP).
+      const existing = await storage.getClientByRut(rten);
+      if (existing) {
+        return res.status(409).json({
+          error: `Ya existe un cliente con este RUT: ${existing.nokoen}`,
+        });
+      }
+
+      // El código lo asigna el ERP; si viene vacío lo dejamos en NULL (evita choque de unicidad).
+      const koen = typeof body.koen === 'string' && body.koen.trim() ? body.koen.trim() : undefined;
+
+      const validatedData = insertClientSchema.parse({
+        ...body,
+        nokoen,
+        rten,
+        email,
+        foen,
+        koen,
+      });
       const newClient = await storage.insertClient(validatedData);
       res.status(201).json(newClient);
     } catch (error: any) {
