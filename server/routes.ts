@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
+import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
@@ -5319,9 +5319,11 @@ export function registerRoutes(app: Express): Server {
       if (filterType && filterType !== "all") {
         filteredGoals = filteredGoals.filter(goal => goal.type === filterType);
 
-        // If a specific target is provided, filter by it with normalized comparison
+        // If a specific target is provided, filter by it with normalized comparison.
+        // canonicalSegmentName unifica los alias del segmento Industrial (ex "Modular")
+        // para que una meta vieja matchee con el filtro nuevo; no afecta a vendedores.
         if (filterTarget) {
-          filteredGoals = filteredGoals.filter(goal => normalize(goal.target) === normalize(filterTarget));
+          filteredGoals = filteredGoals.filter(goal => normalize(canonicalSegmentName(goal.target)) === normalize(canonicalSegmentName(filterTarget)));
         }
       }
 
@@ -22427,9 +22429,14 @@ export function registerRoutes(app: Express): Server {
       paramIdx++;
     }
     if (segment) {
-      conditions.push(`nombre_segmento_cliente = $${paramIdx}`);
-      params.push(segment as string);
-      paramIdx++;
+      if (isIndustrialSegment(segment as string)) {
+        // Segmento Industrial (ex "Modular"): match por token, insensible a caja/acentos
+        conditions.push(`(TRIM(nombre_segmento_cliente) ILIKE 'industrial' OR nombre_segmento_cliente ILIKE '%modular%')`);
+      } else {
+        conditions.push(`nombre_segmento_cliente = $${paramIdx}`);
+        params.push(segment as string);
+        paramIdx++;
+      }
     }
     if (client) {
       conditions.push(`nokoen = $${paramIdx}`);

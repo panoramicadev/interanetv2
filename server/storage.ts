@@ -354,7 +354,7 @@ import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
-import { segmentEq, segmentSqlEq, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
+import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -15553,8 +15553,8 @@ export class DatabaseStorage implements IStorage {
         const vendorsBySegment = await db.execute(sql`
           SELECT DISTINCT kofulido 
           FROM nvv.fact_nvv 
-          WHERE nombre_segmento_cliente = ${options.segment}
-            AND kofulido IS NOT NULL 
+          WHERE ${segmentSqlEq(sql`nombre_segmento_cliente`, options.segment)}
+            AND kofulido IS NOT NULL
             AND kofulido != ''
             AND (eslido IS NULL OR eslido = '')
         `);
@@ -15618,7 +15618,7 @@ export class DatabaseStorage implements IStorage {
 
       // If segment filter is provided, filter by nombre_segmento_cliente
       if (options.segment) {
-        conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
+        conditions.push(segmentSqlEq(sql`nombre_segmento_cliente`, options.segment));
       }
 
       // Use kofulido for salesperson filtering
@@ -15712,7 +15712,7 @@ export class DatabaseStorage implements IStorage {
 
       // Use nombre_segmento_cliente for segment filtering
       if (options.segment) {
-        conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
+        conditions.push(segmentSqlEq(sql`nombre_segmento_cliente`, options.segment));
       }
 
       // Use nokoen for client filtering
@@ -15928,8 +15928,7 @@ export class DatabaseStorage implements IStorage {
 
       // Add segment filter if provided - uses nombre_segmento_cliente field
       if (options?.segment) {
-        const normalizedSegment = options.segment.trim();
-        conditions.push(sql`UPPER(nvv.nombre_segmento_cliente) = ${normalizedSegment.toUpperCase()}`);
+        conditions.push(segmentSqlEq(sql`nvv.nombre_segmento_cliente`, options.segment));
       }
 
       // Scope de datos del encargado de área (sucursales asignadas), por código de cliente
@@ -16194,7 +16193,7 @@ export class DatabaseStorage implements IStorage {
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
 
       // Filter by segment name (nombre_segmento_cliente in fact_nvv)
-      conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
+      conditions.push(segmentSqlEq(sql`nombre_segmento_cliente`, options.segment));
 
       // Add date filters if provided
       if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
@@ -26657,9 +26656,8 @@ export class DatabaseStorage implements IStorage {
       // For GDV, segment filter needs to join with nvv.fact_nvv which has the segmento info
       // We'll use a subquery approach - get endo values that match the segment from nvv
       if (segment) {
-        const normalizedSegment = segment.trim().toUpperCase();
         // Filter by endo codes that belong to the segment in nvv table
-        whereClause += ` AND gdv.endo IN (SELECT endo FROM nvv.fact_nvv WHERE UPPER(COALESCE(nombre_segmento_cliente, '')) = '${normalizedSegment}' GROUP BY endo)`;
+        whereClause += ` AND gdv.endo IN (SELECT endo FROM nvv.fact_nvv WHERE ${segmentRawStringCondition("COALESCE(nombre_segmento_cliente, '')", segment)} GROUP BY endo)`;
       }
 
       // Scope de datos del encargado de área (sucursales asignadas), por código de cliente.
@@ -27247,7 +27245,7 @@ export class DatabaseStorage implements IStorage {
 
     return result.map(row => ({
       ruen: row.ruen,
-      nombre_segmento_cliente: String(row.nombre_segmento_cliente || 'Sin Segmento'),
+      nombre_segmento_cliente: canonicalSegmentName(String(row.nombre_segmento_cliente || 'Sin Segmento')),
       totalNvv: Number(row.total || 0),
       abiertas: Number(row.abiertas || 0),
       cerradas: Number(row.cerradas || 0),
