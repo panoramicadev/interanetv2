@@ -1,4 +1,4 @@
-import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 /**
@@ -7,8 +7,14 @@ import type { PgColumn } from "drizzle-orm/pg-core";
  * El nombre del segmento vive en `ventas.fact_ventas.noruen`, que el ETL
  * resuelve por join a la tabla de rubros del ERP (`stg_tabru.nokoru`). El ERP
  * renombró ese rubro a "Industrial", pero hasta que el ETL re-sincronice todo
- * el histórico pueden convivir el valor viejo ("FABRICACION MODULAR") y el
- * nuevo ("INDUSTRIAL"). Acá los unificamos bajo una sola etiqueta canónica.
+ * el histórico pueden convivir el valor viejo ("Fabricación Modular", en la
+ * grafía/acento/caja que tenga el ERP) y el nuevo ("Industrial"). Acá los
+ * unificamos bajo una sola etiqueta canónica.
+ *
+ * IMPORTANTE: el match NO es por strings exactos (la grafía real del ERP puede
+ * diferir en mayúsculas/acentos), sino por el token distintivo: cualquier
+ * `noruen` que contenga "MODULAR" o que sea "INDUSTRIAL" es el segmento
+ * Industrial. Ningún otro segmento usa esas palabras, así que es seguro.
  *
  * Propiedad clave: para cualquier segmento que NO sea Industrial, estos helpers
  * se comportan exactamente igual que antes (mismo filtro, mismo display).
@@ -16,55 +22,62 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 
 export const INDUSTRIAL_LABEL = "Industrial";
 
-/** Valores crudos de `noruen` que significan "Industrial" (viejo + nuevo). */
-export const INDUSTRIAL_RAW_ALIASES = [
-  "INDUSTRIAL",
-  "FABRICACION MODULAR",
-  "FABRICACIÓN MODULAR",
-];
-
-const INDUSTRIAL_UPPER = new Set(INDUSTRIAL_RAW_ALIASES.map((v) => v.toUpperCase()));
-
 /** ¿El valor (crudo o etiqueta) corresponde al segmento Industrial? */
 export function isIndustrialSegment(value: string | null | undefined): boolean {
   if (value == null) return false;
   const up = value.trim().toUpperCase();
-  return up === INDUSTRIAL_LABEL.toUpperCase() || INDUSTRIAL_UPPER.has(up);
+  return up === "INDUSTRIAL" || up.includes("MODULAR");
 }
 
-/** Para MOSTRAR: convierte cualquier alias crudo en la etiqueta canónica. */
+/** Para MOSTRAR: convierte cualquier variante en la etiqueta canónica. */
 export function canonicalSegmentName<T extends string | null | undefined>(raw: T): T | string {
   if (raw == null) return raw;
   return isIndustrialSegment(raw) ? INDUSTRIAL_LABEL : raw;
 }
 
 /**
- * Para FILTRAR: dado el valor seleccionado (que puede venir ya como
- * "Industrial" o como uno de los alias), devuelve la lista de valores crudos
- * de `noruen` contra los que hay que hacer match.
+ * Condición de match para el segmento Industrial, insensible a
+ * mayúsculas/acentos y a la redacción exacta ("Fabricación Modular",
+ * "FABRICACION MODULAR", "Industrial", etc.). `columnExpr` es la columna
+ * `noruen` como fragmento SQL.
  */
-export function segmentFilterValues(selected: string): string[] {
-  return isIndustrialSegment(selected) ? [...INDUSTRIAL_RAW_ALIASES] : [selected];
+function industrialSqlCondition(columnExpr: SQL): SQL {
+  return sql`(TRIM(${columnExpr}) ILIKE 'industrial' OR ${columnExpr} ILIKE '%modular%')`;
 }
 
 /**
- * Reemplazo directo de `eq(column, selected)` que respeta los alias de
- * Industrial. Para el resto de segmentos devuelve una igualdad equivalente.
+ * Reemplazo directo de `eq(column, selected)` que respeta el segmento
+ * Industrial (viejo + nuevo). Para el resto de segmentos devuelve una igualdad
+ * equivalente a la original.
  */
 export function segmentEq(column: PgColumn, selected: string): SQL {
-  const values = segmentFilterValues(selected);
-  return values.length > 1 ? inArray(column, values) : eq(column, selected);
+  if (isIndustrialSegment(selected)) {
+    return industrialSqlCondition(sql`${column}`);
+  }
+  return eq(column, selected);
 }
 
 /**
- * Fragmento SQL para filtrar por segmento cuando la columna se referencia de
- * forma cruda (p. ej. `fv."noruen"` o `noruen` dentro de un template `sql``).
- * Genera `<columnExpr> IN ($1, $2, ...)` con los alias correspondientes.
- * (Se usa IN + sql.join en vez de ANY(array), que en este código se expande mal.)
+ * Igual que `segmentEq` pero cuando la columna se referencia de forma cruda
+ * dentro de un template `sql`` (p. ej. `sql`fv."noruen"`` o `sql`noruen``).
  */
 export function segmentSqlEq(columnExpr: SQL, selected: string): SQL {
-  const values = segmentFilterValues(selected);
-  return sql`${columnExpr} IN (${sql.join(values.map((v) => sql`${v}`), sql`, `)})`;
+  if (isIndustrialSegment(selected)) {
+    return industrialSqlCondition(columnExpr);
+  }
+  return sql`${columnExpr} = ${selected}`;
+}
+
+/**
+ * Fragmento de condición como STRING crudo, para sitios que concatenan SQL a
+ * mano (no templates `sql``). `columnRawExpr` es el nombre de columna literal
+ * (p. ej. `"noruen"`). El valor se escapea con comillas simples dobladas.
+ */
+export function segmentRawStringCondition(columnRawExpr: string, selected: string): string {
+  if (isIndustrialSegment(selected)) {
+    return `(TRIM(${columnRawExpr}) ILIKE 'industrial' OR ${columnRawExpr} ILIKE '%modular%')`;
+  }
+  return `${columnRawExpr} = '${selected.replace(/'/g, "''")}'`;
 }
 
 /**
