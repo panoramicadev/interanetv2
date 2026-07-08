@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { segmentEq, segmentSqlEq, segmentFilterValues, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
+import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
@@ -5768,8 +5768,7 @@ export function registerRoutes(app: Express): Server {
       if (salesperson) salespersonFilter = ` AND nokofu = '${(salesperson as string).replace(/'/g, "''")}'`;
       let segmentFilter = '';
       if (segment) {
-        const segIn = segmentFilterValues(segment as string).map(v => `'${v.replace(/'/g, "''")}'`).join(', ');
-        segmentFilter = ` AND noruen IN (${segIn})`;
+        segmentFilter = ` AND ${segmentRawStringCondition('noruen', segment as string)}`;
       }
       let clientFilter = '';
       if (client) clientFilter = ` AND nokoen = '${(client as string).replace(/'/g, "''")}'`;
@@ -6102,8 +6101,7 @@ export function registerRoutes(app: Express): Server {
         additionalFilters += ` AND nokofu = '${salespersonCode}'`;
       }
       if (viewType === 'segment' && segment && segment !== 'all') {
-        const segIn = segmentFilterValues(String(segment)).map(v => `'${v.replace(/'/g, "''")}'`).join(', ');
-        additionalFilters += ` AND noruen IN (${segIn})`;
+        additionalFilters += ` AND ${segmentRawStringCondition('noruen', String(segment))}`;
       }
 
       // Query historical monthly sales from fact_ventas
