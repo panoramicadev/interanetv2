@@ -13662,9 +13662,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // === Task Groups CRUD ===
-  async getTaskGroups(userId: string, segmento?: string): Promise<TaskGroup[]> {
-    const conditions = [eq(taskGroups.userId, userId)];
-    if (segmento) {
+  async getTaskGroups(userId: string, segmento?: string, opts?: { sharedSegmentView?: boolean }): Promise<TaskGroup[]> {
+    // Vista compartida por segmento (admin y supervisor/encargado del segmento): ven todos los
+    // grupos del segmento activo, sin importar quién los creó. Requiere un segmento activo.
+    // El resto (ej: vendedores) solo ve los grupos que creó.
+    const shareSegment = !!opts?.sharedSegmentView && !!segmento;
+    const conditions = shareSegment
+      ? [eq(taskGroups.segmento, segmento!)]
+      : [eq(taskGroups.userId, userId)];
+    if (!shareSegment && segmento) {
       conditions.push(eq(taskGroups.segmento, segmento));
     }
     return await db
