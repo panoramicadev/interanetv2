@@ -13889,9 +13889,11 @@ export function registerRoutes(app: Express): Server {
     const user = req.user;
     const { segmento } = req.query;
     const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
+    // Admin y supervisores/encargados ven todos los grupos del segmento activo (los cree quien los cree).
+    const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
 
     const [taskGroups, tasks, salespeople, supervisors] = await Promise.all([
-      storage.getTaskGroups(user.id, segmento as string),
+      storage.getTaskGroups(user.id, segmento as string, { sharedSegmentView: canSeeSegmentGroups }),
       storage.getTasksWithAssignmentsOptimized({
         userRole: user.role,
         userId: user.id,
@@ -14345,7 +14347,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const segmento = req.query.segmento as string | undefined;
-      const groups = await storage.getTaskGroups(user.id, segmento);
+      // Admin y supervisores/encargados ven todos los grupos del segmento activo (los cree quien los cree).
+      const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+      const groups = await storage.getTaskGroups(user.id, segmento, { sharedSegmentView: canSeeSegmentGroups });
       res.json(groups);
     } catch (error) {
       console.error("Error fetching task groups:", error);
