@@ -5029,10 +5029,11 @@ export const inventarioMarketing = pgTable("inventario_marketing", {
 export const inventarioMarketingMovimientos = pgTable("inventario_marketing_movimientos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   itemId: varchar("item_id").notNull(),
-  tipo: varchar("tipo", { length: 50 }).notNull(), // 'entrada' (ingreso), 'salida' (retiro)
+  tipo: varchar("tipo", { length: 50 }).notNull(), // 'entrada' (ingreso), 'salida' (retiro), 'devolucion' (devolución)
   cantidad: integer("cantidad").notNull(),
   usuarioId: varchar("usuario_id"),
   usuarioNombre: varchar("usuario_nombre"),
+  clienteNombre: varchar("cliente_nombre", { length: 255 }), // cliente/destinatario asignado (retiro) o que devuelve (devolución)
   nota: text("nota"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -5062,7 +5063,8 @@ export const insertInventarioMarketingMovimientoSchema = createInsertSchema(inve
   createdAt: true,
 }).extend({
   cantidad: z.number().min(1, "La cantidad debe ser mayor a 0"),
-  tipo: z.enum(["entrada", "salida"]),
+  tipo: z.enum(["entrada", "salida", "devolucion"]),
+  clienteNombre: z.string().optional().nullable(),
 });
 
 // Tabla de tareas (unificada para marketing y general)

@@ -60,6 +60,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       separator: true,
     },
     {
+      href: "/tareas",
+      label: "Panel de Trabajo",
+      icon: CheckCircle2,
+    },
+    {
       href: "/ecommerce",
       label: "Panorámica Market",
       icon: ShoppingCart,
@@ -129,11 +134,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/colores-paleta",
       label: "Paleta de Colores",
       icon: Palette,
-    },
-    {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
     },
     {
       href: "/marketing",
@@ -398,6 +398,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/tareas",
+      label: "Panel de Trabajo",
+      icon: CheckCircle2,
+    },
+    {
       href: "/ecommerce",
       label: "Panorámica Market",
       icon: ShoppingCart,
@@ -462,11 +467,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
-    },
-    {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
     },
     {
       href: "/tomador-pedidos",

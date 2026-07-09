@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -128,13 +128,6 @@ interface TareaMarketing {
 
 export default function Marketing() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const currentDate = new Date();
-  const [selectedMes, setSelectedMes] = useState(currentDate.getMonth() + 1);
-  const [selectedAnio, setSelectedAnio] = useState(currentDate.getFullYear());
-  const [selectedEstado, setSelectedEstado] = useState<string>("todos");
-  const [presupuestoDialogOpen, setPresupuestoDialogOpen] = useState(false);
-  const [solicitudDialogOpen, setSolicitudDialogOpen] = useState(false);
 
   if (!user) {
     return (
@@ -158,11 +151,6 @@ export default function Marketing() {
     );
   }
 
-  const mesesNombres = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-  ];
-
   const isAdmin = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
 
   return (
@@ -184,41 +172,10 @@ export default function Marketing() {
           </div>
         </div>
 
-        {/* 4 Tabs */}
-        <Tabs defaultValue="dashboard" className="w-full">
+        {/* Tabs */}
+        <Tabs defaultValue="inventario" className="w-full">
           <div>
             <TabsList className="flex w-full gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-              {isAdmin && (
-                <TabsTrigger
-                  value="dashboard"
-                  data-testid="tab-dashboard"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <BarChart3 className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                </TabsTrigger>
-              )}
-
-              <TabsTrigger
-                value="tareas"
-                data-testid="tab-tareas-marketing"
-                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-              >
-                <FileText className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Tareas</span>
-              </TabsTrigger>
-
-              {isAdmin && (
-                <TabsTrigger
-                  value="calendario"
-                  data-testid="tab-calendario"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <Calendar className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Calendario</span>
-                </TabsTrigger>
-              )}
-
               <TabsTrigger
                 value="inventario"
                 data-testid="tab-inventario"
@@ -252,107 +209,6 @@ export default function Marketing() {
             </TabsList>
           </div>
 
-          {/* Tab: Dashboard (Métricas + Presupuesto) */}
-          {isAdmin && (
-            <TabsContent value="dashboard" className="space-y-6">
-              {/* Period selector */}
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex-1 min-w-[140px]">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes</Label>
-                  <Select value={selectedMes.toString()} onValueChange={(v) => setSelectedMes(parseInt(v))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {mesesNombres.map((mes, i) => (
-                        <SelectItem key={i + 1} value={(i + 1).toString()}>{mes}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1 min-w-[100px]">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Año</Label>
-                  <Select value={selectedAnio.toString()} onValueChange={(v) => setSelectedAnio(parseInt(v))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[2024, 2025, 2026].map((a) => (
-                        <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {user.role === 'admin' && (
-                  <Button
-                    onClick={() => setPresupuestoDialogOpen(true)}
-                    className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
-                    data-testid="button-config-presupuesto"
-                  >
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Configurar Presupuesto
-                  </Button>
-                )}
-              </div>
-
-              <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
-
-              {/* Creatividades section in dashboard */}
-              <CreatividadesMarketing
-                mes={selectedMes}
-                anio={selectedAnio}
-                userRole={user.role}
-              />
-            </TabsContent>
-          )}
-
-          {/* Tab: Solicitudes */}
-          <TabsContent value="tareas" className="space-y-6">
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="flex-1 min-w-[140px]">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes</Label>
-                <Select value={selectedMes.toString()} onValueChange={(v) => setSelectedMes(parseInt(v))}>
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {mesesNombres.map((mes, i) => (
-                      <SelectItem key={i + 1} value={(i + 1).toString()}>{mes}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1 min-w-[100px]">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Año</Label>
-                <Select value={selectedAnio.toString()} onValueChange={(v) => setSelectedAnio(parseInt(v))}>
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[2024, 2025, 2026].map((a) => (
-                      <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={() => setSolicitudDialogOpen(true)}
-                data-testid="button-nueva-solicitud"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Nueva Tarea
-              </Button>
-            </div>
-
-            <MarketingTasksList mes={selectedMes} anio={selectedAnio} userRole={user.role} />
-          </TabsContent>
-
-          {/* Tab: Calendario (Hitos + Tareas + Creatividades) */}
-          {isAdmin && (
-            <TabsContent value="calendario" className="space-y-6">
-              <CalendarioHitos
-                mes={selectedMes}
-                anio={selectedAnio}
-                userRole={user.role}
-                onMesChange={setSelectedMes}
-                onAnioChange={setSelectedAnio}
-              />
-            </TabsContent>
-          )}
-
           {/* Tab: Inventario */}
           <TabsContent value="inventario" className="space-y-6">
             <InventarioMarketing userRole={user.role} />
@@ -372,16 +228,6 @@ export default function Marketing() {
             </TabsContent>
           )}
         </Tabs>
-
-        {/* Dialogs */}
-        <PresupuestoDialog
-          open={presupuestoDialogOpen}
-          onOpenChange={setPresupuestoDialogOpen}
-          mes={selectedMes}
-          anio={selectedAnio}
-        />
-
-        <MarketingTaskDialog open={solicitudDialogOpen} onOpenChange={setSolicitudDialogOpen} />
       </div>
     </div>
   );
@@ -1405,10 +1251,11 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   const [search, setSearch] = useState("");
   const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [retiroDialogOpen, setRetiroDialogOpen] = useState(false);
+  const [movimientoDialogOpen, setMovimientoDialogOpen] = useState(false);
+  const [movimientoTipo, setMovimientoTipo] = useState<'entrada' | 'salida' | 'devolucion'>('salida');
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [movimientoItem, setMovimientoItem] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/inventario', search],
@@ -1450,7 +1297,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   });
 
   const handleEdit = (item: any) => { setSelectedItem(item); setInventarioDialogOpen(true); };
-  const handleRetiro = (item: any) => { setMovimientoItem(item); setRetiroDialogOpen(true); };
+  const handleMovimiento = (item: any, tipo: 'entrada' | 'salida' | 'devolucion' = 'salida') => { setMovimientoItem(item); setMovimientoTipo(tipo); setMovimientoDialogOpen(true); };
   const handleHistory = (item: any) => { setMovimientoItem(item); setHistoryDialogOpen(true); };
   const handleDelete = (id: string) => { if (confirm("¿Eliminar este item?")) deleteMutation.mutate(id); };
 
@@ -1591,6 +1438,19 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                     </span>
                   </div>
 
+                  {/* Último movimiento */}
+                  {item.ultimoMovimiento && (() => {
+                    const um = item.ultimoMovimiento;
+                    const umc = MOV_CONFIG[um.tipo] || MOV_CONFIG.salida;
+                    return (
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-2 truncate">
+                        <span className={`font-bold ${umc.amount}`}>{umc.sign}{um.cantidad} {umc.label}</span>
+                        {um.clienteNombre && <span className="truncate">· {um.clienteNombre}</span>}
+                        <span className="text-slate-300 whitespace-nowrap">· {format(new Date(um.createdAt), "dd MMM", { locale: es })}</span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Status + Actions */}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                     <Badge variant="outline" className={`text-[10px] rounded-full px-2 py-0 ${est.color}`}>
@@ -1601,8 +1461,8 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}>
                         <History className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-amber-600" title="Retirar" disabled={item.cantidad <= 0} onClick={() => handleRetiro(item)}>
-                        <MinusCircle className="h-3.5 w-3.5" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}>
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
                       </Button>
                       {userRole === 'admin' && (
                         <>
@@ -1646,6 +1506,17 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                         <div>
                           <span className="font-semibold text-sm text-slate-900 dark:text-white">{item.nombre}</span>
                           <span className="text-xs text-slate-400 block line-clamp-1">{item.descripcion || '—'}</span>
+                          {item.ultimoMovimiento && (() => {
+                            const um = item.ultimoMovimiento;
+                            const umc = MOV_CONFIG[um.tipo] || MOV_CONFIG.salida;
+                            return (
+                              <span className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <span className={`font-bold ${umc.amount}`}>{umc.sign}{um.cantidad} {umc.label}</span>
+                                {um.clienteNombre && <span className="text-slate-500 truncate max-w-[180px]">→ {um.clienteNombre}</span>}
+                                <span className="text-slate-300 whitespace-nowrap">· {format(new Date(um.createdAt), "dd MMM", { locale: es })}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
@@ -1670,8 +1541,8 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       </TableCell>
                       <TableCell className="py-3 pr-6 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-amber-600" disabled={item.cantidad <= 0} onClick={() => handleRetiro(item)}><MinusCircle className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}><ArrowLeftRight className="h-3.5 w-3.5" /></Button>
                           {userRole === 'admin' && (
                             <>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}><Edit className="h-3.5 w-3.5" /></Button>
@@ -1691,50 +1562,90 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
 
       {/* Dialogs */}
       <InventarioDialog open={inventarioDialogOpen} onOpenChange={setInventarioDialogOpen} item={selectedItem} />
-      <RetiroDialog open={retiroDialogOpen} onOpenChange={setRetiroDialogOpen} item={movimientoItem} />
-      <HistorialMovimientosDialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen} item={movimientoItem} />
+      <MovimientoDialog open={movimientoDialogOpen} onOpenChange={setMovimientoDialogOpen} item={movimientoItem} defaultTipo={movimientoTipo} />
+      <HistorialMovimientosDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        item={movimientoItem}
+        onRegistrar={() => { setHistoryDialogOpen(false); setMovimientoTipo('salida'); setMovimientoDialogOpen(true); }}
+      />
     </div>
   );
 }
 
-// Retiro Dialog Component
-function RetiroDialog({
+// Configuración visual de los tipos de movimiento (clases Tailwind explícitas)
+const MOV_CONFIG: Record<string, { label: string; sign: '+' | '-'; icon: any; chip: string; iconWrap: string; amount: string; ring: string }> = {
+  entrada: {
+    label: "Ingreso", sign: "+", icon: PlusCircle,
+    chip: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    iconWrap: "bg-emerald-500/15 text-emerald-500",
+    amount: "text-emerald-500",
+    ring: "focus-visible:ring-emerald-500",
+  },
+  salida: {
+    label: "Retiro", sign: "-", icon: MinusCircle,
+    chip: "bg-amber-50 text-amber-600 border-amber-200",
+    iconWrap: "bg-amber-500/15 text-amber-500",
+    amount: "text-amber-500",
+    ring: "focus-visible:ring-amber-500",
+  },
+  devolucion: {
+    label: "Devolución", sign: "+", icon: RotateCcw,
+    chip: "bg-sky-50 text-sky-600 border-sky-200",
+    iconWrap: "bg-sky-500/15 text-sky-500",
+    amount: "text-sky-500",
+    ring: "focus-visible:ring-sky-500",
+  },
+};
+
+const MOV_TIPO_OPTIONS: Array<{ value: 'entrada' | 'salida' | 'devolucion'; label: string; icon: any }> = [
+  { value: 'entrada', label: 'Ingreso', icon: PlusCircle },
+  { value: 'salida', label: 'Retiro', icon: MinusCircle },
+  { value: 'devolucion', label: 'Devolución', icon: RotateCcw },
+];
+
+// Movimiento Dialog Component (ingreso / retiro / devolución)
+function MovimientoDialog({
   open,
   onOpenChange,
   item,
+  defaultTipo = 'salida',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: any | null;
+  defaultTipo?: 'entrada' | 'salida' | 'devolucion';
 }) {
   const { toast } = useToast();
+  const [tipo, setTipo] = useState<'entrada' | 'salida' | 'devolucion'>(defaultTipo);
   const [cantidad, setCantidad] = useState("");
+  const [clienteNombre, setClienteNombre] = useState("");
   const [nota, setNota] = useState("");
 
-  const retiroMutation = useMutation({
+  // Reinicia el formulario cada vez que se abre (respetando el tipo por defecto)
+  useEffect(() => {
+    if (open) {
+      setTipo(defaultTipo);
+      setCantidad("");
+      setClienteNombre("");
+      setNota("");
+    }
+  }, [open, defaultTipo]);
+
+  const movimientoMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("POST", `/api/marketing/inventario/${item.id}/movimientos`, {
-        ...data,
-        tipo: 'salida'
-      });
+      return await apiRequest("POST", `/api/marketing/inventario/${item.id}/movimientos`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
-      toast({
-        title: "Retiro registrado",
-        description: `Se han retirado ${cantidad} ${item.unidad} de ${item.nombre}`,
-      });
+      queryClient.invalidateQueries({ queryKey: [`/api/marketing/inventario/${item.id}/movimientos`] });
+      const titulos: Record<string, string> = { entrada: "Ingreso registrado", salida: "Retiro registrado", devolucion: "Devolución registrada" };
+      toast({ title: titulos[tipo], description: `${cantidad} ${item.unidad} · ${item.nombre}` });
       onOpenChange(false);
-      setCantidad("");
-      setNota("");
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Error al registrar el retiro",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "No se pudo registrar el movimiento", variant: "destructive" });
     },
   });
 
@@ -1745,64 +1656,114 @@ function RetiroDialog({
       toast({ title: "Error", description: "La cantidad debe ser mayor a 0", variant: "destructive" });
       return;
     }
-    if (qty > item.cantidad) {
+    if (tipo === 'salida' && qty > (item?.cantidad ?? 0)) {
       toast({ title: "Error", description: "No hay suficiente stock para este retiro", variant: "destructive" });
       return;
     }
-    retiroMutation.mutate({ cantidad: qty, nota });
+    movimientoMutation.mutate({ cantidad: qty, nota, tipo, clienteNombre: clienteNombre.trim() || null });
   };
+
+  const cfg = MOV_CONFIG[tipo];
+  const TipoIcon = cfg.icon;
+  const qtyNum = parseInt(cantidad) || 0;
+  const nuevoStock = tipo === 'salida' ? (item?.cantidad ?? 0) - qtyNum : (item?.cantidad ?? 0) + qtyNum;
+  const showCliente = tipo !== 'entrada';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="sm:max-w-[460px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
         <div className="bg-slate-950 p-6 text-white pb-10">
-          <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4">
-            <MinusCircle className="h-6 w-6 text-amber-500" />
+          <div className={`h-12 w-12 rounded-2xl flex items-center justify-center mb-4 ${cfg.iconWrap}`}>
+            <TipoIcon className="h-6 w-6" />
           </div>
-          <DialogTitle className="text-2xl font-bold">Registrar Retiro</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Registrar Movimiento</DialogTitle>
           <DialogDescription className="text-slate-400 mt-1">
-            Indica la cantidad a retirar de <strong>{item?.nombre}</strong>.
+            <strong className="text-slate-200">{item?.nombre}</strong>
           </DialogDescription>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 -mt-6 bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl">
-          <div className="flex bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-6 items-center justify-between border border-slate-100 dark:border-slate-700">
+          {/* Selector de tipo */}
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl mb-5">
+            {MOV_TIPO_OPTIONS.map((opt) => {
+              const active = tipo === opt.value;
+              const oc = MOV_CONFIG[opt.value];
+              const OptIcon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTipo(opt.value)}
+                  className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-[11px] font-bold transition-all ${active ? `bg-white dark:bg-slate-900 shadow-sm ${oc.amount}` : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <OptIcon className="h-4 w-4" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Stock actual → resultante */}
+          <div className="flex bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-5 items-center justify-between border border-slate-100 dark:border-slate-700">
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-slate-500 uppercase">Stock Actual</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stock Actual</span>
               <span className="text-xl font-black text-slate-950 dark:text-white">{item?.cantidad} {item?.unidad}</span>
             </div>
-            <Package className="h-8 w-8 text-slate-200" />
+            {qtyNum > 0 && (
+              <>
+                <ArrowLeftRight className="h-4 w-4 text-slate-300 shrink-0" />
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quedará</span>
+                  <span className={`text-xl font-black ${cfg.amount}`}>{Math.max(0, nuevoStock)} {item?.unidad}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Cantidad a retirar</Label>
+              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Cantidad</Label>
               <Input
                 type="number"
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
                 placeholder="0"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-amber-500"
+                className={`py-6 rounded-2xl border-slate-100 dark:border-slate-800 ${cfg.ring}`}
                 required
               />
             </div>
+
+            {showCliente && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">
+                  {tipo === 'devolucion' ? 'Cliente que devuelve' : 'Cliente / Destinatario'}
+                </Label>
+                <Input
+                  value={clienteNombre}
+                  onChange={(e) => setClienteNombre(e.target.value)}
+                  placeholder="Ej: Lucas Chaparro, Sucursal Centro..."
+                  className={`py-6 rounded-2xl border-slate-100 dark:border-slate-800 ${cfg.ring}`}
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nota / Destino (Opcional)</Label>
+              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nota (Opcional)</Label>
               <Textarea
                 value={nota}
                 onChange={(e) => setNota(e.target.value)}
-                placeholder="Ej: Evento sucursal, Marketing externo..."
-                className="rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-amber-500 resize-none h-24"
+                placeholder={tipo === 'entrada' ? "Ej: Reposición proveedor, compra..." : "Ej: Evento, muestra comercial..."}
+                className={`rounded-2xl border-slate-100 dark:border-slate-800 ${cfg.ring} resize-none h-20`}
               />
             </div>
           </div>
 
-          <div className="flex gap-3 mt-8">
+          <div className="flex gap-3 mt-6">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 py-6 rounded-2xl font-bold text-slate-500">
               Cancelar
             </Button>
-            <Button type="submit" disabled={retiroMutation.isPending} className="flex-1 py-6 rounded-2xl font-bold bg-slate-950 hover:bg-slate-800 text-white shadow-xl">
-              {retiroMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Confirmar Retiro"}
+            <Button type="submit" disabled={movimientoMutation.isPending} className="flex-1 py-6 rounded-2xl font-bold bg-slate-950 hover:bg-slate-800 text-white shadow-xl">
+              {movimientoMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : `Confirmar ${cfg.label}`}
             </Button>
           </div>
         </form>
@@ -1816,29 +1777,65 @@ function HistorialMovimientosDialog({
   open,
   onOpenChange,
   item,
+  onRegistrar,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: any | null;
+  onRegistrar?: () => void;
 }) {
   const { data: movimientos = [], isLoading } = useQuery<any[]>({
     queryKey: [`/api/marketing/inventario/${item?.id}/movimientos`],
     enabled: !!item && open,
   });
 
+  const unidad = item?.unidad || 'unidades';
+  const totalIngresado = movimientos.filter((m) => m.tipo !== 'salida').reduce((s, m) => s + (m.cantidad || 0), 0);
+  const totalRetirado = movimientos.filter((m) => m.tipo === 'salida').reduce((s, m) => s + (m.cantidad || 0), 0);
+
+  // Agrupar por mes (los movimientos ya vienen ordenados por fecha descendente)
+  const grupos: Array<{ key: string; label: string; items: any[]; ingresos: number; retiros: number }> = [];
+  const idxByKey: Record<string, number> = {};
+  for (const m of movimientos) {
+    const d = new Date(m.createdAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (idxByKey[key] === undefined) {
+      idxByKey[key] = grupos.length;
+      grupos.push({ key, label: format(d, "LLLL yyyy", { locale: es }), items: [], ingresos: 0, retiros: 0 });
+    }
+    const g = grupos[idxByKey[key]];
+    g.items.push(m);
+    if (m.tipo === 'salida') g.retiros += m.cantidad; else g.ingresos += m.cantidad;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[620px] p-0 rounded-3xl overflow-hidden border-none shadow-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[640px] p-0 rounded-3xl overflow-hidden border-none shadow-2xl max-h-[88vh] flex flex-col">
         <div className="bg-slate-950 p-6 text-white shrink-0">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <History className="h-5 w-5 text-blue-500" />
+          <div className="flex items-center gap-3 mb-1">
+            <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+              <History className="h-5 w-5 text-blue-400" />
             </div>
-            <DialogTitle className="text-xl font-bold">Historial de Movimientos</DialogTitle>
+            <div className="min-w-0">
+              <DialogTitle className="text-lg font-bold leading-tight">Historial de Movimientos</DialogTitle>
+              <DialogDescription className="text-slate-400 text-xs truncate">{item?.nombre}</DialogDescription>
+            </div>
           </div>
-          <DialogDescription className="text-slate-400">
-            Registro total de entradas y retiros para <strong>{item?.nombre}</strong>
-          </DialogDescription>
+          {/* Resumen */}
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="bg-white/5 rounded-xl p-2.5">
+              <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Stock actual</div>
+              <div className="text-lg font-black">{item?.cantidad ?? 0}<span className="text-[10px] text-slate-500 ml-1">{unidad}</span></div>
+            </div>
+            <div className="bg-white/5 rounded-xl p-2.5">
+              <div className="text-[9px] uppercase tracking-wider text-emerald-400 font-bold">Ingresado</div>
+              <div className="text-lg font-black text-emerald-400">+{totalIngresado}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl p-2.5">
+              <div className="text-[9px] uppercase tracking-wider text-amber-400 font-bold">Retirado</div>
+              <div className="text-lg font-black text-amber-400">-{totalRetirado}</div>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-slate-900 overscroll-contain">
@@ -1848,47 +1845,73 @@ function HistorialMovimientosDialog({
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando registros...</p>
             </div>
           ) : movimientos.length === 0 ? (
-            <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+            <div className="text-center py-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
               <ClipboardList className="h-12 w-12 text-slate-200 mx-auto mb-3" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-widest">Sin movimientos</h3>
               <p className="text-xs text-slate-400 mt-1">Este item aún no registra entradas ni salidas</p>
+              {onRegistrar && (
+                <Button onClick={onRegistrar} className="mt-4 rounded-xl bg-slate-950 hover:bg-slate-800 text-white">
+                  <ArrowLeftRight className="mr-2 h-4 w-4" /> Registrar movimiento
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {movimientos.map((mov: any) => (
-                <div key={mov.id} className="group p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-blue-500/30 transition-all hover:shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${mov.tipo === 'entrada' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
-                        {mov.tipo === 'entrada' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
-                      </div>
-                      <div>
-                        <div className="text-xs font-black uppercase tracking-tighter text-slate-400 italic">
-                          {format(new Date(mov.createdAt), "dd MMM, HH:mm", { locale: es })}
-                        </div>
-                        <div className="text-sm font-bold text-slate-900 dark:text-white">
-                          {mov.tipo === 'entrada' ? 'Ingreso stock' : 'Retiro material'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`text-xl font-black ${mov.tipo === 'entrada' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                      {mov.tipo === 'entrada' ? '+' : '-'}{mov.cantidad}
-                      <span className="text-[10px] ml-0.5 opacity-50 font-medium">u</span>
+            <div className="space-y-5">
+              {grupos.map((g) => (
+                <div key={g.key}>
+                  {/* Encabezado del mes */}
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-500 capitalize">{g.label}</span>
+                    <div className="flex items-center gap-2 text-[11px] font-bold">
+                      {g.ingresos > 0 && <span className="text-emerald-500">+{g.ingresos}</span>}
+                      {g.retiros > 0 && <span className="text-amber-500">-{g.retiros}</span>}
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    {g.items.map((mov: any) => {
+                      const mc = MOV_CONFIG[mov.tipo] || MOV_CONFIG.salida;
+                      const MovIcon = mc.icon;
+                      return (
+                        <div key={mov.id} className="group p-3.5 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                              <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${mc.iconWrap}`}>
+                                <MovIcon className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-slate-900 dark:text-white">{mc.label}</div>
+                                <div className="text-[11px] text-slate-400">{format(new Date(mov.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</div>
+                              </div>
+                            </div>
+                            <div className={`text-lg font-black ${mc.amount}`}>
+                              {mc.sign}{mov.cantidad}<span className="text-[10px] ml-0.5 opacity-50 font-medium">u</span>
+                            </div>
+                          </div>
 
-                  <div className="pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-500">
-                        {mov.usuarioNombre?.charAt(0)}
-                      </div>
-                      <span className="text-slate-500">Registrado por: <strong>{mov.usuarioNombre}</strong></span>
-                    </div>
-                    {mov.nota && (
-                      <div className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg italic">
-                        "{mov.nota}"
-                      </div>
-                    )}
+                          {(mov.clienteNombre || mov.usuarioNombre || mov.nota) && (
+                            <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 space-y-1.5">
+                              {mov.clienteNombre && (
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <User className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                                  <span className="text-slate-500">{mov.tipo === 'devolucion' ? 'Devuelto por' : 'Asignado a'}: <strong className="text-slate-700 dark:text-slate-200">{mov.clienteNombre}</strong></span>
+                                </div>
+                              )}
+                              {mov.usuarioNombre && (
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <div className="h-4 w-4 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-[9px] text-slate-500 shrink-0">
+                                    {mov.usuarioNombre?.charAt(0)}
+                                  </div>
+                                  <span className="text-slate-400">Registrado por {mov.usuarioNombre}</span>
+                                </div>
+                              )}
+                              {mov.nota && (
+                                <div className="text-xs text-slate-400 italic pl-0.5">"{mov.nota}"</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1896,9 +1919,14 @@ function HistorialMovimientosDialog({
           )}
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-800 shrink-0 border-t border-slate-100 dark:border-slate-700">
-          <Button onClick={() => onOpenChange(false)} className="w-full py-6 rounded-2xl font-bold bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 border-none transition-all">
-            Cerrar Historial
+        <div className="p-4 bg-slate-50 dark:bg-slate-800 shrink-0 border-t border-slate-100 dark:border-slate-700 flex gap-2">
+          {onRegistrar && movimientos.length > 0 && (
+            <Button onClick={onRegistrar} className="flex-1 py-6 rounded-2xl font-bold bg-slate-950 hover:bg-slate-800 text-white shadow-lg">
+              <ArrowLeftRight className="mr-2 h-4 w-4" /> Nuevo movimiento
+            </Button>
+          )}
+          <Button onClick={() => onOpenChange(false)} className="flex-1 py-6 rounded-2xl font-bold bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 border-none transition-all">
+            Cerrar
           </Button>
         </div>
       </DialogContent>

@@ -205,6 +205,7 @@ import {
   presupuestoMarketing,
   solicitudesMarketing,
   inventarioMarketing,
+  inventarioMarketingMovimientos,
   hitosMarketing,
   competidores,
   preciosCompetencia,
@@ -217,6 +218,8 @@ import {
   type SolicitudMarketing,
   type InsertSolicitudMarketing,
   type InventarioMarketing,
+  type InventarioMarketingMovimiento,
+  type InsertInventarioMarketingMovimiento,
   type Competidor,
   type InsertCompetidor,
   type PrecioCompetencia,
@@ -20980,7 +20983,24 @@ export class DatabaseStorage implements IStorage {
       query = query.offset(filters.offset);
     }
 
-    return await query;
+    const rows = await query;
+
+    if (rows.length === 0) return rows;
+
+    // Adjuntar el último movimiento por item (para mostrar "último retiro/ingreso" en la lista)
+    const ids = rows.map((r: any) => r.id);
+    const movimientos = await db
+      .select()
+      .from(inventarioMarketingMovimientos)
+      .where(inArray(inventarioMarketingMovimientos.itemId, ids))
+      .orderBy(desc(inventarioMarketingMovimientos.createdAt));
+
+    const ultimoPorItem = new Map<string, any>();
+    for (const mov of movimientos) {
+      if (!ultimoPorItem.has(mov.itemId)) ultimoPorItem.set(mov.itemId, mov);
+    }
+
+    return rows.map((r: any) => ({ ...r, ultimoMovimiento: ultimoPorItem.get(r.id) || null }));
   }
 
   async getInventarioMarketingById(id: string): Promise<InventarioMarketing | undefined> {
@@ -21042,9 +21062,10 @@ export class DatabaseStorage implements IStorage {
     // Al crear un movimiento, debemos actualizar la cantidad en el item de inventario
     const item = await this.getInventarioMarketingById(movimiento.itemId);
     if (item) {
-      const nuevaCantidad = movimiento.tipo === 'entrada'
-        ? item.cantidad + movimiento.cantidad
-        : item.cantidad - movimiento.cantidad;
+      // entrada (ingreso) y devolución suman stock; salida (retiro) resta
+      const nuevaCantidad = movimiento.tipo === 'salida'
+        ? item.cantidad - movimiento.cantidad
+        : item.cantidad + movimiento.cantidad;
 
       await this.updateInventarioMarketing(item.id, {
         cantidad: Math.max(0, nuevaCantidad),
