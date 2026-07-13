@@ -14409,6 +14409,178 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ==================================================================================
+  // RUTAS COMERCIALES — supervisor asigna rutas a vendedores para visitar clientes
+  // ==================================================================================
+  const canManageRutas = (role: string) =>
+    role === 'admin' || role === 'supervisor' || role === 'encargado_area';
+
+  // Vendedores del supervisor (para el dropdown al crear/editar una ruta)
+  app.get('/api/rutas/vendedores', requireAuth, async (req: any, res) => {
+    try {
+      res.json(await storage.getSalespeopleUnderSupervisor(req.user.id));
+    } catch (e) { console.error("Error fetching ruta vendedores:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Membresías de rutas de un cliente (para la pestaña "Rutas" del modal)
+  app.get('/api/rutas/by-cliente/:koen', requireAuth, async (req: any, res) => {
+    try { res.json(await storage.getRutasByCliente(req.params.koen)); }
+    catch (e) { console.error("Error fetching rutas by cliente:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Listado: supervisor/admin ven las suyas; vendedor ve las asignadas a él
+  app.get('/api/rutas', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const rutas = canManageRutas(user.role)
+        ? await storage.getRutasBySupervisor(user.id)
+        : await storage.getRutasByVendedor(user.id);
+      res.json(rutas);
+    } catch (e) { console.error("Error fetching rutas:", e); res.status(500).json({ message: "Failed to fetch rutas" }); }
+  });
+
+  app.get('/api/rutas/:id/clientes', requireAuth, async (req: any, res) => {
+    try { res.json(await storage.getRutaClientes(req.params.id)); }
+    catch (e) { console.error("Error fetching ruta clientes:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post('/api/rutas', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!canManageRutas(user.role)) return res.status(403).json({ message: "Solo supervisores/admin pueden crear rutas" });
+      const { insertRutaComercialSchema } = await import('@shared/schema');
+      const parsed = insertRutaComercialSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.issues });
+      const ruta = await storage.createRuta({ ...parsed.data, supervisorId: user.id });
+      res.status(201).json(ruta);
+    } catch (e) { console.error("Error creating ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
+  });
+
+  app.patch('/api/rutas/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
+      res.json(await storage.updateRuta(req.params.id, req.body));
+    } catch (e) { console.error("Error updating ruta:", e); res.status(500).json({ message: "Failed to update ruta" }); }
+  });
+
+  app.delete('/api/rutas/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
+      await storage.deleteRuta(req.params.id);
+      res.json({ message: "Ruta eliminada" });
+    } catch (e) { console.error("Error deleting ruta:", e); res.status(500).json({ message: "Failed to delete ruta" }); }
+  });
+
+  // Asignar / quitar cliente de una ruta
+  app.post('/api/rutas/:id/clientes', requireAuth, async (req: any, res) => {
+    try {
+      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
+      const { insertRutaClienteSchema } = await import('@shared/schema');
+      const parsed = insertRutaClienteSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.issues });
+      res.status(201).json(await storage.addClienteToRuta(req.params.id, parsed.data));
+    } catch (e) { console.error("Error adding cliente to ruta:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.delete('/api/rutas/:id/clientes/:koen', requireAuth, async (req: any, res) => {
+    try {
+      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
+      await storage.removeClienteFromRuta(req.params.id, req.params.koen);
+      res.json({ message: "Cliente removido de la ruta" });
+    } catch (e) { console.error("Error removing cliente from ruta:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Histórico de visitas de un cliente (ruta 4 segmentos → no la captura /api/rutas/:id/...)
+  app.get('/api/rutas/visitas/by-cliente/:koen', requireAuth, async (req: any, res) => {
+    try { res.json(await storage.getRutaVisitasByCliente(req.params.koen)); }
+    catch (e) { console.error("Error fetching visitas:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Registrar una visita (queda en el histórico)
+  app.post('/api/rutas/:id/visitas', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { clienteId, clienteNombre, fecha, nota } = req.body || {};
+      if (!clienteId || !fecha) return res.status(400).json({ message: "clienteId y fecha son requeridos" });
+      const visita = await storage.addRutaVisita({
+        rutaId: req.params.id,
+        clienteId,
+        clienteNombre: clienteNombre || null,
+        fecha: new Date(fecha),
+        nota: nota || null,
+        registradoPor: user.id,
+        registradoPorNombre: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || null,
+      });
+      res.status(201).json(visita);
+    } catch (e) { console.error("Error creating visita:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // ==================================================================================
+  // ACTIVIDADES (subtareas tipadas de un seguimiento de cliente)
+  // ==================================================================================
+  app.get('/api/tasks/:id/actividades', requireAuth, async (req: any, res) => {
+    try { res.json(await storage.getActividadesByTask(req.params.id)); }
+    catch (e) { console.error("Error fetching actividades:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post('/api/tasks/:id/actividades', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { tipo, descripcion, fecha, responsableId, responsableNombre, rutaId, rutaNombre } = req.body || {};
+      if (!tipo) return res.status(400).json({ message: "tipo es requerido" });
+      const act = await storage.createActividad({
+        taskId: req.params.id,
+        tipo,
+        descripcion: descripcion || null,
+        fecha: fecha ? new Date(fecha) : null,
+        estado: 'pendiente',
+        responsableId: responsableId || null,
+        responsableNombre: responsableNombre || null,
+        rutaId: rutaId || null,
+        rutaNombre: rutaNombre || null,
+        createdBy: user.id,
+      });
+      // Si la actividad está ligada a una ruta, registrar también la visita en el histórico de rutas.
+      if (rutaId && fecha) {
+        try {
+          const task = await storage.getTask(req.params.id);
+          const clienteId = (task as any)?.clienteId;
+          if (clienteId) {
+            await storage.addRutaVisita({
+              rutaId,
+              clienteId,
+              clienteNombre: (task as any)?.clienteNombre || null,
+              fecha: new Date(fecha),
+              nota: descripcion || null,
+              registradoPor: user.id,
+              registradoPorNombre: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || null,
+            });
+          }
+        } catch (err) { console.error("Error registrando visita de ruta desde actividad:", err); }
+      }
+      res.status(201).json(act);
+    } catch (e) { console.error("Error creating actividad:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.patch('/api/tasks/actividades/:actId', requireAuth, async (req: any, res) => {
+    try {
+      const { tipo, descripcion, fecha, estado, responsableId, responsableNombre } = req.body || {};
+      const updates: any = {};
+      if (tipo !== undefined) updates.tipo = tipo;
+      if (descripcion !== undefined) updates.descripcion = descripcion;
+      if (fecha !== undefined) updates.fecha = fecha ? new Date(fecha) : null;
+      if (estado !== undefined) updates.estado = estado;
+      if (responsableId !== undefined) updates.responsableId = responsableId;
+      if (responsableNombre !== undefined) updates.responsableNombre = responsableNombre;
+      res.json(await storage.updateActividad(req.params.actId, updates));
+    } catch (e) { console.error("Error updating actividad:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.delete('/api/tasks/actividades/:actId', requireAuth, async (req: any, res) => {
+    try { await storage.deleteActividad(req.params.actId); res.json({ message: "Actividad eliminada" }); }
+    catch (e) { console.error("Error deleting actividad:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // ==================================================================================
   // Users endpoint for CRM
   // ==================================================================================
 
@@ -27851,6 +28023,19 @@ export function registerRoutes(app: Express): Server {
       res.json(summary);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener resumen de inventario', error: error.message });
+    }
+  }));
+
+  // Elementos de marketing que tiene un cliente (para la pestaña Marketing del modal de tarea).
+  // Path distinto de /inventario/:id para no capturar :id.
+  app.get('/api/marketing/inventario-por-cliente', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const cliente = (req.query.cliente as string || '').trim();
+      if (!cliente) return res.json([]);
+      const items = await storage.getInventarioMarketingByCliente(cliente);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener elementos del cliente', error: error.message });
     }
   }));
 

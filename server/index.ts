@@ -133,6 +133,12 @@ app.use((req, res, next) => {
 
       // Defer all heavy initialization to avoid blocking health checks
       setImmediate(() => {
+        // Escape hatch para levantar solo la web (preview de UI) sin ETL/schedulers/jobs
+        // que escriben en la BD compartida o pegan a sistemas externos.
+        if (process.env.SKIP_BG_SERVICES === '1') {
+          log('⏸️ Background services omitidos (SKIP_BG_SERVICES=1)');
+          return;
+        }
         initializeBackgroundServices().catch(err => {
           console.error('Background services initialization error:', err.message);
         });
