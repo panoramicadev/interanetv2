@@ -27633,9 +27633,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Admin, supervisor and salesperson can create solicitudes
-      if ((user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'admin' && user.role !== 'salesperson') {
-        return res.status(403).json({ message: 'Solo administradores, supervisores y vendedores pueden crear solicitudes' });
+      // Solo admin, supervisor y encargado de área pueden crear solicitudes de marketing
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area') {
+        return res.status(403).json({ message: 'Solo administradores, supervisores y encargados de área pueden crear solicitudes' });
       }
 
       let solicitanteId = user.id;
@@ -27648,15 +27648,15 @@ export function registerRoutes(app: Express): Server {
           return res.status(404).json({ message: 'Solicitante no encontrado' });
         }
 
-        // Only allow admin, supervisor or salesperson roles
-        if (!['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(solicitante.role)) {
-          return res.status(400).json({ message: 'El usuario seleccionado debe ser administrador, supervisor o vendedor' });
+        // Only allow admin, supervisor or encargado de área roles
+        if (!['admin', 'supervisor', 'encargado_area'].includes(solicitante.role)) {
+          return res.status(400).json({ message: 'El usuario seleccionado debe ser administrador, supervisor o encargado de área' });
         }
 
         solicitanteId = solicitante.id;
         solicitanteName = `${solicitante.firstName} ${solicitante.lastName}`;
-      } else if (((user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'salesperson') && req.body.solicitanteId) {
-        // Supervisors and salespersons can only create for themselves
+      } else if ((user.role === 'supervisor' || user.role === 'encargado_area') && req.body.solicitanteId) {
+        // Supervisors and encargados can only create for themselves
         if (parseInt(req.body.solicitanteId) !== user.id) {
           return res.status(403).json({ message: 'Solo puedes crear solicitudes a tu nombre' });
         }

@@ -883,6 +883,10 @@ export default function TareasPage() {
   };
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
+  // Solo admin/supervisor/encargado pueden enviar Solicitudes de Marketing (debe coincidir
+  // con el allowlist del backend en POST /api/marketing/solicitudes). El técnico de obra
+  // conserva 'Nueva Tarea' para Seguimiento/Otras, pero no ve la opción de Marketing.
+  const canRequestMarketing = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
 
   // KPIs presentacionales — reutilizan la misma lógica de completado que las tarjetas
   const isTaskDone = (t: typeof filteredTasks[number]) =>
@@ -1329,7 +1333,7 @@ export default function TareasPage() {
                     { flow: 'seguimiento', icon: <Building2 className="h-5 w-5" />, title: 'Seguimiento a clientes', desc: 'Tarea ligada a un cliente activo (responsable → cliente → detalle).' },
                     { flow: 'marketing', icon: <TrendingUp className="h-5 w-5" />, title: 'Solicitud de Marketing', desc: 'Pedido a Marketing con fecha sugerida; la encargada fija el plazo final.' },
                     { flow: 'otras', icon: <CheckSquare className="h-5 w-5" />, title: 'Otras tareas', desc: 'Tarea general del equipo (formulario estándar).' },
-                  ] as const).map((opt) => (
+                  ] as const).filter((opt) => opt.flow !== 'marketing' || canRequestMarketing).map((opt) => (
                     <button
                       key={opt.flow}
                       onClick={() => {

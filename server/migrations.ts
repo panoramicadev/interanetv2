@@ -838,6 +838,17 @@ export async function bootstrapDatabase(): Promise<void> {
       ON gastos_marketing (presupuesto_item_id)
     `);
 
+    // solicitudes_marketing.supervisor_id tenía un FK a salespeople_users.id, pero el
+    // "solicitante" (admin/supervisor/encargado) suele vivir en la tabla users, cuyo id
+    // NO existe en salespeople_users → el INSERT reventaba con violación de FK (500) y el
+    // usuario veía "no se pudo enviar la solicitud". El id es un identificador de solicitante
+    // cross-tabla, no una referencia estricta; se elimina el constraint (idempotente).
+    console.log('  🔗 Soltando FK obsoleto solicitudes_marketing.supervisor_id...');
+    await db.execute(sql`
+      ALTER TABLE solicitudes_marketing
+      DROP CONSTRAINT IF EXISTS solicitudes_marketing_supervisor_id_salespeople_users_id_fk
+    `);
+
     // Rutas comerciales (runtime bootstrap — el runner de migraciones no es confiable en prod).
     console.log('  🧭 Verificando tablas de rutas comerciales...');
     await db.execute(sql`
