@@ -12,11 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown, Search, Building2, UserCheck, UserX, X } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown, Search, Building2, UserCheck, UserX, X, SlidersHorizontal, RotateCcw, ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
+import { PERMISSIONS, PERMISSION_GROUPS } from "@shared/permissions";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -127,6 +128,169 @@ function CrmAccessControl({
         )}
       </span>
     </div>
+  );
+}
+
+// Claves que un supervisor puede administrar por usuario (debe coincidir con
+// SUPERVISOR_MANAGEABLE_KEYS del servidor). El admin puede tocar todas.
+const SUPERVISOR_MANAGEABLE_KEYS = new Set<string>([CRM_PERMISSION_KEY]);
+
+// Panel de accesos por usuario: lista TODOS los módulos del sistema agrupados
+// y muestra si el usuario tiene o no acceso (efectivo = override ?? rol), con
+// un switch por módulo. Fijar el switch crea un override personal; "usar rol"
+// lo elimina y el módulo vuelve a regirse por el rol.
+function UserModulesDialog({
+  open,
+  onOpenChange,
+  rowUser,
+  overridesForUser,
+  roleDefaults,
+  viewerIsAdmin,
+  isPending,
+  onSet,
+  onReset,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rowUser: SalespersonUser | null;
+  overridesForUser: Map<string, boolean>;
+  roleDefaults: Record<string, boolean>;
+  viewerIsAdmin: boolean;
+  isPending: boolean;
+  onSet: (permissionKey: string, allowed: boolean) => void;
+  onReset: (permissionKey: string) => void;
+}) {
+  const isAdminUser = (rowUser?.role ?? "") === "admin";
+  const hasEmail = !!normEmail(rowUser?.email);
+
+  const accessFor = (key: string): { effective: boolean; overridden: boolean } => {
+    if (isAdminUser) return { effective: true, overridden: false };
+    if (overridesForUser.has(key)) return { effective: overridesForUser.get(key)!, overridden: true };
+    return { effective: !!roleDefaults[key], overridden: false };
+  };
+
+  const canEditKey = (key: string) =>
+    viewerIsAdmin || SUPERVISOR_MANAGEABLE_KEYS.has(key);
+
+  const grantedCount = isAdminUser
+    ? PERMISSIONS.length
+    : PERMISSIONS.filter((p) => accessFor(p.key).effective).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-indigo-600" />
+            Accesos de {rowUser?.salespersonName || "usuario"}
+          </DialogTitle>
+          <DialogDescription>
+            {isAdminUser ? (
+              <>El rol Administrador siempre tiene acceso a todos los módulos.</>
+            ) : (
+              <>
+                Tiene acceso a <span className="font-semibold text-foreground">{grantedCount}</span> de{" "}
+                {PERMISSIONS.length} módulos. Cada switch personaliza el acceso de este usuario por encima de su rol.
+              </>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!hasEmail && !isAdminUser ? (
+          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+            Este usuario no tiene un email registrado. Los accesos por usuario se guardan por email:
+            edita el usuario y agrégale uno para poder personalizar sus módulos.
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+            {PERMISSION_GROUPS.map((group) => {
+              const mods = PERMISSIONS.filter((p) => p.group === group.key);
+              if (mods.length === 0) return null;
+              return (
+                <div key={group.key}>
+                  <div className="mb-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {group.label}
+                    </h4>
+                  </div>
+                  <div className="space-y-1">
+                    {mods.map((mod) => {
+                      const access = accessFor(mod.key);
+                      const editable = !isAdminUser && canEditKey(mod.key);
+                      return (
+                        <div
+                          key={mod.key}
+                          className="flex items-start justify-between gap-3 rounded-md border border-transparent px-2 py-2 hover:bg-muted/40"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{mod.label}</span>
+                              {access.effective ? (
+                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                                  Con acceso
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  Sin acceso
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{mod.description}</p>
+                            <span className="text-[10px] text-muted-foreground">
+                              {isAdminUser ? (
+                                "Siempre (admin)"
+                              ) : access.overridden ? (
+                                <>
+                                  Personalizado
+                                  {editable && (
+                                    <>
+                                      {" · "}
+                                      <button
+                                        type="button"
+                                        className="text-indigo-600 hover:underline disabled:opacity-50"
+                                        onClick={() => onReset(mod.key)}
+                                        disabled={isPending}
+                                      >
+                                        usar rol
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                "Por rol"
+                              )}
+                            </span>
+                          </div>
+                          <div className="pt-0.5">
+                            <Switch
+                              checked={access.effective}
+                              disabled={isAdminUser || !editable || isPending}
+                              onCheckedChange={(val) => onSet(mod.key, val)}
+                              className="scale-90 data-[state=checked]:bg-indigo-600"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter className="px-6 py-4 border-t">
+          {!viewerIsAdmin && !isAdminUser && (
+            <p className="mr-auto text-[11px] text-muted-foreground">
+              Como supervisor solo puedes ajustar el acceso al CRM de Seguimiento. Los demás módulos los administra un administrador.
+            </p>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -476,6 +640,25 @@ export default function UsersPage() {
     return map;
   }, [userPermsData]);
 
+  // Overrides por usuario agrupados: email → (permissionKey → allowed).
+  // Alimenta el panel de accesos completo por usuario.
+  const overridesByEmail = useMemo(() => {
+    const map = new Map<string, Map<string, boolean>>();
+    for (const o of userPermsData?.overrides || []) {
+      const email = o.email.toLowerCase();
+      let perms = map.get(email);
+      if (!perms) {
+        perms = new Map<string, boolean>();
+        map.set(email, perms);
+      }
+      perms.set(o.permissionKey, o.allowed);
+    }
+    return map;
+  }, [userPermsData]);
+
+  // Usuario cuyo panel de módulos está abierto (null = cerrado).
+  const [modulesUser, setModulesUser] = useState<SalespersonUser | null>(null);
+
   const crmAccessFor = (rowUser: SalespersonUser): { effective: boolean; overridden: boolean } => {
     if ((rowUser.role ?? '') === 'admin') return { effective: true, overridden: false };
     const email = normEmail(rowUser.email);
@@ -503,6 +686,36 @@ export default function UsersPage() {
     );
   };
 
+  // Botón que abre el panel de accesos por usuario (todos los módulos).
+  const renderModulesButton = (rowUser: SalespersonUser, variant: "icon" | "full") => {
+    if (variant === "full") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setModulesUser(rowUser)}
+          data-testid={`button-modules-${rowUser.id}`}
+          className="text-xs px-2 py-1"
+        >
+          <SlidersHorizontal className="w-3 h-3 mr-1" />
+          Accesos
+        </Button>
+      );
+    }
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setModulesUser(rowUser)}
+        data-testid={`button-modules-${rowUser.id}`}
+        title="Accesos a módulos"
+        className="h-8 w-8 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+      >
+        <SlidersHorizontal className="w-4 h-4" />
+      </Button>
+    );
+  };
+
   const setCrmAccessMutation = useMutation({
     mutationFn: async ({ email, allowed }: { email: string; allowed: boolean | null }) => {
       await apiRequest("PUT", "/api/admin/user-permissions", {
@@ -518,6 +731,24 @@ export default function UsersPage() {
     onError: (error: any) => {
       toast({
         title: "No se pudo actualizar el acceso al CRM",
+        description: error?.message || "Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Fija/limpia el override de cualquier módulo para un usuario (panel de accesos).
+  const setUserModuleMutation = useMutation({
+    mutationFn: async ({ email, permissionKey, allowed }: { email: string; permissionKey: string; allowed: boolean | null }) => {
+      await apiRequest("PUT", "/api/admin/user-permissions", { email, permissionKey, allowed });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/user-permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/permissions/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "No se pudo actualizar el acceso al módulo",
         description: error?.message || "Inténtalo de nuevo.",
         variant: "destructive",
       });
@@ -1681,7 +1912,7 @@ export default function UsersPage() {
                         {canManageCrmAccess && (
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Acceso CRM</TableHead>
                         )}
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider w-[100px]">Acciones</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider w-[140px]">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1736,6 +1967,7 @@ export default function UsersPage() {
                           )}
                           <TableCell>
                             <div className="flex items-center gap-1">
+                              {canManageCrmAccess && renderModulesButton(user, "icon")}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1817,6 +2049,7 @@ export default function UsersPage() {
 
                           {/* Actions */}
                           <div className="flex justify-end space-x-2 pt-2 border-t">
+                            {canManageCrmAccess && renderModulesButton(user, "full")}
                             <Button
                               variant="outline"
                               size="sm"
@@ -1848,6 +2081,22 @@ export default function UsersPage() {
           </CardContent>
         </Card>
       </div>
+
+      <UserModulesDialog
+        open={!!modulesUser}
+        onOpenChange={(o) => { if (!o) setModulesUser(null); }}
+        rowUser={modulesUser}
+        overridesForUser={overridesByEmail.get(normEmail(modulesUser?.email)) ?? new Map()}
+        roleDefaults={userPermsData?.roleDefaults?.[modulesUser?.role ?? "salesperson"] ?? {}}
+        viewerIsAdmin={user?.role === "admin"}
+        isPending={setUserModuleMutation.isPending}
+        onSet={(permissionKey, allowed) =>
+          setUserModuleMutation.mutate({ email: normEmail(modulesUser?.email), permissionKey, allowed })
+        }
+        onReset={(permissionKey) =>
+          setUserModuleMutation.mutate({ email: normEmail(modulesUser?.email), permissionKey, allowed: null })
+        }
+      />
     </div>
   );
 }
