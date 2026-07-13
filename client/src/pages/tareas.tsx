@@ -56,7 +56,11 @@ import {
   Pencil,
   HelpCircle,
   Link2,
-  ExternalLink
+  ExternalLink,
+  DollarSign,
+  Package,
+  MapPin,
+  Palette
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -71,6 +75,16 @@ const SEGMENTOS = [
   { value: "construccion", label: "Construcción" },
   { value: "digital", label: "Industrial" },
   { value: "marketing", label: "Marketing" },
+] as const;
+
+// Tipos de actividad (subtareas) dentro de un seguimiento de cliente
+const ACTIVIDAD_TIPOS = [
+  { value: "llamada", label: "Llamada", badge: "bg-blue-100 text-blue-700" },
+  { value: "visita", label: "Visita", badge: "bg-orange-100 text-orange-700" },
+  { value: "cotizacion", label: "Cotización", badge: "bg-orange-100 text-orange-700" },
+  { value: "cobranza", label: "Cobranza", badge: "bg-amber-100 text-amber-700" },
+  { value: "correo", label: "Correo", badge: "bg-cyan-100 text-cyan-700" },
+  { value: "otro", label: "Otro", badge: "bg-slate-100 text-slate-600" },
 ] as const;
 
 const createTaskWithAssignmentsSchema = z.object({
@@ -159,12 +173,13 @@ export default function TareasPage() {
   const isSupervisor = user?.role === 'supervisor';
   const assignedSegment = ((user as any)?.assignedSegment as string | undefined)?.toLowerCase() ?? "";
   const visibleSegmentos = useMemo(() => {
-    if (isSupervisor && assignedSegment) {
+    // Admin ve/asigna TODOS los segmentos; los demás roles solo el suyo (assignedSegment).
+    if (user?.role !== 'admin' && assignedSegment) {
       const scoped = SEGMENTOS.filter((seg) => assignedSegment.includes(seg.value));
       if (scoped.length > 0) return scoped;
     }
     return SEGMENTOS;
-  }, [isSupervisor, assignedSegment]);
+  }, [user?.role, assignedSegment]);
 
   // Si el segmento activo no está entre los visibles (ej: supervisor con el default "ferreterias"),
   // reposicionar al primer segmento permitido para que aterrice directo en su área.
@@ -208,6 +223,9 @@ export default function TareasPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Vista de agrupación: por Grupos (proyecto) o por Equipo (persona asignada).
+  // Por defecto arranca en Equipo (para roles que gestionan equipo).
+  const [groupByEquipo, setGroupByEquipo] = useState(true);
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
@@ -614,6 +632,19 @@ export default function TareasPage() {
     },
   });
 
+  // Selector "Nueva Tarea": seguimiento de cliente / solicitud de marketing / otras tareas
+  const [showChooser, setShowChooser] = useState(false);
+  const [taskFlow, setTaskFlow] = useState<'otras' | 'seguimiento' | 'marketing'>('otras');
+  const [showMarketingDialog, setShowMarketingDialog] = useState(false);
+  const seguimientoMode = taskFlow === 'seguimiento';
+
+  // En modo seguimiento el título por defecto es el nombre del cliente
+  useEffect(() => {
+    if (seguimientoMode && selectedClienteTask) {
+      form.setValue('title', selectedClienteTask.nokoen || '');
+    }
+  }, [seguimientoMode, selectedClienteTask]);
+
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: CreateTaskWithAssignmentsInput) => {
@@ -846,7 +877,9 @@ export default function TareasPage() {
   };
 
   const handleSubmit = (data: CreateTaskWithAssignmentsInput) => {
-    createTaskMutation.mutate(data);
+    // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente
+    const payload = seguimientoMode ? { kind: 'seguimiento_cliente' } : undefined;
+    createTaskMutation.mutate({ ...data, ...(payload ? { payload } : {}) } as any);
   };
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
@@ -861,6 +894,29 @@ export default function TareasPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t)
   ).length;
 
+  // El detalle de tarea se muestra como PÁGINA dentro del área de contenido
+  // (el sidebar del DashboardLayout queda visible a la izquierda), no como modal.
+  if (selectedTaskId && selectedTask) {
+    return (
+      <div className="p-2 sm:p-3">
+        <TaskDetailDialog
+          task={selectedTask}
+          open
+          onClose={() => setSelectedTaskId(null)}
+          user={user}
+          availableUsers={availableUsers}
+          availableSupervisors={availableSupervisors}
+          getStatusBadge={getStatusBadge}
+          getPriorityBadge={getPriorityBadge}
+          updateAssignmentMutation={updateAssignmentMutation}
+          markAsReadMutation={markAsReadMutation}
+          taskGroups={taskGroupsQuery.data || []}
+          assignTaskToGroupMutation={assignTaskToGroupMutation}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
@@ -868,7 +924,7 @@ export default function TareasPage() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/25">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
                 <CheckSquare className="w-5 h-5" />
               </span>
               Panel de Trabajo
@@ -878,23 +934,22 @@ export default function TareasPage() {
             </p>
           </div>
           {canCreateTasks && (
+            <>
+            <Button onClick={() => setShowChooser(true)} className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Tarea
+            </Button>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
                 if (open && segmentoFilter && segmentoFilter !== 'all') {
                   form.setValue('segmento', segmentoFilter);
                 }
               }}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 transition-all" data-testid="button-create-task">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nueva Tarea
-                </Button>
-              </DialogTrigger>
               <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-5 border-b bg-gradient-to-br from-indigo-50 via-white to-violet-50/60 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+                <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
                   <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl p-2.5 shadow-md shadow-indigo-500/25">
+                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-2.5 shadow-md shadow-orange-500/25">
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -908,12 +963,12 @@ export default function TareasPage() {
 
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
-                    <div className="space-y-5 overflow-y-auto flex-1 px-6 py-5">
+                    <div className="flex flex-col gap-5 overflow-y-auto flex-1 px-6 py-5">
 
                       {/* Section: Información */}
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-3' : 'order-1'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center justify-center">
+                          <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
                             <Pencil className="w-3.5 h-3.5" />
                           </span>
                           Información de la tarea
@@ -926,7 +981,7 @@ export default function TareasPage() {
                               <FormItem>
                                 <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título *</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20" {...field} data-testid="input-task-title" />
+                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -941,7 +996,7 @@ export default function TareasPage() {
                                 <FormControl>
                                   <Textarea
                                     placeholder="Agrega detalles, instrucciones o contexto..."
-                                    className="resize-none bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20"
+                                    className="resize-none bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
                                     rows={3}
                                     {...field}
                                     data-testid="textarea-task-description"
@@ -955,9 +1010,9 @@ export default function TareasPage() {
                       </div>
 
                       {/* Section: Clasificación */}
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-4' : 'order-2'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400 flex items-center justify-center">
+                          <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
                             <CalendarIcon className="w-3.5 h-3.5" />
                           </span>
                           Clasificación y plazo
@@ -977,7 +1032,7 @@ export default function TareasPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {SEGMENTOS.map((seg) => (
+                                      {(user.role === 'admin' ? SEGMENTOS : visibleSegmentos).map((seg) => (
                                         <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1021,13 +1076,7 @@ export default function TareasPage() {
                                 <FormItem>
                                   <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha Límite</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      type="datetime-local"
-                                      className="bg-white border-slate-200"
-                                      {...field}
-                                      value={field.value || ""}
-                                      data-testid="input-task-due-date"
-                                    />
+                                    <DateTimePicker value={field.value || ""} onChange={field.onChange} />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -1038,7 +1087,7 @@ export default function TareasPage() {
                       </div>
 
                       {/* Section: Cliente */}
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-2' : 'order-3'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                           <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 flex items-center justify-center">
                             <Building2 className="w-3.5 h-3.5" />
@@ -1051,7 +1100,7 @@ export default function TareasPage() {
                             Cliente Asociado (Opcional)
                           </Label>
                           {selectedClienteTask ? (
-                            <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                            <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl">
                               <div className="flex-1">
                                 <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
                                 <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
@@ -1090,7 +1139,7 @@ export default function TareasPage() {
                                     <button
                                       key={cliente.id}
                                       type="button"
-                                      className="w-full px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/30 border-b last:border-b-0 transition-colors"
+                                      className="w-full px-3 py-2 text-left hover:bg-orange-50 dark:hover:bg-orange-950/30 border-b last:border-b-0 transition-colors"
                                       onClick={() => {
                                         setSelectedClienteTask(cliente);
                                         form.setValue("clienteId", cliente.koen);
@@ -1114,7 +1163,7 @@ export default function TareasPage() {
                       </div>
 
                       {/* Section: Equipo */}
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                           <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center">
                             <Users className="w-3.5 h-3.5" />
@@ -1135,7 +1184,7 @@ export default function TareasPage() {
                           {/* Selected count badge */}
                           {(form.watch('assignments') || []).length > 0 && (
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800">
+                              <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800">
                                 <Users className="h-3 w-3 mr-1" />
                                 {(form.watch('assignments') || []).length} seleccionado{(form.watch('assignments') || []).length !== 1 ? 's' : ''}
                               </Badge>
@@ -1154,7 +1203,7 @@ export default function TareasPage() {
                                     render={({ field }) => {
                                       const isChecked = field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id);
                                       return (
-                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 ${isChecked ? 'bg-indigo-50/80 dark:bg-indigo-950/30' : ''}`}>
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-orange-50/50 dark:hover:bg-orange-950/20 ${isChecked ? 'bg-orange-50/80 dark:bg-orange-950/30' : ''}`}>
                                           <Checkbox
                                             checked={isChecked}
                                             onCheckedChange={(checked) => {
@@ -1166,15 +1215,15 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-supervisor-${supervisor.id}`}
-                                            className="data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                                            className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                                               {supervisor.salespersonName?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
                                             <div className="min-w-0">
                                               <p className="text-sm font-medium text-slate-700 truncate">{supervisor.salespersonName}</p>
-                                              <p className="text-[10px] text-indigo-500 font-medium">Supervisor</p>
+                                              <p className="text-[10px] text-orange-500 font-medium">Supervisor</p>
                                             </div>
                                           </div>
                                         </label>
@@ -1195,7 +1244,7 @@ export default function TareasPage() {
                                     render={({ field }) => {
                                       const isChecked = field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id);
                                       return (
-                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 ${isChecked ? 'bg-indigo-50/80 dark:bg-indigo-950/30' : ''}`}>
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-orange-50/50 dark:hover:bg-orange-950/20 ${isChecked ? 'bg-orange-50/80 dark:bg-orange-950/30' : ''}`}>
                                           <Checkbox
                                             checked={isChecked}
                                             onCheckedChange={(checked) => {
@@ -1207,7 +1256,7 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-salesperson-${salesperson.id}`}
-                                            className="data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                                            className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -1253,7 +1302,7 @@ export default function TareasPage() {
                       <Button
                         type="submit"
                         disabled={createTaskMutation.isPending}
-                        className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 px-6 font-semibold transition-all"
+                        className="bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 px-6 font-semibold transition-all"
                         data-testid="button-submit-task"
                       >
                         {createTaskMutation.isPending ? (
@@ -1267,6 +1316,52 @@ export default function TareasPage() {
                 </Form>
               </DialogContent>
             </Dialog>
+
+            {/* Selector de tipo de tarea (Etapa 1) */}
+            <Dialog open={showChooser} onOpenChange={setShowChooser}>
+              <DialogContent className="sm:max-w-[520px]">
+                <DialogHeader>
+                  <DialogTitle>¿Qué querés crear?</DialogTitle>
+                  <DialogDescription>Elegí el tipo de trabajo para este segmento.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-3 py-2">
+                  {([
+                    { flow: 'seguimiento', icon: <Building2 className="h-5 w-5" />, title: 'Seguimiento a clientes', desc: 'Tarea ligada a un cliente activo (responsable → cliente → detalle).' },
+                    { flow: 'marketing', icon: <TrendingUp className="h-5 w-5" />, title: 'Solicitud de Marketing', desc: 'Pedido a Marketing con fecha sugerida; la encargada fija el plazo final.' },
+                    { flow: 'otras', icon: <CheckSquare className="h-5 w-5" />, title: 'Otras tareas', desc: 'Tarea general del equipo (formulario estándar).' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.flow}
+                      onClick={() => {
+                        setShowChooser(false);
+                        setTaskFlow(opt.flow);
+                        setSelectedClienteTask(null);
+                        setSearchClienteTask("");
+                        form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+                        if (opt.flow === 'marketing') setShowMarketingDialog(true);
+                        else setShowCreateDialog(true);
+                      }}
+                      className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-left transition-all"
+                      data-testid={`task-flow-${opt.flow}`}
+                    >
+                      <span className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">{opt.icon}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-slate-800">{opt.title}</span>
+                        <span className="block text-xs text-slate-500 mt-0.5">{opt.desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Solicitud de Marketing (Etapa 1) */}
+            <MarketingSolicitudDialog
+              open={showMarketingDialog}
+              onOpenChange={setShowMarketingDialog}
+              segmento={segmentoFilter !== 'all' ? segmentoFilter : null}
+            />
+            </>
           )}
         </div>
       </div>
@@ -1276,17 +1371,17 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
             </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
-              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
                 <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
               </TabsTrigger>
             )}
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg">
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CalendarIcon className="h-4 w-4 mr-2 hidden sm:inline" />
               Calendario
             </TabsTrigger>
@@ -1294,58 +1389,6 @@ export default function TareasPage() {
         </div>
 
         <TabsContent value="tareas" className="space-y-6">
-
-          {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-0.5 transition-all duration-300">
-              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-indigo-100 dark:bg-indigo-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30">
-                  <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiTotal}</div>
-                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Tareas</div>
-                </div>
-              </div>
-            </div>
-            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-0.5 transition-all duration-300">
-              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/30">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiPendientes}</div>
-                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Pendientes</div>
-                </div>
-              </div>
-            </div>
-            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-0.5 transition-all duration-300">
-              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-rose-100 dark:bg-rose-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-rose-500 to-red-500 text-white shadow-md shadow-rose-500/30">
-                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiVencidas}</div>
-                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Vencidas</div>
-                </div>
-              </div>
-            </div>
-            <div className="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300">
-              <div className="pointer-events-none absolute -right-5 -top-5 w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative flex items-center gap-2.5 sm:gap-3.5">
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30">
-                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none tabular-nums text-slate-900 dark:text-white">{kpiCompletadas}</div>
-                  <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-1">Completadas</div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Segment Tabs - hidden for salesperson. Supervisor solo ve su segmento asignado */}
           {!isSalesperson && (
@@ -1355,8 +1398,8 @@ export default function TareasPage() {
                   key={seg.value}
                   onClick={() => setSegmentoFilter(seg.value)}
                   className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
-                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25"
-                    : "bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/40 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
+                    ? "bg-gradient-to-r from-orange-600 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                    : "bg-white border border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/40 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
                     }`}
                 >
                   {seg.label}
@@ -1377,9 +1420,9 @@ export default function TareasPage() {
                   data-testid="button-toggle-filters"
                 >
                   <div className="flex items-center gap-3">
-                    <Filter className="h-5 w-5 text-indigo-600" />
+                    <Filter className="h-5 w-5 text-orange-600" />
                     <span className="font-semibold text-sm text-gray-900">Filtros</span>
-                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium">
+                    <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium">
                       {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
@@ -1464,7 +1507,7 @@ export default function TareasPage() {
                     {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
                       <>
                         <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400 flex-shrink-0">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
                             <Eye className="h-4 w-4" />
                           </div>
                           <div className="flex flex-col leading-none">
@@ -1551,7 +1594,7 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <Badge className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-indigo-500/25 rounded-full">
+                  <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-orange-500/25 rounded-full">
                     {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -1563,7 +1606,7 @@ export default function TareasPage() {
           {/* Contador compacto para roles sin filtros (todos menos administrador) */}
           {user.role !== 'admin' && (
             <div className="flex items-center justify-between">
-              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-3 py-1">
+              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
             </div>
@@ -1572,82 +1615,98 @@ export default function TareasPage() {
           {/* Group Management Bar */}
           {/* Group Management Bar - hidden for salesperson */}
           {!isSalesperson && segmentoFilter !== "all" && (
-            <div className="flex items-center gap-2">
-              {!showCreateGroup ? (
-                <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCreateGroup(true)}
-                  className="text-xs border-dashed border-slate-300 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Toggle Equipo / Grupos — segmented control (Equipo a la izquierda) */}
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
+                <button
+                  onClick={() => setGroupByEquipo(true)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${groupByEquipo ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Nuevo Grupo
-                </Button>
-                {!showGroupsTutorial && (
-                  <button
-                    onClick={reopenGroupsTutorial}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
-                    title="¿Para qué sirven los grupos?"
-                    aria-label="¿Para qué sirven los grupos?"
-                  >
-                    <HelpCircle className="h-4 w-4" />
-                  </button>
-                )}
-                </>
-              ) : (
-                <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm">
-                  <Input
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="Nombre del grupo..."
-                    className="h-7 text-xs border-0 shadow-none p-0 focus-visible:ring-0 w-40"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newGroupName.trim()) {
-                        createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter });
-                      }
-                      if (e.key === 'Escape') { setShowCreateGroup(false); setNewGroupName(""); }
-                    }}
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-700"
-                    disabled={!newGroupName.trim() || createGroupMutation.isPending}
-                    onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter })}
-                  >
-                    {createGroupMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Crear'}
-                  </Button>
-                  <button onClick={() => { setShowCreateGroup(false); setNewGroupName(""); }} className="text-slate-400 hover:text-slate-600">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+                  <Users className="h-3.5 w-3.5" /> Equipo
+                </button>
+                <button
+                  onClick={() => setGroupByEquipo(false)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${!groupByEquipo ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" /> Grupos
+                </button>
+              </div>
 
-              {/* Selección múltiple para eliminación masiva - solo administrador */}
-              {user.role === 'admin' && (
-                selectionMode ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={exitSelectionMode}
-                    className="text-xs border-slate-300 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
-                  >
-                    <X className="h-3.5 w-3.5 mr-1.5" />
-                    Cancelar selección
-                  </Button>
+              {/* Acciones a la derecha */}
+              <div className="flex items-center gap-1.5 ml-auto">
+                {!showCreateGroup ? (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowCreateGroup(true)}
+                      className="h-8 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/50 shadow-sm transition-all"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Nuevo Grupo
+                    </Button>
+                    {!showGroupsTutorial && (
+                      <button
+                        onClick={reopenGroupsTutorial}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 border border-slate-200 bg-white hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50/50 shadow-sm transition-all"
+                        title="¿Para qué sirven los grupos?"
+                        aria-label="¿Para qué sirven los grupos?"
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                  </>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectionMode(true)}
-                    className="text-xs border-slate-300 text-slate-600 hover:text-red-600 hover:border-red-300 hover:bg-red-50/50 transition-all"
-                  >
-                    <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
-                    Seleccionar
-                  </Button>
-                )
-              )}
+                  <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-xl px-3 py-1.5 shadow-sm">
+                    <Input
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      placeholder="Nombre del grupo..."
+                      className="h-7 text-xs border-0 shadow-none p-0 focus-visible:ring-0 w-40"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newGroupName.trim()) {
+                          createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter });
+                        }
+                        if (e.key === 'Escape') { setShowCreateGroup(false); setNewGroupName(""); }
+                      }}
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      className="h-6 px-2.5 text-[10px] bg-orange-600 hover:bg-orange-700 font-semibold"
+                      disabled={!newGroupName.trim() || createGroupMutation.isPending}
+                      onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter })}
+                    >
+                      {createGroupMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Crear'}
+                    </Button>
+                    <button onClick={() => { setShowCreateGroup(false); setNewGroupName(""); }} className="text-slate-400 hover:text-slate-600">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Selección múltiple para eliminación masiva - solo administrador */}
+                {user.role === 'admin' && (
+                  selectionMode ? (
+                    <Button
+                      size="sm"
+                      onClick={exitSelectionMode}
+                      className="h-8 text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Cancelar
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => setSelectionMode(true)}
+                      className="h-8 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-red-300 hover:text-red-600 hover:bg-red-50/50 shadow-sm transition-all"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
+                      Seleccionar
+                    </Button>
+                  )
+                )}
+              </div>
             </div>
           )}
 
@@ -1655,8 +1714,8 @@ export default function TareasPage() {
           {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && (
             <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
               {/* Puntita que apunta al botón "Nuevo Grupo" */}
-              <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-indigo-600 dark:bg-indigo-500" />
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white p-4 pr-10 shadow-lg shadow-indigo-500/25">
+              <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-orange-600 dark:bg-orange-500" />
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-600 to-orange-600 text-white p-4 pr-10 shadow-lg shadow-orange-500/25">
                 {/* Brillo decorativo */}
                 <div className="pointer-events-none absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
                 <button
@@ -1687,14 +1746,14 @@ export default function TareasPage() {
           <div className="space-y-6">
             {tasksQuery.isLoading ? (
               <div className="text-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-3 border-indigo-200 border-t-indigo-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-3 border-orange-200 border-t-orange-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
               </div>
             ) : filteredTasks.length === 0 ? (
               <div className="text-center py-20">
                 <div className="relative w-20 h-20 mx-auto mb-5">
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 blur-lg opacity-25" />
-                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 blur-lg opacity-25" />
+                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
                     <CheckSquare className="h-9 w-9 text-white" />
                   </div>
                 </div>
@@ -1710,7 +1769,7 @@ export default function TareasPage() {
                       }
                       setShowCreateDialog(true);
                     }}
-                    className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 transition-all"
+                    className="bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primera tarea
@@ -1759,7 +1818,7 @@ export default function TareasPage() {
                         ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
                         : isOverdue
                           ? 'bg-white border-red-200 hover:border-red-300'
-                          : 'bg-white border-slate-200 hover:border-indigo-200'
+                          : 'bg-white border-slate-200 hover:border-orange-200'
                     }`}
                     onClick={() => {
                       if (!selectionMode) { setSelectedTaskId(task.id); return; }
@@ -1860,7 +1919,81 @@ export default function TareasPage() {
                 );
               };
 
-              const groupColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#6366f1'];
+              const groupColors = ['#3b82f6', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#f97316'];
+
+              // Vista EQUIPO: agrupar por persona asignada, tarjetas colapsables (Etapa 1).
+              // Los vendedores no gestionan equipo → siempre ven la vista por Grupos.
+              if (groupByEquipo && !isSalesperson) {
+                const byPerson: Record<string, { name: string; tasks: typeof filteredTasks }> = {};
+                filteredTasks.forEach((task) => {
+                  if (task.assignments.length === 0) {
+                    if (!byPerson['__none__']) byPerson['__none__'] = { name: 'Sin asignar', tasks: [] };
+                    byPerson['__none__'].tasks.push(task);
+                    return;
+                  }
+                  task.assignments.forEach((a) => {
+                    const name = availableUsers?.find((u) => u.id === a.assigneeId)?.salespersonName
+                      || availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName
+                      || a.assigneeId;
+                    if (!byPerson[a.assigneeId]) byPerson[a.assigneeId] = { name, tasks: [] };
+                    byPerson[a.assigneeId].tasks.push(task);
+                  });
+                });
+                const people = Object.entries(byPerson).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+                if (people.length === 0) return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
+                const personColors = ['#f97316', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#ef4444'];
+                return (
+                  <>
+                    {people.map(([id, grp], idx) => {
+                      const completed = grp.tasks.filter(isTaskDone).length;
+                      const total = grp.tasks.length;
+                      const pct = total > 0 ? (completed / total) * 100 : 0;
+                      const color = personColors[idx % personColors.length];
+                      const isCollapsed = collapsedGroups.has(id);
+                      return (
+                        <div
+                          key={id}
+                          className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md"
+                          style={{ borderLeftWidth: '4px', borderLeftColor: color }}
+                        >
+                          <button
+                            onClick={() => toggleGroupCollapsed(id)}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                          >
+                            <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm"
+                              style={{ backgroundColor: color }}
+                            >
+                              {grp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-bold text-slate-800 truncate">{grp.name}</span>
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-600 font-semibold">{total}</Badge>
+                            {total > 0 && (
+                              <div className="flex items-center gap-2 ml-auto mr-1">
+                                <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : color }}
+                                  />
+                                </div>
+                                <span className={`text-[10px] font-semibold whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  {completed}/{total}
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                          {!isCollapsed && (
+                            <div className="border-t border-slate-100 bg-slate-50/30 px-1.5 sm:px-3 py-1.5 sm:py-2 space-y-1 sm:space-y-1.5">
+                              {grp.tasks.map(renderTaskCard)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              }
 
               return (
                 <>
@@ -2125,23 +2258,7 @@ export default function TareasPage() {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Diálogo de Detalle de Tarea */}
-          {selectedTask && (
-            <TaskDetailDialog
-              task={selectedTask}
-              open={!!selectedTaskId}
-              onClose={() => setSelectedTaskId(null)}
-              user={user}
-              availableUsers={availableUsers}
-              availableSupervisors={availableSupervisors}
-              getStatusBadge={getStatusBadge}
-              getPriorityBadge={getPriorityBadge}
-              updateAssignmentMutation={updateAssignmentMutation}
-              markAsReadMutation={markAsReadMutation}
-              taskGroups={taskGroupsQuery.data || []}
-              assignTaskToGroupMutation={assignTaskToGroupMutation}
-            />
-          )}
+          {/* El detalle de tarea se muestra como página (early return arriba), con el sidebar visible. */}
 
           {/* Diálogo de confirmación para completar tarea */}
           <AlertDialog open={!!confirmCompleteTask} onOpenChange={(open) => !open && setConfirmCompleteTask(null)}>
@@ -2340,7 +2457,7 @@ function EstimacionSemanalTab({
       {/* Resumen de cumplimiento Premium */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-orange-700 opacity-95 group-hover:opacity-100 transition-opacity" />
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <TrendingUp className="w-16 h-16 text-white" />
           </div>
@@ -2361,12 +2478,12 @@ function EstimacionSemanalTab({
         </Card>
 
         <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 opacity-95 group-hover:opacity-100 transition-opacity" />
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <Building2 className="w-16 h-16 text-white" />
           </div>
           <CardContent className="relative p-6">
-            <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+            <p className="text-orange-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               Total Vendido
             </p>
@@ -3651,14 +3768,25 @@ function TaskDetailDialog({
   const canDeleteTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
   const canUpdateStatus = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
   const isCompleted = task.status === 'completada';
+  // Un seguimiento de cliente es un espacio de trabajo (no una tarea que se completa):
+  // muestra progreso de sus actividades en vez de "Marcar completada".
+  const isSeguimientoCliente = (task as any).payload?.kind === 'seguimiento_cliente';
+  const { data: actividades = [] } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null }>>({
+    queryKey: ['/api/tasks', task.id, 'actividades'],
+    enabled: isSeguimientoCliente,
+  });
+  const actividadesTotal = actividades.length;
+  const actividadesCompletadas = actividades.filter((a) => a.estado === 'completada').length;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent hideCloseButton className="max-w-[95vw] lg:max-w-[1100px] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
+    <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100vh-1rem)]">
         {/* Header */}
-        <div className="px-6 py-5 border-b bg-muted/30 flex-shrink-0">
+        <div className="px-6 py-4 border-b bg-muted/30 flex-shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
+              <button onClick={onClose} className="mt-0.5 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0" title="Volver al listado">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
               <div className={`rounded-xl p-2.5 shadow-sm flex-shrink-0 ${
                 isCompleted ? 'bg-emerald-600' :
                 task.priority === 'high' ? 'bg-red-600' :
@@ -3667,20 +3795,39 @@ function TaskDetailDialog({
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <DialogTitle className="text-lg font-bold text-foreground truncate">
+                <h2 className="text-lg font-bold text-foreground truncate">
                   {task.title}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
+                </h2>
+                <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                   <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
                     <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-0 text-xs">
                       {SEGMENTOS.find(s => s.value === (task as any).segmento)?.label || (task as any).segmento}
                     </Badge>
                   )}
-                </DialogDescription>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              {isSeguimientoCliente ? (
+                <Badge className="text-xs font-semibold border-0 bg-orange-100 text-orange-700 flex items-center gap-1.5 px-3 py-1.5">
+                  <CheckSquare className="h-3.5 w-3.5" /> {actividadesCompletadas}/{actividadesTotal} tareas
+                </Badge>
+              ) : canUpdateStatus ? (
+                <Button
+                  size="sm"
+                  onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status: isCompleted ? 'pendiente' : 'completada' })}
+                  disabled={updateTaskStatusMutation.isPending}
+                  className={`text-xs font-semibold shadow-sm ${isCompleted ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                  data-testid="button-complete-task"
+                >
+                  {updateTaskStatusMutation.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : isCompleted
+                      ? <><Circle className="h-3.5 w-3.5 mr-1.5" /> Reabrir</>
+                      : <><CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Marcar completada</>}
+                </Button>
+              ) : null}
               <Badge className={`text-xs font-semibold border-0 ${
                 task.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
                 task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
@@ -3707,44 +3854,65 @@ function TaskDetailDialog({
               </button>
             </div>
           </div>
+          <HeaderMeta task={task} />
         </div>
 
-        {/* Department Change Bar */}
-        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id) && (
-          <div className="flex items-center gap-2 px-6 py-3 bg-orange-50/70 border-b border-orange-100 flex-shrink-0 overflow-x-auto">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />
-              Pestaña:
-            </span>
-            {SEGMENTOS.map((seg) => {
-              const isActive = (task as any).segmento === seg.value;
-              return (
-                <button
-                  key={seg.value}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 border ${
-                    isActive
-                      ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-orange-400 hover:text-orange-600'
-                  }`}
-                  disabled={updateTaskSegmentoMutation.isPending}
-                  onClick={() => {
-                    if (!isActive) {
-                      updateTaskSegmentoMutation.mutate({ taskId: task.id, segmento: seg.value });
-                      setSelectedSegmento(seg.value);
-                    }
-                  }}
-                >
-                  {seg.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Two-Panel Layout */}
+        {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der) */}
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
-          {/* Left Panel: Task Info */}
-          <div className="lg:w-[55%] overflow-y-auto border-r border-slate-200 p-5 space-y-5">
+          {/* Left Panel: Chat / Bitácora (permanente) */}
+          <div className="lg:w-[400px] lg:flex-shrink-0 flex flex-col min-h-0 border-r border-slate-200 bg-slate-50/40">
+            <div className="px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-orange-600" /> Bitácora / Chat
+              </h4>
+              {task.assignments.length > 1 && (
+                <Select value={activeAssignmentChat} onValueChange={setActiveAssignmentChat}>
+                  <SelectTrigger className="w-auto max-w-[150px] h-8 text-xs border-slate-200"><SelectValue placeholder="Asignación" /></SelectTrigger>
+                  <SelectContent>
+                    {task.assignments.map((a) => (<SelectItem key={a.id} value={a.id} className="text-xs">{getAssigneeName(a)}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {activeAssignmentChat && (
+                <DetailChatPanel
+                  taskId={task.id}
+                  assignmentId={activeAssignmentChat}
+                  assigneeName={getAssigneeName(task.assignments.find(a => a.id === activeAssignmentChat) || task.assignments[0])}
+                  userRole={user.role}
+                />
+              )}
+            </div>
+            <DetailChatInput taskId={task.id} assignmentId={activeAssignmentChat} />
+          </div>
+
+          {/* Right Panel: pestañas (Detalle + info del cliente) */}
+          <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
+            <Tabs defaultValue="detalle" className="flex-1 flex flex-col min-h-0">
+              <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
+                <TabsList className="bg-slate-100/80 h-9 p-1">
+                  <TabsTrigger value="detalle" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+                    <Edit className="h-3.5 w-3.5 mr-1" /> Detalle
+                  </TabsTrigger>
+                  {isSeguimientoCliente && (
+                    <TabsTrigger value="tareas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Tareas{actividadesTotal > 0 ? ` ${actividadesCompletadas}/${actividadesTotal}` : ''}
+                    </TabsTrigger>
+                  )}
+                  {(task as any).clienteId && (
+                    <>
+                      <TabsTrigger value="cobranza" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><DollarSign className="h-3.5 w-3.5 mr-1" /> Cobranza</TabsTrigger>
+                      <TabsTrigger value="productos" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Package className="h-3.5 w-3.5 mr-1" /> Productos</TabsTrigger>
+                      <TabsTrigger value="rutas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><MapPin className="h-3.5 w-3.5 mr-1" /> Rutas</TabsTrigger>
+                      <TabsTrigger value="marketing" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Palette className="h-3.5 w-3.5 mr-1" /> Marketing</TabsTrigger>
+                    </>
+                  )}
+                </TabsList>
+              </div>
+              <div className="relative flex-1 min-h-0">
+                {/* Detalle: descripción, enlaces, asignaciones, eliminar */}
+                <TabsContent value="detalle" className="absolute inset-0 overflow-y-auto p-5 space-y-6 mt-0 data-[state=inactive]:hidden">
             {/* Description - Editable */}
             {(task.description || canEditTask) && (
               <div className="space-y-2">
@@ -3811,119 +3979,6 @@ function TaskDetailDialog({
               </div>
             )}
 
-            {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Due Date - Editable */}
-              {(() => {
-                const canEditDate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
-                const [isEditingDate, setIsEditingDate] = useState(false);
-                const [dateValue, setDateValue] = useState(
-                  task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : ''
-                );
-
-                const updateDueDateMutation = useMutation({
-                  mutationFn: async ({ taskId, dueDate }: { taskId: string; dueDate: string | null }) => {
-                    return await apiRequest("PATCH", `/api/tasks/${taskId}`, { dueDate });
-                  },
-                  onSuccess: () => {
-                    queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
-                    setIsEditingDate(false);
-                    toast({
-                      title: "Fecha actualizada",
-                      description: "La fecha límite se ha actualizado.",
-                    });
-                  },
-                  onError: (error: any) => {
-                    toast({
-                      title: "Error",
-                      description: error.message || "No se pudo actualizar la fecha.",
-                      variant: "destructive",
-                    });
-                  },
-                });
-
-                return (
-                  <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Límite</p>
-                    {isEditingDate ? (
-                      <div className="space-y-2">
-                        <input
-                          type="datetime-local"
-                          value={dateValue}
-                          onChange={(e) => setDateValue(e.target.value)}
-                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400"
-                        />
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              const dueDate = dateValue ? new Date(dateValue).toISOString() : null;
-                              updateDueDateMutation.mutate({ taskId: task.id, dueDate });
-                            }}
-                            disabled={updateDueDateMutation.isPending}
-                            className="flex-1 text-[11px] font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
-                          >
-                            {updateDueDateMutation.isPending ? 'Guardando...' : 'Guardar'}
-                          </button>
-                          {task.dueDate && (
-                            <button
-                              onClick={() => {
-                                setDateValue('');
-                                updateDueDateMutation.mutate({ taskId: task.id, dueDate: null });
-                              }}
-                              disabled={updateDueDateMutation.isPending}
-                              className="text-[11px] font-semibold text-red-600 hover:bg-red-50 rounded-lg px-2 py-1.5 transition-colors"
-                            >
-                              Quitar
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setIsEditingDate(false)}
-                            className="text-[11px] font-semibold text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1.5 transition-colors"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => canEditDate && setIsEditingDate(true)}
-                        className={`${canEditDate ? 'cursor-pointer hover:bg-slate-100 rounded-lg -mx-1 px-1 py-0.5 transition-colors' : ''}`}
-                        title={canEditDate ? 'Clic para editar fecha' : undefined}
-                      >
-                        {task.dueDate ? (
-                          <div className={`flex items-center gap-1.5 text-sm font-semibold ${
-                            new Date(task.dueDate) < new Date() && !isCompleted ? 'text-red-600' : 'text-slate-800'
-                          }`}>
-                            <CalendarIcon className="h-4 w-4" />
-                            {format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es })}
-                            {canEditDate && <Pencil className="h-3 w-3 text-slate-400 ml-auto" />}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm text-slate-400 italic">Sin fecha</span>
-                            {canEditDate && <Pencil className="h-3 w-3 text-slate-400 ml-auto" />}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Client */}
-              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente</p>
-                {(task as any).clienteNombre ? (
-                  <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                    <Building2 className="h-4 w-4" />
-                    {(task as any).clienteNombre}
-                  </div>
-                ) : (
-                  <span className="text-sm text-slate-400 italic">Sin cliente</span>
-                )}
-              </div>
-            </div>
-
             {/* Google Drive Links */}
             {(driveLinks.length > 0 || canEditTask) && (
               <div className="space-y-2">
@@ -3981,119 +4036,33 @@ function TaskDetailDialog({
                 )}
 
                 {canEditTask && (
-                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
                     <Input
                       value={newLinkLabel}
                       onChange={(e) => setNewLinkLabel(e.target.value)}
                       placeholder="Nombre (opcional)"
-                      className="h-9 text-sm sm:w-[38%] border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                      className="h-8 text-sm bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
                     />
-                    <Input
-                      value={newLinkUrl}
-                      onChange={(e) => setNewLinkUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDriveLink(); } }}
-                      placeholder="Pega el enlace de Drive…"
-                      className="h-9 text-sm flex-1 border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-9 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm flex-shrink-0"
-                      disabled={updateDriveLinksMutation.isPending || !newLinkUrl.trim()}
-                      onClick={addDriveLink}
-                    >
-                      {updateDriveLinksMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <><Plus className="h-3.5 w-3.5 mr-1" /> Agregar</>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={newLinkUrl}
+                        onChange={(e) => setNewLinkUrl(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDriveLink(); } }}
+                        placeholder="Pega el enlace de Drive…"
+                        className="h-8 text-sm flex-1 bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 w-8 p-0 bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex-shrink-0"
+                        disabled={updateDriveLinksMutation.isPending || !newLinkUrl.trim()}
+                        onClick={addDriveLink}
+                        title="Agregar enlace"
+                      >
+                        {updateDriveLinksMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Group Assignment */}
-            {(() => {
-              const canAssignGroup = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
-              if (!canAssignGroup) return null;
-              // Show groups matching task segmento, or all groups if task has no segmento
-              const availableGroups = (task as any).segmento
-                ? taskGroups.filter(g => g.segmento === (task as any).segmento)
-                : taskGroups;
-              if (availableGroups.length === 0) return null;
-              const currentGroupId = (task as any).groupId || "__none__";
-              const hasChanged = selectedGroupId !== currentGroupId;
-              return (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <FolderOpen className="h-3.5 w-3.5" />
-                    Grupo
-                  </h4>
-                  <Select
-                    value={selectedGroupId}
-                    onValueChange={setSelectedGroupId}
-                  >
-                    <SelectTrigger className="w-full bg-white border-slate-200 text-sm">
-                      <SelectValue placeholder="Seleccionar grupo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">
-                        <span className="text-slate-400 italic">Sin grupo</span>
-                      </SelectItem>
-                      {availableGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {hasChanged && (
-                    <Button
-                      size="sm"
-                      className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm"
-                      disabled={assignTaskToGroupMutation.isPending}
-                      onClick={() => {
-                        const groupId = selectedGroupId === "__none__" ? null : selectedGroupId;
-                        assignTaskToGroupMutation.mutate({ taskId: task.id, groupId });
-                      }}
-                    >
-                      {assignTaskToGroupMutation.isPending ? (
-                        <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Guardando...</>
-                      ) : (
-                        <><Check className="h-3.5 w-3.5 mr-1.5" /> Guardar Grupo</>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Status Actions */}
-            {canUpdateStatus && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cambiar Estado</h4>
-                <div className="flex flex-wrap gap-2">
-                  {['pendiente', 'en_progreso', 'completada'].map((status) => (
-                    <Button
-                      key={status}
-                      size="sm"
-                      variant={task.status === status ? "default" : "outline"}
-                      className={`text-xs transition-all ${task.status === status
-                        ? status === 'completada' ? 'bg-green-600 hover:bg-green-700'
-                          : status === 'en_progreso' ? 'bg-amber-500 hover:bg-amber-600'
-                          : 'bg-orange-600 hover:bg-orange-700'
-                        : ''
-                      }`}
-                      onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status })}
-                      disabled={updateTaskStatusMutation.isPending || task.status === status}
-                    >
-                      {status === 'pendiente' && <Clock className="h-3.5 w-3.5 mr-1" />}
-                      {status === 'en_progreso' && <Play className="h-3.5 w-3.5 mr-1" />}
-                      {status === 'completada' && <CheckCircle className="h-3.5 w-3.5 mr-1" />}
-                      {status === 'pendiente' ? 'Pendiente' : status === 'en_progreso' ? 'En Progreso' : 'Completada'}
-                    </Button>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -4212,55 +4181,29 @@ function TaskDetailDialog({
                 </AlertDialog>
               </div>
             )}
-          </div>
+                </TabsContent>
 
-          {/* Right Panel: Chat / Bitácora */}
-          <div className="lg:w-[45%] flex flex-col min-h-0 bg-slate-50/50">
-            {/* Chat Header */}
-            <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-orange-600" />
-                  Bitácora / Chat
-                </h4>
-                {task.assignments.length > 1 && (
-                  <Select value={activeAssignmentChat} onValueChange={setActiveAssignmentChat}>
-                    <SelectTrigger className="w-auto max-w-[200px] h-8 text-xs border-slate-200">
-                      <SelectValue placeholder="Asignación" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {task.assignments.map((a) => (
-                        <SelectItem key={a.id} value={a.id} className="text-xs">
-                          {getAssigneeName(a)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Tareas del cliente (subtareas / actividades tipadas) */}
+                {isSeguimientoCliente && (
+                  <TabsContent value="tareas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden">
+                    <ActividadesPanel taskId={task.id} canManage={canEditTask} clienteId={String((task as any).clienteId || "")} />
+                  </TabsContent>
+                )}
+
+                {/* Info del cliente — cada pestaña usa toda el área */}
+                {(task as any).clienteId && (
+                  <>
+                    <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                    <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
+                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                  </>
                 )}
               </div>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {activeAssignmentChat && (
-                <DetailChatPanel
-                  taskId={task.id}
-                  assignmentId={activeAssignmentChat}
-                  assigneeName={getAssigneeName(task.assignments.find(a => a.id === activeAssignmentChat) || task.assignments[0])}
-                  userRole={user.role}
-                />
-              )}
-            </div>
-
-            {/* Chat Input */}
-            <DetailChatInput
-              taskId={task.id}
-              assignmentId={activeAssignmentChat}
-            />
+            </Tabs>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
 
@@ -4518,13 +4461,13 @@ function CommentsThread({
             {comments.map((comment) => (
               <div
                 key={comment.id}
-                className="group relative bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100 hover:shadow-sm transition-all"
+                className="group relative bg-gradient-to-r from-blue-50 to-orange-50 rounded-xl p-3 border border-blue-100 hover:shadow-sm transition-all"
                 data-testid={`comment-${comment.id}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold">
                         {comment.authorName?.charAt(0).toUpperCase() || 'U'}
                       </div>
                       <span className="text-xs font-semibold text-gray-800 truncate">
@@ -4577,7 +4520,7 @@ function CommentsThread({
             </Button>
             <Button
               size="sm"
-              className="h-8 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium rounded-full"
+              className="h-8 px-4 bg-gradient-to-r from-blue-500 to-orange-600 hover:from-blue-600 hover:to-orange-700 text-white font-medium rounded-full"
               onClick={handleSubmitComment}
               disabled={addCommentMutation.isPending || !editingText.trim()}
               data-testid={`button-submit-comment-${assignmentId}`}
@@ -4596,7 +4539,7 @@ function CommentsThread({
       ) : (
         <button
           onClick={onStartEditing}
-          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-gray-500 hover:text-indigo-600 transition-all group"
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 text-gray-500 hover:text-orange-600 transition-all group"
           data-testid={`button-add-comment-${assignmentId}`}
         >
           <div className="w-6 h-6 rounded-full bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
@@ -4695,7 +4638,7 @@ function CalendarViewTab({
         <CardHeader className="py-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-indigo-600" />
+              <CalendarIcon className="h-5 w-5 text-orange-600" />
               Vista Calendario
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -4761,7 +4704,7 @@ function CalendarViewTab({
                 >
                   {/* Número del día */}
                   <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
-                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-indigo-600 text-white' : ''
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-orange-600 text-white' : ''
                       }`}>
                       {format(day, 'd')}
                     </span>
@@ -4821,6 +4764,575 @@ function CalendarViewTab({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ==================================================================================
+// ClientIntelTabs — pestañas de información del cliente dentro del modal de tarea (Etapa 2)
+// Cobranza · Productos · Rutas · Marketing. Reemplazan la barra de cambio de segmento.
+// ==================================================================================
+const fmtCLP = (n: number) =>
+  new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+
+function ClientIntelTabs({ task, user }: { task: any; user: any }) {
+  const clienteId = String(task.clienteId || "");
+  const clienteNombre = String(task.clienteNombre || "");
+  const canManage = user.role === "admin" || user.role === "supervisor" || user.role === "encargado_area";
+  return (
+    <div className="border-b bg-slate-50/70 flex-shrink-0">
+      <Tabs defaultValue="cobranza" className="w-full">
+        <div className="px-4 pt-2.5">
+          <TabsList className="bg-slate-100/80 h-9 p-1">
+            <TabsTrigger value="cobranza" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+              <DollarSign className="h-3.5 w-3.5 mr-1" /> Cobranza
+            </TabsTrigger>
+            <TabsTrigger value="productos" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+              <Package className="h-3.5 w-3.5 mr-1" /> Productos
+            </TabsTrigger>
+            <TabsTrigger value="rutas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+              <MapPin className="h-3.5 w-3.5 mr-1" /> Rutas
+            </TabsTrigger>
+            <TabsTrigger value="marketing" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+              <Palette className="h-3.5 w-3.5 mr-1" /> Marketing
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        <div className="px-4 py-3 max-h-72 overflow-y-auto">
+          <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
+          <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
+          <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
+          <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} /></TabsContent>
+        </div>
+      </Tabs>
+    </div>
+  );
+}
+
+function CobranzaPanel({ clienteNombre }: { clienteNombre: string }) {
+  const { data, isLoading } = useQuery<{ docs: Array<{ nudo: string; tido: string; vencimiento: string | null; saldo: number; vencida: boolean }> }>({
+    queryKey: ["/api/clients/cartera", { name: clienteNombre }],
+    enabled: !!clienteNombre,
+  });
+  const docs = data?.docs || [];
+  const totalSaldo = docs.reduce((s, d) => s + (Number(d.saldo) || 0), 0);
+  const totalVencido = docs.filter((d) => d.vencida).reduce((s, d) => s + (Number(d.saldo) || 0), 0);
+  if (isLoading) return <p className="text-xs text-slate-400">Cargando cobranza…</p>;
+  if (docs.length === 0) return <p className="text-xs text-slate-400 italic">Sin documentos pendientes.</p>;
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-white border border-slate-200 p-2.5">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Saldo total</p>
+          <p className="text-sm font-bold text-slate-800">{fmtCLP(totalSaldo)}</p>
+        </div>
+        <div className="rounded-lg bg-red-50 border border-red-200 p-2.5">
+          <p className="text-[10px] text-red-500 uppercase font-bold tracking-wider">Vencido</p>
+          <p className="text-sm font-bold text-red-700">{fmtCLP(totalVencido)}</p>
+        </div>
+      </div>
+      <div className="space-y-1">
+        {docs.map((d, i) => (
+          <div key={i} className={`flex items-center gap-2 text-xs rounded-lg px-2.5 py-1.5 border ${d.vencida ? "bg-red-50 border-red-100" : "bg-white border-slate-100"}`}>
+            <span className="font-medium text-slate-700 flex-shrink-0">{d.tido} {d.nudo}</span>
+            <span className="text-slate-400 flex-1 text-center">{d.vencimiento || "—"}</span>
+            <span className={`font-semibold flex-shrink-0 ${d.vencida ? "text-red-600" : "text-slate-700"}`}>{fmtCLP(Number(d.saldo))}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
+  const { data = [], isLoading } = useQuery<Array<{ productName: string; totalPurchases: number; transactionCount: number; lastPurchase: string }>>({
+    queryKey: ["/api/sales/client/products", clienteNombre],
+    queryFn: async () => {
+      const r = await apiRequest(`/api/sales/client/${encodeURIComponent(clienteNombre)}/products`);
+      return r.json();
+    },
+    enabled: !!clienteNombre,
+  });
+  if (isLoading) return <p className="text-xs text-slate-400">Cargando productos…</p>;
+  if (data.length === 0) return <p className="text-xs text-slate-400 italic">Sin compras registradas.</p>;
+  return (
+    <div className="space-y-1">
+      {data.slice(0, 25).map((p, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+          <Package className="h-3.5 w-3.5 text-slate-300 flex-shrink-0" />
+          <span className="font-medium text-slate-700 truncate flex-1">{p.productName}</span>
+          <span className="text-slate-400 flex-shrink-0">{p.transactionCount}×</span>
+          <span className="font-semibold text-emerald-700 flex-shrink-0">{fmtCLP(Number(p.totalPurchases))}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId: string; clienteNombre: string; canManage: boolean }) {
+  const { toast } = useToast();
+  const [selRuta, setSelRuta] = useState("");
+  const [visitaRuta, setVisitaRuta] = useState("");
+  const [visitaFecha, setVisitaFecha] = useState("");
+  const [visitaNota, setVisitaNota] = useState("");
+
+  const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; visitado: boolean | null; fechaVisita: string | null }>>({
+    queryKey: ["/api/rutas/by-cliente", clienteId],
+    queryFn: async () => { const r = await apiRequest(`/api/rutas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
+    enabled: !!clienteId,
+  });
+  const { data: allRutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
+  const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; registradoPorNombre: string | null }>>({
+    queryKey: ["/api/rutas/visitas/by-cliente", clienteId],
+    queryFn: async () => { const r = await apiRequest(`/api/rutas/visitas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
+    enabled: !!clienteId,
+  });
+
+  const assign = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/rutas/${selRuta}/clientes`, { clienteId, clienteNombre }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] }); setSelRuta(""); toast({ title: "Cliente asignado a la ruta" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo asignar.", variant: "destructive" }),
+  });
+  const registrarVisita = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/rutas/${visitaRuta}/visitas`, { clienteId, clienteNombre, fecha: visitaFecha, nota: visitaNota.trim() || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      setVisitaFecha(""); setVisitaNota("");
+      toast({ title: "Visita registrada" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
+  });
+  const yaEn = new Set(rutasCliente.map((r) => r.id));
+
+  return (
+    <div className="space-y-5">
+      {/* Rutas del cliente */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Rutas del cliente</h4>
+        {isLoading ? (
+          <p className="text-xs text-slate-400">Cargando rutas…</p>
+        ) : rutasCliente.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">Este cliente no está en ninguna ruta.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {rutasCliente.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-xs bg-white rounded-xl px-3 py-2 border border-slate-100">
+                <MapPin className="h-4 w-4 text-orange-400 flex-shrink-0" />
+                <span className="font-semibold text-slate-700 flex-1 truncate">{r.nombre}</span>
+                {r.fechaVisita && <span className="text-[11px] text-slate-400">{format(new Date(r.fechaVisita), "dd MMM", { locale: es })}</span>}
+                <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-500 border-slate-200">{r.estado}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+        {canManage && allRutas.filter((r) => !yaEn.has(r.id)).length > 0 && (
+          <div className="flex items-center gap-2 pt-1">
+            <Select value={selRuta} onValueChange={setSelRuta}>
+              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Asignar a una ruta…" /></SelectTrigger>
+              <SelectContent>
+                {allRutas.filter((r) => !yaEn.has(r.id)).map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>
+              {assign.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Asignar"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Registrar visita (queda en el histórico) */}
+      {canManage && rutasCliente.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><CalendarIcon className="h-3.5 w-3.5" /> Registrar visita</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={visitaRuta} onValueChange={setVisitaRuta}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Ruta" /></SelectTrigger>
+              <SelectContent>
+                {rutasCliente.map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
+              </SelectContent>
+            </Select>
+            <Input type="date" value={visitaFecha} onChange={(e) => setVisitaFecha(e.target.value)} className="h-8 text-xs" />
+          </div>
+          <Input value={visitaNota} onChange={(e) => setVisitaNota(e.target.value)} placeholder="Nota (opcional)…" className="h-8 text-xs" />
+          <Button size="sm" className="w-full h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!visitaRuta || !visitaFecha || registrarVisita.isPending} onClick={() => registrarVisita.mutate()}>
+            {registrarVisita.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
+          </Button>
+        </div>
+      )}
+
+      {/* Histórico de visitas */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Histórico de visitas ({visitas.length})</h4>
+        {visitas.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">Sin visitas registradas.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {visitas.map((v) => (
+              <div key={v.id} className="flex items-start gap-2.5 bg-white rounded-xl px-3 py-2 border border-slate-100">
+                <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0"><MapPin className="h-4 w-4 text-orange-500" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700">{format(new Date(v.fecha), "dd MMM yyyy", { locale: es })}</span>
+                    {v.rutaNombre && <span className="text-[11px] text-slate-400 truncate">· {v.rutaNombre}</span>}
+                  </div>
+                  {v.nota && <p className="text-[11px] text-slate-500 mt-0.5">{v.nota}</p>}
+                  {v.registradoPorNombre && <p className="text-[10px] text-slate-400 mt-0.5">por {v.registradoPorNombre}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketingClientePanel({ clienteNombre }: { clienteNombre: string }) {
+  const { data = [], isLoading } = useQuery<Array<{ itemId: string; itemNombre: string; unidad: string; cantidadEnPoder: number }>>({
+    queryKey: ["/api/marketing/inventario-por-cliente", { cliente: clienteNombre }],
+    enabled: !!clienteNombre,
+  });
+  if (isLoading) return <p className="text-xs text-slate-400">Cargando elementos…</p>;
+  if (data.length === 0) return <p className="text-xs text-slate-400 italic">El cliente no tiene elementos de marketing registrados.</p>;
+  return (
+    <div className="space-y-1">
+      {data.map((m) => (
+        <div key={m.itemId} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+          <Palette className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
+          <span className="font-medium text-slate-700 flex-1 truncate">{m.itemNombre}</span>
+          <span className="font-semibold text-slate-700 flex-shrink-0">{m.cantidadEnPoder} {m.unidad}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ==================================================================================
+// MarketingSolicitudDialog — "Solicitud de Marketing" desde el Panel (Etapa 1).
+// Reutiliza el módulo Marketing existente (/api/marketing/solicitudes): el solicitante
+// manda una fecha sugerida; la encargada de Marketing fija el plazo final en su módulo.
+// ==================================================================================
+function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: boolean; onOpenChange: (o: boolean) => void; segmento: string | null }) {
+  const { toast } = useToast();
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [urgencia, setUrgencia] = useState("media");
+  const [fechaSugerida, setFechaSugerida] = useState("");
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const base = fechaSugerida ? new Date(fechaSugerida) : new Date();
+      return apiRequest("POST", "/api/marketing/solicitudes", {
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        urgencia,
+        fechaEntrega: fechaSugerida || undefined,
+        mes: base.getMonth() + 1,
+        anio: base.getFullYear(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/solicitudes"] });
+      toast({ title: "Solicitud enviada", description: "Marketing recibió tu pedido y definirá el plazo final." });
+      onOpenChange(false);
+      setTitulo(""); setDescripcion(""); setUrgencia("media"); setFechaSugerida("");
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo enviar la solicitud.", variant: "destructive" }),
+  });
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-orange-600" /> Solicitud de Marketing</DialogTitle>
+          <DialogDescription>Enviá tu pedido con una fecha sugerida. La encargada de Marketing fijará el plazo final.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título *</Label>
+            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Gigantografía para local zona sur" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción *</Label>
+            <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder="Detallá qué necesitás de Marketing…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha sugerida</Label>
+              <Input type="date" value={fechaSugerida} onChange={(e) => setFechaSugerida(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Urgencia</Label>
+              <Select value={urgencia} onValueChange={setUrgencia}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baja">Baja</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="alta">Alta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="bg-orange-600 hover:bg-orange-700 text-white" disabled={!titulo.trim() || !descripcion.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar solicitud"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================================================================================
+// DateTimePicker — selector de fecha (calendario) + hora en un popover.
+// value/onChange usan el formato "YYYY-MM-DDTHH:mm" (datetime-local), compatible con el schema.
+// ==================================================================================
+function DateTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const parsed = value ? new Date(value) : undefined;
+  const dateValid = !!parsed && !isNaN(parsed.getTime());
+  const timeStr = value && value.includes("T") ? (value.split("T")[1]?.slice(0, 5) || "12:00") : "12:00";
+
+  const setDatePart = (d?: Date) => {
+    if (!d) { onChange(""); return; }
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    onChange(`${yyyy}-${mm}-${dd}T${timeStr}`);
+    setOpen(false);
+  };
+  const setTimePart = (t: string) => {
+    const base = dateValid ? value.split("T")[0] : format(new Date(), "yyyy-MM-dd");
+    onChange(`${base}T${t || "12:00"}`);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 h-10 text-sm text-left hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 transition-colors"
+          data-testid="input-task-due-date"
+        >
+          <CalendarIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          {dateValid
+            ? <span className="text-slate-800">{format(parsed!, "dd MMM yyyy, HH:mm", { locale: es })}</span>
+            : <span className="text-slate-400">Seleccionar fecha y hora</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={dateValid ? parsed : undefined}
+          onSelect={(d) => setDatePart(d || undefined)}
+          initialFocus
+          locale={es}
+        />
+        <div className="border-t border-slate-100 p-3 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          <input
+            type="time"
+            value={timeStr}
+            onChange={(e) => setTimePart(e.target.value)}
+            className="flex-1 border border-slate-200 rounded-md px-2 h-9 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+          />
+          {value && (
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-xs text-slate-400 hover:text-red-500 px-1">
+              Limpiar
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ==================================================================================
+// ActividadesPanel — subtareas / actividades tipadas de un seguimiento de cliente.
+// Cada actividad: tipo + fecha + descripción opcional + estado (pendiente/completada).
+// ==================================================================================
+function ActividadesPanel({ taskId, canManage, clienteId }: { taskId: string; canManage: boolean; clienteId: string }) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [tipo, setTipo] = useState("llamada");
+  const [fecha, setFecha] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [rutaId, setRutaId] = useState("");
+
+  const { data: actividades = [], isLoading } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null; rutaNombre: string | null }>>({
+    queryKey: ["/api/tasks", taskId, "actividades"],
+  });
+  const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
+    // el histórico de la pestaña Rutas también refleja las visitas creadas desde acá
+    queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+  };
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      const rutaNombre = tipo === "visita" && rutaId ? (rutas.find((r) => r.id === rutaId)?.nombre || undefined) : undefined;
+      return apiRequest("POST", `/api/tasks/${taskId}/actividades`, {
+        tipo,
+        fecha: fecha || undefined,
+        descripcion: descripcion.trim() || undefined,
+        rutaId: tipo === "visita" && rutaId ? rutaId : undefined,
+        rutaNombre,
+      });
+    },
+    onSuccess: () => { invalidate(); setShowForm(false); setTipo("llamada"); setFecha(""); setDescripcion(""); setRutaId(""); toast({ title: "Actividad agregada" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo agregar.", variant: "destructive" }),
+  });
+  const toggleMut = useMutation({
+    mutationFn: async ({ id, estado }: { id: string; estado: string }) => apiRequest("PATCH", `/api/tasks/actividades/${id}`, { estado }),
+    onSuccess: invalidate,
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/tasks/actividades/${id}`),
+    onSuccess: invalidate,
+  });
+
+  const meta = (t: string) => ACTIVIDAD_TIPOS.find((x) => x.value === t) || ACTIVIDAD_TIPOS[ACTIVIDAD_TIPOS.length - 1];
+  const sorted = [...actividades].sort((a, b) => {
+    const aDone = a.estado === "completada" ? 1 : 0;
+    const bDone = b.estado === "completada" ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return (a.fecha || "").localeCompare(b.fecha || "");
+  });
+  const total = actividades.length;
+  const done = actividades.filter((a) => a.estado === "completada").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-bold text-slate-800">Tareas del cliente</h4>
+          {total > 0 && <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600">{done}/{total}</Badge>}
+        </div>
+        {canManage && !showForm && (
+          <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva actividad
+          </Button>
+        )}
+      </div>
+
+      {canManage && showForm && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ACTIVIDAD_TIPOS.map((t) => (<SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>))}
+              </SelectContent>
+            </Select>
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" />
+          </div>
+          {tipo === "visita" && (
+            <Select value={rutaId} onValueChange={setRutaId}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Ruta (queda en el histórico de Rutas)…" /></SelectTrigger>
+              <SelectContent>
+                {rutas.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-slate-400">No hay rutas creadas</div>
+                ) : rutas.map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          )}
+          <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción (opcional)…" className="text-xs resize-none" />
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs flex-1" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
+              {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Agregar</>}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => setShowForm(false)}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-xs text-slate-400">Cargando…</p>
+      ) : sorted.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">Sin actividades. Agregá la primera acción con este cliente.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {sorted.map((a) => {
+            const m = meta(a.tipo);
+            const doneAct = a.estado === "completada";
+            return (
+              <div key={a.id} className={`flex items-start gap-2.5 rounded-xl px-3 py-2 border transition-all ${doneAct ? "bg-slate-50/60 border-slate-100 opacity-70" : "bg-white border-slate-200"}`}>
+                {canManage ? (
+                  <button
+                    onClick={() => toggleMut.mutate({ id: a.id, estado: doneAct ? "pendiente" : "completada" })}
+                    className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${doneAct ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 hover:border-emerald-400"}`}
+                  >
+                    {doneAct && <Check className="h-3 w-3" />}
+                  </button>
+                ) : (
+                  <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${doneAct ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-200"}`}>
+                    {doneAct && <Check className="h-3 w-3" />}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className={`text-[10px] border-0 ${m.badge}`}>{m.label}</Badge>
+                    {a.fecha && <span className="text-[11px] text-slate-400">{format(new Date(a.fecha), "dd MMM yyyy", { locale: es })}</span>}
+                    {a.rutaNombre && <span className="text-[11px] text-orange-500 flex items-center gap-0.5"><MapPin className="h-3 w-3" /> {a.rutaNombre}</span>}
+                  </div>
+                  {a.descripcion && <p className={`text-xs mt-0.5 ${doneAct ? "text-slate-400 line-through" : "text-slate-600"}`}>{a.descripcion}</p>}
+                </div>
+                {canManage && (
+                  <button onClick={() => deleteMut.mutate(a.id)} className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================================================================================
+// HeaderMeta — Fecha límite (editable) + Cliente en la cabecera del detalle de tarea.
+// ==================================================================================
+function HeaderMeta({ task }: { task: any }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const canEditDate = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || task.createdByUserId === user?.id;
+  const [editing, setEditing] = useState(false);
+  const [dateValue, setDateValue] = useState(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : "");
+  const isCompleted = task.status === 'completada';
+  const updateDueDate = useMutation({
+    mutationFn: async (dueDate: string | null) => apiRequest("PATCH", `/api/tasks/${task.id}`, { dueDate }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" }); setEditing(false); toast({ title: "Fecha actualizada" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo actualizar la fecha.", variant: "destructive" }),
+  });
+  const overdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+  return (
+    <div className="flex items-center gap-x-6 gap-y-2 mt-3 flex-wrap pl-[52px]">
+      {task.clienteNombre && (
+        <div className="flex items-center gap-1.5 text-sm min-w-0">
+          <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente</span>
+          <span className="font-semibold text-emerald-700 truncate">{task.clienteNombre}</span>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 text-sm">
+        <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha límite</span>
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <div className="w-[210px]"><DateTimePicker value={dateValue} onChange={setDateValue} /></div>
+            <button onClick={() => updateDueDate.mutate(dateValue ? new Date(dateValue).toISOString() : null)} disabled={updateDueDate.isPending} className="text-[11px] font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2 py-1 disabled:opacity-50">{updateDueDate.isPending ? "…" : "Guardar"}</button>
+            <button onClick={() => setEditing(false)} className="text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1">Cancelar</button>
+          </div>
+        ) : (
+          <button onClick={() => canEditDate && setEditing(true)} className={`flex items-center gap-1 font-semibold ${overdue ? "text-red-600" : task.dueDate ? "text-slate-800" : "text-slate-400 italic"} ${canEditDate ? "hover:underline" : ""}`}>
+            {task.dueDate ? format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es }) : "Sin fecha"}
+            {canEditDate && <Pencil className="h-3 w-3 text-slate-400" />}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

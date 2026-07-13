@@ -336,6 +336,17 @@ import {
   type InsertTaskComment,
   taskGroups,
   type TaskGroup,
+  rutasComerciales,
+  rutaClientes,
+  rutaVisitas,
+  taskActividades,
+  type RutaComercial,
+  type RutaCliente,
+  type RutaVisita,
+  type TaskActividad,
+  type InsertTaskActividad,
+  type InsertRutaComercial,
+  type InsertRutaCliente,
   integrations,
   type Integration,
   type InsertIntegration,
@@ -13402,29 +13413,23 @@ export class DatabaseStorage implements IStorage {
           // Admin sees all tasks - no additional filtering
           break;
         case 'supervisor':
-        case 'encargado_area':
-          // Supervisor / Encargado de Área sees: tasks they created OR tasks assigned to their team
-          const supervisorConditions = [
-            eq(tasks.createdByUserId, userId), // Tasks they created
-          ];
-          if (assigneeSegments && assigneeSegments.length > 0) {
-            // Also include tasks assigned to their segments - but this is handled in the main SQL condition below
-            // No need to build additional conditions here as they would be undefined
-          }
-          // SECURITY FIX: Use safe Drizzle ORM methods instead of string interpolation to prevent SQL injection
+        case 'encargado_area': {
+          // Supervisor / Encargado ve: tareas que creó, asignadas a él, o asignadas a su EQUIPO
+          // (vendedores a su cargo). Habilita la vista "Equipo" del Panel de Trabajo.
+          const team = await db.select({ id: salespeopleUsers.id })
+            .from(salespeopleUsers)
+            .where(and(eq(salespeopleUsers.supervisorId, userId), eq(salespeopleUsers.isActive, true)));
+          const assigneeIds = [userId, ...team.map((t) => t.id)];
           taskConditions.push(sql`(
-            ${tasks.createdByUserId} = ${userId} OR 
+            ${tasks.createdByUserId} = ${userId} OR
             EXISTS (
-              SELECT 1 FROM ${taskAssignments} 
-              WHERE ${taskAssignments.taskId} = ${tasks.id} 
-              AND (
-                (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId})
-              )
+              SELECT 1 FROM ${taskAssignments}
+              WHERE ${taskAssignments.taskId} = ${tasks.id}
+              AND ${taskAssignments.assigneeId} IN (${sql.join(assigneeIds.map((id) => sql`${id}`), sql`, `)})
             )
           )`);
           break;
+        }
         case 'salesperson':
           // SECURITY FIX: Salesperson sees only tasks assigned to them - use safe SQL 
           taskConditions.push(sql`
@@ -13711,6 +13716,111 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(taskGroups)
       .where(scope);
+  }
+
+  // === Rutas Comerciales CRUD ===
+  async createRuta(data: InsertRutaComercial & { supervisorId: string }): Promise<RutaComercial> {
+    const [ruta] = await db.insert(rutasComerciales).values(data).returning();
+    return ruta;
+  }
+
+  async getRutasBySupervisor(supervisorId: string): Promise<RutaComercial[]> {
+    return db.select().from(rutasComerciales)
+      .where(eq(rutasComerciales.supervisorId, supervisorId))
+      .orderBy(desc(rutasComerciales.createdAt));
+  }
+
+  async getRutasByVendedor(vendedorId: string): Promise<RutaComercial[]> {
+    return db.select().from(rutasComerciales)
+      .where(eq(rutasComerciales.vendedorId, vendedorId))
+      .orderBy(desc(rutasComerciales.createdAt));
+  }
+
+  async getRutaClientes(rutaId: string): Promise<RutaCliente[]> {
+    return db.select().from(rutaClientes)
+      .where(eq(rutaClientes.rutaId, rutaId))
+      .orderBy(rutaClientes.orden, rutaClientes.createdAt);
+  }
+
+  async updateRuta(id: string, data: Partial<InsertRutaComercial>): Promise<RutaComercial> {
+    const [ruta] = await db.update(rutasComerciales)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(rutasComerciales.id, id)).returning();
+    if (!ruta) throw new Error('Ruta not found');
+    return ruta;
+  }
+
+  async deleteRuta(id: string): Promise<void> {
+    await db.delete(rutaClientes).where(eq(rutaClientes.rutaId, id)); // cascade manual
+    await db.delete(rutasComerciales).where(eq(rutasComerciales.id, id));
+  }
+
+  async addClienteToRuta(rutaId: string, data: Omit<InsertRutaCliente, 'rutaId'>): Promise<RutaCliente> {
+    const [rc] = await db.insert(rutaClientes).values({ ...data, rutaId }).returning();
+    return rc;
+  }
+
+  async removeClienteFromRuta(rutaId: string, clienteId: string): Promise<void> {
+    await db.delete(rutaClientes)
+      .where(and(eq(rutaClientes.rutaId, rutaId), eq(rutaClientes.clienteId, clienteId)));
+  }
+
+  // Para la pestaña "Rutas" del modal de tarea (client-scoped por koen)
+  async getRutasByCliente(koen: string): Promise<Array<RutaComercial & { ordenEnRuta: number | null; visitado: boolean | null; fechaVisita: Date | null }>> {
+    return db.select({
+        id: rutasComerciales.id, nombre: rutasComerciales.nombre,
+        vendedorId: rutasComerciales.vendedorId, supervisorId: rutasComerciales.supervisorId,
+        segmento: rutasComerciales.segmento, estado: rutasComerciales.estado,
+        observaciones: rutasComerciales.observaciones,
+        createdAt: rutasComerciales.createdAt, updatedAt: rutasComerciales.updatedAt,
+        ordenEnRuta: rutaClientes.orden, visitado: rutaClientes.visitado, fechaVisita: rutaClientes.fechaVisita,
+      })
+      .from(rutaClientes)
+      .innerJoin(rutasComerciales, eq(rutaClientes.rutaId, rutasComerciales.id))
+      .where(eq(rutaClientes.clienteId, koen));
+  }
+
+  // Histórico de visitas de un cliente (acumulado en el tiempo)
+  async addRutaVisita(data: { rutaId: string; clienteId: string; clienteNombre?: string | null; fecha: Date; nota?: string | null; registradoPor?: string | null; registradoPorNombre?: string | null }): Promise<RutaVisita> {
+    const [v] = await db.insert(rutaVisitas).values(data).returning();
+    return v;
+  }
+
+  async getRutaVisitasByCliente(koen: string): Promise<Array<RutaVisita & { rutaNombre: string | null }>> {
+    return db.select({
+        id: rutaVisitas.id, rutaId: rutaVisitas.rutaId, clienteId: rutaVisitas.clienteId,
+        clienteNombre: rutaVisitas.clienteNombre, fecha: rutaVisitas.fecha, nota: rutaVisitas.nota,
+        registradoPor: rutaVisitas.registradoPor, registradoPorNombre: rutaVisitas.registradoPorNombre,
+        createdAt: rutaVisitas.createdAt, rutaNombre: rutasComerciales.nombre,
+      })
+      .from(rutaVisitas)
+      .leftJoin(rutasComerciales, eq(rutaVisitas.rutaId, rutasComerciales.id))
+      .where(eq(rutaVisitas.clienteId, koen))
+      .orderBy(desc(rutaVisitas.fecha));
+  }
+
+  // === Actividades (subtareas tipadas de un seguimiento de cliente) ===
+  async getActividadesByTask(taskId: string): Promise<TaskActividad[]> {
+    return db.select().from(taskActividades)
+      .where(eq(taskActividades.taskId, taskId))
+      .orderBy(taskActividades.fecha);
+  }
+
+  async createActividad(data: InsertTaskActividad): Promise<TaskActividad> {
+    const [a] = await db.insert(taskActividades).values(data).returning();
+    return a;
+  }
+
+  async updateActividad(id: string, data: Partial<InsertTaskActividad>): Promise<TaskActividad> {
+    const [a] = await db.update(taskActividades)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(taskActividades.id, id)).returning();
+    if (!a) throw new Error('Actividad not found');
+    return a;
+  }
+
+  async deleteActividad(id: string): Promise<void> {
+    await db.delete(taskActividades).where(eq(taskActividades.id, id));
   }
 
   async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
@@ -21027,6 +21137,35 @@ export class DatabaseStorage implements IStorage {
       .where(eq(inventarioMarketing.id, id))
       .returning();
     return result;
+  }
+
+  // Elementos de marketing que tiene un cliente = Σ(salidas) − Σ(devoluciones) por item.
+  // Los movimientos solo guardan clienteNombre (no koen), así que se filtra por nombre exacto.
+  async getInventarioMarketingByCliente(clienteNombre: string): Promise<Array<{ itemId: string; itemNombre: string; unidad: string; cantidadEnPoder: number; ultimoMovimiento: string | null }>> {
+    const result = await db.execute(sql`
+      SELECT m.item_id AS "itemId",
+             i.nombre AS "itemNombre",
+             i.unidad AS "unidad",
+             COALESCE(SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END), 0)
+           - COALESCE(SUM(CASE WHEN m.tipo = 'devolucion' THEN m.cantidad ELSE 0 END), 0) AS "cantidadEnPoder",
+             MAX(m.created_at) AS "ultimoMovimiento"
+      FROM inventario_marketing_movimientos m
+      JOIN inventario_marketing i ON i.id = m.item_id
+      WHERE m.cliente_nombre = ${clienteNombre}
+        AND m.tipo IN ('salida', 'devolucion')
+      GROUP BY m.item_id, i.nombre, i.unidad
+      HAVING COALESCE(SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END), 0)
+           - COALESCE(SUM(CASE WHEN m.tipo = 'devolucion' THEN m.cantidad ELSE 0 END), 0) > 0
+      ORDER BY i.nombre
+    `);
+    const rows = Array.isArray(result) ? result : (result as any).rows || [];
+    return rows.map((r: any) => ({
+      itemId: r.itemId,
+      itemNombre: r.itemNombre,
+      unidad: r.unidad,
+      cantidadEnPoder: Number(r.cantidadEnPoder) || 0,
+      ultimoMovimiento: r.ultimoMovimiento ? String(r.ultimoMovimiento) : null,
+    }));
   }
 
   async deleteInventarioMarketing(id: string): Promise<void> {

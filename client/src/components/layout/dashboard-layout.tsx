@@ -6,7 +6,10 @@ import {
   Menu,
   ChevronDown,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useMemo, useState } from "react";
@@ -29,6 +32,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showChangelogDialog, setShowChangelogDialog] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(["/ecommerce"]));
+
+  // Colapsar el sidebar a un rail de íconos (persistido por navegador). Solo aplica en desktop;
+  // en móvil el drawer siempre se abre a ancho completo.
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem("sidebar_collapsed") === "1"; } catch { return false; }
+  });
+  const setCollapsed = (val: boolean) => {
+    setIsCollapsed(val);
+    try { localStorage.setItem("sidebar_collapsed", val ? "1" : "0"); } catch {}
+  };
+  const toggleCollapsed = () => setCollapsed(!isCollapsed);
+
+  // Búsqueda rápida de módulos del sidebar
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+
+  // Colapso efectivo: en móvil (drawer abierto) siempre expandido
+  const collapsed = isCollapsed && !isMobileOpen;
 
   const handleLogout = () => logoutMutation.mutate();
 
@@ -78,6 +99,28 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     [user?.role, can, permissions],
   );
 
+  // Filtrado por búsqueda: deja pasar ítems cuyo label (o el de algún hijo) coincida.
+  // Sin búsqueda devuelve la lista tal cual (con separadores y deshabilitados).
+  const visibleItems = useMemo(() => {
+    if (!normalizedSearch) return sidebarItems;
+    const match = (s: string) => (s || "").toLowerCase().includes(normalizedSearch);
+    const result: any[] = [];
+    for (const item of sidebarItems) {
+      if (item.disabled) continue;
+      if (item.children && item.children.length > 0) {
+        if (match(item.label)) {
+          result.push(item);
+        } else {
+          const kids = item.children.filter((c: any) => match(c.label));
+          if (kids.length > 0) result.push({ ...item, children: kids });
+        }
+      } else if (match(item.label)) {
+        result.push(item);
+      }
+    }
+    return result;
+  }, [sidebarItems, normalizedSearch]);
+
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 30000,
@@ -98,10 +141,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const isNotif = item.href === "/notificaciones";
     const isAi = item.href === "/ai-assistant";
     const isPremium = item.isPremium;
-    const isExpanded = expandedItems.has(item.href);
+    // Al buscar, los grupos con coincidencias se muestran expandidos
+    const isExpanded = expandedItems.has(item.href) || !!normalizedSearch;
     const hasChildren = item.children && item.children.length > 0;
+    const hasActiveChild = hasChildren && item.children.some(
+      (c: any) => location === c.href || (c.href !== "/mantenciones" && location.startsWith(c.href + "/"))
+    );
+    const hasPendingChild = hasChildren && pendingOrdersCount > 0 &&
+      item.children.some((c: any) => c.href === "/ecommerce-pedidos");
 
     if (item.disabled) {
+      if (collapsed) {
+        return (
+          <div title={item.label} className="flex items-center justify-center py-2.5 rounded-xl text-slate-600 opacity-50 cursor-not-allowed">
+            <Icon className="w-5 h-5 flex-shrink-0" />
+          </div>
+        );
+      }
       return (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 text-sm opacity-50 cursor-not-allowed">
           <Icon className="w-4 h-4 flex-shrink-0" />
@@ -114,7 +170,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     if (hasChildren) {
-      const isPremium = item.isPremium;
+      // Rail colapsado: el grupo se muestra como ícono; al pulsar, expande el sidebar y abre el submenú
+      if (collapsed) {
+        return (
+          <button
+            title={item.label}
+            onClick={() => {
+              setCollapsed(false);
+              if (!expandedItems.has(item.href)) toggleSubmenu(item.href);
+            }}
+            className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
+              hasActiveChild
+                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
+            }`}
+            data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+          >
+            <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
+            {hasPendingChild && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+            )}
+          </button>
+        );
+      }
       return (
         <div>
           <button
@@ -122,11 +200,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
               isPremium
                 ? "hover:bg-amber-500/10 group"
-                : "text-slate-200 hover:text-white hover:bg-slate-700/60"
+                : hasActiveChild
+                  ? "text-white bg-slate-800/70"
+                  : "text-slate-200 hover:text-white hover:bg-slate-800/70"
             }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : "text-slate-400"}`} />
+            <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
             {isPremium ? (
               <span
                 className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]"
@@ -136,6 +216,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </span>
             ) : (
               <span className="flex-1 text-left">{item.label}</span>
+            )}
+            {hasPendingChild && !isExpanded && (
+              <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
             )}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""} ${isPremium ? "text-amber-400/60" : "text-slate-500"}`} />
           </button>
@@ -150,7 +233,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <button
                       onClick={() => setIsMobileOpen(false)}
                       className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150
-                        ${isChildActive ? "text-white bg-white/10" : "text-slate-300 hover:text-white hover:bg-slate-700/60"}`}
+                        ${isChildActive ? "text-white bg-blue-600 shadow-sm shadow-blue-600/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
                       data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
@@ -164,7 +247,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               })}
             </div>
           )}
-          {item.separator && <div className="h-px bg-slate-700/40 my-1 mx-2" />}
+          {item.separator && !collapsed && <div className="h-px bg-slate-700/40 my-1 mx-2" />}
         </div>
       );
     }
@@ -175,13 +258,40 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <a href={`/catalogo/${(user as any).publicSlug}`} target="_blank" rel="noopener noreferrer">
           <button
             onClick={() => setIsMobileOpen(false)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-[#1e2a3a] transition-all duration-150"
+            title={collapsed ? item.label : undefined}
+            className={`w-full flex items-center ${collapsed ? "justify-center py-3" : "gap-3 px-4 py-2.5"} rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/70 transition-all duration-150`}
             data-testid="nav-mi-catalogo"
           >
-            <Icon className="w-4 h-4 flex-shrink-0 text-slate-400" />
-            {item.label}
+            <Icon className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} flex-shrink-0 text-slate-400`} />
+            {!collapsed && item.label}
           </button>
         </a>
+      );
+    }
+
+    // Rail colapsado: ítem simple como ícono con tooltip
+    if (collapsed) {
+      return (
+        <div>
+          <Link href={item.href}>
+            <button
+              onClick={() => setIsMobileOpen(false)}
+              title={item.label}
+              className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
+                isActive
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                  : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
+              }`}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+            >
+              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
+              {isNotif && unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+              )}
+            </button>
+          </Link>
+          {item.separator && <div className="h-px bg-slate-700/40 my-1.5 mx-2" />}
+        </div>
       );
     }
 
@@ -199,7 +309,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
                   : isNotif
                     ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                    : isActive ? "text-white bg-white/10" : "text-slate-200 hover:text-white hover:bg-slate-700/60"
+                    : isActive ? "text-white bg-blue-600 shadow-md shadow-blue-600/30" : "text-slate-200 hover:text-white hover:bg-slate-800/70"
               }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
@@ -261,11 +371,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0f1724] flex flex-col transition-transform duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-50 ${collapsed ? "w-20" : "w-64"} bg-[#0f1724] flex flex-col transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
-        {/* Logo */}
-        <div className="px-4 pt-5 pb-4 flex items-center justify-center flex-shrink-0">
+        {/* Logo + collapse toggle */}
+        <div className={`relative flex-shrink-0 ${collapsed ? "px-2 pt-5 pb-3 flex flex-col items-center gap-2" : "px-3 pt-5 pb-3 flex items-center justify-center"}`}>
           <button
             className="hover:opacity-80 transition-opacity"
             onClick={() => {
@@ -273,61 +383,126 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               window.location.href = "/";
             }}
           >
-            <img src={logoPath} alt="PANORAMICA" className="h-14 w-auto object-contain" />
+            <img src={logoPath} alt="PANORAMICA" className={`${collapsed ? "h-9" : "h-11"} w-auto object-contain transition-all duration-300`} />
+          </button>
+          <button
+            onClick={toggleCollapsed}
+            className={`hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/70 transition-all duration-150 ${collapsed ? "" : "absolute right-3 top-1/2 -translate-y-1/2"}`}
+            title={collapsed ? "Expandir menú" : "Colapsar menú"}
+            data-testid="sidebar-collapse-toggle"
+          >
+            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
         </div>
 
+        {/* Search */}
+        {collapsed ? (
+          <div className="px-2 pb-3 flex justify-center flex-shrink-0">
+            <button
+              title="Buscar"
+              onClick={() => setCollapsed(false)}
+              className="w-11 h-11 rounded-xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all duration-150"
+              data-testid="sidebar-search-open"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="px-3 pb-3 flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar módulo..."
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50 transition-all"
+                data-testid="sidebar-search-input"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Navigation — items in card sections */}
-        <nav className="flex-1 px-4 pb-4 space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide">
-          {sidebarItems.map((item, index) => (
+        <nav className={`flex-1 ${collapsed ? "px-2.5" : "px-4"} pb-4 space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide`}>
+          {visibleItems.map((item, index) => (
             <NavItem key={item.disabled ? `disabled-${index}` : item.href} item={item} index={index} />
           ))}
 
-          {can("config.importar") && (
+          {normalizedSearch && visibleItems.length === 0 && (
+            <p className="text-xs text-slate-500 text-center py-6">Sin resultados para "{search}"</p>
+          )}
+
+          {can("config.importar") && !normalizedSearch && (
             <button
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-200 hover:text-white hover:bg-slate-700/60 transition-all duration-150"
+              className={`w-full flex items-center ${collapsed ? "justify-center py-3" : "gap-3 px-4 py-2.5"} rounded-xl text-sm text-slate-200 hover:text-white hover:bg-slate-800/70 transition-all duration-150`}
+              title={collapsed ? "Importar Datos" : undefined}
               onClick={() => {
                 setShowImportModal(true);
                 setIsMobileOpen(false);
               }}
               data-testid="nav-import"
             >
-              <Upload className="w-4 h-4 flex-shrink-0 text-slate-500" />
-              Importar Datos
+              <Upload className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} flex-shrink-0 text-slate-500`} />
+              {!collapsed && "Importar Datos"}
             </button>
           )}
         </nav>
 
         {/* User card — at bottom */}
-        <div className="px-4 py-3 flex-shrink-0 border-t border-slate-700/40">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}>
-              <span className="text-sm font-bold text-white">
-                {getInitials(user?.firstName, user?.lastName)}
-              </span>
+        <div className={`${collapsed ? "px-2 py-3" : "px-4 py-3"} flex-shrink-0 border-t border-slate-700/40`}>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <div
+                title={`${getDisplayName(user?.firstName, user?.lastName)} · ${getRoleTitle(user?.role)}`}
+                className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}
+              >
+                <span className="text-sm font-bold text-white">
+                  {getInitials(user?.firstName, user?.lastName)}
+                </span>
+              </div>
+              <button
+                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
+                title="Cerrar sesión"
+                onClick={() => {
+                  setIsMobileOpen(false);
+                  handleLogout();
+                }}
+                data-testid="logout-button"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate leading-tight">
-                {getDisplayName(user?.firstName, user?.lastName)}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5">{getRoleTitle(user?.role)}</p>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}>
+                <span className="text-sm font-bold text-white">
+                  {getInitials(user?.firstName, user?.lastName)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate leading-tight">
+                  {getDisplayName(user?.firstName, user?.lastName)}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">{getRoleTitle(user?.role)}</p>
+              </div>
+              <button
+                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
+                onClick={() => {
+                  setIsMobileOpen(false);
+                  handleLogout();
+                }}
+                data-testid="logout-button"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
-              onClick={() => {
-                setIsMobileOpen(false);
-                handleLogout();
-              }}
-              data-testid="logout-button"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="lg:ml-64 min-w-0 max-w-full overflow-x-clip transition-all duration-300">
+      <div className={`${isCollapsed ? "lg:ml-20" : "lg:ml-64"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
         {children}
       </div >
 
