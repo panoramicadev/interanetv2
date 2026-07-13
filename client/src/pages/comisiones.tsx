@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DollarSign, ChevronDown, ChevronRight, Users, FileText, Ban, Download, Percent,
+  DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
 } from "lucide-react";
 
 // ─── Tipos ───
@@ -26,7 +26,7 @@ interface CommissionItem {
   netMargin: number;
   netMarginPct: number;
   lineCount: number;
-  excludedLineCount: number;
+  overriddenClientCount: number;
   commissionPct: number;
   commissionAmount: number;
 }
@@ -37,14 +37,16 @@ interface CommissionSummary {
   totals: { netRevenue: number; netMargin: number; commissionAmount: number };
 }
 interface DetailClient {
-  client: string; revenue: number; cost: number; margin: number; lineCount: number; excluded: boolean;
+  client: string; revenue: number; cost: number; margin: number; lineCount: number;
+  overridePct: number | null; effectivePct: number;
 }
 interface DetailDocument {
   document: string; numero: string; client: string; fecha: string;
-  revenue: number; cost: number; margin: number; lineCount: number; excluded: boolean; clientExcluded: boolean;
+  revenue: number; cost: number; margin: number; lineCount: number;
+  overridePct: number | null; effectivePct: number; clientPct: number | null;
 }
 interface SalespersonDetail {
-  salesperson: string; startDate: string; endDate: string;
+  salesperson: string; startDate: string; endDate: string; defaultPct: number;
   clients: DetailClient[]; documents: DetailDocument[];
 }
 
@@ -105,18 +107,18 @@ export default function Comisiones() {
     onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo guardar el %", variant: "destructive" }),
   });
 
-  const toggleExclusion = useMutation({
+  const saveOverride = useMutation({
     mutationFn: async (payload: {
-      salespersonName: string; exclusionType: "client" | "document"; value: string; excluded: boolean;
+      salespersonName: string; overrideType: "client" | "document"; value: string; commissionPct: number | null;
     }) => {
-      const res = await apiRequest("PUT", "/api/hr/commissions/exclusions", payload);
+      const res = await apiRequest("PUT", "/api/hr/commissions/overrides", payload);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hr/commissions/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/hr/commissions/salesperson"] });
     },
-    onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo actualizar la exclusión", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo guardar el %", variant: "destructive" }),
   });
 
   const items = summary?.items || [];
@@ -263,9 +265,9 @@ export default function Comisiones() {
                         </TableCell>
                         <TableCell className="font-medium">
                           {it.salesperson}
-                          {it.excludedLineCount > 0 && (
+                          {it.overriddenClientCount > 0 && (
                             <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                              <Ban className="w-3 h-3 mr-1" />{it.excludedLineCount} excl.
+                              <Percent className="w-3 h-3 mr-1" />{it.overriddenClientCount} ajustado{it.overriddenClientCount > 1 ? "s" : ""}
                             </Badge>
                           )}
                         </TableCell>
@@ -299,8 +301,8 @@ export default function Comisiones() {
                               salesperson={it.salesperson}
                               startDate={startDate}
                               endDate={endDate}
-                              onToggle={(exclusionType, value, excluded) =>
-                                toggleExclusion.mutate({ salespersonName: it.salesperson, exclusionType, value, excluded })}
+                              onSaveOverride={(overrideType, value, commissionPct) =>
+                                saveOverride.mutate({ salespersonName: it.salesperson, overrideType, value, commissionPct })}
                             />
                           </TableCell>
                         </TableRow>
@@ -345,9 +347,52 @@ function KpiCard({ label, value, loading, highlight }: {
   );
 }
 
-function SalespersonDetailPanel({ salesperson, startDate, endDate, onToggle }: {
+// Celda editable de % de comisión por fila. `value` es el % efectivo que se
+// aplica; `isOverride` indica si viene de un ajuste manual (para resaltarlo y
+// ofrecer "revertir" al % por defecto). Poner 0 = no paga comisión.
+function PctCell({ value, isOverride, onSave, onReset }: {
+  value: number; isOverride: boolean;
+  onSave: (pct: number) => void; onReset: () => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft !== null ? draft : String(value);
+  const commit = () => {
+    if (draft === null) return;
+    const raw = draft;
+    setDraft(null);
+    const v = parseFloat(raw.replace(",", "."));
+    if (isNaN(v) || v < 0 || v > 100) return; // valor inválido: se descarta
+    if (v === value && !isOverride) return;   // sin cambios respecto al efectivo
+    onSave(v);
+  };
+  return (
+    <div className="inline-flex items-center gap-1.5 justify-end">
+      <div className="relative inline-flex items-center">
+        <Input
+          type="number" min={0} max={100} step={0.1}
+          value={shown}
+          className={`w-20 h-8 text-right pr-5 tabular-nums ${isOverride ? "border-amber-400 text-amber-700 dark:text-amber-400 font-medium" : ""}`}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+        <Percent className="w-3 h-3 text-slate-400 absolute right-1.5 pointer-events-none" />
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        title="Volver al % por defecto del vendedor"
+        className={`text-slate-300 hover:text-slate-600 transition-opacity ${isOverride ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      >
+        <RotateCcw className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverride }: {
   salesperson: string; startDate: string; endDate: string;
-  onToggle: (type: "client" | "document", value: string, excluded: boolean) => void;
+  onSaveOverride: (type: "client" | "document", value: string, commissionPct: number | null) => void;
 }) {
   const [tab, setTab] = useState<"clients" | "documents">("clients");
   const { data, isLoading } = useQuery<SalespersonDetail>({
@@ -364,13 +409,18 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onToggle }: {
 
   return (
     <div className="p-4">
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <Button size="sm" variant={tab === "clients" ? "default" : "outline"} onClick={() => setTab("clients")}>
           <Users className="w-4 h-4 mr-1.5" /> Clientes ({data?.clients.length ?? 0})
         </Button>
         <Button size="sm" variant={tab === "documents" ? "default" : "outline"} onClick={() => setTab("documents")}>
           <FileText className="w-4 h-4 mr-1.5" /> Ventas ({data?.documents.length ?? 0})
         </Button>
+        {data && (
+          <span className="text-xs text-slate-500 ml-auto">
+            % por defecto del vendedor: <span className="font-medium tabular-nums">{data.defaultPct}%</span> · edítalo por cliente o venta (0 = no paga)
+          </span>
+        )}
       </div>
 
       {isLoading && <Skeleton className="h-24 w-full" />}
@@ -383,24 +433,22 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onToggle }: {
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Facturado</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
-                <TableHead className="text-center w-32">Contar comisión</TableHead>
+                <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data?.clients.map((c) => (
-                <TableRow key={c.client} className={c.excluded ? "opacity-50" : ""}>
-                  <TableCell className={c.excluded ? "line-through" : ""}>{c.client}</TableCell>
+                <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
+                  <TableCell>{c.client}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.margin)}</TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      size="sm"
-                      variant={c.excluded ? "outline" : "ghost"}
-                      className={c.excluded ? "text-amber-600 border-amber-300" : "text-slate-400"}
-                      onClick={() => onToggle("client", c.client, !c.excluded)}
-                    >
-                      {c.excluded ? <><Ban className="w-3.5 h-3.5 mr-1" /> Excluido</> : "Incluido"}
-                    </Button>
+                  <TableCell className="text-right">
+                    <PctCell
+                      value={c.effectivePct}
+                      isOverride={c.overridePct !== null}
+                      onSave={(pct) => onSaveOverride("client", c.client, pct)}
+                      onReset={() => onSaveOverride("client", c.client, null)}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -422,36 +470,27 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onToggle }: {
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Facturado</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
-                <TableHead className="text-center w-32">Contar comisión</TableHead>
+                <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.documents.map((d) => {
-                const off = d.excluded || d.clientExcluded;
-                return (
-                  <TableRow key={d.document} className={off ? "opacity-50" : ""}>
-                    <TableCell className={off ? "line-through" : ""}>N° {d.numero}</TableCell>
-                    <TableCell>{formatFecha(d.fecha)}</TableCell>
-                    <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCLP(d.revenue)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
-                    <TableCell className="text-center">
-                      {d.clientExcluded ? (
-                        <Badge variant="outline" className="text-amber-600 border-amber-300">Cliente excluido</Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant={d.excluded ? "outline" : "ghost"}
-                          className={d.excluded ? "text-amber-600 border-amber-300" : "text-slate-400"}
-                          onClick={() => onToggle("document", d.document, !d.excluded)}
-                        >
-                          {d.excluded ? <><Ban className="w-3.5 h-3.5 mr-1" /> Excluida</> : "Incluida"}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {data?.documents.map((d) => (
+                <TableRow key={d.document} className={d.effectivePct === 0 ? "opacity-60" : ""}>
+                  <TableCell>N° {d.numero}</TableCell>
+                  <TableCell>{formatFecha(d.fecha)}</TableCell>
+                  <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCLP(d.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
+                  <TableCell className="text-right">
+                    <PctCell
+                      value={d.effectivePct}
+                      isOverride={d.overridePct !== null}
+                      onSave={(pct) => onSaveOverride("document", d.document, pct)}
+                      onReset={() => onSaveOverride("document", d.document, null)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
               {data && data.documents.length === 0 && (
                 <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">Sin ventas</TableCell></TableRow>
               )}
