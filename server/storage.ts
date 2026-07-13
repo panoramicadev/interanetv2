@@ -8728,12 +8728,14 @@ export class DatabaseStorage implements IStorage {
     console.log(`[DEBUG] Looking for salespeople under supervisor: ${supervisorId}`);
 
     // Obtener vendedores bajo este supervisor
+    // Incluye encargados de área con rol dual (vendedor + encargado): reportan
+    // al supervisor como vendedores, por lo que sus ventas deben consolidarse aquí.
     const salespeople = await db
       .select()
       .from(salespeopleUsers)
       .where(and(
         eq(salespeopleUsers.supervisorId, supervisorId),
-        eq(salespeopleUsers.role, 'salesperson'),
+        inArray(salespeopleUsers.role, ['salesperson', 'encargado_area']),
         eq(salespeopleUsers.isActive, true)
       ));
 
@@ -25315,7 +25317,8 @@ export class DatabaseStorage implements IStorage {
           .from(salespeopleUsers)
           .where(and(
             eq(salespeopleUsers.supervisorId, userId),
-            eq(salespeopleUsers.role, 'salesperson'),
+            // Incluye encargados de área con rol dual (reportan como vendedores).
+            inArray(salespeopleUsers.role, ['salesperson', 'encargado_area']),
             eq(salespeopleUsers.isActive, true)
           ));
 

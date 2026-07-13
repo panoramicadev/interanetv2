@@ -693,9 +693,15 @@ export default function UsersPage() {
     return role && !rolesWithoutSegment.includes(role);
   };
 
+  // Roles que pueden tener un supervisor asignado.
+  // Un encargado de área también puede desempeñarse como vendedor (rol dual):
+  // conserva su scope por sucursal y, además, reporta a un supervisor.
+  const canHaveSupervisor = (role: string | null | undefined) =>
+    role === "salesperson" || role === "encargado_area";
+
   // Clear fields when role changes
   useEffect(() => {
-    if (watchedRole !== "salesperson") {
+    if (!canHaveSupervisor(watchedRole)) {
       createForm.setValue("supervisorId", null);
     }
     if (watchedRole !== "supervisor") {
@@ -724,7 +730,7 @@ export default function UsersPage() {
   // Logic for edit form - watch role changes
   const watchedEditRole = editForm.watch("role");
   useEffect(() => {
-    if (watchedEditRole !== "salesperson") {
+    if (!canHaveSupervisor(watchedEditRole)) {
       editForm.setValue("supervisorId", null);
     }
     // Removed segment clearing - all roles can have segments now
@@ -734,7 +740,7 @@ export default function UsersPage() {
     // Limpiar campos según el rol
     const cleanedData = {
       ...data,
-      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
+      supervisorId: canHaveSupervisor(data.role) && data.supervisorId !== "none" ? data.supervisorId : null,
       assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
     console.log("Enviando datos:", cleanedData);
@@ -746,7 +752,7 @@ export default function UsersPage() {
     // Limpiar campos según el rol
     const cleanedData = {
       ...data,
-      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
+      supervisorId: canHaveSupervisor(data.role) && data.supervisorId !== "none" ? data.supervisorId : null,
       assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
 
@@ -942,7 +948,12 @@ export default function UsersPage() {
                               </Select>
                             </div>
                           )}
+                        </div>
+                      )}
 
+                      {/* Supervisor asignado: vendedores y encargados de área (rol dual) */}
+                      {canHaveSupervisor(createForm.watch("role")) && (
+                        <div className="space-y-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
                           <FormField
                             control={createForm.control}
                             name="supervisorId"
@@ -964,6 +975,11 @@ export default function UsersPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                {createForm.watch("role") === "encargado_area" && (
+                                  <FormDescription>
+                                    El encargado además reporta a este supervisor como vendedor.
+                                  </FormDescription>
+                                )}
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -1288,7 +1304,7 @@ export default function UsersPage() {
                   </div>
                 )}
 
-                {editForm.watch("role") === "salesperson" && (
+                {canHaveSupervisor(watchedEditRole) && (
                   <FormField
                     control={editForm.control}
                     name="supervisorId"
@@ -1310,6 +1326,11 @@ export default function UsersPage() {
                             ))}
                           </SelectContent>
                         </Select>
+                        {watchedEditRole === "encargado_area" && (
+                          <FormDescription>
+                            El encargado además reporta a este supervisor como vendedor.
+                          </FormDescription>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
