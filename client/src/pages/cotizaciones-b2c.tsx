@@ -63,6 +63,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 };
 
 export default function CotizacionesB2CPage() {
+  return <SolicitudesWebPanel />;
+}
+
+/**
+ * SolicitudesWebPanel — reusable list of B2C quote requests (solicitudes web).
+ * Rendered standalone in /cotizaciones-b2c and embedded as the "Solicitudes" tab in Pedidos.
+ * Pass `embedded` to drop the standalone page header/padding.
+ */
+export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -161,18 +170,26 @@ export default function CotizacionesB2CPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 max-w-7xl mx-auto space-y-6"}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-[#FF6E23]" />
-            Solicitudes de Cotización B2C
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Solicitudes recibidas desde el cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>
-          </p>
-        </div>
+        {embedded ? (
+          <div>
+            <p className="text-sm text-gray-500">
+              Solicitudes recibidas desde el sitio web (cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>)
+            </p>
+          </div>
+        ) : (
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+              <FileText className="w-6 h-6 text-[#FF6E23]" />
+              Solicitudes de Cotización B2C
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Solicitudes recibidas desde el cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>
+            </p>
+          </div>
+        )}
         <button
           onClick={() => refetch()}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
