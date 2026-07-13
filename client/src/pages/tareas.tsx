@@ -4196,7 +4196,7 @@ function TaskDetailDialog({
                     <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
-                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
               </div>
@@ -4802,7 +4802,7 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
           <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
-          <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} /></TabsContent>
+          <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
         </div>
       </Tabs>
     </div>
@@ -4987,23 +4987,145 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
   );
 }
 
-function MarketingClientePanel({ clienteNombre }: { clienteNombre: string }) {
+function MarketingClientePanel({ clienteNombre, canManage }: { clienteNombre: string; canManage: boolean }) {
+  const { toast } = useToast();
+  const [assignOpen, setAssignOpen] = useState(false);
   const { data = [], isLoading } = useQuery<Array<{ itemId: string; itemNombre: string; unidad: string; cantidadEnPoder: number }>>({
     queryKey: ["/api/marketing/inventario-por-cliente", { cliente: clienteNombre }],
     enabled: !!clienteNombre,
   });
-  if (isLoading) return <p className="text-xs text-slate-400">Cargando elementos…</p>;
-  if (data.length === 0) return <p className="text-xs text-slate-400 italic">El cliente no tiene elementos de marketing registrados.</p>;
+
+  // Refrescar tanto lo que tiene el cliente como el inventario global (el stock cambió).
+  const refetchAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/marketing/inventario-por-cliente", { cliente: clienteNombre }] });
+    queryClient.invalidateQueries({ queryKey: ["/api/marketing/inventario"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/marketing/inventario/summary"] });
+  };
+
+  // Devolución: el cliente reintegra elementos → suma stock de vuelta al inventario.
+  const devolverMutation = useMutation({
+    mutationFn: async ({ itemId, cantidad }: { itemId: string; cantidad: number }) =>
+      apiRequest("POST", `/api/marketing/inventario/${itemId}/movimientos`, { tipo: "devolucion", cantidad, clienteNombre }),
+    onSuccess: () => { refetchAll(); toast({ title: "Devolución registrada", description: "Stock reintegrado al inventario." }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   return (
-    <div className="space-y-1">
-      {data.map((m) => (
-        <div key={m.itemId} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
-          <Palette className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
-          <span className="font-medium text-slate-700 flex-1 truncate">{m.itemNombre}</span>
-          <span className="font-semibold text-slate-700 flex-shrink-0">{m.cantidadEnPoder} {m.unidad}</span>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Elementos entregados</p>
+        {canManage && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAssignOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Entregar
+          </Button>
+        )}
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-slate-400">Cargando elementos…</p>
+      ) : data.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">El cliente no tiene elementos de marketing registrados.</p>
+      ) : (
+        <div className="space-y-1">
+          {data.map((m) => (
+            <div key={m.itemId} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+              <Palette className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
+              <span className="font-medium text-slate-700 flex-1 truncate">{m.itemNombre}</span>
+              <span className="font-semibold text-slate-700 flex-shrink-0">{m.cantidadEnPoder} {m.unidad}</span>
+              {canManage && (
+                <button
+                  className="text-[10px] font-medium text-slate-400 hover:text-orange-600 flex-shrink-0 disabled:opacity-50"
+                  disabled={devolverMutation.isPending}
+                  onClick={() => {
+                    const raw = window.prompt(`¿Cuántas ${m.unidad} devuelve de "${m.itemNombre}"? (máx ${m.cantidadEnPoder})`, String(m.cantidadEnPoder));
+                    if (raw == null) return;
+                    const cantidad = parseInt(raw, 10);
+                    if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+                    if (cantidad > m.cantidadEnPoder) { toast({ title: "Cantidad inválida", description: "No puede exceder lo que tiene el cliente.", variant: "destructive" }); return; }
+                    devolverMutation.mutate({ itemId: m.itemId, cantidad });
+                  }}
+                >Devolver</button>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+      {assignOpen && (
+        <AssignMarketingDialog open={assignOpen} onOpenChange={setAssignOpen} clienteNombre={clienteNombre} onDone={refetchAll} />
+      )}
     </div>
+  );
+}
+
+// Diálogo para entregar un elemento del inventario de marketing a un cliente.
+// Crea un movimiento 'salida' que el backend descuenta del stock automáticamente.
+function AssignMarketingDialog({ open, onOpenChange, clienteNombre, onDone }: { open: boolean; onOpenChange: (o: boolean) => void; clienteNombre: string; onDone: () => void }) {
+  const { toast } = useToast();
+  const [itemId, setItemId] = useState("");
+  const [cantidad, setCantidad] = useState("1");
+  const [nota, setNota] = useState("");
+
+  const { data: items = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/marketing/inventario"],
+    enabled: open,
+  });
+  const disponibles = items.filter((i) => Number(i.cantidad) > 0);
+  const selected = items.find((i) => i.id === itemId);
+  const stock = selected ? Number(selected.cantidad) : 0;
+  const qty = parseInt(cantidad, 10);
+  const invalid = !itemId || !Number.isFinite(qty) || qty <= 0 || qty > stock;
+
+  const assignMutation = useMutation({
+    mutationFn: async () =>
+      apiRequest("POST", `/api/marketing/inventario/${itemId}/movimientos`, {
+        tipo: "salida",
+        cantidad: qty,
+        clienteNombre,
+        nota: nota.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast({ title: "Elemento entregado", description: "Stock descontado del inventario." });
+      onDone();
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Entregar elemento de marketing</DialogTitle>
+          <DialogDescription>Se descuenta del inventario y queda registrado a nombre de {clienteNombre}.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-600">Elemento</label>
+            <Select value={itemId} onValueChange={(v) => { setItemId(v); setCantidad("1"); }}>
+              <SelectTrigger><SelectValue placeholder={isLoading ? "Cargando…" : (disponibles.length ? "Selecciona un elemento" : "Sin stock disponible")} /></SelectTrigger>
+              <SelectContent>
+                {disponibles.map((i) => (
+                  <SelectItem key={i.id} value={i.id}>{i.nombre} — {i.cantidad} {i.unidad} disp.</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-600">Cantidad {selected ? `(máx ${stock} ${selected.unidad})` : ""}</label>
+            <Input type="number" min={1} max={stock || undefined} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-600">Nota (opcional)</label>
+            <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej: entregado en visita" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={invalid || assignMutation.isPending} onClick={() => assignMutation.mutate()}>
+            {assignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entregar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
