@@ -64,6 +64,16 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
+      href: "/seguimiento-clientes",
+      label: "CRM",
+      icon: UserCheck,
+    },
+    {
+      href: "/tomador-pedidos-v2",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
+    },
+    {
       href: "/ecommerce",
       label: "Panorámica Market",
       icon: ShoppingCart,
@@ -96,11 +106,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         //   icon: FileText,
         // },
         {
-          href: "/seguimiento-clientes",
-          label: "CRM",
-          icon: UserCheck,
-        },
-        {
           href: "/donde-comprar-admin",
           label: "Dónde Comprar",
           icon: MapPin,
@@ -117,12 +122,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
       separator: true,
-    },
-
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador de Pedidos",
-      icon: ClipboardCheck,
     },
     {
       href: "/marketing",
