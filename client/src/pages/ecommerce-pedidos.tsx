@@ -74,7 +74,7 @@ function DefaultPedidosView() {
       </div>
 
       <Tabs defaultValue="pedidos" className="w-full space-y-6">
-        <TabsList className="grid grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full max-w-2xl">
+        <TabsList className="grid grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
           <TabsTrigger
             value="pedidos"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"

@@ -782,7 +782,23 @@ export default function TareasPage() {
 
     // Segmento filter (skip for salesperson - they see all their tasks regardless of segment)
     if (!isSalesperson && segmentoFilter !== "all") {
-      if (!(task as any).segmento || (task as any).segmento !== segmentoFilter) return false;
+      const matchesSegment = (task as any).segmento === segmentoFilter;
+      if (isMarketing) {
+        // Marketing ve su segmento MÁS las tareas que le asignaron/creó (de cualquier
+        // segmento) — "sus tareas de marketing y las otras que le van asociando".
+        const isMine =
+          task.createdByUserId === user.id ||
+          task.assignments.some(
+            (a) =>
+              (a.assigneeType === "supervisor" ||
+                a.assigneeType === "salesperson" ||
+                (a as any).assigneeType === "user") &&
+              a.assigneeId === user.id,
+          );
+        if (!matchesSegment && !isMine) return false;
+      } else if (!(task as any).segmento || !matchesSegment) {
+        return false;
+      }
     }
 
     return true;
@@ -1383,7 +1399,8 @@ export default function TareasPage() {
       {/* Tabs para Tareas, Calendario, Estimación Semanal/Mensual */}
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+        {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
+        <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />

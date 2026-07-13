@@ -13449,10 +13449,27 @@ export class DatabaseStorage implements IStorage {
         case 'tecnico_obra':
           // Tecnico de obra sees: tasks they created OR tasks assigned to them
           taskConditions.push(sql`(
-            ${tasks.createdByUserId} = ${userId} OR 
+            ${tasks.createdByUserId} = ${userId} OR
             EXISTS (
-              SELECT 1 FROM ${taskAssignments} 
-              WHERE ${taskAssignments.taskId} = ${tasks.id} 
+              SELECT 1 FROM ${taskAssignments}
+              WHERE ${taskAssignments.taskId} = ${tasks.id}
+              AND (
+                (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId})
+              )
+            )
+          )`);
+          break;
+        case 'marketing':
+          // Marketing ve: todas las tareas del segmento "marketing" (su área) MÁS
+          // las que creó o le asignaron desde otras áreas ("las que le van asociando").
+          taskConditions.push(sql`(
+            ${tasks.segmento} = 'marketing' OR
+            ${tasks.createdByUserId} = ${userId} OR
+            EXISTS (
+              SELECT 1 FROM ${taskAssignments}
+              WHERE ${taskAssignments.taskId} = ${tasks.id}
               AND (
                 (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
                 (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
