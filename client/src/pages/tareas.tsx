@@ -155,6 +155,8 @@ export default function TareasPage() {
   const [editingTask, setEditingTask] = useState<Task & { assignments: TaskAssignment[] } | null>(null);
 
   const isSalesperson = user?.role === 'salesperson';
+  // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
+  const isMarketing = user?.role === 'marketing';
 
   // View state - vendedores always see "my-tasks"
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
@@ -165,7 +167,7 @@ export default function TareasPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
-  const [segmentoFilter, setSegmentoFilter] = useState<string>(isSalesperson ? "all" : "ferreterias");
+  const [segmentoFilter, setSegmentoFilter] = useState<string>(isSalesperson ? "all" : isMarketing ? "marketing" : "ferreterias");
 
   // Supervisor: solo puede ver la pestaña de su segmento asignado
   // (ej: Patricio "Industrial" → assignedSegment "digital"). Los demás roles con acceso
@@ -173,13 +175,17 @@ export default function TareasPage() {
   const isSupervisor = user?.role === 'supervisor';
   const assignedSegment = ((user as any)?.assignedSegment as string | undefined)?.toLowerCase() ?? "";
   const visibleSegmentos = useMemo(() => {
+    // El rol marketing solo ve el segmento "marketing".
+    if (isMarketing) {
+      return SEGMENTOS.filter((seg) => seg.value === 'marketing');
+    }
     // Admin ve/asigna TODOS los segmentos; los demás roles solo el suyo (assignedSegment).
     if (user?.role !== 'admin' && assignedSegment) {
       const scoped = SEGMENTOS.filter((seg) => assignedSegment.includes(seg.value));
       if (scoped.length > 0) return scoped;
     }
     return SEGMENTOS;
-  }, [user?.role, assignedSegment]);
+  }, [user?.role, assignedSegment, isMarketing]);
 
   // Si el segmento activo no está entre los visibles (ej: supervisor con el default "ferreterias"),
   // reposicionar al primer segmento permitido para que aterrice directo en su área.
@@ -1374,12 +1380,12 @@ export default function TareasPage() {
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
             </TabsTrigger>
-            {user?.role !== 'tecnico_obra' && (
+            {user?.role !== 'tecnico_obra' && !isMarketing && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
                 <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
@@ -1394,8 +1400,9 @@ export default function TareasPage() {
 
         <TabsContent value="tareas" className="space-y-6">
 
-          {/* Segment Tabs - hidden for salesperson. Supervisor solo ve su segmento asignado */}
-          {!isSalesperson && (
+          {/* Segment Tabs - hidden for salesperson y cuando solo hay un segmento visible
+              (marketing / supervisor con segmento único): no tiene sentido mostrar una sola pestaña */}
+          {!isSalesperson && visibleSegmentos.length > 1 && (
             <div className={`flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0 ${visibleSegmentos.length > 1 ? 'sm:grid sm:grid-cols-4' : 'sm:flex'}`}>
               {visibleSegmentos.map((seg) => (
                 <button

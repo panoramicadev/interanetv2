@@ -425,6 +425,22 @@ export const requireCommercialAccess = requireRoles([
   'reception'
 ]);
 
+// Marketing Module Access Control
+// Access to the Marketing module (inventario, gastos, presupuesto, solicitudes, creatividades).
+// Same commercial roles as requireCommercialAccess, plus the dedicated `marketing` role.
+// Kept separate so the marketing role does not gain access to sales/CRM/dashboard endpoints.
+export const requireMarketingAccess = requireRoles([
+  'admin',
+  'supervisor',
+  'encargado_area',
+  'salesperson',
+  'tecnico_obra',
+  'jefe_planta',
+  'logistica_bodega',
+  'reception',
+  'marketing'
+]);
+
 // Plant Operations Access Control
 // Access to plant operational functions like inventory sync, CMMS, etc.
 // Allows: admin, supervisor, encargado_area, jefe_planta, mantencion, and all plant departmental roles
