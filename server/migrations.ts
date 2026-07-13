@@ -825,6 +825,19 @@ export async function bootstrapDatabase(): Promise<void> {
       ON CONFLICT DO NOTHING
     `);
 
+    // Vínculo gasto de marketing → ítem de presupuesto (comparar presupuestado
+    // vs. real). Additive e idempotente; el runner de migraciones no es
+    // confiable en prod, por eso se aplica en runtime.
+    console.log('  🔗 Verificando vínculo gastos_marketing → presupuesto...');
+    await db.execute(sql`
+      ALTER TABLE gastos_marketing
+      ADD COLUMN IF NOT EXISTS presupuesto_item_id VARCHAR(255)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "IDX_gastos_marketing_presupuesto_item"
+      ON gastos_marketing (presupuesto_item_id)
+    `);
+
     // Rutas comerciales (runtime bootstrap — el runner de migraciones no es confiable en prod).
     console.log('  🧭 Verificando tablas de rutas comerciales...');
     await db.execute(sql`

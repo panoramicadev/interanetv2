@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -31,7 +31,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Loader2, Save, Download, TrendingUp } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, Download, TrendingUp, Eye, EyeOff, AlertTriangle } from "lucide-react";
 
 interface PresupuestoItem {
     id: string;
@@ -54,10 +54,36 @@ interface PresupuestoItem {
     updatedAt: string;
 }
 
+interface GastoLite {
+    id: string;
+    concepto: string;
+    monto: string;
+    categoria: string | null;
+    mes: number;
+    anio: number;
+    presupuestoItemId: string | null;
+}
+
 const MESES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
 ] as const;
+
+const ZEROS = () => Array(12).fill(0) as number[];
+
+// Color de cumplimiento: verde si va bajo/en presupuesto, ámbar si lo roza,
+// rojo si se pasó. `budget === 0 && real > 0` = ítem nuevo sin presupuesto.
+function cumplimientoColor(real: number, budget: number): { text: string; bar: string; label: string } {
+    if (budget === 0) {
+        return real > 0
+            ? { text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500", label: "Nuevo" }
+            : { text: "text-slate-400", bar: "bg-slate-300", label: "—" };
+    }
+    const pct = (real / budget) * 100;
+    if (pct > 110) return { text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500", label: `${Math.round(pct)}%` };
+    if (pct > 100) return { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500", label: `${Math.round(pct)}%` };
+    return { text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500", label: `${Math.round(pct)}%` };
+}
 
 const MESES_CORTO = [
     "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -93,6 +119,9 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
     const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
     const [newItem, setNewItem] = useState({ concepto: "", categoria: "DIGITAL" });
     const inputRef = useRef<HTMLInputElement>(null);
+    // Vista comparativa presupuestado vs. gasto real
+    const [showReal, setShowReal] = useState(false);
+    const [barsIn, setBarsIn] = useState(false);
 
     const isAdmin = userRole === "admin" || userRole === "supervisor";
 
@@ -106,6 +135,40 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
             return response.json();
         },
     });
+
+    // Gastos reales del año (para comparar contra el presupuesto)
+    const { data: gastosAnio = [] } = useQuery<GastoLite[]>({
+        queryKey: ["/api/marketing/gastos/anio", selectedAnio],
+        queryFn: async () => {
+            const res = await fetch(`/api/marketing/gastos/anio/${selectedAnio}`, { credentials: "include" });
+            if (!res.ok) throw new Error("Error al cargar gastos");
+            return res.json();
+        },
+        enabled: showReal, // solo trae los gastos cuando el usuario activa la vista real
+    });
+
+    // Real por ítem de presupuesto (12 meses) + gastos sin asignar → "ítems nuevos"
+    const { realByItem, virtualItems } = useMemo(() => {
+        const byItem: Record<string, number[]> = {};
+        const sinAsignar: Record<string, { concepto: string; categoria: string; real: number[] }> = {};
+        for (const g of gastosAnio) {
+            const monto = parseNum(g.monto);
+            const idx = Math.min(11, Math.max(0, (g.mes || 1) - 1));
+            if (g.presupuestoItemId) {
+                if (!byItem[g.presupuestoItemId]) byItem[g.presupuestoItemId] = ZEROS();
+                byItem[g.presupuestoItemId][idx] += monto;
+            } else {
+                const cat = g.categoria || "OTROS";
+                const key = `${cat}||${g.concepto}`;
+                if (!sinAsignar[key]) sinAsignar[key] = { concepto: g.concepto, categoria: cat, real: ZEROS() };
+                sinAsignar[key].real[idx] += monto;
+            }
+        }
+        const virtual = Object.entries(sinAsignar).map(([key, v]) => ({ id: `virtual-${key}`, ...v }));
+        return { realByItem: byItem, virtualItems: virtual };
+    }, [gastosAnio]);
+
+    const getItemReal = useCallback((id: string) => realByItem[id] || ZEROS(), [realByItem]);
 
     const createMutation = useMutation({
         mutationFn: async (data: any) => {
@@ -154,6 +217,15 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
             inputRef.current.select();
         }
     }, [editingCell]);
+
+    // Dispara la animación de las barras un tick después de activar la vista real
+    useEffect(() => {
+        if (showReal) {
+            const t = setTimeout(() => setBarsIn(true), 60);
+            return () => clearTimeout(t);
+        }
+        setBarsIn(false);
+    }, [showReal, selectedAnio]);
 
     const handleCellClick = useCallback((id: string, field: string, currentValue: string | null) => {
         if (!isAdmin) return;
@@ -210,6 +282,24 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
         items.reduce((sum, item) => sum + parseNum(item[mes as keyof PresupuestoItem] as string), 0)
     );
     const totalAnual = totalesPorMes.reduce((a, b) => a + b, 0);
+
+    // Totales reales por mes (ítems presupuestados + ítems nuevos sin asignar)
+    const realTotalesPorMes = MESES.map((_, i) => {
+        let sum = 0;
+        for (const item of items) sum += getItemReal(item.id)[i];
+        for (const v of virtualItems) sum += v.real[i];
+        return sum;
+    });
+    const realTotalAnual = realTotalesPorMes.reduce((a, b) => a + b, 0);
+    const diferenciaAnual = totalAnual - realTotalAnual; // >0 = queda saldo; <0 = sobregiro
+    const ejecucionPct = totalAnual > 0 ? Math.round((realTotalAnual / totalAnual) * 100) : 0;
+    const virtualTotalAnual = virtualItems.reduce((s, v) => s + v.real.reduce((a, b) => a + b, 0), 0);
+
+    // Ítems nuevos (sin presupuesto) agrupados por categoría, para el bloque final
+    const virtualPorCategoria = virtualItems.reduce((acc, v) => {
+        (acc[v.categoria] ||= []).push(v);
+        return acc;
+    }, {} as Record<string, typeof virtualItems>);
 
     // Category subtotals
     const getCategoryTotals = (categoryItems: PresupuestoItem[]) => {
@@ -292,6 +382,16 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                 </div>
                 <div className="flex gap-2 ml-auto">
                     <Button
+                        onClick={() => setShowReal((v) => !v)}
+                        className={`rounded-xl font-semibold transition-all ${showReal
+                            ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30"
+                            : "bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-lg shadow-rose-500/40 animate-pulse"
+                            }`}
+                    >
+                        {showReal ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                        {showReal ? "Ocultar gastos real" : "Ver gastos real"}
+                    </Button>
+                    <Button
                         variant="outline"
                         onClick={handleExportCSV}
                         className="rounded-xl"
@@ -339,13 +439,55 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                 </Card>
             </div>
 
+            {/* Comparativa presupuestado vs. real */}
+            {showReal && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <Card className="border-0 shadow-md bg-gradient-to-br from-slate-700 to-slate-900 text-white">
+                        <CardContent className="pt-6">
+                            <p className="text-sm font-medium text-slate-300">Presupuestado {selectedAnio}</p>
+                            <p className="text-2xl font-bold mt-1">{formatCLP(totalAnual)}</p>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-md bg-gradient-to-br from-rose-500 to-red-600 text-white">
+                        <CardContent className="pt-6">
+                            <p className="text-sm font-medium text-rose-100">Gasto Real</p>
+                            <p className="text-2xl font-bold mt-1">{formatCLP(realTotalAnual)}</p>
+                            <p className="text-xs text-rose-200 mt-1">{ejecucionPct}% del presupuesto</p>
+                        </CardContent>
+                    </Card>
+                    <Card className={`border-0 shadow-md text-white bg-gradient-to-br ${diferenciaAnual < 0 ? "from-rose-600 to-rose-800" : "from-emerald-500 to-teal-600"}`}>
+                        <CardContent className="pt-6">
+                            <p className="text-sm font-medium text-white/80">{diferenciaAnual < 0 ? "Sobregiro" : "Saldo disponible"}</p>
+                            <p className="text-2xl font-bold mt-1">{formatCLP(Math.abs(diferenciaAnual))}</p>
+                            <p className="text-xs text-white/70 mt-1">{diferenciaAnual < 0 ? "por sobre lo presupuestado" : "sin gastar aún"}</p>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-md bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                        <CardContent className="pt-6">
+                            <p className="text-sm font-medium text-amber-100">Ítems nuevos</p>
+                            <p className="text-2xl font-bold mt-1">{formatCLP(virtualTotalAnual)}</p>
+                            <p className="text-xs text-amber-200 mt-1">{virtualItems.length} sin presupuesto</p>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {/* Excel-like table */}
             <Card className="border-0 shadow-lg overflow-hidden">
                 <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 text-white pb-4">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        <TrendingUp className="h-5 w-5" />
-                        Presupuesto de Marketing {selectedAnio}
-                    </CardTitle>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <TrendingUp className="h-5 w-5" />
+                            Presupuesto de Marketing {selectedAnio}
+                        </CardTitle>
+                        {showReal && (
+                            <div className="flex items-center gap-3 text-[11px] font-medium animate-in fade-in duration-500">
+                                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" /> En presupuesto</span>
+                                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500" /> Al límite</span>
+                                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-rose-500" /> Sobregiro / nuevo</span>
+                            </div>
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -381,6 +523,8 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                             </thead>
                             {Object.entries(groupedItems).map(([category, categoryItems]) => {
                                 const catTotals = getCategoryTotals(categoryItems);
+                                const realCatMeses = MESES.map((_, i) => categoryItems.reduce((s, it) => s + getItemReal(it.id)[i], 0));
+                                const realCatTotal = realCatMeses.reduce((a, b) => a + b, 0);
                                 const totalCols = 1 + MESES.length + 1 + (isAdmin ? 1 : 0);
                                 return (
                                     <tbody key={category}>
@@ -402,7 +546,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                     }`}
                                             >
                                                 {/* Concepto cell */}
-                                                <td className="sticky left-0 z-10 bg-inherit px-4 py-2 font-medium text-slate-800 dark:text-slate-200 truncate">
+                                                <td className="sticky left-0 z-10 bg-inherit px-4 py-2 font-medium text-slate-800 dark:text-slate-200">
                                                     {editingCell?.id === item.id && editingCell.field === "concepto" ? (
                                                         <Input
                                                             ref={inputRef}
@@ -420,19 +564,38 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                         />
                                                     ) : (
                                                         <span
-                                                            className={isAdmin ? "cursor-pointer hover:text-indigo-600 transition-colors" : ""}
+                                                            className={`truncate block ${isAdmin ? "cursor-pointer hover:text-indigo-600 transition-colors" : ""}`}
                                                             onDoubleClick={() => handleConceptoEdit(item.id, item.concepto)}
-                                                            title={isAdmin ? "Doble click para editar" : ""}
+                                                            title={isAdmin ? "Doble click para editar" : item.concepto}
                                                         >
                                                             {item.concepto}
                                                         </span>
                                                     )}
+                                                    {showReal && (() => {
+                                                        const b = getRowTotal(item);
+                                                        const r = getItemReal(item.id).reduce((a, c) => a + c, 0);
+                                                        const col = cumplimientoColor(r, b);
+                                                        const pct = b > 0 ? Math.min(100, (r / b) * 100) : (r > 0 ? 100 : 0);
+                                                        return (
+                                                            <div className="mt-1.5 flex items-center gap-1.5">
+                                                                <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full rounded-full ${col.bar} origin-left transition-transform duration-700 ease-out`}
+                                                                        style={{ transform: `scaleX(${barsIn ? pct / 100 : 0})` }}
+                                                                    />
+                                                                </div>
+                                                                <span className={`text-[10px] font-bold ${col.text}`}>{col.label}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
 
                                                 {/* Month cells */}
-                                                {MESES.map((mes) => {
+                                                {MESES.map((mes, mi) => {
                                                     const val = parseNum(item[mes as keyof PresupuestoItem] as string);
                                                     const isEditing = editingCell?.id === item.id && editingCell.field === mes;
+                                                    const real = showReal ? getItemReal(item.id)[mi] : 0;
+                                                    const realCol = cumplimientoColor(real, val);
 
                                                     return (
                                                         <td
@@ -454,7 +617,14 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                                     className="h-7 text-sm text-right px-1 rounded-md w-full"
                                                                 />
                                                             ) : (
-                                                                <span className="text-xs">{formatCLP(val)}</span>
+                                                                <div className="flex flex-col items-end leading-tight">
+                                                                    <span className="text-xs">{formatCLP(val)}</span>
+                                                                    {showReal && real > 0 && (
+                                                                        <span className={`text-[10px] font-bold animate-in fade-in slide-in-from-bottom-1 duration-500 ${realCol.text}`}>
+                                                                            {formatCLP(real)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </td>
                                                     );
@@ -462,7 +632,17 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
 
                                                 {/* Row total */}
                                                 <td className="px-3 py-2 text-right font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 tabular-nums">
-                                                    <span className="text-xs">{formatCLP(getRowTotal(item))}</span>
+                                                    <div className="flex flex-col items-end leading-tight">
+                                                        <span className="text-xs">{formatCLP(getRowTotal(item))}</span>
+                                                        {showReal && (() => {
+                                                            const r = getItemReal(item.id).reduce((a, c) => a + c, 0);
+                                                            return r > 0 ? (
+                                                                <span className={`text-[10px] font-bold animate-in fade-in duration-500 ${cumplimientoColor(r, getRowTotal(item)).text}`}>
+                                                                    {formatCLP(r)}
+                                                                </span>
+                                                            ) : null;
+                                                        })()}
+                                                    </div>
                                                 </td>
 
                                                 {/* Delete button */}
@@ -491,17 +671,70 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                             </td>
                                             {catTotals.mesesTotals.map((val, i) => (
                                                 <td key={i} className="px-2 py-2 text-right font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                                                    <span className="text-xs">{formatCLP(val)}</span>
+                                                    <div className="flex flex-col items-end leading-tight">
+                                                        <span className="text-xs">{formatCLP(val)}</span>
+                                                        {showReal && realCatMeses[i] > 0 && (
+                                                            <span className={`text-[10px] font-bold ${cumplimientoColor(realCatMeses[i], val).text}`}>{formatCLP(realCatMeses[i])}</span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             ))}
                                             <td className="px-3 py-2 text-right font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 tabular-nums">
-                                                <span className="text-xs">{formatCLP(catTotals.total)}</span>
+                                                <div className="flex flex-col items-end leading-tight">
+                                                    <span className="text-xs">{formatCLP(catTotals.total)}</span>
+                                                    {showReal && realCatTotal > 0 && (
+                                                        <span className={`text-[10px] font-bold ${cumplimientoColor(realCatTotal, catTotals.total).text}`}>{formatCLP(realCatTotal)}</span>
+                                                    )}
+                                                </div>
                                             </td>
                                             {isAdmin && <td></td>}
                                         </tr>
                                     </tbody>
                                 );
                             })}
+
+                            {/* Ítems nuevos (gastos sin asignar a un ítem de presupuesto) */}
+                            {showReal && virtualItems.length > 0 && (
+                                <tbody>
+                                    <tr className="bg-gradient-to-r from-amber-50 to-rose-50 dark:from-amber-950/20 dark:to-rose-950/20 border-t-2 border-amber-300 dark:border-amber-800">
+                                        <td
+                                            colSpan={1 + MESES.length + 1 + (isAdmin ? 1 : 0)}
+                                            className="px-4 py-2.5 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase tracking-wider"
+                                        >
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <AlertTriangle className="h-3.5 w-3.5" />
+                                                Ítems nuevos — gastos sin presupuesto asignado
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {virtualItems.map((v) => {
+                                        const rowReal = v.real.reduce((a, c) => a + c, 0);
+                                        return (
+                                            <tr key={v.id} className="border-b border-amber-100 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/10">
+                                                <td className="sticky left-0 z-10 bg-inherit px-4 py-2 font-medium text-slate-800 dark:text-slate-200">
+                                                    <span className="truncate block">{v.concepto}</span>
+                                                    <span className="mt-0.5 inline-block text-[9px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+                                                        {v.categoria} · sin presupuesto
+                                                    </span>
+                                                </td>
+                                                {v.real.map((r, mi) => (
+                                                    <td key={mi} className="px-2 py-2 text-right tabular-nums">
+                                                        {r > 0 ? (
+                                                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 animate-in fade-in duration-500">{formatCLP(r)}</span>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-300 dark:text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                ))}
+                                                <td className="px-3 py-2 text-right font-bold text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 tabular-nums">
+                                                    <span className="text-xs">{formatCLP(rowReal)}</span>
+                                                </td>
+                                                {isAdmin && <td></td>}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            )}
 
                             {/* Grand total */}
                             <tfoot>
@@ -519,6 +752,22 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                     </td>
                                     {isAdmin && <td className="bg-slate-800"></td>}
                                 </tr>
+                                {showReal && (
+                                    <tr className="bg-gradient-to-r from-rose-700 to-red-800 text-white">
+                                        <td className="sticky left-0 z-10 bg-rose-700 px-4 py-3 font-bold text-sm uppercase tracking-wider">
+                                            Gasto Real
+                                        </td>
+                                        {realTotalesPorMes.map((val, i) => (
+                                            <td key={i} className="px-2 py-3 text-right font-bold tabular-nums">
+                                                <span className="text-xs">{val > 0 ? formatCLP(val) : "-"}</span>
+                                            </td>
+                                        ))}
+                                        <td className="px-3 py-3 text-right font-bold bg-rose-900/40 tabular-nums">
+                                            <span className="text-sm">{formatCLP(realTotalAnual)}</span>
+                                        </td>
+                                        {isAdmin && <td className="bg-rose-700"></td>}
+                                    </tr>
+                                )}
                             </tfoot>
                         </table>
                     </div>

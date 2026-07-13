@@ -187,23 +187,23 @@ export default function Marketing() {
 
               {isAdmin && (
                 <TabsTrigger
-                  value="presupuesto"
-                  data-testid="tab-presupuesto"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <DollarSign className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Presupuesto</span>
-                </TabsTrigger>
-              )}
-
-              {isAdmin && (
-                <TabsTrigger
                   value="gastos"
                   data-testid="tab-gastos"
                   className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <Receipt className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Gastos</span>
+                </TabsTrigger>
+              )}
+
+              {isAdmin && (
+                <TabsTrigger
+                  value="presupuesto"
+                  data-testid="tab-presupuesto"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <DollarSign className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Presupuesto</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -214,17 +214,17 @@ export default function Marketing() {
             <InventarioMarketing userRole={user.role} />
           </TabsContent>
 
-          {/* Tab: Presupuesto (tabla Excel) */}
-          {isAdmin && (
-            <TabsContent value="presupuesto" className="space-y-6">
-              <PresupuestoTabMarketing userRole={user.role} />
-            </TabsContent>
-          )}
-
           {/* Tab: Gastos */}
           {isAdmin && (
             <TabsContent value="gastos" className="space-y-6">
               <GastosTabMarketing userRole={user.role} />
+            </TabsContent>
+          )}
+
+          {/* Tab: Presupuesto (tabla Excel) */}
+          {isAdmin && (
+            <TabsContent value="presupuesto" className="space-y-6">
+              <PresupuestoTabMarketing userRole={user.role} />
             </TabsContent>
           )}
         </Tabs>
