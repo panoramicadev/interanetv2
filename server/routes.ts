@@ -14459,6 +14459,37 @@ export function registerRoutes(app: Express): Server {
     } catch (e) { console.error("Error creating ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
   });
 
+  // Crear ruta "al vuelo" desde el formulario de actividades / pestaña Rutas del cliente.
+  // A diferencia de POST /api/rutas (que exige elegir un vendedor y es solo supervisor/admin),
+  // acá cualquier usuario comercial autenticado puede registrar una ruta propia: queda a su
+  // nombre (vendedorId = supervisorId = user.id) para que la vea al recargar el desplegable,
+  // sin importar su rol. Opcionalmente asigna el cliente a la ruta en el mismo paso.
+  app.post('/api/rutas/quick', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { nombre, clienteId, clienteNombre, segmento } = req.body || {};
+      if (!nombre || !String(nombre).trim()) {
+        return res.status(400).json({ message: "El nombre de la ruta es requerido" });
+      }
+      const ruta = await storage.createRuta({
+        nombre: String(nombre).trim(),
+        vendedorId: user.id,
+        supervisorId: user.id,
+        segmento: segmento || null,
+        estado: 'activa',
+      } as any);
+      if (clienteId) {
+        try {
+          await storage.addClienteToRuta(ruta.id, {
+            clienteId: String(clienteId),
+            clienteNombre: clienteNombre ? String(clienteNombre) : String(clienteId),
+          } as any);
+        } catch (err) { console.error("Error asignando cliente a ruta rápida:", err); }
+      }
+      res.status(201).json(ruta);
+    } catch (e) { console.error("Error creating quick ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
+  });
+
   app.patch('/api/rutas/:id', requireAuth, async (req: any, res) => {
     try {
       if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
