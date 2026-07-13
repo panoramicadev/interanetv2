@@ -506,8 +506,11 @@ export default function SeguimientoClientes() {
           />
         </div>
 
-        {/* Toolbar de filtros — solo administrador (los demás ven su cartera ya scopeada por rol) */}
-        {user?.role === 'admin' && (
+        {/* Toolbar de filtros — administrador, supervisor y encargado de área.
+            El supervisor/encargado ve los mismos filtros que el admin; sus datos ya vienen
+            scopeados a su equipo desde el backend (getVendedorScope), así que los filtros
+            operan solo sobre su cartera. Los vendedores no ven la toolbar (cartera propia). */}
+        {isAdminOrSupervisor && (
         <div className="rounded-xl border bg-card shadow-sm p-3">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
             <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">

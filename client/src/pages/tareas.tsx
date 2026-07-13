@@ -505,13 +505,17 @@ export default function TareasPage() {
     }
   }, [isAuthenticated, isLoading, toast, setLocation]);
 
-  // Query for tasks with filters - Build query params properly to avoid [object Object] serialization
+  // Clave estructurada: ["/api/tasks", { status, priority }]. El fetcher por defecto
+  // (getQueryFn) arma la URL con esos params, y —clave para el bug de tareas "fantasma"—
+  // cualquier invalidate/refetch sobre ["/api/tasks"] hace match parcial con esta variante
+  // filtrada. Antes la clave era un único string ["/api/tasks?status=..."], distinto de
+  // ["/api/tasks"], por lo que con staleTime:Infinity una tarea borrada por el admin seguía
+  // visible para el vendedor que tenía un filtro activo hasta recargar la página.
   const buildTasksQueryKey = () => {
-    const params: string[] = [];
-    if (statusFilter !== "all") params.push(`status=${statusFilter}`);
-    if (priorityFilter !== "all") params.push(`priority=${priorityFilter}`);
-    const queryString = params.length > 0 ? `?${params.join('&')}` : '';
-    return [`/api/tasks${queryString}`];
+    const params: Record<string, string> = {};
+    if (statusFilter !== "all") params.status = statusFilter;
+    if (priorityFilter !== "all") params.priority = priorityFilter;
+    return Object.keys(params).length > 0 ? ["/api/tasks", params] : ["/api/tasks"];
   };
 
   const tasksQuery = useQuery<Array<Task & { assignments: TaskAssignment[] }>>({
@@ -3771,6 +3775,12 @@ function TaskDetailDialog({
   // Un seguimiento de cliente es un espacio de trabajo (no una tarea que se completa):
   // muestra progreso de sus actividades en vez de "Marcar completada".
   const isSeguimientoCliente = (task as any).payload?.kind === 'seguimiento_cliente';
+  // El seguimiento de cliente es un espacio de trabajo del vendedor asignado: aunque no sea
+  // el creador de la tarea (solo admin/supervisor las crean), el vendedor asignado debe poder
+  // registrar sus actividades y visitas/rutas. Por eso, para el panel de actividades habilitamos
+  // también a quien tenga la tarea asignada, no solo a quien la creó (canEditTask).
+  const isAssignedToMe = ((task as any).assignments || []).some((a: any) => a.assigneeId === user.id);
+  const canManageSeguimiento = canEditTask || (isSeguimientoCliente && isAssignedToMe);
   const { data: actividades = [] } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null }>>({
     queryKey: ['/api/tasks', task.id, 'actividades'],
     enabled: isSeguimientoCliente,
@@ -4186,7 +4196,7 @@ function TaskDetailDialog({
                 {/* Tareas del cliente (subtareas / actividades tipadas) */}
                 {isSeguimientoCliente && (
                   <TabsContent value="tareas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden">
-                    <ActividadesPanel taskId={task.id} canManage={canEditTask} clienteId={String((task as any).clienteId || "")} />
+                    <ActividadesPanel taskId={task.id} canManage={canManageSeguimiento} clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} />
                   </TabsContent>
                 )}
 
@@ -4195,7 +4205,7 @@ function TaskDetailDialog({
                   <>
                     <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
-                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
+                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
                     <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
@@ -4875,6 +4885,8 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
   const [visitaRuta, setVisitaRuta] = useState("");
   const [visitaFecha, setVisitaFecha] = useState("");
   const [visitaNota, setVisitaNota] = useState("");
+  const [creatingRuta, setCreatingRuta] = useState(false);
+  const [nuevaRuta, setNuevaRuta] = useState("");
 
   const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
@@ -4901,6 +4913,17 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
       toast({ title: "Visita registrada" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
+  });
+  // Crear una ruta nueva y asignar este cliente en el mismo paso (el endpoint /quick hace ambas cosas).
+  const createRutaMut = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/rutas/quick", { nombre: nuevaRuta.trim(), clienteId, clienteNombre }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      setCreatingRuta(false); setNuevaRuta("");
+      toast({ title: "Ruta creada", description: "El cliente quedó asignado a la nueva ruta." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
   });
   const yaEn = new Set(rutasCliente.map((r) => r.id));
 
@@ -4937,6 +4960,29 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
               {assign.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Asignar"}
             </Button>
           </div>
+        )}
+        {/* Crear ruta nueva al vuelo (queda a nombre del usuario y con este cliente asignado) */}
+        {canManage && (
+          creatingRuta ? (
+            <div className="flex items-center gap-2 pt-1">
+              <Input
+                autoFocus
+                value={nuevaRuta}
+                onChange={(e) => setNuevaRuta(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && nuevaRuta.trim() && !createRutaMut.isPending) createRutaMut.mutate(); }}
+                placeholder="Nombre de la ruta nueva…"
+                className="h-8 text-xs flex-1"
+              />
+              <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRuta.trim() || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
+                {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRuta(""); }}>Cancelar</Button>
+            </div>
+          ) : (
+            <button onClick={() => setCreatingRuta(true)} className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 pt-1">
+              <Plus className="h-3 w-3" /> Crear ruta nueva
+            </button>
+          )
         )}
       </div>
 
@@ -5273,13 +5319,18 @@ function DateTimePicker({ value, onChange }: { value: string; onChange: (v: stri
 // ActividadesPanel — subtareas / actividades tipadas de un seguimiento de cliente.
 // Cada actividad: tipo + fecha + descripción opcional + estado (pendiente/completada).
 // ==================================================================================
-function ActividadesPanel({ taskId, canManage, clienteId }: { taskId: string; canManage: boolean; clienteId: string }) {
+function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { taskId: string; canManage: boolean; clienteId: string; clienteNombre?: string }) {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [tipo, setTipo] = useState("llamada");
   const [fecha, setFecha] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [rutaId, setRutaId] = useState("");
+  // Creación de ruta "al vuelo": cuando no hay rutas (o se quiere una nueva) el vendedor
+  // escribe un nombre y la ruta se crea en el momento, sin depender de que un supervisor
+  // se la haya asignado antes. La fecha de la actividad puede ser pasada o futura.
+  const [creatingRuta, setCreatingRuta] = useState(false);
+  const [nuevaRuta, setNuevaRuta] = useState("");
 
   const { data: actividades = [], isLoading } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null; rutaNombre: string | null }>>({
     queryKey: ["/api/tasks", taskId, "actividades"],
@@ -5290,6 +5341,26 @@ function ActividadesPanel({ taskId, canManage, clienteId }: { taskId: string; ca
     // el histórico de la pestaña Rutas también refleja las visitas creadas desde acá
     queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
   };
+
+  const createRutaMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", "/api/rutas/quick", { nombre: nuevaRuta.trim(), clienteId, clienteNombre });
+      return r.json();
+    },
+    onSuccess: (ruta: { id: string; nombre: string }) => {
+      // Seed inmediato del cache para que el <Select> muestre la ruta recién creada
+      // (y createMut pueda resolver rutaNombre) antes de que llegue el refetch.
+      queryClient.setQueryData<Array<{ id: string; nombre: string }>>(["/api/rutas"], (old) =>
+        Array.isArray(old) ? [ruta, ...old.filter((r) => r.id !== ruta.id)] : [ruta]);
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      setRutaId(ruta.id);
+      setCreatingRuta(false);
+      setNuevaRuta("");
+      toast({ title: "Ruta creada", description: ruta.nombre });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
+  });
 
   const createMut = useMutation({
     mutationFn: async () => {
@@ -5347,17 +5418,39 @@ function ActividadesPanel({ taskId, canManage, clienteId }: { taskId: string; ca
                 {ACTIVIDAD_TIPOS.map((t) => (<SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>))}
               </SelectContent>
             </Select>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" />
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" title="Podés registrar una fecha pasada o futura" />
           </div>
           {tipo === "visita" && (
-            <Select value={rutaId} onValueChange={setRutaId}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Ruta (queda en el histórico de Rutas)…" /></SelectTrigger>
-              <SelectContent>
-                {rutas.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-400">No hay rutas creadas</div>
-                ) : rutas.map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
-              </SelectContent>
-            </Select>
+            creatingRuta ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  autoFocus
+                  value={nuevaRuta}
+                  onChange={(e) => setNuevaRuta(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && nuevaRuta.trim() && !createRutaMut.isPending) createRutaMut.mutate(); }}
+                  placeholder="Nombre de la ruta nueva…"
+                  className="h-8 text-xs flex-1"
+                />
+                <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRuta.trim() || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
+                  {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRuta(""); }}>Cancelar</Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Select value={rutaId} onValueChange={setRutaId}>
+                  <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Ruta (queda en el histórico de Rutas)…" /></SelectTrigger>
+                  <SelectContent>
+                    {rutas.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-slate-400">No hay rutas creadas — usá "Nueva"</div>
+                    ) : rutas.map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs border-orange-200 text-orange-600 hover:bg-orange-50 whitespace-nowrap" onClick={() => setCreatingRuta(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Nueva
+                </Button>
+              </div>
+            )
           )}
           <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción (opcional)…" className="text-xs resize-none" />
           <div className="flex items-center gap-2">
