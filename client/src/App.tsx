@@ -27,6 +27,7 @@ import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import TareasPage from "@/pages/tareas";
+import RutasComerciales from "@/pages/rutas-comerciales";
 
 import NVVPage from "@/pages/nvv";
 import PromesasCompraPage from "@/pages/promesas-compra";
@@ -255,6 +256,7 @@ function Router() {
             <Route path="/nvv" component={guarded("finanzas", FacturasMainPage)} />
 
             <Route path="/tareas" component={TareasPage} />
+            <Route path="/rutas-comerciales" component={RutasComerciales} />
             <Route path="/usuarios" component={guarded("config.usuarios", Users)} />
             <Route path="/admin-catalogos" component={AdminCatalogos} />
             <Route path="/donde-comprar-admin" component={guarded("market.donde_comprar", RetailLocationsAdmin)} />

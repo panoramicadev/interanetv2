@@ -838,6 +838,75 @@ export async function bootstrapDatabase(): Promise<void> {
       ON gastos_marketing (presupuesto_item_id)
     `);
 
+    // Rutas comerciales (runtime bootstrap — el runner de migraciones no es confiable en prod).
+    console.log('  🧭 Verificando tablas de rutas comerciales...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS rutas_comerciales (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre VARCHAR(255) NOT NULL,
+        vendedor_id VARCHAR(255) NOT NULL,
+        supervisor_id VARCHAR(255) NOT NULL,
+        segmento VARCHAR(255),
+        estado VARCHAR(255) NOT NULL DEFAULT 'activa',
+        observaciones TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_rutas_comerciales_vendedor" ON rutas_comerciales (vendedor_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_rutas_comerciales_supervisor" ON rutas_comerciales (supervisor_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ruta_clientes (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        ruta_id VARCHAR(255) NOT NULL,
+        cliente_id VARCHAR(255) NOT NULL,
+        cliente_nombre VARCHAR(255) NOT NULL,
+        orden INTEGER DEFAULT 0,
+        visitado BOOLEAN DEFAULT FALSE,
+        fecha_visita TIMESTAMP,
+        notas TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_clientes_ruta" ON ruta_clientes (ruta_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_clientes_cliente" ON ruta_clientes (cliente_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ruta_visitas (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        ruta_id VARCHAR(255) NOT NULL,
+        cliente_id VARCHAR(255) NOT NULL,
+        cliente_nombre VARCHAR(255),
+        fecha TIMESTAMP NOT NULL,
+        nota TEXT,
+        registrado_por VARCHAR(255),
+        registrado_por_nombre VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_visitas_cliente" ON ruta_visitas (cliente_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_visitas_ruta" ON ruta_visitas (ruta_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS task_actividades (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id VARCHAR(255) NOT NULL,
+        tipo VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        fecha TIMESTAMP,
+        estado VARCHAR(255) NOT NULL DEFAULT 'pendiente',
+        responsable_id VARCHAR(255),
+        responsable_nombre VARCHAR(255),
+        ruta_id VARCHAR(255),
+        ruta_nombre VARCHAR(255),
+        created_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_task_actividades_task" ON task_actividades (task_id)`);
+    // Columnas de ruta (idempotente, para tablas ya creadas)
+    await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_id VARCHAR(255)`);
+    await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_nombre VARCHAR(255)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

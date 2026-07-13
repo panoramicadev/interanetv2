@@ -5715,6 +5715,101 @@ export const insertPromesaCompraSchema = createInsertSchema(promesasCompra).omit
   ),
 });
 
+// ==================================================================================
+// RUTAS COMERCIALES — un supervisor asigna rutas a vendedores para visitar clientes
+// (visitas comerciales para vender pinturas). clienteId = koen; clienteNombre = nokoen.
+// ==================================================================================
+export const rutasComerciales = pgTable("rutas_comerciales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  vendedorId: varchar("vendedor_id").notNull(),        // FK a salespeople_users.id (vendedor asignado)
+  supervisorId: varchar("supervisor_id").notNull(),    // FK a salespeople_users.id (quién la creó/asigna)
+  segmento: varchar("segmento"),                        // 'ferreterias' | 'construccion' | 'digital' | 'marketing'
+  estado: varchar("estado").notNull().default("activa"), // 'activa' | 'pausada' | 'completada'
+  observaciones: text("observaciones"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  vendedorIdx: index("IDX_rutas_comerciales_vendedor").on(table.vendedorId),
+  supervisorIdx: index("IDX_rutas_comerciales_supervisor").on(table.supervisorId),
+}));
+
+export const rutaClientes = pgTable("ruta_clientes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rutaId: varchar("ruta_id").notNull(),                // FK a rutas_comerciales.id
+  clienteId: varchar("cliente_id").notNull(),          // koen del cliente
+  clienteNombre: varchar("cliente_nombre", { length: 255 }).notNull(),
+  orden: integer("orden").default(0),                  // orden de visita
+  visitado: boolean("visitado").default(false),
+  fechaVisita: timestamp("fecha_visita"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  rutaIdx: index("IDX_ruta_clientes_ruta").on(table.rutaId),
+  clienteIdx: index("IDX_ruta_clientes_cliente").on(table.clienteId),
+}));
+
+export type RutaComercial = typeof rutasComerciales.$inferSelect;
+export type InsertRutaComercial = typeof rutasComerciales.$inferInsert;
+export type RutaCliente = typeof rutaClientes.$inferSelect;
+export type InsertRutaCliente = typeof rutaClientes.$inferInsert;
+
+export const insertRutaComercialSchema = createInsertSchema(rutasComerciales, {
+  nombre: z.string().min(1, "El nombre de la ruta es requerido"),
+  vendedorId: z.string().min(1, "El vendedor es requerido"),
+  estado: z.enum(["activa", "pausada", "completada"]).default("activa"),
+}).omit({ id: true, createdAt: true, updatedAt: true, supervisorId: true });
+
+export const insertRutaClienteSchema = createInsertSchema(rutaClientes, {
+  clienteId: z.string().min(1, "El cliente es requerido"),
+  clienteNombre: z.string().min(1, "El nombre del cliente es requerido"),
+}).omit({ id: true, createdAt: true, rutaId: true });
+
+// Histórico de visitas de una ruta a un cliente (se acumulan en el tiempo)
+export const rutaVisitas = pgTable("ruta_visitas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rutaId: varchar("ruta_id").notNull(),
+  clienteId: varchar("cliente_id").notNull(),      // koen del cliente
+  clienteNombre: varchar("cliente_nombre", { length: 255 }),
+  fecha: timestamp("fecha").notNull(),             // fecha de la visita
+  nota: text("nota"),
+  registradoPor: varchar("registrado_por"),        // userId
+  registradoPorNombre: varchar("registrado_por_nombre"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  clienteIdx: index("IDX_ruta_visitas_cliente").on(table.clienteId),
+  rutaIdx: index("IDX_ruta_visitas_ruta").on(table.rutaId),
+}));
+
+export type RutaVisita = typeof rutaVisitas.$inferSelect;
+export type InsertRutaVisita = typeof rutaVisitas.$inferInsert;
+
+// ==================================================================================
+// SUBTAREAS / ACTIVIDADES tipadas dentro de un seguimiento de cliente.
+// Un seguimiento de cliente NO es una tarea que se completa, es un espacio de trabajo;
+// las actividades (llamada/visita/cotización/cobranza…) sí son las acciones que se completan.
+// ==================================================================================
+export const taskActividades = pgTable("task_actividades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull(),          // FK a tasks.id (el seguimiento-cliente)
+  tipo: varchar("tipo").notNull(),               // 'llamada' | 'visita' | 'cotizacion' | 'cobranza' | 'correo' | 'otro'
+  descripcion: text("descripcion"),
+  fecha: timestamp("fecha"),                     // fecha agendada/objetivo de la actividad
+  estado: varchar("estado").notNull().default("pendiente"), // 'pendiente' | 'completada'
+  responsableId: varchar("responsable_id"),
+  responsableNombre: varchar("responsable_nombre"),
+  rutaId: varchar("ruta_id"),                    // si la actividad es una visita ligada a una ruta comercial
+  rutaNombre: varchar("ruta_nombre"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  taskIdx: index("IDX_task_actividades_task").on(table.taskId),
+}));
+
+export type TaskActividad = typeof taskActividades.$inferSelect;
+export type InsertTaskActividad = typeof taskActividades.$inferInsert;
+
 // Tabla de hitos de marketing (calendario)
 export const hitosMarketing = pgTable("hitos_marketing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
