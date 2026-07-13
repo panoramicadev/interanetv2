@@ -135,7 +135,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   // roles sin ese grupo (ej: vendedor habilitado desde Gestión de Usuarios).
   { key: "clientes.seguimiento", item: { href: "/seguimiento-clientes", label: "CRM", icon: UserCheck } },
   { key: "clientes.ayuda_memoria", item: { href: "/ayuda-memoria", label: "Ayuda Memoria", icon: BookOpen } },
-  { key: "tomador_pedidos", item: { href: "/tomador-pedidos", label: "Tomador de Pedidos", icon: ClipboardCheck } },
+  { key: "tomador_pedidos", item: { href: "/tomador-pedidos-v2", label: "Tomador de Pedidos", icon: ClipboardCheck } },
   { key: "seguimiento_pedidos", item: { href: "/seguimiento-pedidos", label: "Pedidos", icon: PackageSearch } },
   { key: "mis_pedidos", item: { href: "/mis-pedidos", label: "Mis Pedidos", icon: ShoppingCart } },
   { key: "marketing", item: { href: "/marketing", label: "Marketing", icon: TrendingUp } },

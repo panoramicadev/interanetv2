@@ -49,6 +49,7 @@ interface GastoMarketing {
     mes: number;
     anio: number;
     estado: string;
+    presupuestoItemId: string | null;
     urlCotizacion: string | null;
     urlOrdenCompra: string | null;
     urlFactura: string | null;
@@ -59,6 +60,15 @@ interface GastoMarketing {
     createdAt: string;
     updatedAt: string;
 }
+
+interface PresupuestoItemLite {
+    id: string;
+    concepto: string;
+    categoria: string | null;
+}
+
+// Valor centinela para "sin asignar" (Radix Select no admite value="")
+const SIN_ASIGNAR = "__sin_asignar__";
 
 interface ProveedorMarketing {
     id: string;
@@ -143,7 +153,19 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         fecha: getDefaultFecha(),
         estado: "pendiente",
         numeroFactura: "",
+        presupuestoItemId: SIN_ASIGNAR,
     });
+
+    // Ítems del presupuesto del año seleccionado (para asociar cada gasto)
+    const { data: presupuestoItems = [] } = useQuery<PresupuestoItemLite[]>({
+        queryKey: ["/api/marketing/presupuesto-items", selectedAnio],
+        queryFn: async () => {
+            const res = await fetch(`/api/marketing/presupuesto-items/${selectedAnio}`, { credentials: "include" });
+            if (!res.ok) throw new Error("Error al cargar ítems de presupuesto");
+            return res.json();
+        },
+    });
+    const presupuestoItemById = new Map(presupuestoItems.map((p) => [p.id, p]));
 
     // ─── Gastos queries ───
     const { data: gastos = [], isLoading } = useQuery<GastoMarketing[]>({
@@ -227,7 +249,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const resetForm = () => {
         setDialogOpen(false);
         setEditingGasto(null);
-        setFormData({ concepto: "", descripcion: "", monto: "", categoria: "DIGITAL", proveedor: "", fecha: getDefaultFecha(), estado: "pendiente", numeroFactura: "" });
+        setFormData({ concepto: "", descripcion: "", monto: "", categoria: "DIGITAL", proveedor: "", fecha: getDefaultFecha(), estado: "pendiente", numeroFactura: "", presupuestoItemId: SIN_ASIGNAR });
     };
 
     const resetProvForm = () => {
@@ -247,6 +269,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             fecha: formData.fecha || null,
             estado: formData.estado,
             numeroFactura: formData.numeroFactura.trim() || null,
+            presupuestoItemId: formData.presupuestoItemId === SIN_ASIGNAR ? null : formData.presupuestoItemId,
             mes: selectedMes,
             anio: selectedAnio,
         };
@@ -302,6 +325,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             fecha: gasto.fecha || getDefaultFecha(),
             estado: gasto.estado,
             numeroFactura: gasto.numeroFactura || "",
+            presupuestoItemId: gasto.presupuestoItemId || SIN_ASIGNAR,
         });
         setDialogOpen(true);
     };
@@ -561,6 +585,16 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                                         {gasto.concepto}
                                                     </button>
                                                     {gasto.descripcion && <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{gasto.descripcion}</div>}
+                                                    {gasto.presupuestoItemId && presupuestoItemById.has(gasto.presupuestoItemId) ? (
+                                                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+                                                            <TrendingDown className="h-2.5 w-2.5 rotate-180" />
+                                                            {presupuestoItemById.get(gasto.presupuestoItemId)!.concepto}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-1 inline-flex items-center text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                                                            Ítem nuevo
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3"><span className="text-xs font-medium text-slate-600">{gasto.categoria || "—"}</span></td>
                                                 <td className="px-3 py-3"><span className="text-xs text-slate-600">{gasto.proveedor || "—"}</span></td>
@@ -716,6 +750,23 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                 max={`${selectedAnio}-${String(selectedMes).padStart(2, '0')}-${String(new Date(selectedAnio, selectedMes, 0).getDate()).padStart(2, '0')}`}
                                 className="mt-1"
                             />
+                        </div>
+                        <div>
+                            <Label>Ítem de presupuesto</Label>
+                            <Select value={formData.presupuestoItemId} onValueChange={(v) => setFormData({ ...formData, presupuestoItemId: v })}>
+                                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SIN_ASIGNAR}>Sin asignar (ítem nuevo)</SelectItem>
+                                    {presupuestoItems.map((p) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.concepto}{p.categoria ? ` — ${p.categoria}` : ""}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                Si no lo asignas, en Presupuesto aparecerá como un ítem nuevo (sin presupuesto).
+                            </p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -932,6 +983,14 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                     <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">N° Factura</Label>
                                     <p className="text-slate-700">{detailGasto.numeroFactura || "—"}</p>
                                 </div>
+                            </div>
+                            <div>
+                                <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ítem de presupuesto</Label>
+                                {detailGasto.presupuestoItemId && presupuestoItemById.has(detailGasto.presupuestoItemId) ? (
+                                    <p className="text-indigo-700 font-medium">{presupuestoItemById.get(detailGasto.presupuestoItemId)!.concepto}</p>
+                                ) : (
+                                    <p className="text-amber-600 font-medium">Sin asignar — ítem nuevo</p>
+                                )}
                             </div>
 
                             {/* Comments Section */}

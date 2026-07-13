@@ -227,6 +227,10 @@ function Router() {
                   // Recursos humanos va directamente a la gestión de gastos
                   window.location.replace('/gastos-empresariales');
                   return null;
+                case 'marketing':
+                  // Marketing va directamente a su módulo
+                  window.location.replace('/marketing');
+                  return null;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':

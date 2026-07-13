@@ -5213,6 +5213,10 @@ export const gastosMarketing = pgTable("gastos_marketing", {
   mes: integer("mes").notNull(),
   anio: integer("anio").notNull(),
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente"), // pendiente, con_oc, facturado
+  // Vínculo opcional a un ítem del presupuesto de marketing. Permite comparar
+  // presupuestado vs. real por ítem. Si es null, el gasto se trata como un
+  // ítem nuevo (sin presupuesto) en la vista comparativa del Presupuesto.
+  presupuestoItemId: varchar("presupuesto_item_id").references(() => presupuestoMarketingItems.id, { onDelete: "set null" }),
   // Document URLs
   urlCotizacion: text("url_cotizacion"),
   urlOrdenCompra: text("url_orden_compra"),
@@ -5229,6 +5233,7 @@ export const gastosMarketing = pgTable("gastos_marketing", {
   mesAnioIdx: index("IDX_gastos_marketing_mes_anio").on(table.mes, table.anio),
   estadoIdx: index("IDX_gastos_marketing_estado").on(table.estado),
   categoriaIdx: index("IDX_gastos_marketing_categoria").on(table.categoria),
+  presupuestoItemIdx: index("IDX_gastos_marketing_presupuesto_item").on(table.presupuestoItemId),
 }));
 
 export type GastoMarketing = typeof gastosMarketing.$inferSelect;

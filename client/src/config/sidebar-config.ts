@@ -29,7 +29,6 @@ import {
   Calendar,
   ExternalLink,
   FileSpreadsheet,
-  Sparkles,
   Gift,
   PackageSearch,
   Truck,
@@ -121,19 +120,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
     {
-      href: "/tomador-pedidos",
+      href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador 2 (Beta)",
-      icon: Sparkles,
-    },
-    {
-      href: "/colores-paleta",
-      label: "Paleta de Colores",
-      icon: Palette,
     },
     {
       href: "/marketing",
@@ -469,14 +458,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: TrendingUp,
     },
     {
-      href: "/tomador-pedidos",
+      href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador 2 (Beta)",
-      icon: Sparkles,
     },
     {
       href: "/visitas-tecnicas",
@@ -646,14 +630,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
-      href: "/tomador-pedidos",
+      href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador 2 (Beta)",
-      icon: Sparkles,
     },
   ],
 
@@ -664,15 +643,10 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/tomador-pedidos",
+      href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
       isPremium: true,
-    },
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador 2 (Beta)",
-      icon: Sparkles,
       separator: true,
     },
     {
@@ -1113,6 +1087,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
+    },
+  ],
+
+  marketing: [
+    {
+      href: "/tareas",
+      label: "Panel de Trabajo",
+      icon: CheckCircle2,
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
     },
   ],
 };
