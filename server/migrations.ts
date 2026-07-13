@@ -894,6 +894,43 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_id VARCHAR(255)`);
     await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_nombre VARCHAR(255)`);
 
+    // Inventario de Marketing — estas tablas solo viven en la migración drizzle 0000,
+    // que el runner de migraciones roto no aplica en prod. Sin ellas, /api/marketing/inventario
+    // y /summary lanzan 500 y el tab se ve vacío ("Sin items en inventario") aún para admin.
+    console.log('  📋 Verificando tablas de inventario de marketing...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS inventario_marketing (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        cantidad INTEGER NOT NULL DEFAULT 0,
+        unidad VARCHAR(50) NOT NULL DEFAULT 'unidades',
+        ubicacion VARCHAR(255),
+        costo_unitario NUMERIC(15, 2),
+        proveedor VARCHAR(255),
+        estado VARCHAR NOT NULL DEFAULT 'disponible',
+        stock_minimo INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS inventario_marketing_movimientos (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        item_id VARCHAR NOT NULL,
+        tipo VARCHAR(50) NOT NULL,
+        cantidad INTEGER NOT NULL,
+        usuario_id VARCHAR,
+        usuario_nombre VARCHAR,
+        cliente_nombre VARCHAR(255),
+        nota TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    // Columna cliente_nombre (idempotente, para tablas ya creadas sin la migración 061)
+    await db.execute(sql`ALTER TABLE inventario_marketing_movimientos ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_inv_marketing_mov_item" ON inventario_marketing_movimientos (item_id)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
