@@ -4,7 +4,7 @@
  * Fuente única del pipeline: si se agrega una etapa, se hace SOLO acá.
  */
 import {
-  Sparkles, UserCheck, FileText, ShoppingCart, Truck,
+  Sparkles, UserCheck, FileText, ShoppingCart,
   PhoneCall, MapPin, MessageSquare, RefreshCw,
   Users, Mail, Video,
 } from "lucide-react";
@@ -63,18 +63,6 @@ export const ESTADOS = [
     dot: "bg-emerald-500",
     text: "text-emerald-600 dark:text-emerald-400",
   },
-  {
-    value: "despacho",
-    label: "Despacho",
-    icon: Truck,
-    color: "from-purple-400 to-purple-600",
-    bgCard: "bg-purple-50 dark:bg-purple-900/20",
-    badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-    border: "border-purple-200 dark:border-purple-800",
-    column: "bg-purple-50/60 dark:bg-purple-950/20",
-    dot: "bg-purple-500",
-    text: "text-purple-600 dark:text-purple-400",
-  },
 ] as const;
 
 export type EstadoValue = (typeof ESTADOS)[number]["value"];
@@ -86,6 +74,7 @@ const LEGACY_ESTADOS: Record<string, EstadoValue> = {
   contactado: "seguimiento",
   completado: "venta",
   perdido: "prospecto",
+  despacho: "venta", // etapa retirada del pipeline; leads antiguos caen en Venta
 };
 
 export function normalizeEstado(estado: string | null | undefined): EstadoValue {
@@ -117,7 +106,6 @@ export const HITO_TIPOS = [
   { value: "cotizacion", label: "Cotización", icon: FileText, color: "text-amber-500", ring: "bg-amber-100 dark:bg-amber-900/40" },
   { value: "visita", label: "Visita", icon: MapPin, color: "text-green-500", ring: "bg-green-100 dark:bg-green-900/40" },
   { value: "venta", label: "Venta", icon: ShoppingCart, color: "text-emerald-600", ring: "bg-emerald-100 dark:bg-emerald-900/40" },
-  { value: "despacho", label: "Despacho", icon: Truck, color: "text-purple-500", ring: "bg-purple-100 dark:bg-purple-900/40" },
   { value: "nota", label: "Nota", icon: MessageSquare, color: "text-slate-500", ring: "bg-slate-100 dark:bg-slate-800" },
   { value: "sistema", label: "Sistema", icon: RefreshCw, color: "text-cyan-500", ring: "bg-cyan-100 dark:bg-cyan-900/40" },
 ];
