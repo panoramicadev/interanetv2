@@ -23,7 +23,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { commissionSettings, commissionExclusions } from "../shared/schema";
+import { commissionSettings, commissionOverrides } from "../shared/schema";
 import { requireAuth } from "./auth";
 import { requirePermission } from "./permissions";
 
@@ -64,25 +64,38 @@ function ensureTables(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS "UQ_commission_settings_salesperson"
         ON commission_settings (salesperson_name)
       `);
+      // Overrides de % por cliente/venta (reemplaza a las exclusiones).
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS commission_exclusions (
+        CREATE TABLE IF NOT EXISTS commission_overrides (
           id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
           salesperson_name varchar NOT NULL,
-          exclusion_type varchar NOT NULL,
+          override_type varchar NOT NULL,
           value varchar NOT NULL,
-          note varchar,
-          created_by varchar,
-          created_at timestamp DEFAULT now()
+          commission_pct numeric(6,3) NOT NULL DEFAULT 0,
+          updated_by varchar,
+          updated_at timestamp DEFAULT now()
         )
       `);
       await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS "IDX_commission_excl_salesperson"
-        ON commission_exclusions (salesperson_name)
+        CREATE INDEX IF NOT EXISTS "IDX_commission_ovr_salesperson"
+        ON commission_overrides (salesperson_name)
       `);
       await db.execute(sql`
-        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_commission_excl_person_type_value"
-        ON commission_exclusions (salesperson_name, exclusion_type, value)
+        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_commission_ovr_person_type_value"
+        ON commission_overrides (salesperson_name, override_type, value)
       `);
+      // Migración: las exclusiones existentes se conservan como override 0%
+      // (misma semántica: no pagan comisión). Solo si la tabla vieja existe.
+      await db.execute(sql`
+        INSERT INTO commission_overrides (salesperson_name, override_type, value, commission_pct)
+        SELECT salesperson_name, exclusion_type, value, 0
+        FROM commission_exclusions
+        WHERE EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'commission_exclusions'
+        )
+        ON CONFLICT (salesperson_name, override_type, value) DO NOTHING
+      `).catch(() => { /* tabla vieja inexistente: nada que migrar */ });
     })().catch((error) => {
       ensureTablesPromise = null; // permite reintentar
       throw error;
@@ -117,72 +130,89 @@ function parseDateRange(query: any): { startDate: string; endDate: string } {
 // ─── Consultas ───
 
 /**
- * Resumen por vendedor: venta bruta/neta, costo, margen y comisión.
- * "Bruto" = todo lo facturado; "neto" = descontando lo excluido
- * (clientes o documentos). La comisión se calcula sobre el margen neto.
+ * Resumen por vendedor: facturado, costo, margen y comisión.
+ * La comisión se calcula LÍNEA a LÍNEA aplicando el % efectivo, cuya
+ * prioridad es: override del documento → override del cliente → % del
+ * vendedor (commission_settings). Sin override = % del vendedor; un
+ * override en 0 no paga comisión (reemplaza a las exclusiones).
  */
 async function getCommissionSummary(startDate: string, endDate: string) {
   const result = await db.execute(sql`
     WITH lineas AS (
       SELECT
         fv."nokofu" AS salesperson,
+        fv."nokoen" AS client,
+        fv."idmaeedo"::text AS document,
         fv."monto" AS revenue,
-        ${COST_EXPR} AS cost,
-        EXISTS (
-          SELECT 1 FROM commission_exclusions ce
-          WHERE ce.salesperson_name = fv."nokofu"
-            AND (
-              (ce.exclusion_type = 'client' AND ce.value = fv."nokoen")
-              OR (ce.exclusion_type = 'document' AND ce.value = fv."idmaeedo"::text)
-            )
-        ) AS excluded
+        ${COST_EXPR} AS cost
       FROM ${FACT_JOINS}
       WHERE fv."tido" = 'FCV'
         AND fv."nokofu" IS NOT NULL AND fv."nokofu" != ''
         AND fv."monto" IS NOT NULL
         AND fv."feemdo" >= ${startDate}::date
         AND fv."feemdo" <= ${endDate}::date
+    ),
+    priced AS (
+      SELECT
+        l.salesperson,
+        l.client,
+        l.revenue,
+        l.cost,
+        (l.revenue - l.cost) AS margin,
+        COALESCE(
+          doc_ovr.commission_pct,
+          cli_ovr.commission_pct,
+          cs.commission_pct,
+          0
+        ) AS eff_pct,
+        (doc_ovr.value IS NOT NULL OR cli_ovr.value IS NOT NULL) AS overridden
+      FROM lineas l
+      LEFT JOIN commission_settings cs
+        ON cs.salesperson_name = l.salesperson
+      LEFT JOIN commission_overrides cli_ovr
+        ON cli_ovr.salesperson_name = l.salesperson
+       AND cli_ovr.override_type = 'client'
+       AND cli_ovr.value = l.client
+      LEFT JOIN commission_overrides doc_ovr
+        ON doc_ovr.salesperson_name = l.salesperson
+       AND doc_ovr.override_type = 'document'
+       AND doc_ovr.value = l.document
     )
     SELECT
       salesperson,
-      SUM(revenue) AS gross_revenue,
-      SUM(cost) AS gross_cost,
-      SUM(CASE WHEN excluded THEN 0 ELSE revenue END) AS net_revenue,
-      SUM(CASE WHEN excluded THEN 0 ELSE cost END) AS net_cost,
+      SUM(revenue) AS net_revenue,
+      SUM(cost) AS net_cost,
+      SUM(margin * eff_pct / 100.0) AS commission_amount,
       COUNT(*) AS line_count,
-      SUM(CASE WHEN excluded THEN 1 ELSE 0 END) AS excluded_line_count
-    FROM lineas
+      COUNT(DISTINCT CASE WHEN overridden THEN client END) AS overridden_client_count
+    FROM priced
     GROUP BY salesperson
     HAVING SUM(revenue) > 0
-    ORDER BY SUM(CASE WHEN excluded THEN 0 ELSE revenue END) DESC
+    ORDER BY SUM(revenue) DESC
   `);
 
   const rows = (result.rows || []) as any[];
 
-  // % configurados por vendedor
+  // % por defecto configurado por vendedor
   const settings = await db.select().from(commissionSettings);
   const pctByName = new Map<string, number>();
   for (const s of settings) pctByName.set(s.salespersonName, num(s.commissionPct));
 
   const items = rows.map((r) => {
-    const grossRevenue = num(r.gross_revenue);
-    const grossCost = num(r.gross_cost);
     const netRevenue = num(r.net_revenue);
     const netCost = num(r.net_cost);
     const netMargin = netRevenue - netCost;
     const commissionPct = pctByName.get(r.salesperson) ?? 0;
-    const commissionAmount = (netMargin * commissionPct) / 100;
+    const commissionAmount = num(r.commission_amount);
     return {
       salesperson: r.salesperson as string,
-      grossRevenue,
       netRevenue,
-      grossCost,
       netCost,
-      grossMargin: grossRevenue - grossCost,
       netMargin,
       netMarginPct: netRevenue > 0 ? (netMargin / netRevenue) * 100 : 0,
       lineCount: num(r.line_count),
-      excludedLineCount: num(r.excluded_line_count),
+      // Clientes con un % distinto al del vendedor (para el badge de la fila)
+      overriddenClientCount: num(r.overridden_client_count),
       commissionPct,
       commissionAmount,
     };
@@ -203,7 +233,9 @@ async function getCommissionSummary(startDate: string, endDate: string) {
 
 /**
  * Detalle de un vendedor: desglose por cliente y por documento (venta),
- * con el flag `excluded` para que RRHH pueda marcar/desmarcar exclusiones.
+ * con el % efectivo de comisión de cada uno. `overridePct` = valor fijado
+ * manualmente (null si hereda); `effectivePct` = el que se aplica de verdad
+ * (override si existe, si no el % por defecto del vendedor / del cliente).
  */
 async function getSalespersonDetail(salesperson: string, startDate: string, endDate: string) {
   const commonWhere = sql`
@@ -214,21 +246,26 @@ async function getSalespersonDetail(salesperson: string, startDate: string, endD
       AND fv."feemdo" <= ${endDate}::date
   `;
 
+  // % por defecto del vendedor
+  const settingRow = await db
+    .select({ pct: commissionSettings.commissionPct })
+    .from(commissionSettings)
+    .where(eq(commissionSettings.salespersonName, salesperson))
+    .limit(1);
+  const defaultPct = settingRow.length ? num(settingRow[0].pct) : 0;
+
   const clientsResult = await db.execute(sql`
     SELECT
       COALESCE(fv."nokoen", 'SIN CLIENTE') AS client,
       SUM(fv."monto") AS revenue,
       SUM(${COST_EXPR}) AS cost,
       COUNT(*) AS line_count,
-      bool_or(
-        EXISTS (
-          SELECT 1 FROM commission_exclusions ce
-          WHERE ce.salesperson_name = ${salesperson}
-            AND ce.exclusion_type = 'client'
-            AND ce.value = fv."nokoen"
-        )
-      ) AS excluded
+      MAX(ovr.commission_pct) AS override_pct
     FROM ${FACT_JOINS}
+    LEFT JOIN commission_overrides ovr
+      ON ovr.salesperson_name = ${salesperson}
+     AND ovr.override_type = 'client'
+     AND ovr.value = fv."nokoen"
     ${commonWhere}
     GROUP BY COALESCE(fv."nokoen", 'SIN CLIENTE')
     HAVING SUM(fv."monto") <> 0
@@ -244,23 +281,17 @@ async function getSalespersonDetail(salesperson: string, startDate: string, endD
       SUM(fv."monto") AS revenue,
       SUM(${COST_EXPR}) AS cost,
       COUNT(*) AS line_count,
-      bool_or(
-        EXISTS (
-          SELECT 1 FROM commission_exclusions ce
-          WHERE ce.salesperson_name = ${salesperson}
-            AND ce.exclusion_type = 'document'
-            AND ce.value = fv."idmaeedo"::text
-        )
-      ) AS doc_excluded,
-      bool_or(
-        EXISTS (
-          SELECT 1 FROM commission_exclusions ce
-          WHERE ce.salesperson_name = ${salesperson}
-            AND ce.exclusion_type = 'client'
-            AND ce.value = fv."nokoen"
-        )
-      ) AS client_excluded
+      MAX(doc_ovr.commission_pct) AS override_pct,
+      MAX(cli_ovr.commission_pct) AS client_pct
     FROM ${FACT_JOINS}
+    LEFT JOIN commission_overrides doc_ovr
+      ON doc_ovr.salesperson_name = ${salesperson}
+     AND doc_ovr.override_type = 'document'
+     AND doc_ovr.value = fv."idmaeedo"::text
+    LEFT JOIN commission_overrides cli_ovr
+      ON cli_ovr.salesperson_name = ${salesperson}
+     AND cli_ovr.override_type = 'client'
+     AND cli_ovr.value = fv."nokoen"
     ${commonWhere}
       AND fv."idmaeedo" IS NOT NULL
     GROUP BY fv."idmaeedo"
@@ -271,19 +302,23 @@ async function getSalespersonDetail(salesperson: string, startDate: string, endD
   const clients = ((clientsResult.rows || []) as any[]).map((r) => {
     const revenue = num(r.revenue);
     const cost = num(r.cost);
+    const overridePct = r.override_pct == null ? null : num(r.override_pct);
     return {
       client: r.client as string,
       revenue,
       cost,
       margin: revenue - cost,
       lineCount: num(r.line_count),
-      excluded: !!r.excluded,
+      overridePct,
+      effectivePct: overridePct ?? defaultPct,
     };
   });
 
   const documents = ((documentsResult.rows || []) as any[]).map((r) => {
     const revenue = num(r.revenue);
     const cost = num(r.cost);
+    const overridePct = r.override_pct == null ? null : num(r.override_pct);
+    const clientPct = r.client_pct == null ? null : num(r.client_pct);
     return {
       document: r.document as string,
       numero: (r.numero as string) || r.document,
@@ -293,12 +328,15 @@ async function getSalespersonDetail(salesperson: string, startDate: string, endD
       cost,
       margin: revenue - cost,
       lineCount: num(r.line_count),
-      excluded: !!r.doc_excluded,
-      clientExcluded: !!r.client_excluded,
+      overridePct,
+      // % que aplica: documento > cliente > vendedor
+      effectivePct: overridePct ?? clientPct ?? defaultPct,
+      // heredado del cliente (para mostrar de dónde viene el valor por defecto)
+      clientPct,
     };
   });
 
-  return { salesperson, startDate, endDate, clients, documents };
+  return { salesperson, startDate, endDate, defaultPct, clients, documents };
 }
 
 // ─── Endpoints ───
@@ -364,48 +402,49 @@ export function registerCommissionRoutes(app: Express) {
     }
   });
 
-  // Fijar/quitar una exclusión (cliente o documento) de un vendedor.
-  // excluded=true la crea; excluded=false la elimina.
-  app.put("/api/hr/commissions/exclusions", requireAuth, guard, async (req: any, res) => {
+  // Fijar/quitar el % de comisión de un cliente o una venta (documento).
+  // commissionPct = número → fija ese %; null → quita el override (vuelve a
+  // heredar el % por defecto del vendedor). Poner 0 = no paga comisión.
+  app.put("/api/hr/commissions/overrides", requireAuth, guard, async (req: any, res) => {
     try {
       const parsed = z.object({
         salespersonName: z.string().trim().min(1).max(255),
-        exclusionType: z.enum(["client", "document"]),
+        overrideType: z.enum(["client", "document"]),
         value: z.string().trim().min(1).max(255),
-        excluded: z.boolean(),
-        note: z.string().trim().max(500).optional(),
+        commissionPct: z.number().min(0).max(100).nullable(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Formato inválido", errors: parsed.error.flatten() });
       }
       await ensureTables();
-      const { salespersonName, exclusionType, value, excluded, note } = parsed.data;
-      if (excluded) {
-        await db.insert(commissionExclusions)
-          .values({
-            salespersonName,
-            exclusionType,
-            value,
-            note: note || null,
-            createdBy: req.user?.id || null,
-            createdAt: new Date(),
-          })
-          .onConflictDoNothing({
-            target: [commissionExclusions.salespersonName, commissionExclusions.exclusionType, commissionExclusions.value],
-          });
-      } else {
-        await db.delete(commissionExclusions).where(
+      const { salespersonName, overrideType, value, commissionPct } = parsed.data;
+      if (commissionPct === null) {
+        await db.delete(commissionOverrides).where(
           and(
-            eq(commissionExclusions.salespersonName, salespersonName),
-            eq(commissionExclusions.exclusionType, exclusionType),
-            eq(commissionExclusions.value, value),
+            eq(commissionOverrides.salespersonName, salespersonName),
+            eq(commissionOverrides.overrideType, overrideType),
+            eq(commissionOverrides.value, value),
           ),
         );
+      } else {
+        await db.insert(commissionOverrides)
+          .values({
+            salespersonName,
+            overrideType,
+            value,
+            commissionPct: String(commissionPct),
+            updatedBy: req.user?.id || null,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [commissionOverrides.salespersonName, commissionOverrides.overrideType, commissionOverrides.value],
+            set: { commissionPct: String(commissionPct), updatedBy: req.user?.id || null, updatedAt: new Date() },
+          });
       }
-      res.json({ salespersonName, exclusionType, value, excluded });
+      res.json({ salespersonName, overrideType, value, commissionPct });
     } catch (error: any) {
-      console.error("Error guardando exclusión de comisión:", error);
-      res.status(500).json({ message: "Error guardando la exclusión: " + (error?.message || "desconocido") });
+      console.error("Error guardando % de comisión por cliente/venta:", error);
+      res.status(500).json({ message: "Error guardando el porcentaje: " + (error?.message || "desconocido") });
     }
   });
 }

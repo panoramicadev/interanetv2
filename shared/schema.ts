@@ -1346,6 +1346,31 @@ export const commissionExclusions = pgTable("commission_exclusions", {
 export type CommissionExclusion = typeof commissionExclusions.$inferSelect;
 export type InsertCommissionExclusion = typeof commissionExclusions.$inferInsert;
 
+// Overrides del % de comisión a nivel de cliente o de venta (documento).
+// Reemplazan al esquema de exclusiones: en lugar de "contar / no contar", cada
+// cliente (o venta) puede llevar su propio % de comisión. Sin fila = hereda el
+// % por defecto del vendedor (commission_settings). Poner 0 equivale a excluir.
+// override_type = 'client'   → value = nokoen (nombre del cliente)
+// override_type = 'document' → value = idmaeedo (id del documento/factura)
+// Prioridad al calcular una línea: documento > cliente > % del vendedor.
+export const commissionOverrides = pgTable("commission_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salespersonName: varchar("salesperson_name").notNull(),
+  overrideType: varchar("override_type").notNull(), // 'client' | 'document'
+  value: varchar("value").notNull(),
+  commissionPct: numeric("commission_pct", { precision: 6, scale: 3 }).notNull().default("0"),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  salespersonIdx: index("IDX_commission_ovr_salesperson").on(table.salespersonName),
+  uniqueOverride: uniqueIndex("UQ_commission_ovr_person_type_value").on(
+    table.salespersonName, table.overrideType, table.value,
+  ),
+}));
+
+export type CommissionOverride = typeof commissionOverrides.$inferSelect;
+export type InsertCommissionOverride = typeof commissionOverrides.$inferInsert;
+
 // Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
 export const userBranchAssignments = pgTable("user_branch_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
