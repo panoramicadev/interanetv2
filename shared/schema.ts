@@ -1307,6 +1307,45 @@ export const userPermissions = pgTable("user_permissions", {
 export type UserPermission = typeof userPermissions.$inferSelect;
 export type InsertUserPermission = typeof userPermissions.$inferInsert;
 
+// ─── Comisiones de vendedores (módulo de Recursos Humanos) ───
+// Porcentaje de comisión por vendedor. El vendedor se identifica por su
+// nombre (salespeople_users.salesperson_name ⇄ fact_ventas.nokofu), que es
+// la llave estable de las ventas. Sin fila = usa el % por defecto del módulo.
+export const commissionSettings = pgTable("commission_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salespersonName: varchar("salesperson_name").notNull(),
+  commissionPct: numeric("commission_pct", { precision: 6, scale: 3 }).notNull().default("0"),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueSalesperson: uniqueIndex("UQ_commission_settings_salesperson").on(table.salespersonName),
+}));
+
+export type CommissionSetting = typeof commissionSettings.$inferSelect;
+export type InsertCommissionSetting = typeof commissionSettings.$inferInsert;
+
+// Exclusiones para el cálculo de comisión: un cliente completo o una venta
+// (documento) individual quedan fuera de la base imponible del vendedor.
+// exclusion_type = 'client' → value = nokoen (nombre del cliente)
+// exclusion_type = 'document' → value = idmaeedo (id del documento/factura)
+export const commissionExclusions = pgTable("commission_exclusions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salespersonName: varchar("salesperson_name").notNull(),
+  exclusionType: varchar("exclusion_type").notNull(), // 'client' | 'document'
+  value: varchar("value").notNull(),
+  note: varchar("note"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  salespersonIdx: index("IDX_commission_excl_salesperson").on(table.salespersonName),
+  uniqueExclusion: uniqueIndex("UQ_commission_excl_person_type_value").on(
+    table.salespersonName, table.exclusionType, table.value,
+  ),
+}));
+
+export type CommissionExclusion = typeof commissionExclusions.$inferSelect;
+export type InsertCommissionExclusion = typeof commissionExclusions.$inferInsert;
+
 // Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
 export const userBranchAssignments = pgTable("user_branch_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

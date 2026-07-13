@@ -98,6 +98,7 @@ import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
 import { registerPermissionRoutes, requirePermission } from "./permissions";
+import { registerCommissionRoutes } from "./commissions";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -526,6 +527,9 @@ export function registerRoutes(app: Express): Server {
 
   // Sistema de Roles y Permisos (permisos efectivos del usuario + administración)
   registerPermissionRoutes(app);
+
+  // Módulo de Recursos Humanos: comisiones de vendedores
+  registerCommissionRoutes(app);
 
   // Register log routes (admin only)
   registerLogRoutes(app, requireRoles);

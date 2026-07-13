@@ -144,6 +144,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/margen",
       label: "Margen",
       icon: TrendingUp,
+    },
+    {
+      href: "/comisiones",
+      label: "Comisiones",
+      icon: DollarSign,
       separator: true,
     },
     {
@@ -1083,6 +1088,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   ],
 
   recursos_humanos: [
+    {
+      href: "/comisiones",
+      label: "Comisiones",
+      icon: DollarSign,
+    },
     {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
