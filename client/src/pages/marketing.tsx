@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,7 @@ interface TareaMarketing {
 
 export default function Marketing() {
   const { user } = useAuth();
+  const { can } = usePermissions();
 
   if (!user) {
     return (
@@ -137,8 +139,8 @@ export default function Marketing() {
     );
   }
 
-  // Only admin, supervisor and salesperson can access marketing module
-  if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'salesperson') {
+  // Acceso gobernado por el sistema de Roles y Permisos (clave "marketing").
+  if (!can('marketing')) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>
@@ -151,7 +153,7 @@ export default function Marketing() {
     );
   }
 
-  const isAdmin = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
+  const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20">

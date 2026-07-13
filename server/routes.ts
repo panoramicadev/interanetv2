@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
-import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -27271,7 +27271,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Presupuesto Marketing routes
-  app.post('/api/marketing/presupuesto', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/presupuesto', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -27303,7 +27303,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/presupuesto/:mes/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/presupuesto/:mes/:anio', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
@@ -27321,7 +27321,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Presupuesto Marketing Items (tabla Excel) routes
-  app.get('/api/marketing/presupuesto-items/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/presupuesto-items/:anio', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const anio = parseInt(req.params.anio);
       const items = await storage.getPresupuestoMarketingItems(anio);
@@ -27331,7 +27331,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/presupuesto-items', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/presupuesto-items', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27344,7 +27344,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/presupuesto-items/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/presupuesto-items/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27357,7 +27357,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/presupuesto-items/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/presupuesto-items/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin') {
@@ -27371,7 +27371,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Creatividades Marketing routes
-  app.get('/api/marketing/creatividades', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/creatividades', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const mes = parseInt(req.query.mes as string) || new Date().getMonth() + 1;
       const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
@@ -27382,7 +27382,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/creatividades', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/creatividades', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const item = await storage.createCreatividadMarketing({
@@ -27395,7 +27395,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/creatividades/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/creatividades/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.updateCreatividadMarketing(req.params.id, req.body);
       res.json(item);
@@ -27404,7 +27404,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/creatividades/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/creatividades/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteCreatividadMarketing(req.params.id);
       res.status(204).send();
@@ -27414,7 +27414,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Gastos Marketing routes
-  app.get('/api/marketing/gastos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/gastos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio } = req.query;
       if (!mes || !anio) {
@@ -27427,7 +27427,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/gastos/anio/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/gastos/anio/:anio', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const gastos = await storage.getGastosMarketingByAnio(parseInt(req.params.anio));
       res.json(gastos);
@@ -27436,7 +27436,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/gastos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/gastos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27452,7 +27452,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/gastos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27465,7 +27465,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/gastos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27479,7 +27479,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Add comment to a marketing gasto
-  app.post('/api/marketing/gastos/:id/comentarios', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/gastos/:id/comentarios', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { contenido } = req.body;
@@ -27516,7 +27516,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Creatividades approval routes
-  app.patch('/api/marketing/creatividades/:id/aprobar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/creatividades/:id/aprobar', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27533,7 +27533,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/creatividades/:id/rechazar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/creatividades/:id/rechazar', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27552,7 +27552,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Guiones Marketing routes
-  app.get('/api/marketing/guiones/:creatividadId', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/guiones/:creatividadId', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const guion = await storage.getGuionByCreatividadId(req.params.creatividadId);
       res.json(guion);
@@ -27561,7 +27561,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/guiones', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/guiones', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const guion = await storage.createGuionMarketing(req.body);
       res.json(guion);
@@ -27570,7 +27570,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/guiones/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/guiones/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const guion = await storage.updateGuionMarketing(req.params.id, req.body);
       res.json(guion);
@@ -27580,7 +27580,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Proveedores Marketing routes
-  app.get('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/proveedores', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const proveedores = await storage.getProveedoresMarketing();
       res.json(proveedores);
@@ -27589,7 +27589,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/proveedores', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27602,7 +27602,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/proveedores/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27615,7 +27615,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/proveedores/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -27629,7 +27629,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Solicitudes Marketing routes
-  app.post('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/solicitudes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -27706,7 +27706,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Endpoint para obtener solicitantes (admin, supervisor, vendedor)
-  app.get('/api/marketing/solicitantes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/solicitantes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const solicitantes = await storage.getMarketingSolicitantes();
       res.json(solicitantes);
@@ -27716,7 +27716,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/solicitudes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { mes, anio, estado } = req.query;
@@ -27739,7 +27739,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/solicitudes/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
 
@@ -27753,7 +27753,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -27792,7 +27792,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/solicitudes/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -27809,7 +27809,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Cambiar estado de solicitud
-  app.post('/api/marketing/solicitudes/:id/estado', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/solicitudes/:id/estado', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { estado, motivoRechazo, monto, pdfPresupuesto } = req.body;
@@ -27835,7 +27835,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update pasos for a solicitud
-  app.patch('/api/marketing/solicitudes/:id/pasos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/pasos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -27867,7 +27867,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Toggle paso completado
-  app.patch('/api/marketing/solicitudes/:id/pasos/:index/toggle', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/pasos/:index/toggle', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -27902,7 +27902,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update solicitud notas
-  app.patch('/api/marketing/solicitudes/:id/notas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/notas', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -27930,7 +27930,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Upload imagen de referencia para solicitud de marketing
-  app.post('/api/marketing/solicitudes/:id/imagen', requireCommercialAccess, upload.single('imagen'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/solicitudes/:id/imagen', requireMarketingAccess, upload.single('imagen'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -27977,7 +27977,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Marketing metrics
-  app.get('/api/marketing/metrics/:mes/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/metrics/:mes/:anio', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
@@ -27990,7 +27990,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Inventario Marketing routes
-  app.post('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/inventario', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28006,7 +28006,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, estado } = req.query;
 
@@ -28021,7 +28021,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario/summary', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario/summary', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const summary = await storage.getInventarioMarketingSummary();
       res.json(summary);
@@ -28043,7 +28043,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.getInventarioMarketingById(req.params.id);
 
@@ -28057,7 +28057,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/inventario/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28073,7 +28073,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/inventario/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28089,7 +28089,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/inventario/:id/movimientos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/inventario/:id/movimientos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const itemId = req.params.id;
@@ -28108,7 +28108,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario/:id/movimientos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario/:id/movimientos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const movimientos = await storage.getInventarioMarketingMovimientosByItemId(req.params.id);
       res.json(movimientos);
@@ -28122,7 +28122,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all hitos
-  app.get('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/hitos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio } = req.query;
 
@@ -28138,7 +28138,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get hito by ID
-  app.get('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/hitos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const hito = await storage.getHitoMarketingById(req.params.id);
 
@@ -28153,7 +28153,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create hito
-  app.post('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/hitos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28178,7 +28178,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update hito
-  app.patch('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/hitos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28195,7 +28195,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete hito
-  app.delete('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/hitos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28216,7 +28216,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all competidores
-  app.get('/api/marketing/competidores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/competidores', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const competidores = await storage.getCompetidores();
       res.json(competidores);
@@ -28226,7 +28226,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create competidor
-  app.post('/api/marketing/competidores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/competidores', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -28240,7 +28240,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update competidor
-  app.patch('/api/marketing/competidores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/competidores/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -28254,7 +28254,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete competidor
-  app.delete('/api/marketing/competidores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/competidores/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin') {
@@ -28272,7 +28272,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all productos monitoreo
-  app.get('/api/marketing/productos-monitoreo', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/productos-monitoreo', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { activo, search } = req.query;
       const filters: any = {};
@@ -28292,7 +28292,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get single producto monitoreo by ID
-  app.get('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/productos-monitoreo/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const producto = await storage.getProductoMonitoreoById(req.params.id);
       if (!producto) {
@@ -28305,7 +28305,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get precios for a specific producto monitoreo
-  app.get('/api/marketing/productos-monitoreo/:id/precios', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/productos-monitoreo/:id/precios', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const precios = await storage.getPreciosByProductoMonitoreoId(req.params.id);
       res.json(precios);
@@ -28315,7 +28315,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create producto monitoreo
-  app.post('/api/marketing/productos-monitoreo', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/productos-monitoreo', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -28338,7 +28338,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update producto monitoreo
-  app.patch('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/productos-monitoreo/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -28352,7 +28352,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete producto monitoreo (soft delete)
-  app.delete('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/productos-monitoreo/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin') {
@@ -28370,7 +28370,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all precios competencia with filters
-  app.get('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/precios-competencia', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { productoMonitoreoId, competidorId, fechaDesde, fechaHasta, search } = req.query;
       const filters: any = {};
@@ -28388,7 +28388,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get single precio by ID
-  app.get('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/precios-competencia/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const precio = await storage.getPrecioCompetenciaById(req.params.id);
       if (!precio) {
@@ -28401,7 +28401,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create precio competencia
-  app.post('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/precios-competencia', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { productoMonitoreoId, competidorId, precioWeb, precioFerreteria, precioConstruccion, notas, urlReferencia } = req.body;
@@ -28424,7 +28424,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update precio competencia
-  app.patch('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/precios-competencia/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const precio = await storage.updatePrecioCompetencia(req.params.id, req.body);
       res.json(precio);
@@ -28434,7 +28434,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete precio competencia
-  app.delete('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/precios-competencia/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
@@ -28452,7 +28452,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all tareas with filters
-  app.get('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/tareas', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio, estado, asignadoAId, incluirPorFechaLimite } = req.query;
 
@@ -28473,7 +28473,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get single tarea by ID
-  app.get('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/tareas/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const tarea = await storage.getTareaMarketingById(req.params.id);
       if (!tarea) {
@@ -28486,7 +28486,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create new tarea
-  app.post('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/tareas', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
@@ -28511,7 +28511,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update tarea
-  app.patch('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/tareas/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
@@ -28533,7 +28533,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Toggle tarea estado
-  app.post('/api/marketing/tareas/:id/toggle', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/tareas/:id/toggle', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
@@ -28555,7 +28555,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete tarea
-  app.delete('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/tareas/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
 
