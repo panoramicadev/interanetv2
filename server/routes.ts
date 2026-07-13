@@ -36333,17 +36333,36 @@ Instrucciones extra:
   // otro usuario cuyo email esté vinculado a un vendedor (salespeople_users)
   // queda acotado a SUS leads — cubre supervisores/encargados que además
   // venden. Un no-admin sin vínculo conserva el comportamiento de su rol.
-  const getVendedorScope = async (user: any): Promise<{ id: string; name: string } | null> => {
+  //
+  // `id`/`name` = el propio vínculo (para autoasignar leads nuevos).
+  // `vendedorIds` = el conjunto de vendedores CUYOS leads puede LEER: para un
+  // supervisor/encargado incluye a su equipo (vendedores con supervisor_id =
+  // su id); para un vendedor plano es solo él. Filtrar lecturas con este set.
+  const getVendedorScope = async (user: any): Promise<{ id: string; name: string; vendedorIds: string[]; isSupervisor: boolean } | null> => {
     if (!user || user.role === 'admin') return null;
     const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
-    return spUser.length > 0 ? { id: spUser[0].id, name: spUser[0].salespersonName } : null;
+    if (spUser.length === 0) return null;
+    const self = spUser[0];
+    // Un supervisor/encargado ve, además de los suyos, los leads de su equipo.
+    const isSupervisor =
+      user.role === 'supervisor' || user.role === 'encargado_area' ||
+      self.role === 'supervisor' || self.role === 'encargado_area';
+    let vendedorIds = [self.id];
+    if (isSupervisor) {
+      const team = await db
+        .select({ id: salespeopleUsers.id })
+        .from(salespeopleUsers)
+        .where(eq(salespeopleUsers.supervisorId, self.id));
+      vendedorIds = Array.from(new Set([self.id, ...team.map(t => t.id)]));
+    }
+    return { id: self.id, name: self.salespersonName, vendedorIds, isSupervisor };
   };
 
   // Único punto de verdad del check de ownership sobre un lead: debe
   // aplicarse en TODO endpoint que reciba un :id de seguimiento.
   const canAccessSeguimiento = async (user: any, vendedorId: string | null): Promise<boolean> => {
     const scope = await getVendedorScope(user);
-    if (scope) return scope.id === vendedorId;
+    if (scope) return !!vendedorId && scope.vendedorIds.includes(vendedorId);
     // Sin vínculo a vendedor: un salesperson no opera nada; el resto sí.
     return user?.role !== 'salesperson';
   };
@@ -36395,9 +36414,14 @@ Instrucciones extra:
 
     const scope = await getVendedorScope(user);
     if (scope) {
-      // Usuario vinculado a vendedor (incluye supervisor que vende):
-      // solo sus propios leads, ignorando el filtro de vendedor.
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+      // Usuario vinculado a vendedor: sus leads (y los de su equipo si es
+      // supervisor/encargado). Un supervisor puede además acotar a un vendedor
+      // concreto de su equipo con ?vendedor=.
+      if (vendedorFilter && scope.vendedorIds.includes(vendedorFilter)) {
+        conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
+      } else {
+        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+      }
     } else if (user.role === 'salesperson') {
       return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
     } else if (vendedorFilter && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
@@ -36486,7 +36510,13 @@ Instrucciones extra:
     // supervisor/encargado sin vínculo a vendedor).
     const scope = await getVendedorScope(user);
     if (scope) {
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+      // Vendedor: solo los suyos. Supervisor/encargado: los de su equipo,
+      // con opción de acotar a un vendedor concreto vía ?vendedor=.
+      if (vendedor && scope.vendedorIds.includes(vendedor as string)) {
+        conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
+      } else {
+        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+      }
     } else if (user.role === 'salesperson') {
       return res.json([]);
     } else if (vendedor && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
@@ -36637,7 +36667,11 @@ Instrucciones extra:
     const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
     const scope = await getVendedorScope(user);
     if (scope) {
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+      if (vendedor && scope.vendedorIds.includes(vendedor as string)) {
+        conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
+      } else {
+        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+      }
     } else if (user.role === 'salesperson') {
       // Vendedor sin vínculo: nada que exportar.
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -36973,10 +37007,17 @@ Instrucciones extra:
 
     const scope = await getVendedorScope(user);
     if (scope) {
-      // Usuario vinculado a vendedor (incluye supervisor que vende): sus
-      // leads nuevos siempre quedan asignados a sí mismo.
-      vendedorId = scope.id;
-      vendedorNombre = scope.name;
+      // Usuario vinculado a vendedor: por defecto el lead nuevo queda asignado
+      // a sí mismo. Un supervisor/encargado puede asignarlo a un vendedor de su
+      // equipo pasando vendedorId dentro de su scope.
+      if (scope.isSupervisor && req.body.vendedorId && scope.vendedorIds.includes(req.body.vendedorId)) {
+        const [spUser] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
+        vendedorId = spUser.id;
+        vendedorNombre = spUser.salespersonName;
+      } else {
+        vendedorId = scope.id;
+        vendedorNombre = scope.name;
+      }
     } else if (user.role === 'salesperson') {
       return res.status(400).json({ message: 'Usuario vendedor no encontrado' });
     } else if (req.body.vendedorId && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
@@ -37108,9 +37149,15 @@ Instrucciones extra:
       }
     }
 
-    // Handle vendedor reassignment: solo admin (o supervisor/encargado sin
-    // vínculo a vendedor); un usuario acotado a su scope no reasigna leads.
-    if (req.body.vendedorId && !(await getVendedorScope(user)) && (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area'))) {
+    // Handle vendedor reassignment: admin (o supervisor/encargado sin vínculo)
+    // reasigna a cualquier vendedor; un supervisor/encargado vinculado reasigna
+    // dentro de su equipo; un vendedor plano nunca reasigna.
+    const patchScope = await getVendedorScope(user);
+    const canReassign = req.body.vendedorId && (
+      (!patchScope && (user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area')) ||
+      (patchScope?.isSupervisor && patchScope.vendedorIds.includes(req.body.vendedorId))
+    );
+    if (canReassign) {
       const [newVendedor] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
       if (newVendedor) {
         updateData.vendedorId = newVendedor.id;
@@ -37195,7 +37242,8 @@ Instrucciones extra:
     ];
     const scope = await getVendedorScope(user);
     if (scope) {
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, scope.id));
+      // Vendedor: solo los suyos; supervisor/encargado: los de su equipo.
+      conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
     } else if (user.role === 'salesperson') {
       return res.status(403).json({ message: 'Usuario vendedor no encontrado' });
     }
@@ -37507,7 +37555,9 @@ Instrucciones extra:
   app.get('/api/crm/vendedores', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const scope = await getVendedorScope(req.user);
     const conditions = [eq(salespeopleUsers.isActive, true)];
-    if (scope) conditions.push(eq(salespeopleUsers.id, scope.id));
+    // Vendedor: solo se ve a sí mismo. Supervisor/encargado: su equipo, para
+    // poder filtrar/asignar leads entre sus vendedores.
+    if (scope) conditions.push(inArray(salespeopleUsers.id, scope.vendedorIds));
 
     const vendedores = await db.select({
       id: salespeopleUsers.id,
