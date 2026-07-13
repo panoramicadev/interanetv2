@@ -26,6 +26,7 @@ import MisVendedoresPage from "@/pages/mis-vendedores";
 import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
+import Comisiones from "@/pages/comisiones";
 import TareasPage from "@/pages/tareas";
 import RutasComerciales from "@/pages/rutas-comerciales";
 
@@ -225,8 +226,8 @@ function Router() {
                   // Roles de mantención van al módulo de mantenciones
                   return <MantencionesPage />;
                 case 'recursos_humanos':
-                  // Recursos humanos va directamente a la gestión de gastos
-                  window.location.replace('/gastos-empresariales');
+                  // Recursos humanos aterriza en su módulo de comisiones
+                  window.location.replace('/comisiones');
                   return null;
                 case 'marketing':
                   // Marketing va directamente a su módulo
@@ -286,6 +287,7 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={guarded("config.metas", Metas)} />
+            <Route path="/comisiones" component={guarded("rrhh.comisiones", Comisiones)} />
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra

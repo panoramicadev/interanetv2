@@ -43,6 +43,7 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
   { key: "postventa", label: "Post-Venta", description: "Visitas técnicas y reclamos" },
   { key: "tintometria", label: "Tintometría", description: "Herramientas de color y costos" },
   { key: "mantencion", label: "Mantención (CMMS)", description: "Gestión de mantenimiento de planta" },
+  { key: "rrhh", label: "Recursos Humanos", description: "Comisiones y gestión de personal" },
   { key: "administracion", label: "Administración", description: "Configuración del sistema (pestañas de Configuración)" },
 ];
 
@@ -288,6 +289,15 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Calendario de mantenciones",
     group: "mantencion",
     href: "/cmms/calendario",
+  },
+
+  // ── Recursos Humanos ─────────────────────────────────────────
+  {
+    key: "rrhh.comisiones",
+    label: "Comisiones de Vendedores",
+    description: "Cálculo de comisiones por vendedor sobre el margen facturado (información sensible)",
+    group: "rrhh",
+    href: "/comisiones",
   },
 
   // ── Administración ───────────────────────────────────────────
@@ -564,7 +574,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   planificacion: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["postventa.reclamos", "gastos"],
-  recursos_humanos: ["gastos"],
+  recursos_humanos: ["rrhh.comisiones", "gastos"],
   marketing: ["marketing", "gastos"],
   area_produccion: ["postventa.reclamos", "gastos"],
   area_logistica: ["postventa.reclamos", "gastos"],

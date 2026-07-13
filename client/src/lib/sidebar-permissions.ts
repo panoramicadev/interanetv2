@@ -141,6 +141,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "marketing", item: { href: "/marketing", label: "Marketing", icon: TrendingUp } },
   { key: "finanzas", item: { href: "/facturas", label: "Finanzas", icon: Receipt } },
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
+  { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
   { key: "postventa.visitas", item: { href: "/visitas-tecnicas", label: "Visita Técnica", icon: FileCheck } },
   { key: "postventa.reclamos", item: { href: "/reclamos-generales", label: "Reclamos", icon: AlertTriangle } },
