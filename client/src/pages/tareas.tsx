@@ -22,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckSquare,
+  Camera,
   Clock,
   AlertCircle,
   AlertTriangle,
@@ -302,6 +303,13 @@ export default function TareasPage() {
   // Terminadas (todas las tareas completadas juntas). Por defecto arranca en Equipo.
   const [taskView, setTaskView] = useState<'equipo' | 'grupos' | 'terminadas'>('equipo');
   const groupByEquipo = taskView === 'equipo';
+  // En Seguimiento no existen las vistas Grupos/Terminadas: si quedaron seleccionadas
+  // desde la pestaña Tareas, volver siempre a Equipo al entrar a Seguimiento.
+  useEffect(() => {
+    if (activeTab === 'seguimiento' && taskView !== 'equipo') {
+      setTaskView('equipo');
+    }
+  }, [activeTab, taskView]);
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
@@ -1743,20 +1751,24 @@ export default function TareasPage() {
                   onClick={() => setTaskView('equipo')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'equipo' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  <Users className="h-3.5 w-3.5" /> Equipo
+                  <Users className="h-3.5 w-3.5" /> Mi Equipo
                 </button>
-                <button
-                  onClick={() => setTaskView('grupos')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" /> Grupos
-                </button>
-                <button
-                  onClick={() => setTaskView('terminadas')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <Check className="h-3.5 w-3.5" /> Terminadas
-                </button>
+                {activeTab !== 'seguimiento' && (
+                  <>
+                    <button
+                      onClick={() => setTaskView('grupos')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" /> Grupos
+                    </button>
+                    <button
+                      onClick={() => setTaskView('terminadas')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Terminadas
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Acciones a la derecha */}
@@ -2136,46 +2148,85 @@ export default function TareasPage() {
                   return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
                 }
 
+                // Card de miembro del equipo — foco en la persona y sus clientes asignados.
                 const renderPersonRow = (id: string, grp: PersonGroup, muted = false) => {
                   const completed = grp.tasks.filter(isTaskDone).length;
                   const total = grp.tasks.length;
                   const pct = total > 0 ? (completed / total) * 100 : 0;
                   const isCollapsed = collapsedGroups.has(id);
+                  const done = pct === 100;
+                  const isSupervisor = grp.role === 'supervisor';
+                  // Anillo de progreso (SVG) alrededor del avatar.
+                  const R = 20, C = 2 * Math.PI * R;
                   return (
-                    <div key={id} className="border-b border-slate-100 last:border-b-0">
+                    <div
+                      key={id}
+                      className={`rounded-2xl border bg-white overflow-hidden transition-all duration-200 ${
+                        muted
+                          ? 'border-dashed border-slate-200 bg-slate-50/40'
+                          : `border-slate-200/80 shadow-sm hover:shadow-md ${!isCollapsed ? 'ring-1 ring-orange-100' : ''}`
+                      }`}
+                    >
                       <button
                         onClick={() => toggleGroupCollapsed(id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3.5 px-3.5 sm:px-4 py-3.5 hover:bg-slate-50/70 transition-colors text-left"
                       >
-                        <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
-                          muted ? 'bg-slate-200 text-slate-500' : grp.role === 'supervisor' ? 'bg-slate-800 text-white' : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {grp.name.charAt(0).toUpperCase()}
+                        {/* Avatar con anillo de progreso */}
+                        <div className="relative flex-shrink-0 w-[52px] h-[52px]">
+                          <svg className="absolute inset-0 -rotate-90" width="52" height="52" viewBox="0 0 52 52">
+                            <circle cx="26" cy="26" r={R} fill="none" strokeWidth="3" className="stroke-slate-100" />
+                            {total > 0 && (
+                              <circle
+                                cx="26" cy="26" r={R} fill="none" strokeWidth="3" strokeLinecap="round"
+                                stroke={done ? '#10b981' : muted ? '#cbd5e1' : '#f97316'}
+                                strokeDasharray={C}
+                                strokeDashoffset={C - (pct / 100) * C}
+                                className="transition-all duration-700"
+                              />
+                            )}
+                          </svg>
+                          <div className={`absolute inset-[6px] rounded-full flex items-center justify-center text-sm font-bold ${
+                            muted ? 'bg-slate-100 text-slate-500'
+                              : isSupervisor ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white'
+                              : 'bg-gradient-to-br from-orange-400 to-orange-600 text-white'
+                          }`}>
+                            {grp.name.charAt(0).toUpperCase()}
+                          </div>
                         </div>
-                        <div className="flex items-baseline gap-1.5 min-w-0">
-                          <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
-                          {grp.role === 'supervisor' && (
-                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide flex-shrink-0">Supervisor</span>
-                          )}
+
+                        {/* Nombre + rol + clientes */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
+                            {isSupervisor && (
+                              <span className="text-[9px] font-bold text-slate-500 bg-slate-100 uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0">Supervisor</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-400">
+                            <Building2 className="h-3 w-3" />
+                            {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} asignado${total !== 1 ? 's' : ''}`}
+                          </div>
                         </div>
-                        <span className="text-xs text-slate-400 font-medium flex-shrink-0">{total}</span>
+
+                        {/* Métrica de avance */}
                         {total > 0 && (
-                          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-                            <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <span className={`text-[13px] font-bold tabular-nums ${done ? 'text-emerald-600' : 'text-slate-700'}`}>
+                              {completed}<span className="text-slate-300 font-medium">/{total}</span>
+                            </span>
+                            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                               <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#cbd5e1' }}
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${pct}%`, backgroundColor: done ? '#10b981' : muted ? '#cbd5e1' : '#f97316' }}
                               />
                             </div>
-                            <span className={`text-[11px] font-medium whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              {completed}/{total}
-                            </span>
                           </div>
                         )}
+
+                        <ChevronRight className={`h-4 w-4 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
                       </button>
                       {!isCollapsed && (
-                        <div className="px-1.5 sm:px-3 pb-2 space-y-1 sm:space-y-1.5">
+                        <div className="px-1.5 sm:px-2.5 pb-2.5 pt-0.5 space-y-1 sm:space-y-1.5 border-t border-slate-100/80 bg-slate-50/30">
                           {grp.tasks.map(renderTaskCard)}
                         </div>
                       )}
@@ -2183,12 +2234,44 @@ export default function TareasPage() {
                   );
                 };
 
+                // Métricas de equipo (solo miembros operativos).
+                const teamTotal = people.reduce((s, [, g]) => s + g.tasks.length, 0);
+                const teamDone = people.reduce((s, [, g]) => s + g.tasks.filter(isTaskDone).length, 0);
+                const teamPct = teamTotal > 0 ? Math.round((teamDone / teamTotal) * 100) : 0;
+
                 return (
                   <>
                     {people.length > 0 && (
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                        {people.map(([id, grp]) => renderPersonRow(id, grp))}
-                      </div>
+                      <>
+                        {/* Resumen del equipo */}
+                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mb-4">
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Users className="h-3 w-3" /> Equipo
+                            </div>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{people.length}</div>
+                            <div className="text-[11px] text-slate-400 mt-1">persona{people.length !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Building2 className="h-3 w-3" /> Clientes
+                            </div>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{teamTotal}</div>
+                            <div className="text-[11px] text-slate-400 mt-1">asignado{teamTotal !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Check className="h-3 w-3" /> Avance
+                            </div>
+                            <div className={`text-2xl font-bold leading-none ${teamPct === 100 ? 'text-emerald-600' : 'text-orange-600'}`}>{teamPct}%</div>
+                            <div className="text-[11px] text-slate-400 mt-1">{teamDone}/{teamTotal} listo{teamDone !== 1 ? 's' : ''}</div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {people.map(([id, grp]) => renderPersonRow(id, grp))}
+                        </div>
+                      </>
                     )}
                   </>
                 );
@@ -4065,7 +4148,7 @@ function TaskDetailDialog({
               </button>
             </div>
           </div>
-          <HeaderMeta task={task} />
+          <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} />
         </div>
 
         {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der) */}
@@ -4406,7 +4489,7 @@ function TaskDetailDialog({
                   <>
                     <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
-                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
+                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} taskId={task.id} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
                     <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
@@ -5012,7 +5095,7 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
         <div className="px-4 py-3 max-h-72 overflow-y-auto">
           <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
-          <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
+          <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} taskId={task.id} /></TabsContent>
           <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
         </div>
       </Tabs>
@@ -5080,39 +5163,49 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
   );
 }
 
-// El título de una ruta creada al vuelo es directamente la fecha elegida (ej. "Ruta 14 Julio").
-function nombreRutaDesdeFecha(fechaStr: string): string {
-  const d = new Date(`${fechaStr}T00:00:00`);
-  const dia = format(d, "d", { locale: es });
-  const mes = format(d, "MMMM", { locale: es });
-  return `Ruta ${dia} ${mes.charAt(0).toUpperCase()}${mes.slice(1)}`;
-}
-
-function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId: string; clienteNombre: string; canManage: boolean }) {
+function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { clienteId: string; clienteNombre: string; canManage: boolean; taskId?: string }) {
   const { toast } = useToast();
   const [selRuta, setSelRuta] = useState("");
+  const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
   const [visitaRuta, setVisitaRuta] = useState("");
   const [visitaFecha, setVisitaFecha] = useState("");
   const [visitaNota, setVisitaNota] = useState("");
-  const [creatingRuta, setCreatingRuta] = useState(false);
-  const [nuevaRutaFecha, setNuevaRutaFecha] = useState("");
-  const [nuevaRutaNota, setNuevaRutaNota] = useState("");
 
-  const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; visitado: boolean | null; fechaVisita: string | null }>>({
+  const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; fecha: string | null; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
     queryFn: async () => { const r = await apiRequest(`/api/rutas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
   const { data: allRutas = [] } = useQuery<Array<{ id: string; nombre: string; fecha?: string | null }>>({ queryKey: ["/api/rutas"], enabled: canManage });
-  const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; registradoPorNombre: string | null }>>({
+  const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; imagenUrl: string | null; lat: string | null; lng: string | null; registradoPorNombre: string | null }>>({
     queryKey: ["/api/rutas/visitas/by-cliente", clienteId],
     queryFn: async () => { const r = await apiRequest(`/api/rutas/visitas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
 
   const assign = useMutation({
-    mutationFn: async () => apiRequest("POST", `/api/rutas/${selRuta}/clientes`, { clienteId, clienteNombre }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] }); setSelRuta(""); toast({ title: "Cliente asignado a la ruta" }); },
+    mutationFn: async () => {
+      const ruta = allRutas.find((r) => r.id === selRuta);
+      await apiRequest("POST", `/api/rutas/${selRuta}/clientes`, { clienteId, clienteNombre });
+      // Al asignar la ruta se crea automáticamente una tarea (actividad tipo visita)
+      // ligada a la ruta; al completarla, la ruta queda marcada como realizada.
+      if (taskId) {
+        await apiRequest("POST", `/api/tasks/${taskId}/actividades`, {
+          tipo: "visita",
+          descripcion: `Visita de ruta: ${ruta?.nombre || clienteNombre}`,
+          fecha: ruta?.fecha || undefined,
+          rutaId: selRuta,
+          rutaNombre: ruta?.nombre || null,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      if (taskId) queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      setSelRuta("");
+      toast({ title: "Ruta asignada", description: taskId ? "Se creó una tarea de visita para esta ruta." : undefined });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo asignar.", variant: "destructive" }),
   });
   const registrarVisita = useMutation({
@@ -5123,24 +5216,6 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
       toast({ title: "Visita registrada" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
-  });
-  // Crear una ruta nueva y registrar la visita en el mismo paso: el título de la ruta
-  // es simplemente la fecha elegida, sin pedirle un nombre al usuario.
-  const createRutaMut = useMutation({
-    mutationFn: async () => {
-      const nombre = nombreRutaDesdeFecha(nuevaRutaFecha);
-      const r = await apiRequest("POST", "/api/rutas/quick", { nombre, clienteId, clienteNombre });
-      const ruta = await r.json();
-      await apiRequest("POST", `/api/rutas/${ruta.id}/visitas`, { clienteId, clienteNombre, fecha: nuevaRutaFecha, nota: nuevaRutaNota.trim() || undefined });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
-      setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota("");
-      toast({ title: "Visita registrada", description: "Se creó la ruta y quedó en el histórico." });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
   });
   // Eliminar la ruta por completo (borra la ruta, sus clientes asignados y su histórico de visitas).
   const eliminarRutaMut = useMutation({
@@ -5164,6 +5239,9 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
 
   return (
     <div className="space-y-5">
+      {completing && (
+        <CompletarRutaDialog clienteId={clienteId} clienteNombre={clienteNombre} ruta={completing} onClose={() => setCompleting(null)} />
+      )}
       {/* Rutas del cliente */}
       <div className="space-y-2">
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Rutas del cliente</h4>
@@ -5176,11 +5254,14 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             {rutasCliente.map((r) => (
               <div key={r.id} className="flex items-center gap-2 text-xs bg-white rounded-xl px-3 py-2 border border-slate-100">
                 <MapPin className="h-4 w-4 text-orange-400 flex-shrink-0" />
-                <span className="font-semibold text-slate-700 flex-1 truncate">{r.nombre}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-slate-700 block truncate">{r.nombre}</span>
+                  {r.fecha && <span className="text-[10px] text-slate-400 flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {format(new Date(r.fecha), "dd MMM yyyy", { locale: es })}</span>}
+                </div>
                 {/* Estado por cliente: realizada / pendiente (para saber si la ruta se hizo) */}
                 {canManage ? (
                   <button
-                    onClick={() => toggleVisitado.mutate({ rutaId: r.id, visitado: !r.visitado })}
+                    onClick={() => r.visitado ? toggleVisitado.mutate({ rutaId: r.id, visitado: false }) : setCompleting({ id: r.id, nombre: r.nombre })}
                     disabled={toggleVisitado.isPending}
                     title={r.visitado ? "Marcar como pendiente" : "Marcar como realizada"}
                     className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:opacity-50 ${r.visitado ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
@@ -5234,37 +5315,6 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             </Button>
           </div>
         )}
-        {/* Crear ruta nueva al vuelo: se registra la visita en el mismo paso y la fecha es el título */}
-        {canManage && (
-          creatingRuta ? (
-            <div className="space-y-2 pt-1 rounded-xl border border-orange-100 bg-orange-50/50 p-2.5">
-              <Input
-                autoFocus
-                type="date"
-                value={nuevaRutaFecha}
-                onChange={(e) => setNuevaRutaFecha(e.target.value)}
-                className="h-8 text-xs"
-              />
-              <Input
-                value={nuevaRutaNota}
-                onChange={(e) => setNuevaRutaNota(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && nuevaRutaFecha && !createRutaMut.isPending) createRutaMut.mutate(); }}
-                placeholder="Nota (opcional)…"
-                className="h-8 text-xs"
-              />
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="flex-1 h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRutaFecha || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
-                  {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
-                </Button>
-                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota(""); }}>Cancelar</Button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => { setCreatingRuta(true); setNuevaRutaFecha(format(new Date(), "yyyy-MM-dd")); }} className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 pt-1">
-              <Plus className="h-3 w-3" /> Crear ruta nueva
-            </button>
-          )
-        )}
       </div>
 
       {/* Registrar visita (queda en el histórico) */}
@@ -5303,7 +5353,15 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
                     {v.rutaNombre && <span className="text-[11px] text-slate-400 truncate">· {v.rutaNombre}</span>}
                   </div>
                   {v.nota && <p className="text-[11px] text-slate-500 mt-0.5">{v.nota}</p>}
+                  {v.lat != null && v.lng != null && (
+                    <a href={`https://www.google.com/maps?q=${v.lat},${v.lng}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline mt-0.5 inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> Ver ubicación</a>
+                  )}
                   {v.registradoPorNombre && <p className="text-[10px] text-slate-400 mt-0.5">por {v.registradoPorNombre}</p>}
+                  {v.imagenUrl && (
+                    <a href={v.imagenUrl} target="_blank" rel="noreferrer" className="block mt-1.5">
+                      <img src={v.imagenUrl} alt="Evidencia de la visita" className="h-24 w-full max-w-[220px] object-cover rounded-lg border border-slate-200" />
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
@@ -5311,6 +5369,116 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
         )}
       </div>
     </div>
+  );
+}
+
+// Diálogo para completar una ruta: permite adjuntar una foto (cámara o galería) y detecta
+// la geolocalización del dispositivo. Al confirmar marca la ruta como realizada para el
+// cliente y guarda la evidencia (foto + coordenadas) en el histórico de visitas.
+function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose }: { clienteId: string; clienteNombre: string; ruta: { id: string; nombre: string }; onClose: () => void }) {
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [nota, setNota] = useState("");
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [submitting, setSubmitting] = useState(false);
+
+  const detectGeo = () => {
+    if (!("geolocation" in navigator)) { setGeoStatus("error"); return; }
+    setGeoStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoStatus("ok"); },
+      () => { setGeoStatus("error"); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
+  // Al abrir el diálogo intenta detectar la ubicación automáticamente.
+  useEffect(() => { detectGeo(); }, []);
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : "");
+  };
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      let imagenUrl: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!res.ok) throw new Error("No se pudo subir la imagen");
+        imagenUrl = (await res.json()).url || null;
+      }
+      await apiRequest("PATCH", `/api/rutas/${ruta.id}/clientes/${encodeURIComponent(clienteId)}/visitado`, {
+        visitado: true,
+        imagenUrl,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+        nota: nota.trim() || null,
+        clienteNombre,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      toast({ title: "Ruta marcada como realizada" });
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "No se pudo completar la ruta.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Completar ruta</DialogTitle>
+          <DialogDescription>{ruta.nombre} · {clienteNombre}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Foto de la visita</label>
+            {preview ? (
+              <div className="relative">
+                <img src={preview} alt="Foto de la visita" className="w-full h-40 object-cover rounded-lg border border-slate-200" />
+                <button type="button" onClick={() => { setFile(null); setPreview(""); }} className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1 text-slate-500 hover:text-red-500 shadow-sm"><X className="h-4 w-4" /></button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-1 h-28 border-2 border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-orange-300 text-slate-400 hover:text-orange-500 transition-colors">
+                <Camera className="h-6 w-6" />
+                <span className="text-xs">Tomar o subir foto</span>
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
+              </label>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Ubicación</label>
+            <div className="flex items-center gap-2 text-xs">
+              {geoStatus === "loading" && <span className="text-slate-400 flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Detectando ubicación…</span>}
+              {geoStatus === "ok" && geo && (
+                <a href={`https://www.google.com/maps?q=${geo.lat},${geo.lng}`} target="_blank" rel="noreferrer" className="text-green-600 font-medium flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}</a>
+              )}
+              {geoStatus === "error" && <span className="text-amber-600">No se pudo detectar la ubicación.</span>}
+              {geoStatus === "idle" && <span className="text-slate-400">Sin ubicación.</span>}
+              {geoStatus !== "loading" && (
+                <Button type="button" size="sm" variant="ghost" className="h-6 text-[11px] px-2" onClick={detectGeo}>{geoStatus === "ok" ? "Actualizar" : "Detectar"}</Button>
+              )}
+            </div>
+          </div>
+          <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional)…" className="h-8 text-xs" />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button type="button" className="bg-green-600 hover:bg-green-700" onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Check className="h-4 w-4 mr-1.5" />} Marcar realizada
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -5619,8 +5787,9 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
   const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
-    // el histórico de la pestaña Rutas también refleja las visitas creadas desde acá
+    // el histórico y el estado de la pestaña Rutas también reflejan lo hecho desde acá
     queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
   };
 
   const createRutaMut = useMutation({
@@ -5791,7 +5960,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
 // ==================================================================================
 // HeaderMeta — Fecha límite (editable) + Cliente en la cabecera del detalle de tarea.
 // ==================================================================================
-function HeaderMeta({ task }: { task: any }) {
+function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?: boolean }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const canEditDate = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || task.createdByUserId === user?.id;
@@ -5813,6 +5982,7 @@ function HeaderMeta({ task }: { task: any }) {
           <span className="font-semibold text-emerald-700 truncate">{task.clienteNombre}</span>
         </div>
       )}
+      {!isSeguimiento && (
       <div className="flex items-center gap-1.5 text-sm">
         <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha límite</span>
@@ -5829,6 +5999,7 @@ function HeaderMeta({ task }: { task: any }) {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
