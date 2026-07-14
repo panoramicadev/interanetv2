@@ -140,5 +140,9 @@ COPY --from=builder /app/attached_assets ./attached_assets
 
 EXPOSE 8080
 
-# Run migrations on start, then serve.
-CMD ["sh", "-c", "npm run db:push && npm start"]
+# Serve directly. El schema se aplica en runtime vía bootstrapDatabase() +
+# runProductionMigrations() (server/index.ts), envueltos en try/catch para que
+# nunca bloqueen el listen(). NO usar `db:push` acá: drizzle-kit push es
+# interactivo y en un contenedor sin TTY se cuelga/falla, y con `&&` impedía
+# que el server arrancara → "Application failed to respond" en Railway.
+CMD ["npm", "start"]

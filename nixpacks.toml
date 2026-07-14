@@ -7,5 +7,7 @@ cmds = ["npm run build"]
 [variables]
 PUPPETEER_SKIP_DOWNLOAD = "true"
 
+# El schema se aplica en runtime (bootstrapDatabase + runProductionMigrations,
+# ambos en try/catch). NO usar db:push acá: es interactivo y bloquea el arranque.
 [start]
-cmd = "npm run db:push && npm start"
+cmd = "npm start"
