@@ -163,13 +163,13 @@ export default function Marketing() {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/20">
       <div className="container mx-auto px-4 py-8 space-y-6">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
               <TrendingUp className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -188,7 +188,7 @@ export default function Marketing() {
               <TabsTrigger
                 value="inventario"
                 data-testid="tab-inventario"
-                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
               >
                 <Package className="h-4 w-4 shrink-0" />
                 <span className="hidden sm:inline">Inventario</span>
@@ -198,7 +198,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="gastos"
                   data-testid="tab-gastos"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <Receipt className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Gastos</span>
@@ -209,7 +209,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="presupuesto"
                   data-testid="tab-presupuesto"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <DollarSign className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Presupuesto</span>
@@ -220,7 +220,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="proveedores"
                   data-testid="tab-proveedores"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Proveedores</span>
@@ -303,7 +303,7 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          'bg-gradient-to-br from-indigo-500 to-purple-600',
+          'bg-gradient-to-br from-orange-500 to-orange-600',
           'bg-gradient-to-br from-emerald-500 to-teal-600',
           'bg-gradient-to-br from-amber-500 to-orange-600',
         ].map((gradient, i) => (
@@ -325,13 +325,13 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white" data-testid="card-presupuesto-total">
+        <Card className="border-0 shadow-md bg-gradient-to-br from-orange-500 to-orange-600 text-white" data-testid="card-presupuesto-total">
           <CardContent className="pt-6">
-            <p className="text-sm font-medium text-indigo-100">Presupuesto Total</p>
+            <p className="text-sm font-medium text-orange-100">Presupuesto Total</p>
             <p className="text-2xl font-bold mt-1">
               ${metrics && metrics.presupuestoTotal != null ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
             </p>
-            <p className="text-xs text-indigo-200 mt-1">
+            <p className="text-xs text-orange-200 mt-1">
               Presupuesto mensual asignado
             </p>
           </CardContent>
@@ -651,7 +651,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
               {tasks.map((task: any) => (
                 <Card
                   key={task.id}
-                  className="p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-indigo-200"
+                  className="p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-orange-200"
                   onClick={() => setSelectedTask(task)}
                 >
                   <div className="flex justify-between items-start">
@@ -692,7 +692,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
             return (
               <>
                 {/* Header */}
-                <div className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-indigo-50 to-purple-50">
+                <div className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-orange-50 to-orange-50">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-xl font-bold text-slate-900">{selectedTask.title}</h2>
@@ -736,7 +736,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
                     {payload.urlReferencia && (
                       <div className="bg-slate-50 rounded-lg p-3">
                         <p className="text-xs text-slate-500 font-medium uppercase">Enlace</p>
-                        <a href={payload.urlReferencia} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold mt-0.5 text-indigo-600 hover:underline flex items-center gap-1">
+                        <a href={payload.urlReferencia} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold mt-0.5 text-orange-600 hover:underline flex items-center gap-1">
                           Ver <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
@@ -768,7 +768,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
                   {/* Bitácora */}
                   <div className="border-t pt-4">
                     <h3 className="font-semibold text-base flex items-center gap-2 mb-3">
-                      <History className="h-4 w-4 text-indigo-500" />
+                      <History className="h-4 w-4 text-orange-500" />
                       Bitácora
                     </h3>
 
@@ -791,7 +791,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
                         onClick={() => {
                           if (newComment.trim()) addCommentMutation.mutate(newComment.trim());
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700"
+                        className="bg-orange-600 hover:bg-orange-700"
                       >
                         {addCommentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       </Button>
@@ -806,8 +806,8 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
                       <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                         {comments.map((comment: any) => (
                           <div key={comment.id} className="flex gap-3 p-3 bg-slate-50 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <span className="text-xs font-bold text-indigo-600">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                              <span className="text-xs font-bold text-orange-600">
                                 {(comment.authorName || 'U').charAt(0).toUpperCase()}
                               </span>
                             </div>
@@ -1095,11 +1095,11 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader className="p-6 pb-4 bg-slate-900 border-b relative overflow-hidden">
           <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
           <div className="relative flex items-start gap-4">
-            <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-500/20 shadow-inner">
-              <CheckSquare className="h-6 w-6 text-blue-400" />
+            <div className="p-2.5 bg-orange-500/20 rounded-xl border border-orange-500/20 shadow-inner">
+              <CheckSquare className="h-6 w-6 text-orange-400" />
             </div>
             <div>
               <DialogTitle className="text-xl text-white font-semibold">Nueva Tarea de Marketing</DialogTitle>
@@ -1116,7 +1116,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             {/* Sección 1: Info Básica */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                 Información de la tarea
               </div>
               <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
@@ -1161,7 +1161,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             {/* Sección 2: Plazos (2 columnas porque quitamos segmento y prioridad visualmente) */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                 Fecha Límite
               </div>
               <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
@@ -1269,7 +1269,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <Button type="button" variant="outline" className="rounded-xl font-medium" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-medium bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20">
+              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20">
                 {createMutation.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando...</>
                 ) : (
@@ -1358,14 +1358,14 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
       {/* KPI Summary */}
       {summary && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 p-5 text-white shadow-lg">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 p-5 text-white shadow-lg">
             <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
             <div className="relative">
-              <div className="flex items-center gap-2 text-indigo-100 text-xs font-semibold uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-orange-100 text-xs font-semibold uppercase tracking-wider">
                 <Package className="h-3.5 w-3.5" /> Total Items
               </div>
               <p className="text-3xl font-bold mt-1">{summary.totalItems}</p>
-              <p className="text-xs text-indigo-200 mt-1">Productos en inventario</p>
+              <p className="text-xs text-orange-200 mt-1">Productos en inventario</p>
             </div>
           </div>
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white shadow-lg">
@@ -1378,14 +1378,14 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
               <p className="text-xs text-amber-200 mt-1">Requieren reposición</p>
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-5 text-white shadow-lg">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white shadow-lg">
             <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
             <div className="relative">
-              <div className="flex items-center gap-2 text-emerald-100 text-xs font-semibold uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-orange-300 text-xs font-semibold uppercase tracking-wider">
                 <DollarSign className="h-3.5 w-3.5" /> Valorización
               </div>
               <p className="text-3xl font-bold mt-1">${summary.valorTotal.toLocaleString('es-CL')}</p>
-              <p className="text-xs text-emerald-200 mt-1">Valor total del inventario</p>
+              <p className="text-xs text-slate-400 mt-1">Valor total del inventario</p>
             </div>
           </div>
         </div>
@@ -1411,7 +1411,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
           </Button>
         </div>
         {canManage && (
-          <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-orange-600 hover:bg-orange-700">
             <Plus className="mr-2 h-4 w-4" /> Nuevo Item
           </Button>
         )}
@@ -1419,7 +1419,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
 
       {/* Content */}
       {isLoading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>
       ) : filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Package className="h-12 w-12 mb-4 opacity-30" />
@@ -1460,7 +1460,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${isLowStock ? 'bg-amber-500' : stockPercent > 60 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        className={`h-full rounded-full transition-all ${isLowStock ? 'bg-amber-500' : stockPercent > 60 ? 'bg-emerald-500' : 'bg-orange-500'}`}
                         style={{ width: `${Math.max(5, stockPercent)}%` }}
                       />
                     </div>
@@ -1497,15 +1497,15 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       {est.label}
                     </Badge>
                     <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" title="Historial" onClick={() => handleHistory(item)}>
                         <History className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}>
                         <ArrowLeftRight className="h-3.5 w-3.5" />
                       </Button>
                       {canManage && (
                         <>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" onClick={() => handleEdit(item)}>
                             <Edit className="h-3.5 w-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(item.id)}>
@@ -1578,11 +1578,11 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       </TableCell>
                       <TableCell className="py-3 pr-6 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}><ArrowLeftRight className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" title="Historial" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}><ArrowLeftRight className="h-3.5 w-3.5" /></Button>
                           {canManage && (
                             <>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}><Edit className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" onClick={() => handleEdit(item)}><Edit className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                             </>
                           )}
@@ -1850,8 +1850,8 @@ function HistorialMovimientosDialog({
       <DialogContent className="sm:max-w-[640px] p-0 rounded-3xl overflow-hidden border-none shadow-2xl max-h-[88vh] flex flex-col">
         <div className="bg-slate-950 p-6 text-white shrink-0">
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
-              <History className="h-5 w-5 text-blue-400" />
+            <div className="h-10 w-10 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+              <History className="h-5 w-5 text-orange-400" />
             </div>
             <div className="min-w-0">
               <DialogTitle className="text-lg font-bold leading-tight">Historial de Movimientos</DialogTitle>
@@ -1878,7 +1878,7 @@ function HistorialMovimientosDialog({
         <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-slate-900 overscroll-contain">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando registros...</p>
             </div>
           ) : movimientos.length === 0 ? (
@@ -2080,8 +2080,8 @@ function InventarioDialog({
       <DialogContent className="sm:max-w-[650px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl max-h-[95vh] flex flex-col">
         <div className="bg-slate-950 p-6 text-white shrink-0">
           <div className="flex items-center gap-4 mb-2">
-            <div className="h-12 w-12 rounded-2xl bg-blue-500/20 flex items-center justify-center">
-              {item ? <Edit className="h-6 w-6 text-blue-500" /> : <Plus className="h-6 w-6 text-blue-500" />}
+            <div className="h-12 w-12 rounded-2xl bg-orange-500/20 flex items-center justify-center">
+              {item ? <Edit className="h-6 w-6 text-orange-500" /> : <Plus className="h-6 w-6 text-orange-500" />}
             </div>
             <div>
               <DialogTitle className="text-2xl font-bold">{item ? "Editar Item" : "Nuevo Item de Inventario"}</DialogTitle>
@@ -2101,7 +2101,7 @@ function InventarioDialog({
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Ej: Pendón Roller lona PRO"
-                  className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 text-lg font-bold"
+                  className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500 text-lg font-bold"
                   required
                 />
               </div>
@@ -2111,7 +2111,7 @@ function InventarioDialog({
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Detalles adicionales, dimensiones, marca..."
-                  className="rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 resize-none h-24"
+                  className="rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500 resize-none h-24"
                 />
               </div>
             </div>
@@ -2123,7 +2123,7 @@ function InventarioDialog({
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
                 placeholder="0"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500"
                 required
               />
             </div>
@@ -2131,7 +2131,7 @@ function InventarioDialog({
             <div className="space-y-2">
               <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Unidad de Medida</Label>
               <Select value={unidad} onValueChange={setUnidad}>
-                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500">
+                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500">
                   <SelectValue placeholder="Seleccionar unidad" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -2150,7 +2150,7 @@ function InventarioDialog({
                 value={stockMinimo}
                 onChange={(e) => setStockMinimo(e.target.value)}
                 placeholder="0"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500"
               />
             </div>
 
@@ -2160,7 +2160,7 @@ function InventarioDialog({
                 value={ubicacion}
                 onChange={(e) => setUbicacion(e.target.value)}
                 placeholder="Ej: Estante B-4"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500"
               />
             </div>
 
@@ -2171,14 +2171,14 @@ function InventarioDialog({
                 value={costoUnitario}
                 onChange={(e) => setCostoUnitario(e.target.value)}
                 placeholder="0"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500"
               />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Estado</Label>
               <Select value={estado} onValueChange={setEstado}>
-                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 font-bold uppercase tracking-wider text-[10px]">
+                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500 font-bold uppercase tracking-wider text-[10px]">
                   <SelectValue placeholder="Estado inicial" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -2195,7 +2195,7 @@ function InventarioDialog({
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
                 placeholder="Nombre del proveedor o tienda"
-                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-orange-500"
               />
             </div>
           </div>
@@ -2204,7 +2204,7 @@ function InventarioDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 py-7 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">
               Cancelar
             </Button>
-            <Button type="submit" disabled={saveMutation.isPending} className="flex-1 py-7 rounded-2xl font-bold bg-slate-950 hover:bg-black text-white shadow-xl transition-all shadow-blue-500/10 hover:shadow-blue-500/20 active:scale-95">
+            <Button type="submit" disabled={saveMutation.isPending} className="flex-1 py-7 rounded-2xl font-bold bg-slate-950 hover:bg-black text-white shadow-xl transition-all shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95">
               {saveMutation.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : item ? "Guardar Cambios" : "Crear Producto"}
             </Button>
           </div>
@@ -2769,7 +2769,7 @@ function CalendarioHitos({
 
   const tipoColors = {
     general: 'bg-blue-500',
-    campaña: 'bg-purple-500',
+    campaña: 'bg-orange-500',
     evento: 'bg-green-500',
     deadline: 'bg-red-500',
   };
@@ -2785,7 +2785,7 @@ function CalendarioHitos({
     grabacion: 'bg-yellow-500',
     edicion: 'bg-blue-400',
     completado: 'bg-emerald-500',
-    publicado: 'bg-fuchsia-600',
+    publicado: 'bg-orange-600',
   };
 
   return (
@@ -2856,11 +2856,11 @@ function CalendarioHitos({
               {/* Legend */}
               <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-blue-500" />
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-orange-500" />
                   <span>General</span>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-purple-500" />
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-orange-500" />
                   <span>Campaña</span>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
@@ -2876,7 +2876,7 @@ function CalendarioHitos({
                   <span>Tareas</span>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <Video className="w-3 h-3 sm:w-4 sm:h-4 text-fuchsia-600" />
+                  <Video className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600" />
                   <span>Creatividades</span>
                 </div>
               </div>
@@ -4425,7 +4425,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                                       href={p.urlReferencia}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="ml-2 inline-flex items-center text-blue-500 hover:text-blue-700"
+                                      className="ml-2 inline-flex items-center text-orange-500 hover:text-orange-700"
                                     >
                                       <ExternalLink className="h-3 w-3" />
                                     </a>

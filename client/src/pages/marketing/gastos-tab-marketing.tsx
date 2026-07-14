@@ -407,7 +407,7 @@ export default function GastosTabMarketing({
     const gastosPendientes = gastos.filter((g) => g.estado !== "facturado").reduce((sum, g) => sum + parseFloat(g.monto || "0"), 0);
 
     if (isLoading) {
-        return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
+        return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>;
     }
 
     return (
@@ -439,7 +439,7 @@ export default function GastosTabMarketing({
                     </Select>
                 </div>
                 {isAdmin && (
-                    <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 ml-auto">
+                    <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl bg-orange-600 hover:bg-orange-700 ml-auto">
                         <Plus className="mr-2 h-4 w-4" />
                         Registrar Gasto
                     </Button>
@@ -486,7 +486,7 @@ export default function GastosTabMarketing({
                             <p className="text-lg font-medium">Sin gastos registrados</p>
                             <p className="text-sm">Registra gastos para llevar el control mensual.</p>
                             {isAdmin && (
-                                <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="mt-4 rounded-xl bg-indigo-600 hover:bg-indigo-700">
+                                <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="mt-4 rounded-xl bg-orange-600 hover:bg-orange-700">
                                     <Plus className="mr-2 h-4 w-4" /> Registrar Primer Gasto
                                 </Button>
                             )}
@@ -511,17 +511,17 @@ export default function GastosTabMarketing({
                                         const estadoInfo = ESTADOS[gasto.estado as keyof typeof ESTADOS] || ESTADOS.pendiente;
                                         const EstadoIcon = estadoInfo.icon;
                                         return (
-                                            <tr key={gasto.id} className={`border-b border-slate-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
+                                            <tr key={gasto.id} className={`border-b border-slate-100 hover:bg-orange-50/50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
                                                 <td className="px-4 py-3">
                                                     <button
                                                         onClick={() => setDetailGasto(gasto)}
-                                                        className="font-medium text-slate-800 hover:text-indigo-600 transition-colors text-left"
+                                                        className="font-medium text-slate-800 hover:text-orange-600 transition-colors text-left"
                                                     >
                                                         {gasto.concepto}
                                                     </button>
                                                     {gasto.descripcion && <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{gasto.descripcion}</div>}
                                                     {gasto.presupuestoItemId && presupuestoItemById.has(gasto.presupuestoItemId) ? (
-                                                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+                                                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
                                                             <TrendingDown className="h-2.5 w-2.5 rotate-180" />
                                                             {presupuestoItemById.get(gasto.presupuestoItemId)!.concepto}
                                                         </div>
@@ -542,7 +542,7 @@ export default function GastosTabMarketing({
                                                 </td>
                                                 <td className="px-3 py-3">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {renderDocButton(gasto, 'urlCotizacion', 'Cotiz.', 'bg-purple-50 text-purple-700 border-purple-300', 'hover:text-purple-600')}
+                                                        {renderDocButton(gasto, 'urlCotizacion', 'Cotiz.', 'bg-orange-50 text-orange-700 border-orange-300', 'hover:text-orange-600')}
                                                         {renderDocButton(gasto, 'urlOrdenCompra', 'OC', 'bg-blue-50 text-blue-700 border-blue-300', 'hover:text-blue-600')}
                                                         {renderDocButton(gasto, 'urlFactura', 'Factura', 'bg-emerald-50 text-emerald-700 border-emerald-300', 'hover:text-emerald-600')}
                                                     </div>
@@ -550,7 +550,7 @@ export default function GastosTabMarketing({
                                                 {isAdmin && (
                                                     <td className="px-2 py-3 text-center">
                                                         <div className="flex gap-1 justify-center">
-                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => handleEdit(gasto)}>
+                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-orange-600 hover:bg-orange-50" onClick={() => handleEdit(gasto)}>
                                                                 <Pencil className="h-3.5 w-3.5" />
                                                             </Button>
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => { setDeleteId(gasto.id); setDeleteDialogOpen(true); }}>
@@ -673,7 +673,7 @@ export default function GastosTabMarketing({
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={resetForm}>Cancelar</Button>
-                        <Button onClick={handleSubmit} disabled={!formData.concepto.trim() || !formData.monto || createMutation.isPending || updateMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700">
+                        <Button onClick={handleSubmit} disabled={!formData.concepto.trim() || !formData.monto || createMutation.isPending || updateMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
                             {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {editingGasto ? "Guardar Cambios" : "Registrar"}
                         </Button>
@@ -711,14 +711,14 @@ export default function GastosTabMarketing({
                     <DialogHeader>
                         <DialogTitle className="flex items-center justify-between pr-8">
                             <span className="flex items-center gap-2 text-sm truncate">
-                                <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
+                                <FileText className="h-4 w-4 text-orange-600 shrink-0" />
                                 {previewTitle}
                             </span>
                             {previewUrl && (() => {
                                 const downloadUrl = previewUrl.includes('?')
                                     ? `${previewUrl}&download=true`
                                     : `${previewUrl}?download=true`;
-                                return <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"><Download className="h-3.5 w-3.5" />Descargar</a>;
+                                return <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition-colors shrink-0"><Download className="h-3.5 w-3.5" />Descargar</a>;
                             })()}
                         </DialogTitle>
                     </DialogHeader>
@@ -757,7 +757,7 @@ export default function GastosTabMarketing({
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-indigo-600" />
+                            <FileText className="h-5 w-5 text-orange-600" />
                             Detalle del Gasto
                         </DialogTitle>
                     </DialogHeader>
@@ -778,7 +778,7 @@ export default function GastosTabMarketing({
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Monto</Label>
-                                    <p className="font-bold text-indigo-600 text-lg">{formatCLP(parseFloat(detailGasto.monto))}</p>
+                                    <p className="font-bold text-orange-600 text-lg">{formatCLP(parseFloat(detailGasto.monto))}</p>
                                 </div>
                                 <div>
                                     <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Proveedor</Label>
@@ -798,7 +798,7 @@ export default function GastosTabMarketing({
                             <div>
                                 <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ítem de presupuesto</Label>
                                 {detailGasto.presupuestoItemId && presupuestoItemById.has(detailGasto.presupuestoItemId) ? (
-                                    <p className="text-indigo-700 font-medium">{presupuestoItemById.get(detailGasto.presupuestoItemId)!.concepto}</p>
+                                    <p className="text-orange-700 font-medium">{presupuestoItemById.get(detailGasto.presupuestoItemId)!.concepto}</p>
                                 ) : (
                                     <p className="text-amber-600 font-medium">Sin asignar — ítem nuevo</p>
                                 )}
@@ -815,7 +815,7 @@ export default function GastosTabMarketing({
                                         detailGasto.comentarios.map((c, i) => (
                                             <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs font-semibold text-indigo-600">{c.autor}</span>
+                                                    <span className="text-xs font-semibold text-orange-600">{c.autor}</span>
                                                     <span className="text-[10px] text-slate-400">
                                                         {new Date(c.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                     </span>
