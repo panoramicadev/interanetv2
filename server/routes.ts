@@ -14439,9 +14439,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/rutas', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      const rutas = canManageRutas(user.role)
-        ? await storage.getRutasBySupervisor(user.id)
-        : await storage.getRutasByVendedor(user.id);
+      // Admin ve TODAS las rutas (las creadas por cualquier supervisor en el apartado
+      // comercial); supervisor/encargado ven las suyas; el vendedor las asignadas a él.
+      const rutas = user.role === 'admin'
+        ? await storage.getAllRutas()
+        : canManageRutas(user.role)
+          ? await storage.getRutasBySupervisor(user.id)
+          : await storage.getRutasByVendedor(user.id);
       res.json(rutas);
     } catch (e) { console.error("Error fetching rutas:", e); res.status(500).json({ message: "Failed to fetch rutas" }); }
   });
@@ -14561,6 +14565,19 @@ export function registerRoutes(app: Express): Server {
       await storage.removeClienteFromRuta(req.params.id, req.params.koen);
       res.json({ message: "Cliente removido de la ruta" });
     } catch (e) { console.error("Error removing cliente from ruta:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Marcar la ruta como realizada/pendiente para este cliente (checkbox de la pestaña
+  // "Rutas" del cliente). Igual que quitar cliente: manager o dueño de la ruta.
+  app.patch('/api/rutas/:id/clientes/:koen/visitado', requireAuth, async (req: any, res) => {
+    try {
+      const ruta = await storage.getRutaById(req.params.id);
+      if (!ruta) return res.status(404).json({ message: "Ruta no encontrada" });
+      const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
+      if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
+      const visitado = req.body?.visitado === true || req.body?.visitado === 'true';
+      res.json(await storage.setRutaClienteVisitado(req.params.id, req.params.koen, visitado));
+    } catch (e) { console.error("Error marcando visita de ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
 
   // Histórico de visitas de un cliente (ruta 4 segmentos → no la captura /api/rutas/:id/...)

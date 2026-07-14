@@ -13787,6 +13787,12 @@ export class DatabaseStorage implements IStorage {
     return this.attachVendedores(rutas);
   }
 
+  // Todas las rutas (scope admin): ve las de cualquier supervisor/vendedor, no solo las propias.
+  async getAllRutas(): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
+    const rutas = await db.select().from(rutasComerciales).orderBy(desc(rutasComerciales.createdAt));
+    return this.attachVendedores(rutas);
+  }
+
   async getRutasByVendedor(vendedorId: string): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
     // Un vendedor ve las rutas donde es el principal (vendedorId) o donde figura
     // en la tabla N-a-N ruta_vendedores.
@@ -13845,6 +13851,17 @@ export class DatabaseStorage implements IStorage {
   async removeClienteFromRuta(rutaId: string, clienteId: string): Promise<void> {
     await db.delete(rutaClientes)
       .where(and(eq(rutaClientes.rutaId, rutaId), eq(rutaClientes.clienteId, clienteId)));
+  }
+
+  // Marca la visita de un cliente en una ruta como realizada/pendiente. Al marcar
+  // "realizada" estampa la fecha; al volver a pendiente la limpia.
+  async setRutaClienteVisitado(rutaId: string, clienteId: string, visitado: boolean): Promise<RutaCliente> {
+    const [rc] = await db.update(rutaClientes)
+      .set({ visitado, fechaVisita: visitado ? new Date() : null })
+      .where(and(eq(rutaClientes.rutaId, rutaId), eq(rutaClientes.clienteId, clienteId)))
+      .returning();
+    if (!rc) throw new Error('El cliente no está en esta ruta');
+    return rc;
   }
 
   // Para la pestaña "Rutas" del modal de tarea (client-scoped por koen)
