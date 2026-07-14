@@ -87,6 +87,28 @@ const ACTIVIDAD_TIPOS = [
   { value: "otro", label: "Otro", badge: "bg-slate-100 text-slate-600" },
 ] as const;
 
+// Los filtros del panel (estado, prioridad, cliente, segmento) se persisten en
+// sessionStorage para no perderlos al entrar al detalle de un cliente/tarea y
+// volver. Es transitorio: se limpia al cerrar la pestaña, no queda guardado
+// para siempre.
+const FILTERS_STORAGE_KEY = "tareas-panel-filtros";
+
+type TareasFiltrosPersistidos = {
+  status: string;
+  priority: string;
+  cliente: string;
+  segmento: string;
+};
+
+function loadTareasFiltros(): Partial<TareasFiltrosPersistidos> {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 const createTaskWithAssignmentsSchema = z.object({
   title: z.string().min(1, "Título es requerido"),
   description: z.string().optional(),
@@ -163,11 +185,14 @@ export default function TareasPage() {
     isSalesperson ? "my-tasks" : "all-tasks"
   );
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [clienteFilter, setClienteFilter] = useState<string>("all");
-  const [segmentoFilter, setSegmentoFilter] = useState<string>(isSalesperson ? "all" : isMarketing ? "marketing" : "ferreterias");
+  // Filters — se rehidratan desde sessionStorage para sobrevivir al detalle
+  // del cliente/tarea y volver (ver FILTERS_STORAGE_KEY).
+  const [statusFilter, setStatusFilter] = useState<string>(() => loadTareasFiltros().status ?? "all");
+  const [priorityFilter, setPriorityFilter] = useState<string>(() => loadTareasFiltros().priority ?? "all");
+  const [clienteFilter, setClienteFilter] = useState<string>(() => loadTareasFiltros().cliente ?? "all");
+  const [segmentoFilter, setSegmentoFilter] = useState<string>(
+    () => loadTareasFiltros().segmento ?? (isSalesperson ? "all" : isMarketing ? "marketing" : "ferreterias")
+  );
 
   // Supervisor: solo puede ver la pestaña de su segmento asignado
   // (ej: Patricio "Industrial" → assignedSegment "digital"). Los demás roles con acceso
@@ -195,6 +220,19 @@ export default function TareasPage() {
       setSegmentoFilter(visibleSegmentos[0].value);
     }
   }, [visibleSegmentos, isSalesperson, segmentoFilter]);
+
+  // Persiste los filtros del panel por la misma razón que el CRM: no perderlos
+  // al abrir el detalle de un cliente/tarea (o navegar fuera) y volver.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({
+        status: statusFilter,
+        priority: priorityFilter,
+        cliente: clienteFilter,
+        segmento: segmentoFilter,
+      }));
+    } catch { /* ignore */ }
+  }, [statusFilter, priorityFilter, clienteFilter, segmentoFilter]);
 
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
