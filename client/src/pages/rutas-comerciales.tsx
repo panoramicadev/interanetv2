@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Trash2, Search, ChevronDown, ChevronRight, User, Building2, Loader2 } from "lucide-react";
+import { MapPin, Plus, Trash2, Search, ChevronDown, ChevronRight, User, Building2, Loader2, CalendarDays } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface Ruta {
   id: string;
@@ -19,6 +22,8 @@ interface Ruta {
   supervisorId: string;
   segmento: string | null;
   estado: string;
+  fecha: string | null;
+  vendedores?: Array<{ id: string; nombre: string | null }>;
   observaciones: string | null;
   createdAt: string;
 }
@@ -72,7 +77,8 @@ export function RutasComercialesContent() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [nombre, setNombre] = useState("");
-  const [vendedorId, setVendedorId] = useState("");
+  const [vendedorIds, setVendedorIds] = useState<string[]>([]);
+  const [fecha, setFecha] = useState("");
   const [estado, setEstado] = useState("activa");
   const [expandedRuta, setExpandedRuta] = useState<string | null>(null);
 
@@ -80,14 +86,22 @@ export function RutasComercialesContent() {
   const { data: vendedores = [] } = useQuery<Vendedor[]>({ queryKey: ["/api/rutas/vendedores"], enabled: canManage });
 
   const vendedorName = (id: string) => vendedores.find((v) => v.id === id)?.salespersonName || "Vendedor";
+  const toggleVendedor = (id: string) =>
+    setVendedorIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Nombres de los vendedores de una ruta: usa los guardados y cae al catálogo si falta el nombre.
+  const rutaVendedorNames = (ruta: Ruta): string => {
+    const list = ruta.vendedores?.length ? ruta.vendedores : (ruta.vendedorId ? [{ id: ruta.vendedorId, nombre: null }] : []);
+    return list.map((v) => v.nombre || vendedorName(v.id)).join(", ") || "Sin vendedor";
+  };
 
   const createMutation = useMutation({
-    mutationFn: async () => apiRequest("POST", "/api/rutas", { nombre: nombre.trim(), vendedorId, estado }),
+    mutationFn: async () => apiRequest("POST", "/api/rutas", { nombre: nombre.trim(), vendedorIds, fecha: fecha || null, estado }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
       setShowCreate(false);
       setNombre("");
-      setVendedorId("");
+      setVendedorIds([]);
+      setFecha("");
       setEstado("activa");
       toast({ title: "Ruta creada", description: "La ruta comercial se creó correctamente." });
     },
@@ -129,7 +143,7 @@ export function RutasComercialesContent() {
             <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Nueva Ruta Comercial</DialogTitle>
-                <DialogDescription>Define un nombre y asigna un vendedor responsable.</DialogDescription>
+                <DialogDescription>Define un nombre, fecha y asigna uno o más vendedores.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
@@ -137,18 +151,25 @@ export function RutasComercialesContent() {
                   <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Zona Sur — Ferreterías" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vendedor *</Label>
-                  <Select value={vendedorId} onValueChange={setVendedorId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar vendedor" /></SelectTrigger>
-                    <SelectContent>
-                      {vendedores.length === 0 && (
-                        <div className="px-3 py-2 text-xs text-slate-400">No hay vendedores a tu cargo</div>
-                      )}
-                      {vendedores.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>{v.salespersonName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha de la ruta</Label>
+                  <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Vendedores * {vendedorIds.length > 0 && <span className="text-indigo-500 normal-case">({vendedorIds.length} seleccionado{vendedorIds.length > 1 ? "s" : ""})</span>}
+                  </Label>
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                    {vendedores.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-slate-400">No hay vendedores disponibles</div>
+                    ) : (
+                      vendedores.map((v) => (
+                        <label key={v.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-indigo-50/60 transition-colors">
+                          <Checkbox checked={vendedorIds.includes(v.id)} onCheckedChange={() => toggleVendedor(v.id)} />
+                          <span className="text-sm text-slate-700">{v.salespersonName}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</Label>
@@ -166,7 +187,7 @@ export function RutasComercialesContent() {
                 <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
                 <Button
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  disabled={!nombre.trim() || !vendedorId || createMutation.isPending}
+                  disabled={!nombre.trim() || vendedorIds.length === 0 || createMutation.isPending}
                   onClick={() => createMutation.mutate()}
                 >
                   {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear Ruta"}
@@ -210,10 +231,15 @@ export function RutasComercialesContent() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-800 truncate">{ruta.nombre}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
-                        <User className="h-3 w-3" /> {vendedorName(ruta.vendedorId)}
+                      <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                        <User className="h-3 w-3 flex-shrink-0" /> <span className="truncate">{rutaVendedorNames(ruta)}</span>
                       </p>
                     </div>
+                    {ruta.fecha && (
+                      <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 flex-shrink-0">
+                        <CalendarDays className="h-3 w-3" /> {format(new Date(ruta.fecha), "dd MMM yyyy", { locale: es })}
+                      </span>
+                    )}
                   </button>
                   <Badge variant="outline" className={`text-[11px] ${ESTADO_BADGE[ruta.estado] || ESTADO_BADGE.activa}`}>
                     {ESTADO_LABEL[ruta.estado] || ruta.estado}
