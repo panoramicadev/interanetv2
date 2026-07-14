@@ -927,6 +927,10 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_visitas_cliente" ON ruta_visitas (cliente_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_visitas_ruta" ON ruta_visitas (ruta_id)`);
+    // Evidencia de la visita al completar la ruta: foto (URL en object storage) + geolocalización.
+    await db.execute(sql`ALTER TABLE ruta_visitas ADD COLUMN IF NOT EXISTS imagen_url TEXT`);
+    await db.execute(sql`ALTER TABLE ruta_visitas ADD COLUMN IF NOT EXISTS lat NUMERIC(10,7)`);
+    await db.execute(sql`ALTER TABLE ruta_visitas ADD COLUMN IF NOT EXISTS lng NUMERIC(10,7)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS task_actividades (
         id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
