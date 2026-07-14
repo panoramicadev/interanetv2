@@ -13755,6 +13755,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(rutasComerciales.createdAt));
   }
 
+  async getRutaById(id: string): Promise<RutaComercial | undefined> {
+    const [ruta] = await db.select().from(rutasComerciales).where(eq(rutasComerciales.id, id));
+    return ruta;
+  }
+
   async getRutaClientes(rutaId: string): Promise<RutaCliente[]> {
     return db.select().from(rutaClientes)
       .where(eq(rutaClientes.rutaId, rutaId))

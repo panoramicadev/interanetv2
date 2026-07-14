@@ -4907,6 +4907,14 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
   );
 }
 
+// El título de una ruta creada al vuelo es directamente la fecha elegida (ej. "Ruta 14 Julio").
+function nombreRutaDesdeFecha(fechaStr: string): string {
+  const d = new Date(`${fechaStr}T00:00:00`);
+  const dia = format(d, "d", { locale: es });
+  const mes = format(d, "MMMM", { locale: es });
+  return `Ruta ${dia} ${mes.charAt(0).toUpperCase()}${mes.slice(1)}`;
+}
+
 function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId: string; clienteNombre: string; canManage: boolean }) {
   const { toast } = useToast();
   const [selRuta, setSelRuta] = useState("");
@@ -4914,7 +4922,8 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
   const [visitaFecha, setVisitaFecha] = useState("");
   const [visitaNota, setVisitaNota] = useState("");
   const [creatingRuta, setCreatingRuta] = useState(false);
-  const [nuevaRuta, setNuevaRuta] = useState("");
+  const [nuevaRutaFecha, setNuevaRutaFecha] = useState("");
+  const [nuevaRutaNota, setNuevaRutaNota] = useState("");
 
   const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
@@ -4942,16 +4951,32 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
   });
-  // Crear una ruta nueva y asignar este cliente en el mismo paso (el endpoint /quick hace ambas cosas).
+  // Crear una ruta nueva y registrar la visita en el mismo paso: el título de la ruta
+  // es simplemente la fecha elegida, sin pedirle un nombre al usuario.
   const createRutaMut = useMutation({
-    mutationFn: async () => apiRequest("POST", "/api/rutas/quick", { nombre: nuevaRuta.trim(), clienteId, clienteNombre }),
+    mutationFn: async () => {
+      const nombre = nombreRutaDesdeFecha(nuevaRutaFecha);
+      const r = await apiRequest("POST", "/api/rutas/quick", { nombre, clienteId, clienteNombre });
+      const ruta = await r.json();
+      await apiRequest("POST", `/api/rutas/${ruta.id}/visitas`, { clienteId, clienteNombre, fecha: nuevaRutaFecha, nota: nuevaRutaNota.trim() || undefined });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
-      setCreatingRuta(false); setNuevaRuta("");
-      toast({ title: "Ruta creada", description: "El cliente quedó asignado a la nueva ruta." });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota("");
+      toast({ title: "Visita registrada", description: "Se creó la ruta y quedó en el histórico." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
+  });
+  // Quitar este cliente de una ruta (no borra la ruta si tiene otros clientes asignados).
+  const quitarRutaMut = useMutation({
+    mutationFn: async (rutaId: string) => apiRequest("DELETE", `/api/rutas/${rutaId}/clientes/${encodeURIComponent(clienteId)}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      toast({ title: "Cliente quitado de la ruta" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo quitar de la ruta.", variant: "destructive" }),
   });
   const yaEn = new Set(rutasCliente.map((r) => r.id));
 
@@ -4972,6 +4997,29 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
                 <span className="font-semibold text-slate-700 flex-1 truncate">{r.nombre}</span>
                 {r.fechaVisita && <span className="text-[11px] text-slate-400">{format(new Date(r.fechaVisita), "dd MMM", { locale: es })}</span>}
                 <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-500 border-slate-200">{r.estado}</Badge>
+                {canManage && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Quitar de esta ruta">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Quitar al cliente de "{r.nombre}"?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          El cliente dejará de aparecer en esta ruta. No afecta a otros clientes que estén en la misma ruta.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => quitarRutaMut.mutate(r.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Quitar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             ))}
           </div>
@@ -4989,25 +5037,33 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             </Button>
           </div>
         )}
-        {/* Crear ruta nueva al vuelo (queda a nombre del usuario y con este cliente asignado) */}
+        {/* Crear ruta nueva al vuelo: se registra la visita en el mismo paso y la fecha es el título */}
         {canManage && (
           creatingRuta ? (
-            <div className="flex items-center gap-2 pt-1">
+            <div className="space-y-2 pt-1 rounded-xl border border-orange-100 bg-orange-50/50 p-2.5">
               <Input
                 autoFocus
-                value={nuevaRuta}
-                onChange={(e) => setNuevaRuta(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && nuevaRuta.trim() && !createRutaMut.isPending) createRutaMut.mutate(); }}
-                placeholder="Nombre de la ruta nueva…"
-                className="h-8 text-xs flex-1"
+                type="date"
+                value={nuevaRutaFecha}
+                onChange={(e) => setNuevaRutaFecha(e.target.value)}
+                className="h-8 text-xs"
               />
-              <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRuta.trim() || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
-                {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRuta(""); }}>Cancelar</Button>
+              <Input
+                value={nuevaRutaNota}
+                onChange={(e) => setNuevaRutaNota(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && nuevaRutaFecha && !createRutaMut.isPending) createRutaMut.mutate(); }}
+                placeholder="Nota (opcional)…"
+                className="h-8 text-xs"
+              />
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="flex-1 h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRutaFecha || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
+                  {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota(""); }}>Cancelar</Button>
+              </div>
             </div>
           ) : (
-            <button onClick={() => setCreatingRuta(true)} className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 pt-1">
+            <button onClick={() => { setCreatingRuta(true); setNuevaRutaFecha(format(new Date(), "yyyy-MM-dd")); }} className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 pt-1">
               <Plus className="h-3 w-3" /> Crear ruta nueva
             </button>
           )
