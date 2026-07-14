@@ -1967,7 +1967,8 @@ export default function TareasPage() {
                     }}
                   >
                     {/* Selection checkbox (modo selección admin) o círculo de completado */}
-                    <div className="flex-shrink-0 pt-0.5">
+                    {/* En Seguimiento no se marcan clientes como completados → ocultar el círculo (salvo modo selección admin) */}
+                    <div className={`flex-shrink-0 pt-0.5 ${activeTab === 'seguimiento' && !selectionMode ? 'hidden' : ''}`}>
                       {selectionMode ? (
                         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
                           isTaskSelected
@@ -2187,17 +2188,6 @@ export default function TareasPage() {
                     {people.length > 0 && (
                       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                         {people.map(([id, grp]) => renderPersonRow(id, grp))}
-                      </div>
-                    )}
-                    {supervisingList.length > 0 && (
-                      <div className={people.length > 0 ? 'mt-4' : ''}>
-                        <div className="flex items-center gap-1.5 px-1 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                          <Eye className="h-3 w-3" />
-                          Supervisando
-                        </div>
-                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 overflow-hidden">
-                          {supervisingList.map(([id, grp]) => renderPersonRow(`sup-${id}`, grp, true))}
-                        </div>
                       </div>
                     )}
                   </>
