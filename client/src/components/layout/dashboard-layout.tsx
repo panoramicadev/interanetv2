@@ -181,7 +181,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             }}
             className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
               hasActiveChild
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
                 : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
             }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -233,7 +233,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <button
                       onClick={() => setIsMobileOpen(false)}
                       className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150
-                        ${isChildActive ? "text-white bg-blue-600 shadow-sm shadow-blue-600/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
+                        ${isChildActive ? "text-white bg-[#fd6301] shadow-sm shadow-[#fd6301]/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
                       data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
@@ -279,7 +279,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               title={item.label}
               className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
                 isActive
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                  ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
                   : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
               }`}
               data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -309,7 +309,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
                   : isNotif
                     ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                    : isActive ? "text-white bg-blue-600 shadow-md shadow-blue-600/30" : "text-slate-200 hover:text-white hover:bg-slate-800/70"
+                    : isActive ? "text-white bg-[#fd6301] shadow-md shadow-[#fd6301]/30" : "text-slate-200 hover:text-white hover:bg-slate-800/70"
               }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
@@ -354,7 +354,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-background">
       {/* Mobile Button */}
       <button
-        className="fixed bottom-5 left-5 z-50 lg:hidden w-10 h-10 bg-[#0f1724] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
+        className="fixed bottom-5 left-5 z-50 lg:hidden w-10 h-10 bg-[#0a0a0a] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         data-testid="mobile-menu-toggle-floating"
       >
@@ -371,7 +371,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 ${collapsed ? "w-20" : "w-64"} bg-[#0f1724] flex flex-col transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-50 ${collapsed ? "w-20" : "w-64"} bg-[#0a0a0a] flex flex-col transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
         {/* Logo + collapse toggle */}
@@ -416,7 +416,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar módulo..."
-                className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50 transition-all"
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#fd6301]/40 focus:border-[#fd6301]/50 transition-all"
                 data-testid="sidebar-search-input"
               />
             </div>
