@@ -5057,14 +5057,16 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
   });
-  // Quitar este cliente de una ruta (no borra la ruta si tiene otros clientes asignados).
-  const quitarRutaMut = useMutation({
-    mutationFn: async (rutaId: string) => apiRequest("DELETE", `/api/rutas/${rutaId}/clientes/${encodeURIComponent(clienteId)}`),
+  // Eliminar la ruta por completo (borra la ruta, sus clientes asignados y su histórico de visitas).
+  const eliminarRutaMut = useMutation({
+    mutationFn: async (rutaId: string) => apiRequest("DELETE", `/api/rutas/${rutaId}`),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
-      toast({ title: "Cliente quitado de la ruta" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      toast({ title: "Ruta eliminada" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo quitar de la ruta.", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo eliminar la ruta.", variant: "destructive" }),
   });
   const yaEn = new Set(rutasCliente.map((r) => r.id));
 
@@ -5088,21 +5090,21 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
                 {canManage && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Quitar de esta ruta">
+                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Eliminar ruta">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>¿Quitar al cliente de "{r.nombre}"?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Eliminar la ruta "{r.nombre}"?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          El cliente dejará de aparecer en esta ruta. No afecta a otros clientes que estén en la misma ruta.
+                          Esta acción no se puede deshacer. Se eliminará la ruta junto con su histórico de visitas.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => quitarRutaMut.mutate(r.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Quitar
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => eliminarRutaMut.mutate(r.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
