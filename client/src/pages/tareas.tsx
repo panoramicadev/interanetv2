@@ -268,9 +268,10 @@ export default function TareasPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  // Vista de agrupación: por Grupos (proyecto) o por Equipo (persona asignada).
-  // Por defecto arranca en Equipo (para roles que gestionan equipo).
-  const [groupByEquipo, setGroupByEquipo] = useState(true);
+  // Vista de agrupación: por Equipo (persona asignada), por Grupos (proyecto) o
+  // Terminadas (todas las tareas completadas juntas). Por defecto arranca en Equipo.
+  const [taskView, setTaskView] = useState<'equipo' | 'grupos' | 'terminadas'>('equipo');
+  const groupByEquipo = taskView === 'equipo';
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
@@ -1694,16 +1695,22 @@ export default function TareasPage() {
               {/* Toggle Equipo / Grupos — segmented control (Equipo a la izquierda) */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
                 <button
-                  onClick={() => setGroupByEquipo(true)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${groupByEquipo ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setTaskView('equipo')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'equipo' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <Users className="h-3.5 w-3.5" /> Equipo
                 </button>
                 <button
-                  onClick={() => setGroupByEquipo(false)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${!groupByEquipo ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setTaskView('grupos')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <FolderOpen className="h-3.5 w-3.5" /> Grupos
+                </button>
+                <button
+                  onClick={() => setTaskView('terminadas')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Check className="h-3.5 w-3.5" /> Terminadas
                 </button>
               </div>
 
@@ -1857,7 +1864,16 @@ export default function TareasPage() {
               const groupedTasks: Record<string, typeof filteredTasks> = {};
               const ungrouped: typeof filteredTasks = [];
 
-              filteredTasks.forEach(task => {
+              // Las tareas terminadas se separan en su propia pestaña "Terminadas".
+              // Equipo/Grupos muestran solo las pendientes; Terminadas muestra las completadas.
+              // Solo separamos cuando la pestaña Terminadas está disponible (mismo gate que el
+              // toggle Equipo/Grupos); si no, no habría forma de ver las tareas completadas.
+              const showTerminadasTab = !isSalesperson && segmentoFilter !== "all";
+              const completedTasks = showTerminadasTab ? filteredTasks.filter(isTaskDone) : [];
+              const activeTasks = showTerminadasTab ? filteredTasks.filter(t => !isTaskDone(t)) : filteredTasks;
+              const viewTasks = taskView === 'terminadas' ? completedTasks : activeTasks;
+
+              viewTasks.forEach(task => {
                 const gId = (task as any).groupId;
                 if (gId && groups.find((g: any) => g.id === gId)) {
                   if (!groupedTasks[gId]) groupedTasks[gId] = [];
@@ -1996,6 +2012,35 @@ export default function TareasPage() {
 
               const groupColors = ['#3b82f6', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#f97316'];
 
+              // Vista TERMINADAS: todas las tareas completadas juntas, en una sola lista.
+              if (taskView === 'terminadas') {
+                if (completedTasks.length === 0) {
+                  return (
+                    <div className="text-center py-16">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+                        <Check className="h-7 w-7 text-emerald-500" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Sin tareas terminadas</h3>
+                      <p className="text-sm text-slate-500">Las tareas que completes aparecerán aquí.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-emerald-50/40">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">Terminadas</span>
+                      <span className="text-xs text-slate-400 font-medium">{completedTasks.length}</span>
+                    </div>
+                    <div className="px-1.5 sm:px-3 py-2 space-y-1 sm:space-y-1.5">
+                      {completedTasks.map(renderTaskCard)}
+                    </div>
+                  </div>
+                );
+              }
+
               // Vista EQUIPO: agrupar por persona asignada, filas compactas tipo lista (rediseño).
               // Los vendedores no gestionan equipo → siempre ven la vista por Grupos.
               if (groupByEquipo && !isSalesperson) {
@@ -2009,7 +2054,7 @@ export default function TareasPage() {
                   bucket[id].tasks.push(task);
                 };
 
-                filteredTasks.forEach((task) => {
+                activeTasks.forEach((task) => {
                   if (task.assignments.length === 0) {
                     addTo(byPerson, '__none__', 'Sin asignar', 'salesperson', task);
                     return;
