@@ -13775,7 +13775,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRuta(id: string): Promise<void> {
-    await db.delete(rutaClientes).where(eq(rutaClientes.rutaId, id)); // cascade manual
+    // cascade manual: clientes asignados + histórico de visitas (evita registros huérfanos)
+    await db.delete(rutaClientes).where(eq(rutaClientes.rutaId, id));
+    await db.delete(rutaVisitas).where(eq(rutaVisitas.rutaId, id));
     await db.delete(rutasComerciales).where(eq(rutasComerciales.id, id));
   }
 
