@@ -302,6 +302,13 @@ export default function TareasPage() {
   // Terminadas (todas las tareas completadas juntas). Por defecto arranca en Equipo.
   const [taskView, setTaskView] = useState<'equipo' | 'grupos' | 'terminadas'>('equipo');
   const groupByEquipo = taskView === 'equipo';
+  // En Seguimiento no existen las vistas Grupos/Terminadas: si quedaron seleccionadas
+  // desde la pestaña Tareas, volver siempre a Equipo al entrar a Seguimiento.
+  useEffect(() => {
+    if (activeTab === 'seguimiento' && taskView !== 'equipo') {
+      setTaskView('equipo');
+    }
+  }, [activeTab, taskView]);
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
@@ -1745,18 +1752,22 @@ export default function TareasPage() {
                 >
                   <Users className="h-3.5 w-3.5" /> Equipo
                 </button>
-                <button
-                  onClick={() => setTaskView('grupos')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" /> Grupos
-                </button>
-                <button
-                  onClick={() => setTaskView('terminadas')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <Check className="h-3.5 w-3.5" /> Terminadas
-                </button>
+                {activeTab !== 'seguimiento' && (
+                  <>
+                    <button
+                      onClick={() => setTaskView('grupos')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" /> Grupos
+                    </button>
+                    <button
+                      onClick={() => setTaskView('terminadas')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Terminadas
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Acciones a la derecha */}
@@ -4065,7 +4076,7 @@ function TaskDetailDialog({
               </button>
             </div>
           </div>
-          <HeaderMeta task={task} />
+          <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} />
         </div>
 
         {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der) */}
@@ -5791,7 +5802,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
 // ==================================================================================
 // HeaderMeta — Fecha límite (editable) + Cliente en la cabecera del detalle de tarea.
 // ==================================================================================
-function HeaderMeta({ task }: { task: any }) {
+function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?: boolean }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const canEditDate = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || task.createdByUserId === user?.id;
@@ -5813,6 +5824,7 @@ function HeaderMeta({ task }: { task: any }) {
           <span className="font-semibold text-emerald-700 truncate">{task.clienteNombre}</span>
         </div>
       )}
+      {!isSeguimiento && (
       <div className="flex items-center gap-1.5 text-sm">
         <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha límite</span>
@@ -5829,6 +5841,7 @@ function HeaderMeta({ task }: { task: any }) {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
