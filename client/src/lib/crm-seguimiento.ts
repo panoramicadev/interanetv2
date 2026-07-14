@@ -6,7 +6,7 @@
 import {
   Sparkles, UserCheck, FileText, ShoppingCart,
   PhoneCall, MapPin, MessageSquare, RefreshCw,
-  Users, Mail, Video,
+  Users, Mail, Video, XCircle,
 } from "lucide-react";
 import { getTodayAtMidnight } from "@/lib/dateUtils";
 
@@ -63,6 +63,18 @@ export const ESTADOS = [
     dot: "bg-emerald-500",
     text: "text-emerald-600 dark:text-emerald-400",
   },
+  {
+    value: "perdido",
+    label: "No le Interesa / Perdido",
+    icon: XCircle,
+    color: "from-rose-400 to-rose-600",
+    bgCard: "bg-rose-50 dark:bg-rose-900/20",
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    border: "border-rose-200 dark:border-rose-800",
+    column: "bg-rose-50/60 dark:bg-rose-950/20",
+    dot: "bg-rose-500",
+    text: "text-rose-600 dark:text-rose-400",
+  },
 ] as const;
 
 export type EstadoValue = (typeof ESTADOS)[number]["value"];
@@ -73,7 +85,6 @@ const LEGACY_ESTADOS: Record<string, EstadoValue> = {
   nuevo: "prospecto",
   contactado: "seguimiento",
   completado: "venta",
-  perdido: "prospecto",
   despacho: "venta", // etapa retirada del pipeline; leads antiguos caen en Venta
 };
 

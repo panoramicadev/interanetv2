@@ -72,6 +72,7 @@ export const CRM_ESTADO_LABELS: Record<string, string> = {
   seguimiento: "Seguimiento",
   cotizacion: "Cotización",
   venta: "Venta",
+  perdido: "No le Interesa / Perdido",
   despacho: "Despacho",
 };
 
@@ -81,9 +82,10 @@ const ESTADO_IMPORT_MAP: Record<string, string> = {
   seguimiento: "seguimiento",
   cotizacion: "cotizacion", cotizaciones: "cotizacion",
   venta: "venta", ventas: "venta",
+  perdido: "perdido",
   despacho: "despacho", despachos: "despacho",
   // legacy (espejo de LEGACY_ESTADOS en client/src/lib/crm-seguimiento.ts)
-  nuevo: "prospecto", contactado: "seguimiento", completado: "venta", perdido: "prospecto",
+  nuevo: "prospecto", contactado: "seguimiento", completado: "venta",
 };
 
 export function normalizeEstadoImport(v?: string | null): string {

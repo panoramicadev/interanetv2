@@ -378,7 +378,7 @@ export default function SeguimientoClientes() {
   // Agrupación para el kanban — normalizeEstado absorbe estados legacy
   const grupos = useMemo(() => {
     const map: Record<EstadoValue, any[]> = {
-      prospecto: [], seguimiento: [], cotizacion: [], venta: [], despacho: [],
+      prospecto: [], seguimiento: [], cotizacion: [], venta: [], perdido: [], despacho: [],
     };
     for (const c of sortedClientes) map[normalizeEstado(c.estado)].push(c);
     return map;
