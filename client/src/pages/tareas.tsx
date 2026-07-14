@@ -200,18 +200,48 @@ export default function TareasPage() {
   // al panel ven todos los segmentos. Fallback: si no tiene segmento asignado, ve todos.
   const isSupervisor = user?.role === 'supervisor';
   const assignedSegment = ((user as any)?.assignedSegment as string | undefined)?.toLowerCase() ?? "";
+
+  // Vendedores del supervisor/encargado: se usan para (a) inferir su segmento cuando no lo
+  // tiene asignado directamente y (b) detectar el segmento CONSTRUCCION más abajo.
+  const { data: supervisorSalespeople } = useQuery<Array<{ id: string; salespersonName: string; assignedSegment?: string }>>({
+    queryKey: ['/api/supervisor', user?.id, 'salespeople'],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/supervisor/${user?.id}/salespeople`);
+      return response.json();
+    },
+    enabled: !!user && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
+  });
+
+  // Segmento efectivo del supervisor/encargado: su assignedSegment directo o, si no lo tiene,
+  // el segmento de su equipo de vendedores. Ej: Daniel Hermosilla no tiene segmento propio
+  // pero su equipo es Ferreterías → se acota a esa única área y (al haber un solo segmento
+  // visible) se ocultan las pestañas de categoría.
+  const effectiveSegment = useMemo(() => {
+    if (assignedSegment) return assignedSegment;
+    if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople?.length) {
+      const match = SEGMENTOS.find((seg) =>
+        supervisorSalespeople.some((sp) => {
+          const s = sp.assignedSegment?.toLowerCase() ?? "";
+          return s.includes(seg.value) || s.includes(seg.label.toLowerCase());
+        })
+      );
+      if (match) return match.value;
+    }
+    return "";
+  }, [assignedSegment, user?.role, supervisorSalespeople]);
+
   const visibleSegmentos = useMemo(() => {
     // El rol marketing solo ve el segmento "marketing".
     if (isMarketing) {
       return SEGMENTOS.filter((seg) => seg.value === 'marketing');
     }
-    // Admin ve/asigna TODOS los segmentos; los demás roles solo el suyo (assignedSegment).
-    if (user?.role !== 'admin' && assignedSegment) {
-      const scoped = SEGMENTOS.filter((seg) => assignedSegment.includes(seg.value));
+    // Admin ve/asigna TODOS los segmentos; los demás roles solo el suyo (effectiveSegment).
+    if (user?.role !== 'admin' && effectiveSegment) {
+      const scoped = SEGMENTOS.filter((seg) => effectiveSegment.includes(seg.value));
       if (scoped.length > 0) return scoped;
     }
     return SEGMENTOS;
-  }, [user?.role, assignedSegment, isMarketing]);
+  }, [user?.role, effectiveSegment, isMarketing]);
 
   // Si el segmento activo no está entre los visibles (ej: supervisor con el default "ferreterias"),
   // reposicionar al primer segmento permitido para que aterrice directo en su área.
@@ -582,16 +612,6 @@ export default function TareasPage() {
     queryKey: ["/api/users/salespeople/supervisors"],
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.supervisors as any,
-  });
-
-  // Query para obtener vendedores del supervisor (para detectar segmento CONSTRUCCION)
-  const { data: supervisorSalespeople } = useQuery<Array<{ id: string; salespersonName: string; assignedSegment?: string }>>({
-    queryKey: ['/api/supervisor', user?.id, 'salespeople'],
-    queryFn: async () => {
-      const response = await apiRequest(`/api/supervisor/${user?.id}/salespeople`);
-      return response.json();
-    },
-    enabled: !!user && (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
   // Queries para Promesas de Compra
