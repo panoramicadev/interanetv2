@@ -14418,10 +14418,14 @@ export function registerRoutes(app: Express): Server {
   const canManageRutas = (role: string) =>
     role === 'admin' || role === 'supervisor' || role === 'encargado_area';
 
-  // Vendedores del supervisor (para el dropdown al crear/editar una ruta)
+  // Vendedores para el dropdown al crear/editar una ruta.
+  // Admin ve TODOS los vendedores; supervisor/encargado solo los de su equipo.
   app.get('/api/rutas/vendedores', requireAuth, async (req: any, res) => {
     try {
-      res.json(await storage.getSalespeopleUnderSupervisor(req.user.id));
+      const list = req.user.role === 'admin'
+        ? await storage.getAllActiveSalespeopleBasic()
+        : await storage.getSalespeopleUnderSupervisor(req.user.id);
+      res.json(list);
     } catch (e) { console.error("Error fetching ruta vendedores:", e); res.status(500).json({ message: "Failed" }); }
   });
 
@@ -14451,10 +14455,21 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       if (!canManageRutas(user.role)) return res.status(403).json({ message: "Solo supervisores/admin pueden crear rutas" });
+      // El front manda vendedorIds[] (multi-asignación). El vendedorId principal (compat) es el primero.
+      const vendedorIds: string[] = Array.isArray(req.body?.vendedorIds)
+        ? req.body.vendedorIds.filter((v: any) => typeof v === 'string' && v.trim())
+        : (req.body?.vendedorId ? [String(req.body.vendedorId)] : []);
+      if (vendedorIds.length === 0) return res.status(400).json({ message: "Debe asignar al menos un vendedor" });
       const { insertRutaComercialSchema } = await import('@shared/schema');
-      const parsed = insertRutaComercialSchema.safeParse(req.body);
+      const parsed = insertRutaComercialSchema.safeParse({ ...req.body, vendedorId: vendedorIds[0] });
       if (!parsed.success) return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.issues });
       const ruta = await storage.createRuta({ ...parsed.data, supervisorId: user.id });
+      // Resuelve nombres para guardarlos junto a cada asignación (evita un join en cada lectura).
+      const catalogo = user.role === 'admin'
+        ? await storage.getAllActiveSalespeopleBasic()
+        : await storage.getSalespeopleUnderSupervisor(user.id);
+      const nombreDe = (id: string) => catalogo.find((v: any) => v.id === id)?.salespersonName ?? null;
+      await storage.setRutaVendedores(ruta.id, vendedorIds.map((id) => ({ id, nombre: nombreDe(id) })));
       res.status(201).json(ruta);
     } catch (e) { console.error("Error creating ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
   });
@@ -14492,8 +14507,22 @@ export function registerRoutes(app: Express): Server {
 
   app.patch('/api/rutas/:id', requireAuth, async (req: any, res) => {
     try {
-      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
-      res.json(await storage.updateRuta(req.params.id, req.body));
+      const user = req.user;
+      if (!canManageRutas(user.role)) return res.status(403).json({ message: "No autorizado" });
+      const { vendedorIds, ...rest } = req.body || {};
+      // Si vienen vendedorIds, reemplaza el set de vendedores y sincroniza el principal (compat).
+      if (Array.isArray(vendedorIds)) {
+        const ids: string[] = vendedorIds.filter((v: any) => typeof v === 'string' && v.trim());
+        if (ids.length === 0) return res.status(400).json({ message: "Debe asignar al menos un vendedor" });
+        const catalogo = user.role === 'admin'
+          ? await storage.getAllActiveSalespeopleBasic()
+          : await storage.getSalespeopleUnderSupervisor(user.id);
+        const nombreDe = (id: string) => catalogo.find((v: any) => v.id === id)?.salespersonName ?? null;
+        await storage.setRutaVendedores(req.params.id, ids.map((id) => ({ id, nombre: nombreDe(id) })));
+        rest.vendedorId = ids[0];
+      }
+      if (rest.fecha !== undefined && rest.fecha) rest.fecha = new Date(rest.fecha);
+      res.json(await storage.updateRuta(req.params.id, rest));
     } catch (e) { console.error("Error updating ruta:", e); res.status(500).json({ message: "Failed to update ruta" }); }
   });
 

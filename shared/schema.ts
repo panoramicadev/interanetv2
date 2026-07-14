@@ -5786,10 +5786,11 @@ export const insertPromesaCompraSchema = createInsertSchema(promesasCompra).omit
 export const rutasComerciales = pgTable("rutas_comerciales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nombre: varchar("nombre", { length: 255 }).notNull(),
-  vendedorId: varchar("vendedor_id").notNull(),        // FK a salespeople_users.id (vendedor asignado)
+  vendedorId: varchar("vendedor_id").notNull(),        // FK a salespeople_users.id (vendedor principal — 1er asignado, compat)
   supervisorId: varchar("supervisor_id").notNull(),    // FK a salespeople_users.id (quién la creó/asigna)
   segmento: varchar("segmento"),                        // 'ferreterias' | 'construccion' | 'digital' | 'marketing'
   estado: varchar("estado").notNull().default("activa"), // 'activa' | 'pausada' | 'completada'
+  fecha: timestamp("fecha"),                            // fecha planificada del recorrido (opcional)
   observaciones: text("observaciones"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -5797,6 +5798,22 @@ export const rutasComerciales = pgTable("rutas_comerciales", {
   vendedorIdx: index("IDX_rutas_comerciales_vendedor").on(table.vendedorId),
   supervisorIdx: index("IDX_rutas_comerciales_supervisor").on(table.supervisorId),
 }));
+
+// Vendedores asignados a una ruta (N a N). vendedorId de rutas_comerciales sigue siendo el
+// principal/compat; esta tabla guarda el set completo de vendedores que recorren la ruta.
+export const rutaVendedores = pgTable("ruta_vendedores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rutaId: varchar("ruta_id").notNull(),                // FK a rutas_comerciales.id
+  vendedorId: varchar("vendedor_id").notNull(),        // FK a salespeople_users.id
+  vendedorNombre: varchar("vendedor_nombre", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  rutaIdx: index("IDX_ruta_vendedores_ruta").on(table.rutaId),
+  vendedorIdx: index("IDX_ruta_vendedores_vendedor").on(table.vendedorId),
+}));
+
+export type RutaVendedor = typeof rutaVendedores.$inferSelect;
+export type InsertRutaVendedor = typeof rutaVendedores.$inferInsert;
 
 export const rutaClientes = pgTable("ruta_clientes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -5822,6 +5839,7 @@ export const insertRutaComercialSchema = createInsertSchema(rutasComerciales, {
   nombre: z.string().min(1, "El nombre de la ruta es requerido"),
   vendedorId: z.string().min(1, "El vendedor es requerido"),
   estado: z.enum(["activa", "pausada", "completada"]).default("activa"),
+  fecha: z.coerce.date().optional().nullable(),
 }).omit({ id: true, createdAt: true, updatedAt: true, supervisorId: true });
 
 export const insertRutaClienteSchema = createInsertSchema(rutaClientes, {

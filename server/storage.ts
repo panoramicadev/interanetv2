@@ -339,6 +339,7 @@ import {
   rutasComerciales,
   rutaClientes,
   rutaVisitas,
+  rutaVendedores,
   taskActividades,
   type RutaComercial,
   type RutaCliente,
@@ -8718,6 +8719,23 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Todos los vendedores activos (para el dropdown de rutas cuando el usuario es admin:
+  // el admin puede asignar cualquier vendedor, no solo los de su equipo).
+  async getAllActiveSalespeopleBasic(): Promise<Array<{ id: string; salespersonName: string; assignedSegment: string | null }>> {
+    const rows = await db.select({
+        id: salespeopleUsers.id,
+        salespersonName: salespeopleUsers.salespersonName,
+        assignedSegment: salespeopleUsers.assignedSegment,
+      })
+      .from(salespeopleUsers)
+      .where(and(
+        inArray(salespeopleUsers.role, ['salesperson', 'encargado_area']),
+        eq(salespeopleUsers.isActive, true),
+      ))
+      .orderBy(salespeopleUsers.salespersonName);
+    return rows;
+  }
+
   async getSalespeopleUnderSupervisor(supervisorId: string): Promise<Array<{
     id: string;
     salespersonName: string;
@@ -13743,16 +13761,53 @@ export class DatabaseStorage implements IStorage {
     return ruta;
   }
 
-  async getRutasBySupervisor(supervisorId: string): Promise<RutaComercial[]> {
-    return db.select().from(rutasComerciales)
-      .where(eq(rutasComerciales.supervisorId, supervisorId))
-      .orderBy(desc(rutasComerciales.createdAt));
+  // Adjunta el set de vendedores asignados (tabla ruta_vendedores) a cada ruta.
+  // Si una ruta no tiene filas en la tabla N-a-N (rutas legacy/quick), cae al
+  // vendedorId principal para que nunca aparezca "sin vendedor".
+  private async attachVendedores(rutas: RutaComercial[]): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
+    if (rutas.length === 0) return [];
+    const ids = rutas.map((r) => r.id);
+    const rows = await db.select().from(rutaVendedores).where(inArray(rutaVendedores.rutaId, ids));
+    const byRuta = new Map<string, Array<{ id: string; nombre: string | null }>>();
+    for (const row of rows) {
+      const arr = byRuta.get(row.rutaId) || [];
+      arr.push({ id: row.vendedorId, nombre: row.vendedorNombre });
+      byRuta.set(row.rutaId, arr);
+    }
+    return rutas.map((r) => ({
+      ...r,
+      vendedores: byRuta.get(r.id) || (r.vendedorId ? [{ id: r.vendedorId, nombre: null }] : []),
+    }));
   }
 
-  async getRutasByVendedor(vendedorId: string): Promise<RutaComercial[]> {
-    return db.select().from(rutasComerciales)
-      .where(eq(rutasComerciales.vendedorId, vendedorId))
+  async getRutasBySupervisor(supervisorId: string): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
+    const rutas = await db.select().from(rutasComerciales)
+      .where(eq(rutasComerciales.supervisorId, supervisorId))
       .orderBy(desc(rutasComerciales.createdAt));
+    return this.attachVendedores(rutas);
+  }
+
+  async getRutasByVendedor(vendedorId: string): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
+    // Un vendedor ve las rutas donde es el principal (vendedorId) o donde figura
+    // en la tabla N-a-N ruta_vendedores.
+    const asignadas = await db.select({ rutaId: rutaVendedores.rutaId })
+      .from(rutaVendedores).where(eq(rutaVendedores.vendedorId, vendedorId));
+    const rutaIds = asignadas.map((a) => a.rutaId);
+    const rutas = await db.select().from(rutasComerciales)
+      .where(rutaIds.length > 0
+        ? or(eq(rutasComerciales.vendedorId, vendedorId), inArray(rutasComerciales.id, rutaIds))
+        : eq(rutasComerciales.vendedorId, vendedorId))
+      .orderBy(desc(rutasComerciales.createdAt));
+    return this.attachVendedores(rutas);
+  }
+
+  // Reemplaza el set completo de vendedores de una ruta (delete + insert).
+  async setRutaVendedores(rutaId: string, vendedores: Array<{ id: string; nombre?: string | null }>): Promise<void> {
+    await db.delete(rutaVendedores).where(eq(rutaVendedores.rutaId, rutaId));
+    if (vendedores.length === 0) return;
+    await db.insert(rutaVendedores).values(
+      vendedores.map((v) => ({ rutaId, vendedorId: v.id, vendedorNombre: v.nombre ?? null }))
+    );
   }
 
   async getRutaById(id: string): Promise<RutaComercial | undefined> {
@@ -13775,9 +13830,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRuta(id: string): Promise<void> {
-    // cascade manual: clientes asignados + histórico de visitas (evita registros huérfanos)
+    // cascade manual: clientes asignados + histórico de visitas + vendedores (evita registros huérfanos)
     await db.delete(rutaClientes).where(eq(rutaClientes.rutaId, id));
     await db.delete(rutaVisitas).where(eq(rutaVisitas.rutaId, id));
+    await db.delete(rutaVendedores).where(eq(rutaVendedores.rutaId, id));
     await db.delete(rutasComerciales).where(eq(rutasComerciales.id, id));
   }
 
@@ -13797,7 +13853,7 @@ export class DatabaseStorage implements IStorage {
         id: rutasComerciales.id, nombre: rutasComerciales.nombre,
         vendedorId: rutasComerciales.vendedorId, supervisorId: rutasComerciales.supervisorId,
         segmento: rutasComerciales.segmento, estado: rutasComerciales.estado,
-        observaciones: rutasComerciales.observaciones,
+        fecha: rutasComerciales.fecha, observaciones: rutasComerciales.observaciones,
         createdAt: rutasComerciales.createdAt, updatedAt: rutasComerciales.updatedAt,
         ordenEnRuta: rutaClientes.orden, visitado: rutaClientes.visitado, fechaVisita: rutaClientes.fechaVisita,
       })

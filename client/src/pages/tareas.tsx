@@ -5018,7 +5018,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
     queryFn: async () => { const r = await apiRequest(`/api/rutas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
-  const { data: allRutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
+  const { data: allRutas = [] } = useQuery<Array<{ id: string; nombre: string; fecha?: string | null }>>({ queryKey: ["/api/rutas"], enabled: canManage });
   const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; registradoPorNombre: string | null }>>({
     queryKey: ["/api/rutas/visitas/by-cliente", clienteId],
     queryFn: async () => { const r = await apiRequest(`/api/rutas/visitas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
@@ -5119,7 +5119,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             <Select value={selRuta} onValueChange={setSelRuta}>
               <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Asignar a una ruta…" /></SelectTrigger>
               <SelectContent>
-                {allRutas.filter((r) => !yaEn.has(r.id)).map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
+                {allRutas.filter((r) => !yaEn.has(r.id)).map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}{r.fecha ? ` · ${format(new Date(r.fecha), "dd MMM", { locale: es })}` : ""}</SelectItem>))}
               </SelectContent>
             </Select>
             <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>

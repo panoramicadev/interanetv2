@@ -883,6 +883,20 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_rutas_comerciales_vendedor" ON rutas_comerciales (vendedor_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_rutas_comerciales_supervisor" ON rutas_comerciales (supervisor_id)`);
+    // Fecha planificada del recorrido (columna nueva sobre tablas existentes)
+    await db.execute(sql`ALTER TABLE rutas_comerciales ADD COLUMN IF NOT EXISTS fecha TIMESTAMP`);
+    // Vendedores asignados a una ruta (N a N)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ruta_vendedores (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        ruta_id VARCHAR(255) NOT NULL,
+        vendedor_id VARCHAR(255) NOT NULL,
+        vendedor_nombre VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_vendedores_ruta" ON ruta_vendedores (ruta_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ruta_vendedores_vendedor" ON ruta_vendedores (vendedor_id)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS ruta_clientes (
         id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
