@@ -5068,6 +5068,13 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo eliminar la ruta.", variant: "destructive" }),
   });
+  // Marcar la ruta como realizada / pendiente para este cliente (para saber si se hizo).
+  const toggleVisitado = useMutation({
+    mutationFn: async ({ rutaId, visitado }: { rutaId: string; visitado: boolean }) =>
+      apiRequest("PATCH", `/api/rutas/${rutaId}/clientes/${encodeURIComponent(clienteId)}/visitado`, { visitado }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo actualizar el estado.", variant: "destructive" }),
+  });
   const yaEn = new Set(rutasCliente.map((r) => r.id));
 
   return (
@@ -5085,8 +5092,23 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
               <div key={r.id} className="flex items-center gap-2 text-xs bg-white rounded-xl px-3 py-2 border border-slate-100">
                 <MapPin className="h-4 w-4 text-orange-400 flex-shrink-0" />
                 <span className="font-semibold text-slate-700 flex-1 truncate">{r.nombre}</span>
-                {r.fechaVisita && <span className="text-[11px] text-slate-400">{format(new Date(r.fechaVisita), "dd MMM", { locale: es })}</span>}
-                <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-500 border-slate-200">{r.estado}</Badge>
+                {/* Estado por cliente: realizada / pendiente (para saber si la ruta se hizo) */}
+                {canManage ? (
+                  <button
+                    onClick={() => toggleVisitado.mutate({ rutaId: r.id, visitado: !r.visitado })}
+                    disabled={toggleVisitado.isPending}
+                    title={r.visitado ? "Marcar como pendiente" : "Marcar como realizada"}
+                    className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:opacity-50 ${r.visitado ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
+                  >
+                    {r.visitado
+                      ? <><Check className="h-3 w-3" /> Realizada{r.fechaVisita ? ` · ${format(new Date(r.fechaVisita), "dd MMM", { locale: es })}` : ""}</>
+                      : <><Clock className="h-3 w-3" /> Pendiente</>}
+                  </button>
+                ) : (
+                  <Badge variant="outline" className={`text-[10px] flex-shrink-0 ${r.visitado ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                    {r.visitado ? `Realizada${r.fechaVisita ? ` · ${format(new Date(r.fechaVisita), "dd MMM", { locale: es })}` : ""}` : "Pendiente"}
+                  </Badge>
+                )}
                 {canManage && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
