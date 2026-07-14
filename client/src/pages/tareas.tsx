@@ -4207,6 +4207,11 @@ function TaskDetailDialog({
               <div className="relative flex-1 min-h-0">
                 {/* Detalle: descripción, enlaces, asignaciones, eliminar */}
                 <TabsContent value="detalle" className="absolute inset-0 overflow-y-auto p-5 space-y-6 mt-0 data-[state=inactive]:hidden">
+            {/* Información del cliente */}
+            {(task as any).clienteId && (
+              <ClienteInfoPanel clienteId={String((task as any).clienteId)} clienteNombre={String((task as any).clienteNombre || "")} />
+            )}
+
             {/* Description - Editable */}
             {(task.description || canEditTask) && (
               <div className="space-y-2">
@@ -4361,83 +4366,65 @@ function TaskDetailDialog({
             )}
 
             {/* Assignments */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                 <Users className="h-3.5 w-3.5" />
                 Asignaciones ({task.assignments.length})
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {task.assignments.map((assignment) => {
                   const assigneeName = getAssigneeName(assignment);
                   const myAssignment = (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
                     (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id);
-                  
-                  return (
-                    <div key={assignment.id} className={`bg-white border rounded-xl p-4 transition-all ${
-                      myAssignment ? 'border-orange-200 bg-orange-50/40 shadow-sm' : 'border-slate-200 hover:border-slate-300'
-                    }`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                            assignment.status === 'completada' ? 'bg-green-500' :
-                            assignment.status === 'en_progreso' ? 'bg-amber-500' :
-                            'bg-slate-400'
-                          }`}>
-                            {assigneeName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{assigneeName}</p>
-                            <p className="text-xs text-slate-500 capitalize">{assignment.assigneeType}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {getStatusBadge(assignment.status ?? 'pendiente')}
-                          {assignment.readAt && (
-                            <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700">
-                              <Eye className="h-3 w-3 mr-1" />
-                              Leída
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
+                  const canComplete = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || myAssignment;
 
-                      {/* Assignment Actions */}
-                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-                        {myAssignment && !assignment.readAt && assignment.status === "pendiente" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2.5 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
-                            onClick={() => markAsReadMutation.mutate({
-                              taskId: task.id,
-                              assignmentId: assignment.id
-                            })}
-                            disabled={markAsReadMutation.isPending}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Acusar Recibo
-                          </Button>
-                        )}
-                        {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || myAssignment) && (
-                          <Button
-                            size="sm"
-                            variant={assignment.status === 'completada' ? "default" : "outline"}
-                            className={`h-7 px-2.5 text-xs ${assignment.status === 'completada' ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
-                            onClick={() => {
-                              const newStatus = assignment.status === 'completada' ? 'pendiente' : 'completada';
-                              updateAssignmentMutation.mutate({
-                                taskId: task.id,
-                                assignmentId: assignment.id,
-                                status: newStatus
-                              });
-                            }}
-                            disabled={updateAssignmentMutation.isPending}
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            {assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
-                          </Button>
-                        )}
+                  return (
+                    <div key={assignment.id} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all ${
+                      myAssignment ? 'border-orange-200 bg-orange-50/40' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${
+                        assignment.status === 'completada' ? 'bg-green-500' :
+                        assignment.status === 'en_progreso' ? 'bg-amber-500' :
+                        'bg-slate-400'
+                      }`}>
+                        {assigneeName.charAt(0).toUpperCase()}
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-800 truncate leading-tight">{assigneeName}</p>
+                        <p className="text-[10px] text-slate-500 capitalize leading-tight">{assignment.assigneeType}</p>
+                      </div>
+                      {getStatusBadge(assignment.status ?? 'pendiente')}
+                      {assignment.readAt && (
+                        <span title="Leída" className="text-orange-500 flex-shrink-0"><Eye className="h-3.5 w-3.5" /></span>
+                      )}
+                      {myAssignment && !assignment.readAt && assignment.status === "pendiente" && (
+                        <button
+                          onClick={() => markAsReadMutation.mutate({ taskId: task.id, assignmentId: assignment.id })}
+                          disabled={markAsReadMutation.isPending}
+                          title="Acusar recibo"
+                          className="flex-shrink-0 p-1 rounded-md text-orange-600 hover:bg-orange-100 transition-colors disabled:opacity-50"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canComplete && (
+                        <button
+                          onClick={() => {
+                            const newStatus = assignment.status === 'completada' ? 'pendiente' : 'completada';
+                            updateAssignmentMutation.mutate({ taskId: task.id, assignmentId: assignment.id, status: newStatus });
+                          }}
+                          disabled={updateAssignmentMutation.isPending}
+                          title={assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
+                          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                            assignment.status === 'completada'
+                              ? 'text-green-700 bg-green-100 hover:bg-green-200'
+                              : 'text-green-700 hover:bg-green-50 border border-green-200'
+                          }`}
+                        >
+                          <Check className="h-3 w-3" />
+                          {assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -5099,6 +5086,127 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
           <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
         </div>
       </Tabs>
+    </div>
+  );
+}
+
+// Ficha completa del cliente asociado a la tarea (todo lo que hay en la BD).
+function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; clienteNombre: string }) {
+  const { data: client, isLoading } = useQuery<any>({
+    queryKey: ["/api/clients", clienteId],
+    queryFn: async () => { const r = await apiRequest(`/api/clients/${encodeURIComponent(clienteId)}`); return r.json(); },
+    enabled: !!clienteId,
+  });
+
+  const val = (v: any) => (v === null || v === undefined || String(v).trim() === "" ? null : String(v).trim());
+  const num = (v: any) => (v === null || v === undefined || String(v).trim() === "" || isNaN(Number(v)) ? null : Number(v));
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center gap-2 text-xs text-slate-400">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando información del cliente…
+      </div>
+    );
+  }
+
+  const nombre = val(client?.nokoenamp) || val(client?.nokoen) || clienteNombre || "Cliente";
+  const codigo = val(client?.koen) || clienteId;
+  const rut = val(client?.rten);
+
+  // Campos (label, value) — solo se muestran los que tienen dato.
+  const fields: Array<[string, string | null]> = [
+    ["Giro", val(client?.gien)],
+    ["Sector", val(client?.sien)],
+    ["Dirección", val(client?.dien)],
+    ["Comuna", val(client?.comuna)],
+    ["Ciudad", val(client?.cmen)],
+    ["Provincia", val(client?.provincia)],
+    ["Teléfono", val(client?.foen)],
+    ["Email", val(client?.email)],
+    ["Email comercial", val(client?.emailcomer)],
+    ["Condición de pago", val(client?.cpen)],
+    ["Lista de precios", val(client?.lcen)],
+    ["Ruta", val(client?.ruen)],
+    ["Cobrador", val(client?.cobrador)],
+  ];
+  const shown = fields.filter(([, v]) => v);
+
+  const crlt = num(client?.crlt); // límite de crédito
+  const cren = num(client?.cren); // crédito disponible
+  const crsd = num(client?.crsd); // deuda / saldo
+  const hasCredito = crlt !== null || cren !== null || crsd !== null;
+  const observaciones = val(client?.oben);
+  const bloqueado = Number(client?.bloqueado) === 1;
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+        <Building2 className="h-3.5 w-3.5" />
+        Información del cliente
+      </h4>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        {/* Cabecera */}
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
+            <Building2 className="h-5 w-5 text-orange-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800 leading-tight">{nombre}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+              {codigo && <span className="text-[11px] text-slate-500">Cód. {codigo}</span>}
+              {rut && <span className="text-[11px] text-slate-500">· RUT {rut}</span>}
+              {bloqueado && (
+                <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">
+                  <Ban className="h-2.5 w-2.5 mr-1" /> Bloqueado
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Crédito */}
+        {hasCredito && (
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+              <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Límite crédito</p>
+              <p className="text-xs font-bold text-slate-800">{crlt !== null ? fmtCLP(crlt) : "—"}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2">
+              <p className="text-[9px] text-emerald-500 uppercase font-bold tracking-wider">Disponible</p>
+              <p className="text-xs font-bold text-emerald-700">{cren !== null ? fmtCLP(cren) : "—"}</p>
+            </div>
+            <div className="rounded-lg bg-red-50 border border-red-200 p-2">
+              <p className="text-[9px] text-red-500 uppercase font-bold tracking-wider">Deuda</p>
+              <p className="text-xs font-bold text-red-700">{crsd !== null ? fmtCLP(crsd) : "—"}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Campos */}
+        {shown.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
+            {shown.map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">{label}</p>
+                <p className="text-xs text-slate-700 break-words">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Observaciones */}
+        {observaciones && (
+          <div className="pt-1">
+            <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">Observaciones</p>
+            <p className="text-xs text-slate-600 whitespace-pre-wrap break-words">{observaciones}</p>
+          </div>
+        )}
+
+        {shown.length === 0 && !hasCredito && !observaciones && (
+          <p className="text-xs text-slate-400 italic">Sin datos adicionales del cliente.</p>
+        )}
+      </div>
     </div>
   );
 }
