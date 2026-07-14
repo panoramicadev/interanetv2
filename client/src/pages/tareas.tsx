@@ -22,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckSquare,
+  Camera,
   Clock,
   AlertCircle,
   AlertTriangle,
@@ -4416,7 +4417,7 @@ function TaskDetailDialog({
                   <>
                     <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
-                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
+                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} taskId={task.id} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
                     <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
@@ -5022,7 +5023,7 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
         <div className="px-4 py-3 max-h-72 overflow-y-auto">
           <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
-          <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
+          <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} taskId={task.id} /></TabsContent>
           <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
         </div>
       </Tabs>
@@ -5090,39 +5091,49 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
   );
 }
 
-// El título de una ruta creada al vuelo es directamente la fecha elegida (ej. "Ruta 14 Julio").
-function nombreRutaDesdeFecha(fechaStr: string): string {
-  const d = new Date(`${fechaStr}T00:00:00`);
-  const dia = format(d, "d", { locale: es });
-  const mes = format(d, "MMMM", { locale: es });
-  return `Ruta ${dia} ${mes.charAt(0).toUpperCase()}${mes.slice(1)}`;
-}
-
-function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId: string; clienteNombre: string; canManage: boolean }) {
+function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { clienteId: string; clienteNombre: string; canManage: boolean; taskId?: string }) {
   const { toast } = useToast();
   const [selRuta, setSelRuta] = useState("");
+  const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
   const [visitaRuta, setVisitaRuta] = useState("");
   const [visitaFecha, setVisitaFecha] = useState("");
   const [visitaNota, setVisitaNota] = useState("");
-  const [creatingRuta, setCreatingRuta] = useState(false);
-  const [nuevaRutaFecha, setNuevaRutaFecha] = useState("");
-  const [nuevaRutaNota, setNuevaRutaNota] = useState("");
 
-  const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; visitado: boolean | null; fechaVisita: string | null }>>({
+  const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; fecha: string | null; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
     queryFn: async () => { const r = await apiRequest(`/api/rutas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
   const { data: allRutas = [] } = useQuery<Array<{ id: string; nombre: string; fecha?: string | null }>>({ queryKey: ["/api/rutas"], enabled: canManage });
-  const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; registradoPorNombre: string | null }>>({
+  const { data: visitas = [] } = useQuery<Array<{ id: string; rutaId: string; rutaNombre: string | null; fecha: string; nota: string | null; imagenUrl: string | null; lat: string | null; lng: string | null; registradoPorNombre: string | null }>>({
     queryKey: ["/api/rutas/visitas/by-cliente", clienteId],
     queryFn: async () => { const r = await apiRequest(`/api/rutas/visitas/by-cliente/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
 
   const assign = useMutation({
-    mutationFn: async () => apiRequest("POST", `/api/rutas/${selRuta}/clientes`, { clienteId, clienteNombre }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] }); setSelRuta(""); toast({ title: "Cliente asignado a la ruta" }); },
+    mutationFn: async () => {
+      const ruta = allRutas.find((r) => r.id === selRuta);
+      await apiRequest("POST", `/api/rutas/${selRuta}/clientes`, { clienteId, clienteNombre });
+      // Al asignar la ruta se crea automáticamente una tarea (actividad tipo visita)
+      // ligada a la ruta; al completarla, la ruta queda marcada como realizada.
+      if (taskId) {
+        await apiRequest("POST", `/api/tasks/${taskId}/actividades`, {
+          tipo: "visita",
+          descripcion: `Visita de ruta: ${ruta?.nombre || clienteNombre}`,
+          fecha: ruta?.fecha || undefined,
+          rutaId: selRuta,
+          rutaNombre: ruta?.nombre || null,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      if (taskId) queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      setSelRuta("");
+      toast({ title: "Ruta asignada", description: taskId ? "Se creó una tarea de visita para esta ruta." : undefined });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo asignar.", variant: "destructive" }),
   });
   const registrarVisita = useMutation({
@@ -5133,24 +5144,6 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
       toast({ title: "Visita registrada" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
-  });
-  // Crear una ruta nueva y registrar la visita en el mismo paso: el título de la ruta
-  // es simplemente la fecha elegida, sin pedirle un nombre al usuario.
-  const createRutaMut = useMutation({
-    mutationFn: async () => {
-      const nombre = nombreRutaDesdeFecha(nuevaRutaFecha);
-      const r = await apiRequest("POST", "/api/rutas/quick", { nombre, clienteId, clienteNombre });
-      const ruta = await r.json();
-      await apiRequest("POST", `/api/rutas/${ruta.id}/visitas`, { clienteId, clienteNombre, fecha: nuevaRutaFecha, nota: nuevaRutaNota.trim() || undefined });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
-      setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota("");
-      toast({ title: "Visita registrada", description: "Se creó la ruta y quedó en el histórico." });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
   });
   // Eliminar la ruta por completo (borra la ruta, sus clientes asignados y su histórico de visitas).
   const eliminarRutaMut = useMutation({
@@ -5174,6 +5167,9 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
 
   return (
     <div className="space-y-5">
+      {completing && (
+        <CompletarRutaDialog clienteId={clienteId} clienteNombre={clienteNombre} ruta={completing} onClose={() => setCompleting(null)} />
+      )}
       {/* Rutas del cliente */}
       <div className="space-y-2">
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Rutas del cliente</h4>
@@ -5186,11 +5182,14 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             {rutasCliente.map((r) => (
               <div key={r.id} className="flex items-center gap-2 text-xs bg-white rounded-xl px-3 py-2 border border-slate-100">
                 <MapPin className="h-4 w-4 text-orange-400 flex-shrink-0" />
-                <span className="font-semibold text-slate-700 flex-1 truncate">{r.nombre}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-slate-700 block truncate">{r.nombre}</span>
+                  {r.fecha && <span className="text-[10px] text-slate-400 flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {format(new Date(r.fecha), "dd MMM yyyy", { locale: es })}</span>}
+                </div>
                 {/* Estado por cliente: realizada / pendiente (para saber si la ruta se hizo) */}
                 {canManage ? (
                   <button
-                    onClick={() => toggleVisitado.mutate({ rutaId: r.id, visitado: !r.visitado })}
+                    onClick={() => r.visitado ? toggleVisitado.mutate({ rutaId: r.id, visitado: false }) : setCompleting({ id: r.id, nombre: r.nombre })}
                     disabled={toggleVisitado.isPending}
                     title={r.visitado ? "Marcar como pendiente" : "Marcar como realizada"}
                     className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:opacity-50 ${r.visitado ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
@@ -5244,37 +5243,6 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
             </Button>
           </div>
         )}
-        {/* Crear ruta nueva al vuelo: se registra la visita en el mismo paso y la fecha es el título */}
-        {canManage && (
-          creatingRuta ? (
-            <div className="space-y-2 pt-1 rounded-xl border border-orange-100 bg-orange-50/50 p-2.5">
-              <Input
-                autoFocus
-                type="date"
-                value={nuevaRutaFecha}
-                onChange={(e) => setNuevaRutaFecha(e.target.value)}
-                className="h-8 text-xs"
-              />
-              <Input
-                value={nuevaRutaNota}
-                onChange={(e) => setNuevaRutaNota(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && nuevaRutaFecha && !createRutaMut.isPending) createRutaMut.mutate(); }}
-                placeholder="Nota (opcional)…"
-                className="h-8 text-xs"
-              />
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="flex-1 h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRutaFecha || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
-                  {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
-                </Button>
-                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRutaFecha(""); setNuevaRutaNota(""); }}>Cancelar</Button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => { setCreatingRuta(true); setNuevaRutaFecha(format(new Date(), "yyyy-MM-dd")); }} className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 pt-1">
-              <Plus className="h-3 w-3" /> Crear ruta nueva
-            </button>
-          )
-        )}
       </div>
 
       {/* Registrar visita (queda en el histórico) */}
@@ -5313,7 +5281,15 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
                     {v.rutaNombre && <span className="text-[11px] text-slate-400 truncate">· {v.rutaNombre}</span>}
                   </div>
                   {v.nota && <p className="text-[11px] text-slate-500 mt-0.5">{v.nota}</p>}
+                  {v.lat != null && v.lng != null && (
+                    <a href={`https://www.google.com/maps?q=${v.lat},${v.lng}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline mt-0.5 inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> Ver ubicación</a>
+                  )}
                   {v.registradoPorNombre && <p className="text-[10px] text-slate-400 mt-0.5">por {v.registradoPorNombre}</p>}
+                  {v.imagenUrl && (
+                    <a href={v.imagenUrl} target="_blank" rel="noreferrer" className="block mt-1.5">
+                      <img src={v.imagenUrl} alt="Evidencia de la visita" className="h-24 w-full max-w-[220px] object-cover rounded-lg border border-slate-200" />
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
@@ -5321,6 +5297,116 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage }: { clienteId:
         )}
       </div>
     </div>
+  );
+}
+
+// Diálogo para completar una ruta: permite adjuntar una foto (cámara o galería) y detecta
+// la geolocalización del dispositivo. Al confirmar marca la ruta como realizada para el
+// cliente y guarda la evidencia (foto + coordenadas) en el histórico de visitas.
+function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose }: { clienteId: string; clienteNombre: string; ruta: { id: string; nombre: string }; onClose: () => void }) {
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [nota, setNota] = useState("");
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [submitting, setSubmitting] = useState(false);
+
+  const detectGeo = () => {
+    if (!("geolocation" in navigator)) { setGeoStatus("error"); return; }
+    setGeoStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoStatus("ok"); },
+      () => { setGeoStatus("error"); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
+  // Al abrir el diálogo intenta detectar la ubicación automáticamente.
+  useEffect(() => { detectGeo(); }, []);
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : "");
+  };
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      let imagenUrl: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!res.ok) throw new Error("No se pudo subir la imagen");
+        imagenUrl = (await res.json()).url || null;
+      }
+      await apiRequest("PATCH", `/api/rutas/${ruta.id}/clientes/${encodeURIComponent(clienteId)}/visitado`, {
+        visitado: true,
+        imagenUrl,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+        nota: nota.trim() || null,
+        clienteNombre,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      toast({ title: "Ruta marcada como realizada" });
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "No se pudo completar la ruta.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Completar ruta</DialogTitle>
+          <DialogDescription>{ruta.nombre} · {clienteNombre}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Foto de la visita</label>
+            {preview ? (
+              <div className="relative">
+                <img src={preview} alt="Foto de la visita" className="w-full h-40 object-cover rounded-lg border border-slate-200" />
+                <button type="button" onClick={() => { setFile(null); setPreview(""); }} className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1 text-slate-500 hover:text-red-500 shadow-sm"><X className="h-4 w-4" /></button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-1 h-28 border-2 border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-orange-300 text-slate-400 hover:text-orange-500 transition-colors">
+                <Camera className="h-6 w-6" />
+                <span className="text-xs">Tomar o subir foto</span>
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
+              </label>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Ubicación</label>
+            <div className="flex items-center gap-2 text-xs">
+              {geoStatus === "loading" && <span className="text-slate-400 flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Detectando ubicación…</span>}
+              {geoStatus === "ok" && geo && (
+                <a href={`https://www.google.com/maps?q=${geo.lat},${geo.lng}`} target="_blank" rel="noreferrer" className="text-green-600 font-medium flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}</a>
+              )}
+              {geoStatus === "error" && <span className="text-amber-600">No se pudo detectar la ubicación.</span>}
+              {geoStatus === "idle" && <span className="text-slate-400">Sin ubicación.</span>}
+              {geoStatus !== "loading" && (
+                <Button type="button" size="sm" variant="ghost" className="h-6 text-[11px] px-2" onClick={detectGeo}>{geoStatus === "ok" ? "Actualizar" : "Detectar"}</Button>
+              )}
+            </div>
+          </div>
+          <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional)…" className="h-8 text-xs" />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button type="button" className="bg-green-600 hover:bg-green-700" onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Check className="h-4 w-4 mr-1.5" />} Marcar realizada
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -5629,8 +5715,9 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
   const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
-    // el histórico de la pestaña Rutas también refleja las visitas creadas desde acá
+    // el histórico y el estado de la pestaña Rutas también reflejan lo hecho desde acá
     queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
   };
 
   const createRutaMut = useMutation({

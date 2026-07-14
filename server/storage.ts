@@ -13880,7 +13880,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Histórico de visitas de un cliente (acumulado en el tiempo)
-  async addRutaVisita(data: { rutaId: string; clienteId: string; clienteNombre?: string | null; fecha: Date; nota?: string | null; registradoPor?: string | null; registradoPorNombre?: string | null }): Promise<RutaVisita> {
+  async addRutaVisita(data: { rutaId: string; clienteId: string; clienteNombre?: string | null; fecha: Date; nota?: string | null; imagenUrl?: string | null; lat?: string | null; lng?: string | null; registradoPor?: string | null; registradoPorNombre?: string | null }): Promise<RutaVisita> {
     const [v] = await db.insert(rutaVisitas).values(data).returning();
     return v;
   }
@@ -13889,6 +13889,7 @@ export class DatabaseStorage implements IStorage {
     return db.select({
         id: rutaVisitas.id, rutaId: rutaVisitas.rutaId, clienteId: rutaVisitas.clienteId,
         clienteNombre: rutaVisitas.clienteNombre, fecha: rutaVisitas.fecha, nota: rutaVisitas.nota,
+        imagenUrl: rutaVisitas.imagenUrl, lat: rutaVisitas.lat, lng: rutaVisitas.lng,
         registradoPor: rutaVisitas.registradoPor, registradoPorNombre: rutaVisitas.registradoPorNombre,
         createdAt: rutaVisitas.createdAt, rutaNombre: rutasComerciales.nombre,
       })

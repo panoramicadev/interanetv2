@@ -5857,6 +5857,9 @@ export const rutaVisitas = pgTable("ruta_visitas", {
   nota: text("nota"),
   registradoPor: varchar("registrado_por"),        // userId
   registradoPorNombre: varchar("registrado_por_nombre"),
+  imagenUrl: text("imagen_url"),                   // foto de evidencia subida al completar la visita
+  lat: numeric("lat", { precision: 10, scale: 7 }),// geolocalización capturada al completar
+  lng: numeric("lng", { precision: 10, scale: 7 }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   clienteIdx: index("IDX_ruta_visitas_cliente").on(table.clienteId),

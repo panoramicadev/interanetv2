@@ -14576,7 +14576,29 @@ export function registerRoutes(app: Express): Server {
       const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
       if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
       const visitado = req.body?.visitado === true || req.body?.visitado === 'true';
-      res.json(await storage.setRutaClienteVisitado(req.params.id, req.params.koen, visitado));
+      const rc = await storage.setRutaClienteVisitado(req.params.id, req.params.koen, visitado);
+      // Al marcar como realizada se puede adjuntar evidencia (foto + geolocalización) que
+      // queda registrada en el histórico de visitas del cliente.
+      if (visitado) {
+        const { imagenUrl, lat, lng, nota, clienteNombre } = req.body || {};
+        if (imagenUrl || lat != null || lng != null || (nota && String(nota).trim())) {
+          try {
+            await storage.addRutaVisita({
+              rutaId: req.params.id,
+              clienteId: req.params.koen,
+              clienteNombre: clienteNombre || rc.clienteNombre || null,
+              fecha: new Date(),
+              nota: nota ? String(nota).trim() : null,
+              imagenUrl: imagenUrl || null,
+              lat: lat != null && lat !== '' ? String(lat) : null,
+              lng: lng != null && lng !== '' ? String(lng) : null,
+              registradoPor: req.user.id,
+              registradoPorNombre: req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email || null,
+            });
+          } catch (err) { console.error("Error registrando evidencia de visita:", err); }
+        }
+      }
+      res.json(rc);
     } catch (e) { console.error("Error marcando visita de ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
 
@@ -14662,7 +14684,18 @@ export function registerRoutes(app: Express): Server {
       if (estado !== undefined) updates.estado = estado;
       if (responsableId !== undefined) updates.responsableId = responsableId;
       if (responsableNombre !== undefined) updates.responsableNombre = responsableNombre;
-      res.json(await storage.updateActividad(req.params.actId, updates));
+      const act = await storage.updateActividad(req.params.actId, updates);
+      // Si la actividad es una visita ligada a una ruta, el estado de la tarea manda
+      // sobre la ruta para este cliente: completar la tarea marca la ruta como realizada
+      // (y volver a pendiente la desmarca).
+      if (estado !== undefined && act.rutaId) {
+        try {
+          const task = await storage.getTask(act.taskId);
+          const clienteId = (task as any)?.clienteId;
+          if (clienteId) await storage.setRutaClienteVisitado(act.rutaId, clienteId, estado === 'completada');
+        } catch (err) { console.error("Error sincronizando ruta desde actividad:", err); }
+      }
+      res.json(act);
     } catch (e) { console.error("Error updating actividad:", e); res.status(500).json({ message: "Failed" }); }
   });
 
