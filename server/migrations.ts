@@ -838,6 +838,23 @@ export async function bootstrapDatabase(): Promise<void> {
       ON gastos_marketing (presupuesto_item_id)
     `);
 
+    // gastos_marketing.creado_por_id tiene un FK a users.id, pero el rol "marketing"
+    // (p. ej. Sofía) vive en salespeople_users, cuyo id NO existe en users → al registrar
+    // un gasto el INSERT reventaba con violación de FK (500) y el usuario veía "no puedo
+    // registrar el gasto". Es el mismo bug que solicitudes_marketing.supervisor_id pero en
+    // dirección inversa. El id es un identificador de creador cross-tabla, no una referencia
+    // estricta; se elimina el constraint (idempotente; se cubren ambos nombres posibles: el
+    // default de Postgres *_fkey y el que genera drizzle *_users_id_fk).
+    console.log('  🔗 Soltando FK obsoleto gastos_marketing.creado_por_id...');
+    await db.execute(sql`
+      ALTER TABLE gastos_marketing
+      DROP CONSTRAINT IF EXISTS gastos_marketing_creado_por_id_fkey
+    `);
+    await db.execute(sql`
+      ALTER TABLE gastos_marketing
+      DROP CONSTRAINT IF EXISTS gastos_marketing_creado_por_id_users_id_fk
+    `);
+
     // solicitudes_marketing.supervisor_id tenía un FK a salespeople_users.id, pero el
     // "solicitante" (admin/supervisor/encargado) suele vivir en la tabla users, cuyo id
     // NO existe en salespeople_users → el INSERT reventaba con violación de FK (500) y el
