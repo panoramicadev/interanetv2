@@ -48,7 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -57,6 +57,7 @@ import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
 import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
+import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -208,6 +209,17 @@ export default function Marketing() {
                   <span className="hidden sm:inline">Presupuesto</span>
                 </TabsTrigger>
               )}
+
+              {isAdmin && (
+                <TabsTrigger
+                  value="proveedores"
+                  data-testid="tab-proveedores"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Proveedores</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -227,6 +239,13 @@ export default function Marketing() {
           {isAdmin && (
             <TabsContent value="presupuesto" className="space-y-6">
               <PresupuestoTabMarketing userRole={user.role} />
+            </TabsContent>
+          )}
+
+          {/* Tab: Proveedores */}
+          {isAdmin && (
+            <TabsContent value="proveedores" className="space-y-6">
+              <ProveedoresTabMarketing userRole={user.role} />
             </TabsContent>
           )}
         </Tabs>
@@ -1250,6 +1269,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 // Inventario Marketing Component
 function InventarioMarketing({ userRole }: { userRole: string }) {
   const { toast } = useToast();
+  const canManage = userRole === 'admin' || userRole === 'marketing';
   const [search, setSearch] = useState("");
   const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -1372,7 +1392,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
             <List className="h-4 w-4" />
           </Button>
         </div>
-        {userRole === 'admin' && (
+        {canManage && (
           <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-indigo-600 hover:bg-indigo-700">
             <Plus className="mr-2 h-4 w-4" /> Nuevo Item
           </Button>
@@ -1394,7 +1414,9 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
           {filteredItems.map((item: any) => {
             const isLowStock = item.cantidad <= (item.stockMinimo || 0);
             const stockPercent = item.stockMinimo ? Math.min(100, (item.cantidad / item.stockMinimo) * 100) : 100;
-            const est = estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible;
+            const est = (item.cantidad ?? 0) <= 0
+              ? { label: "No disponible", color: "bg-red-50 text-red-600 border-red-200", dot: "bg-red-500" }
+              : (estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible);
 
             return (
               <Card key={item.id} className={`group relative overflow-hidden border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${isLowStock ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200 bg-white dark:bg-slate-900'}`}>
@@ -1435,9 +1457,6 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       <Target className="h-3 w-3" />
                       <span className="truncate max-w-[100px]">{item.ubicacion || '—'}</span>
                     </div>
-                    <span className="font-mono text-slate-600 font-medium">
-                      {item.costoUnitario ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}` : '—'}
-                    </span>
                   </div>
 
                   {/* Último movimiento */}
@@ -1455,7 +1474,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
 
                   {/* Status + Actions */}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <Badge variant="outline" className={`text-[10px] rounded-full px-2 py-0 ${est.color}`}>
+                    <Badge variant="outline" className={`text-[10px] rounded-full px-2 py-0 whitespace-nowrap shrink-0 ${est.color}`}>
                       <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1 ${est.dot}`} />
                       {est.label}
                     </Badge>
@@ -1466,7 +1485,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}>
                         <ArrowLeftRight className="h-3.5 w-3.5" />
                       </Button>
-                      {userRole === 'admin' && (
+                      {canManage && (
                         <>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}>
                             <Edit className="h-3.5 w-3.5" />
@@ -1493,7 +1512,6 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                   <TableHead className="py-3 pl-6 font-semibold text-slate-600">Producto</TableHead>
                   <TableHead className="py-3 font-semibold text-slate-600">Stock</TableHead>
                   <TableHead className="py-3 font-semibold text-slate-600">Ubicación</TableHead>
-                  <TableHead className="py-3 font-semibold text-slate-600">Costo Unit.</TableHead>
                   <TableHead className="py-3 font-semibold text-slate-600">Estado</TableHead>
                   <TableHead className="py-3 pr-6 text-right font-semibold text-slate-600">Acciones</TableHead>
                 </TableRow>
@@ -1501,7 +1519,9 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
               <TableBody>
                 {filteredItems.map((item: any) => {
                   const isLowStock = item.cantidad <= (item.stockMinimo || 0);
-                  const est = estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible;
+                  const est = (item.cantidad ?? 0) <= 0
+              ? { label: "No disponible", color: "bg-red-50 text-red-600 border-red-200", dot: "bg-red-500" }
+              : (estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible);
                   return (
                     <TableRow key={item.id} className="group border-slate-100 hover:bg-slate-50/80 transition-colors">
                       <TableCell className="py-3 pl-6">
@@ -1533,11 +1553,8 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                       <TableCell className="py-3 text-sm text-slate-600">
                         <div className="flex items-center gap-1.5"><Target className="h-3 w-3 text-slate-300" />{item.ubicacion || '—'}</div>
                       </TableCell>
-                      <TableCell className="py-3 font-mono text-sm text-slate-600">
-                        {item.costoUnitario ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}` : '—'}
-                      </TableCell>
                       <TableCell className="py-3">
-                        <Badge variant="outline" className={`text-[10px] rounded-full px-2 ${est.color}`}>
+                        <Badge variant="outline" className={`text-[10px] rounded-full px-2 whitespace-nowrap ${est.color}`}>
                           <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1 ${est.dot}`} />{est.label}
                         </Badge>
                       </TableCell>
@@ -1545,7 +1562,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" title="Registrar movimiento" onClick={() => handleMovimiento(item, 'salida')}><ArrowLeftRight className="h-3.5 w-3.5" /></Button>
-                          {userRole === 'admin' && (
+                          {canManage && (
                             <>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}><Edit className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>

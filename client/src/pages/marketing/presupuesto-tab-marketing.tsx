@@ -123,7 +123,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
     const [showReal, setShowReal] = useState(false);
     const [barsIn, setBarsIn] = useState(false);
 
-    const isAdmin = userRole === "admin" || userRole === "supervisor";
+    const isAdmin = userRole === "admin" || userRole === "supervisor" || userRole === "marketing";
 
     const { data: items = [], isLoading } = useQuery<PresupuestoItem[]>({
         queryKey: ["/api/marketing/presupuesto-items", selectedAnio],

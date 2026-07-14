@@ -27307,7 +27307,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin can create/update presupuesto
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -27365,7 +27365,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/presupuesto-items', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'No autorizado' });
       }
       const item = await storage.createPresupuestoMarketingItem(req.body);
@@ -27378,7 +27378,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/presupuesto-items/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'No autorizado' });
       }
       const item = await storage.updatePresupuestoMarketingItem(req.params.id, req.body);
@@ -27391,7 +27391,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/presupuesto-items/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'No autorizado' });
       }
       await storage.deletePresupuestoMarketingItem(req.params.id);
@@ -27470,7 +27470,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/gastos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden registrar gastos' });
       }
       const gasto = await storage.createGastoMarketing({
@@ -27486,7 +27486,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/gastos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden editar gastos' });
       }
       const gasto = await storage.updateGastoMarketing(req.params.id, req.body);
@@ -27499,7 +27499,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/gastos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin/supervisor pueden eliminar gastos' });
       }
       await storage.deleteGastoMarketing(req.params.id);
@@ -28026,7 +28026,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin can create inventory items
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin puede crear items de inventario' });
       }
 
@@ -28093,7 +28093,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin can update inventory items
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin puede actualizar items de inventario' });
       }
 
@@ -28109,7 +28109,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
 
       // Only admin can delete inventory items
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && user.role !== 'marketing') {
         return res.status(403).json({ message: 'Solo admin puede eliminar items de inventario' });
       }
 
@@ -36362,7 +36362,7 @@ Instrucciones extra:
   // Etapas canónicas del pipeline (espejo de ESTADOS en client/src/lib/
   // crm-seguimiento.ts). Escribir valores fuera del catálogo desincroniza
   // el kanban (que normaliza) de las stats (que agrupan por valor crudo).
-  const ESTADOS_PIPELINE = ["prospecto", "seguimiento", "cotizacion", "venta", "despacho"];
+  const ESTADOS_PIPELINE = ["prospecto", "seguimiento", "cotizacion", "venta", "perdido", "despacho"];
 
   // Scope de vendedor del CRM: solo el admin ve todos los leads. Cualquier
   // otro usuario cuyo email esté vinculado a un vendedor (salespeople_users)
@@ -36720,10 +36720,11 @@ Instrucciones extra:
       // ("nuevo" → prospecto). Para que el export por estado no pierda esos
       // registros, se expande la etapa a sus sinónimos legacy.
       const ESTADO_SYNONYMS: Record<string, string[]> = {
-        prospecto: ['prospecto', 'nuevo', 'perdido'],
+        prospecto: ['prospecto', 'nuevo'],
         seguimiento: ['seguimiento', 'contactado'],
         cotizacion: ['cotizacion'],
         venta: ['venta', 'completado'],
+        perdido: ['perdido'],
         despacho: ['despacho'],
       };
       const syn = ESTADO_SYNONYMS[normalizeEstadoImport(estado as string)] || [estado as string];

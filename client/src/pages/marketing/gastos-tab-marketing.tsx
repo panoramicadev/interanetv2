@@ -115,7 +115,6 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const [editingGasto, setEditingGasto] = useState<GastoMarketing | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
-    const [deleteType, setDeleteType] = useState<"gasto" | "proveedor">("gasto");
     const [uploading, setUploading] = useState<string | null>(null); // Format: "gastoId-field"
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadTarget, setUploadTarget] = useState<{ id: string; field: string } | null>(null);
@@ -129,12 +128,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const [detailGasto, setDetailGasto] = useState<GastoMarketing | null>(null);
     const [newComment, setNewComment] = useState("");
 
-    // Proveedores state
-    const [provDialogOpen, setProvDialogOpen] = useState(false);
-    const [editingProv, setEditingProv] = useState<ProveedorMarketing | null>(null);
-    const [provForm, setProvForm] = useState({ nombre: "", contacto: "", email: "", telefono: "", rut: "", rubro: "", notas: "" });
-
-    const isAdmin = userRole === "admin" || userRole === "supervisor";
+    const isAdmin = userRole === "admin" || userRole === "supervisor" || userRole === "marketing";
 
     const getDefaultFecha = () => {
         const today = new Date();
@@ -210,39 +204,9 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         onError: () => toast({ title: "Error", variant: "destructive" }),
     });
 
-    // ─── Proveedores queries ───
+    // ─── Proveedores query (solo lectura, para el selector del gasto) ───
     const { data: proveedores = [] } = useQuery<ProveedorMarketing[]>({
         queryKey: ["/api/marketing/proveedores"],
-    });
-
-    const createProvMutation = useMutation({
-        mutationFn: async (data: any) => await apiRequest("POST", "/api/marketing/proveedores", data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/marketing/proveedores"] });
-            resetProvForm();
-            toast({ title: "Proveedor registrado" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-    });
-
-    const updateProvMutation = useMutation({
-        mutationFn: async ({ id, updates }: { id: string; updates: any }) => await apiRequest("PATCH", `/api/marketing/proveedores/${id}`, updates),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/marketing/proveedores"] });
-            resetProvForm();
-            toast({ title: "Proveedor actualizado" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-    });
-
-    const deleteProvMutation = useMutation({
-        mutationFn: async (id: string) => await apiRequest("DELETE", `/api/marketing/proveedores/${id}`),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/marketing/proveedores"] });
-            setDeleteDialogOpen(false);
-            toast({ title: "Proveedor eliminado" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
     });
 
     // ─── Handlers ───
@@ -250,12 +214,6 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         setDialogOpen(false);
         setEditingGasto(null);
         setFormData({ concepto: "", descripcion: "", monto: "", categoria: "DIGITAL", proveedor: "", fecha: getDefaultFecha(), estado: "pendiente", numeroFactura: "", presupuestoItemId: SIN_ASIGNAR });
-    };
-
-    const resetProvForm = () => {
-        setProvDialogOpen(false);
-        setEditingProv(null);
-        setProvForm({ nombre: "", contacto: "", email: "", telefono: "", rut: "", rubro: "", notas: "" });
     };
 
     const handleSubmit = () => {
@@ -296,24 +254,6 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         }
     });
 
-    const handleProvSubmit = () => {
-        if (!provForm.nombre.trim()) return;
-        const payload = {
-            nombre: provForm.nombre.trim(),
-            contacto: provForm.contacto.trim() || null,
-            email: provForm.email.trim() || null,
-            telefono: provForm.telefono.trim() || null,
-            rut: provForm.rut.trim() || null,
-            rubro: provForm.rubro.trim() || null,
-            notas: provForm.notas.trim() || null,
-        };
-        if (editingProv) {
-            updateProvMutation.mutate({ id: editingProv.id, updates: payload });
-        } else {
-            createProvMutation.mutate(payload);
-        }
-    };
-
     const handleEdit = (gasto: GastoMarketing) => {
         setEditingGasto(gasto);
         setFormData({
@@ -328,20 +268,6 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             presupuestoItemId: gasto.presupuestoItemId || SIN_ASIGNAR,
         });
         setDialogOpen(true);
-    };
-
-    const handleEditProv = (prov: ProveedorMarketing) => {
-        setEditingProv(prov);
-        setProvForm({
-            nombre: prov.nombre,
-            contacto: prov.contacto || "",
-            email: prov.email || "",
-            telefono: prov.telefono || "",
-            rut: prov.rut || "",
-            rubro: prov.rubro || "",
-            notas: prov.notas || "",
-        });
-        setProvDialogOpen(true);
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -618,7 +544,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => handleEdit(gasto)}>
                                                                 <Pencil className="h-3.5 w-3.5" />
                                                             </Button>
-                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => { setDeleteId(gasto.id); setDeleteType("gasto"); setDeleteDialogOpen(true); }}>
+                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => { setDeleteId(gasto.id); setDeleteDialogOpen(true); }}>
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </div>
@@ -636,71 +562,6 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                     </tr>
                                 </tfoot>
                             </table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* ═══════════════════════════════════════════════
-          PROVEEDORES SECTION
-          ═══════════════════════════════════════════════ */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-violet-700 to-purple-800 text-white pb-4">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                            <Users className="h-5 w-5" />
-                            Proveedores de Marketing
-                        </CardTitle>
-                        {isAdmin && (
-                            <Button
-                                onClick={() => { resetProvForm(); setProvDialogOpen(true); }}
-                                size="sm"
-                                className="rounded-xl bg-white/20 hover:bg-white/30 text-white border-0"
-                            >
-                                <Plus className="mr-1 h-4 w-4" /> Agregar
-                            </Button>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {proveedores.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                            <Building2 className="h-10 w-10 mb-3 opacity-30" />
-                            <p className="font-medium">Sin proveedores registrados</p>
-                            <p className="text-sm">Registra proveedores para tener su info a mano.</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {proveedores.map((prov) => (
-                                <div key={prov.id} className="flex items-center gap-4 px-5 py-4 hover:bg-violet-50/40 transition-colors group">
-                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                                        {prov.nombre.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-slate-800 text-sm">{prov.nombre}</span>
-                                            {prov.rubro && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{prov.rubro}</Badge>}
-                                        </div>
-                                        <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-500">
-                                            {prov.contacto && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{prov.contacto}</span>}
-                                            {prov.telefono && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{prov.telefono}</span>}
-                                            {prov.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{prov.email}</span>}
-                                            {prov.rut && <span className="text-slate-400">RUT: {prov.rut}</span>}
-                                        </div>
-                                        {prov.notas && <p className="text-xs text-slate-400 mt-1 line-clamp-1">{prov.notas}</p>}
-                                    </div>
-                                    {isAdmin && (
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-violet-600 hover:bg-violet-50" onClick={() => handleEditProv(prov)}>
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => { setDeleteId(prov.id); setDeleteType("proveedor"); setDeleteDialogOpen(true); }}>
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
                         </div>
                     )}
                 </CardContent>
@@ -811,83 +672,24 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                 </DialogContent>
             </Dialog>
 
-            {/* Proveedor Add/Edit Dialog */}
-            <Dialog open={provDialogOpen} onOpenChange={(open) => { if (!open) resetProvForm(); }}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5 text-violet-600" />
-                            {editingProv ? "Editar Proveedor" : "Nuevo Proveedor"}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>Nombre *</Label>
-                                <Input value={provForm.nombre} onChange={(e) => setProvForm({ ...provForm, nombre: e.target.value })} placeholder="Ej: Agencia XYZ" className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Rubro</Label>
-                                <Input value={provForm.rubro} onChange={(e) => setProvForm({ ...provForm, rubro: e.target.value })} placeholder="Ej: Diseño gráfico" className="mt-1" />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>Persona de contacto</Label>
-                                <Input value={provForm.contacto} onChange={(e) => setProvForm({ ...provForm, contacto: e.target.value })} placeholder="Juan Pérez" className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>RUT</Label>
-                                <Input value={provForm.rut} onChange={(e) => setProvForm({ ...provForm, rut: e.target.value })} placeholder="12.345.678-9" className="mt-1" />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>Teléfono</Label>
-                                <Input value={provForm.telefono} onChange={(e) => setProvForm({ ...provForm, telefono: e.target.value })} placeholder="+56 9 1234 5678" className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Email</Label>
-                                <Input value={provForm.email} onChange={(e) => setProvForm({ ...provForm, email: e.target.value })} placeholder="contacto@proveedor.cl" className="mt-1" type="email" />
-                            </div>
-                        </div>
-                        <div>
-                            <Label>Notas</Label>
-                            <Textarea value={provForm.notas} onChange={(e) => setProvForm({ ...provForm, notas: e.target.value })} placeholder="Observaciones..." className="mt-1" rows={2} />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={resetProvForm}>Cancelar</Button>
-                        <Button onClick={handleProvSubmit} disabled={!provForm.nombre.trim() || createProvMutation.isPending || updateProvMutation.isPending} className="bg-violet-600 hover:bg-violet-700">
-                            {(createProvMutation.isPending || updateProvMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {editingProv ? "Guardar Cambios" : "Registrar"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {/* Delete confirmation */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar este {deleteType === "proveedor" ? "proveedor" : "gasto"}?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Eliminar este gasto?</AlertDialogTitle>
                         <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <Button
                             className="bg-red-600 hover:bg-red-700 text-white"
-                            disabled={deleteMutation.isPending || deleteProvMutation.isPending}
+                            disabled={deleteMutation.isPending}
                             onClick={() => {
                                 if (!deleteId) return;
-                                if (deleteType === "proveedor") {
-                                    deleteProvMutation.mutate(deleteId);
-                                } else {
-                                    deleteMutation.mutate(deleteId);
-                                }
+                                deleteMutation.mutate(deleteId);
                             }}
                         >
-                            {(deleteMutation.isPending || deleteProvMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Eliminar
                         </Button>
                     </AlertDialogFooter>
