@@ -12,8 +12,11 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
+  DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw, Truck,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
 
 // ─── Tipos ───
 interface CommissionItem {
@@ -29,12 +32,15 @@ interface CommissionItem {
   overriddenClientCount: number;
   commissionPct: number;
   commissionAmount: number;
+  freightAmount: number;
+  freightLines: number;
 }
 interface CommissionSummary {
   startDate: string;
   endDate: string;
   items: CommissionItem[];
-  totals: { netRevenue: number; netMargin: number; commissionAmount: number };
+  totals: { netRevenue: number; netMargin: number; commissionAmount: number; freightAmount: number };
+  freightUnassigned: number;
 }
 interface DetailClient {
   client: string; revenue: number; cost: number; margin: number; lineCount: number;
@@ -138,10 +144,10 @@ export default function Comisiones() {
 
   const exportCsv = () => {
     if (!items.length) return;
-    const header = ["Vendedor", "Facturado neto", "Costo neto", "Margen neto", "% Comisión", "Comisión a pagar"];
+    const header = ["Vendedor", "Facturado neto", "Costo neto", "Margen neto", "Flete excluido", "% Comisión", "Comisión a pagar"];
     const rows = items.map((it) => [
       it.salesperson, Math.round(it.netRevenue), Math.round(it.netCost),
-      Math.round(it.netMargin), it.commissionPct, Math.round(it.commissionAmount),
+      Math.round(it.netMargin), Math.round(it.freightAmount), it.commissionPct, Math.round(it.commissionAmount),
     ]);
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
@@ -172,7 +178,7 @@ export default function Comisiones() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Comisiones de Vendedores</h1>
             <p className="text-sm text-slate-500">
-              Comisión sobre el margen de lo facturado (FCV). Excluye clientes o ventas puntuales.
+              Comisión sobre el margen de lo facturado (FCV). El flete se excluye automáticamente de la base.
             </p>
           </div>
         </div>
@@ -210,12 +216,16 @@ export default function Comisiones() {
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} />
         <KpiCard label="Margen neto total" value={formatCLP(summary?.totals.netMargin)} loading={isLoading} />
+        <KpiCard label="Flete excluido" value={formatCLP(summary?.totals.freightAmount)} loading={isLoading} freight />
         <KpiCard label="Comisión total a pagar" value={formatCLP(summary?.totals.commissionAmount)} loading={isLoading}
           highlight />
       </div>
+
+      {/* Auditoría de flete: cuánto se descuenta por vendedor */}
+      <FreightAuditCard items={items} totals={summary?.totals} unassigned={summary?.freightUnassigned} loading={isLoading} />
 
       {/* Tabla principal */}
       <Card>
@@ -232,6 +242,7 @@ export default function Comisiones() {
                   <TableHead className="text-right">Facturado neto</TableHead>
                   <TableHead className="text-right">Costo neto</TableHead>
                   <TableHead className="text-right">Margen neto</TableHead>
+                  <TableHead className="text-right">Flete excluido</TableHead>
                   <TableHead className="text-right w-28">% Comisión</TableHead>
                   <TableHead className="text-right">Comisión a pagar</TableHead>
                 </TableRow>
@@ -240,13 +251,13 @@ export default function Comisiones() {
                 {isLoading && (
                   Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
+                      <TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell>
                     </TableRow>
                   ))
                 )}
                 {!isLoading && items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-10">
+                    <TableCell colSpan={8} className="text-center text-slate-500 py-10">
                       No hay ventas facturadas en el período seleccionado.
                     </TableCell>
                   </TableRow>
@@ -277,6 +288,9 @@ export default function Comisiones() {
                           {formatCLP(it.netMargin)}
                           <span className="text-xs text-slate-400 ml-1">({it.netMarginPct.toFixed(1)}%)</span>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums text-amber-600">
+                          {it.freightAmount > 0 ? formatCLP(it.freightAmount) : <span className="text-slate-300">—</span>}
+                        </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="relative inline-flex items-center">
                             <Input
@@ -296,7 +310,7 @@ export default function Comisiones() {
                       </TableRow>
                       {isOpen && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-slate-50/60 dark:bg-slate-900/40 p-0">
+                          <TableCell colSpan={8} className="bg-slate-50/60 dark:bg-slate-900/40 p-0">
                             <SalespersonDetailPanel
                               salesperson={it.salesperson}
                               startDate={startDate}
@@ -318,6 +332,7 @@ export default function Comisiones() {
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netRevenue)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netMargin)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-amber-600">{formatCLP(summary?.totals.freightAmount)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right font-bold tabular-nums text-emerald-600">
                       {formatCLP(summary?.totals.commissionAmount)}
@@ -333,15 +348,111 @@ export default function Comisiones() {
   );
 }
 
-function KpiCard({ label, value, loading, highlight }: {
-  label: string; value: string; loading?: boolean; highlight?: boolean;
+function KpiCard({ label, value, loading, highlight, freight }: {
+  label: string; value: string; loading?: boolean; highlight?: boolean; freight?: boolean;
 }) {
+  const cardClass = highlight
+    ? "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10"
+    : freight
+      ? "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10"
+      : "";
+  const valueClass = highlight ? "text-emerald-600" : freight ? "text-amber-600" : "text-slate-900 dark:text-white";
   return (
-    <Card className={highlight ? "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10" : ""}>
+    <Card className={cardClass}>
       <CardContent className="py-4">
-        <p className="text-xs text-slate-500 mb-1">{label}</p>
+        <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+          {freight && <Truck className="w-3.5 h-3.5 text-amber-500" />}{label}
+        </p>
         {loading ? <Skeleton className="h-7 w-32" />
-          : <p className={`text-2xl font-bold tabular-nums ${highlight ? "text-emerald-600" : "text-slate-900 dark:text-white"}`}>{value}</p>}
+          : <p className={`text-2xl font-bold tabular-nums ${valueClass}`}>{value}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Auditoría de flete: gráfico de barras con lo que se descuenta por vendedor.
+// Ayuda a detectar de un vistazo dónde se concentra el flete facturado que NO
+// entra en la base de comisiones.
+function FreightAuditCard({ items, totals, unassigned, loading }: {
+  items: CommissionItem[];
+  totals?: { netRevenue: number; freightAmount: number };
+  unassigned?: number;
+  loading?: boolean;
+}) {
+  const chartData = useMemo(() => {
+    const rows = items
+      .filter((it) => it.freightAmount > 0)
+      .map((it) => ({ name: it.salesperson, flete: Math.round(it.freightAmount) }))
+      .sort((a, b) => b.flete - a.flete);
+    return rows.slice(0, 15);
+  }, [items]);
+
+  const freightTotal = totals?.freightAmount ?? 0;
+  const base = totals?.netRevenue ?? 0;
+  const pctOfBase = base > 0 ? (freightTotal / base) * 100 : 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Truck className="w-4 h-4 text-amber-500" />
+          Auditoría de flete
+          <span className="text-xs font-normal text-slate-500 ml-1">
+            excluido de la base de comisiones
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : chartData.length === 0 ? (
+          <p className="text-sm text-slate-500 py-10 text-center">
+            No se facturó flete en el período seleccionado.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 mb-3 text-sm">
+              <span className="text-slate-500">
+                Total flete: <span className="font-semibold text-amber-600 tabular-nums">{formatCLP(freightTotal)}</span>
+              </span>
+              <span className="text-slate-500">
+                Sobre lo facturado: <span className="font-semibold tabular-nums">{pctOfBase.toFixed(2)}%</span>
+              </span>
+              {!!unassigned && unassigned > 0 && (
+                <span className="text-slate-500">
+                  Sin vendedor asignado: <span className="font-semibold tabular-nums">{formatCLP(unassigned)}</span>
+                </span>
+              )}
+            </div>
+            <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 34)}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 12, right: 24, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200 dark:stroke-slate-700" />
+                <XAxis
+                  type="number"
+                  tickFormatter={(v) => formatCLP(v)}
+                  tick={{ fontSize: 11 }}
+                  className="text-slate-500"
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={140}
+                  tick={{ fontSize: 11 }}
+                  className="text-slate-500"
+                />
+                <Tooltip
+                  formatter={(v: any) => [formatCLP(Number(v)), "Flete"]}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                <Bar dataKey="flete" radius={[0, 4, 4, 0]}>
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill="#f59e0b" />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        )}
       </CardContent>
     </Card>
   );
