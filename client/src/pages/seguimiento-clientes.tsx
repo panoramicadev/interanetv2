@@ -43,10 +43,23 @@ import ImportExportClientes from "@/components/crm/import-export-clientes";
 type ViewMode = "tabla" | "pipeline";
 
 const VIEW_STORAGE_KEY = "crm-seguimiento-view";
-// La búsqueda se persiste en sessionStorage para no perderla al entrar a un
-// cliente y volver (la lista se desmonta al cambiar de ruta). Es transitoria:
-// se limpia al cerrar la pestaña, no queda guardada para siempre.
+// La búsqueda y los demás filtros se persisten en sessionStorage para no
+// perderlos al entrar a un cliente y volver (la lista se desmonta al cambiar
+// de ruta). Es transitorio: se limpia al cerrar la pestaña, no queda
+// guardado para siempre.
 const SEARCH_STORAGE_KEY = "crm-seguimiento-busqueda";
+const FILTERS_STORAGE_KEY = "crm-seguimiento-filtros";
+
+type FiltrosPersistidos = {
+  estado: string;
+  prioridad: string;
+  vendedor: string;
+  region: string;
+  segmento: string;
+  soloDestacados: boolean;
+  pinProblemas: boolean;
+  sortContacto: "none" | "asc" | "desc";
+};
 
 function loadViewPreference(): ViewMode {
   try {
@@ -61,6 +74,15 @@ function loadSearchPreference(): string {
     return sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? "";
   } catch {
     return "";
+  }
+}
+
+function loadFiltrosPreference(): Partial<FiltrosPersistidos> {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
   }
 }
 
@@ -79,14 +101,14 @@ export default function SeguimientoClientes() {
 
   const [busqueda, setBusqueda] = useState(loadSearchPreference);
   const [busquedaDebounced, setBusquedaDebounced] = useState(loadSearchPreference);
-  const [filtroEstado, setFiltroEstado] = useState<string>("todos");
-  const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todos");
-  const [filtroVendedor, setFiltroVendedor] = useState<string>("todos");
-  const [filtroRegion, setFiltroRegion] = useState<string>("todos");
-  const [filtroSegmento, setFiltroSegmento] = useState<string>("todos");
-  const [soloDestacados, setSoloDestacados] = useState<boolean>(false);
-  const [pinProblemas, setPinProblemas] = useState<boolean>(true);
-  const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">("desc");
+  const [filtroEstado, setFiltroEstado] = useState<string>(() => loadFiltrosPreference().estado ?? "todos");
+  const [filtroPrioridad, setFiltroPrioridad] = useState<string>(() => loadFiltrosPreference().prioridad ?? "todos");
+  const [filtroVendedor, setFiltroVendedor] = useState<string>(() => loadFiltrosPreference().vendedor ?? "todos");
+  const [filtroRegion, setFiltroRegion] = useState<string>(() => loadFiltrosPreference().region ?? "todos");
+  const [filtroSegmento, setFiltroSegmento] = useState<string>(() => loadFiltrosPreference().segmento ?? "todos");
+  const [soloDestacados, setSoloDestacados] = useState<boolean>(() => loadFiltrosPreference().soloDestacados ?? false);
+  const [pinProblemas, setPinProblemas] = useState<boolean>(() => loadFiltrosPreference().pinProblemas ?? true);
+  const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">(() => loadFiltrosPreference().sortContacto ?? "desc");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportExport, setShowImportExport] = useState(false);
   const [view, setView] = useState<ViewMode>(loadViewPreference);
@@ -103,6 +125,24 @@ export default function SeguimientoClientes() {
     const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
     return () => clearTimeout(t);
   }, [busqueda]);
+
+  // Persiste los demás filtros (estado, prioridad, vendedor, etc.) por la
+  // misma razón que la búsqueda: no perderlos al entrar a un cliente y volver.
+  useEffect(() => {
+    try {
+      const filtros: FiltrosPersistidos = {
+        estado: filtroEstado,
+        prioridad: filtroPrioridad,
+        vendedor: filtroVendedor,
+        region: filtroRegion,
+        segmento: filtroSegmento,
+        soloDestacados,
+        pinProblemas,
+        sortContacto,
+      };
+      sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtros));
+    } catch { /* ignore */ }
+  }, [filtroEstado, filtroPrioridad, filtroVendedor, filtroRegion, filtroSegmento, soloDestacados, pinProblemas, sortContacto]);
 
   const changeView = (v: ViewMode) => {
     setView(v);
