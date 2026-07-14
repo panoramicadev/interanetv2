@@ -1953,76 +1953,116 @@ export default function TareasPage() {
 
               const groupColors = ['#3b82f6', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#f97316'];
 
-              // Vista EQUIPO: agrupar por persona asignada, tarjetas colapsables (Etapa 1).
+              // Vista EQUIPO: agrupar por persona asignada, filas compactas tipo lista (rediseño).
               // Los vendedores no gestionan equipo → siempre ven la vista por Grupos.
               if (groupByEquipo && !isSalesperson) {
-                const byPerson: Record<string, { name: string; tasks: typeof filteredTasks }> = {};
+                type PersonGroup = { name: string; role: 'supervisor' | 'salesperson'; tasks: typeof filteredTasks };
+                // Un supervisor que se co-asigna junto al vendedor que realmente ejecuta no debería
+                // inflar su propio conteo de "tareas" — esas van a un balde aparte de supervisión.
+                const byPerson: Record<string, PersonGroup> = {};
+                const supervising: Record<string, PersonGroup> = {};
+                const addTo = (bucket: Record<string, PersonGroup>, id: string, name: string, role: PersonGroup['role'], task: typeof filteredTasks[number]) => {
+                  if (!bucket[id]) bucket[id] = { name, role, tasks: [] };
+                  bucket[id].tasks.push(task);
+                };
+
                 filteredTasks.forEach((task) => {
                   if (task.assignments.length === 0) {
-                    if (!byPerson['__none__']) byPerson['__none__'] = { name: 'Sin asignar', tasks: [] };
-                    byPerson['__none__'].tasks.push(task);
+                    addTo(byPerson, '__none__', 'Sin asignar', 'salesperson', task);
                     return;
                   }
-                  task.assignments.forEach((a) => {
+                  const salespeople = task.assignments.filter(a => a.assigneeType === 'salesperson');
+                  const supervisors = task.assignments.filter(a => a.assigneeType === 'supervisor');
+                  const hasOperational = salespeople.length > 0;
+
+                  salespeople.forEach((a) => {
                     const name = availableUsers?.find((u) => u.id === a.assigneeId)?.salespersonName
                       || availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName
                       || a.assigneeId;
-                    if (!byPerson[a.assigneeId]) byPerson[a.assigneeId] = { name, tasks: [] };
-                    byPerson[a.assigneeId].tasks.push(task);
+                    addTo(byPerson, a.assigneeId, name, 'salesperson', task);
+                  });
+
+                  supervisors.forEach((a) => {
+                    const name = availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName
+                      || availableUsers?.find((u) => u.id === a.assigneeId)?.salespersonName
+                      || a.assigneeId;
+                    // Sin vendedor en la misma tarea → es una tarea propia del supervisor (legítima).
+                    // Con vendedor en la misma tarea → el supervisor solo acompaña, no cuenta como suya.
+                    addTo(hasOperational ? supervising : byPerson, a.assigneeId, name, 'supervisor', task);
                   });
                 });
+
                 const people = Object.entries(byPerson).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
-                if (people.length === 0) return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
-                const personColors = ['#f97316', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#ef4444'];
-                return (
-                  <>
-                    {people.map(([id, grp], idx) => {
-                      const completed = grp.tasks.filter(isTaskDone).length;
-                      const total = grp.tasks.length;
-                      const pct = total > 0 ? (completed / total) * 100 : 0;
-                      const color = personColors[idx % personColors.length];
-                      const isCollapsed = collapsedGroups.has(id);
-                      return (
-                        <div
-                          key={id}
-                          className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md"
-                          style={{ borderLeftWidth: '4px', borderLeftColor: color }}
-                        >
-                          <button
-                            onClick={() => toggleGroupCollapsed(id)}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
-                          >
-                            <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm"
-                              style={{ backgroundColor: color }}
-                            >
-                              {grp.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm font-bold text-slate-800 truncate">{grp.name}</span>
-                            <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-600 font-semibold">{total}</Badge>
-                            {total > 0 && (
-                              <div className="flex items-center gap-2 ml-auto mr-1">
-                                <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : color }}
-                                  />
-                                </div>
-                                <span className={`text-[10px] font-semibold whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                  {completed}/{total}
-                                </span>
-                              </div>
-                            )}
-                          </button>
-                          {!isCollapsed && (
-                            <div className="border-t border-slate-100 bg-slate-50/30 px-1.5 sm:px-3 py-1.5 sm:py-2 space-y-1 sm:space-y-1.5">
-                              {grp.tasks.map(renderTaskCard)}
-                            </div>
+                const supervisingList = Object.entries(supervising).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+                if (people.length === 0 && supervisingList.length === 0) {
+                  return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
+                }
+
+                const renderPersonRow = (id: string, grp: PersonGroup, muted = false) => {
+                  const completed = grp.tasks.filter(isTaskDone).length;
+                  const total = grp.tasks.length;
+                  const pct = total > 0 ? (completed / total) * 100 : 0;
+                  const isCollapsed = collapsedGroups.has(id);
+                  return (
+                    <div key={id} className="border-b border-slate-100 last:border-b-0">
+                      <button
+                        onClick={() => toggleGroupCollapsed(id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
+                          muted ? 'bg-slate-200 text-slate-500' : grp.role === 'supervisor' ? 'bg-slate-800 text-white' : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {grp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
+                          {grp.role === 'supervisor' && (
+                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide flex-shrink-0">Supervisor</span>
                           )}
                         </div>
-                      );
-                    })}
+                        <span className="text-xs text-slate-400 font-medium flex-shrink-0">{total}</span>
+                        {total > 0 && (
+                          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+                            <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#cbd5e1' }}
+                              />
+                            </div>
+                            <span className={`text-[11px] font-medium whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {completed}/{total}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                      {!isCollapsed && (
+                        <div className="px-1.5 sm:px-3 pb-2 space-y-1 sm:space-y-1.5">
+                          {grp.tasks.map(renderTaskCard)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                return (
+                  <>
+                    {people.length > 0 && (
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        {people.map(([id, grp]) => renderPersonRow(id, grp))}
+                      </div>
+                    )}
+                    {supervisingList.length > 0 && (
+                      <div className={people.length > 0 ? 'mt-4' : ''}>
+                        <div className="flex items-center gap-1.5 px-1 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                          <Eye className="h-3 w-3" />
+                          Supervisando
+                        </div>
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 overflow-hidden">
+                          {supervisingList.map(([id, grp]) => renderPersonRow(`sup-${id}`, grp, true))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               }
