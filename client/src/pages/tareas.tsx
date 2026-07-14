@@ -720,15 +720,18 @@ export default function TareasPage() {
     mutationFn: async (taskData: CreateTaskWithAssignmentsInput) => {
       return await apiRequest("POST", "/api/tasks", taskData);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
       setShowCreateDialog(false);
       form.reset();
       setSelectedClienteTask(null);
       setSearchClienteTask("");
+      // Aterrizar en la pestaña donde el ítem recién creado será visible.
+      const esSeguimiento = (vars as any)?.payload?.kind === 'seguimiento_cliente';
+      setActiveTab(esSeguimiento ? "seguimiento" : "tareas");
       toast({
-        title: "Tarea creada",
-        description: "La tarea se ha creado exitosamente.",
+        title: esSeguimiento ? "Seguimiento creado" : "Tarea creada",
+        description: esSeguimiento ? "El seguimiento se ha creado exitosamente." : "La tarea se ha creado exitosamente.",
       });
     },
     onError: (error: any) => {
@@ -835,6 +838,12 @@ export default function TareasPage() {
       const isCreatedByMe = task.createdByUserId === user.id;
       if (!isAssignedToMe && !isCreatedByMe) return false;
     }
+
+    // Separación por pestaña: "Tareas" (normales) vs "Seguimiento" (clientes).
+    // Otras pestañas (ej. calendario) no aplican este filtro y ven todo.
+    const isSeguimientoTask = (task as any).payload?.kind === 'seguimiento_cliente';
+    if (activeTab === 'seguimiento' && !isSeguimientoTask) return false;
+    if (activeTab === 'tareas' && isSeguimientoTask) return false;
 
     // Cliente filter
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
@@ -1025,9 +1034,20 @@ export default function TareasPage() {
           </div>
           {canCreateTasks && (
             <>
-            <Button onClick={() => setShowChooser(true)} className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+            <Button onClick={() => {
+              // Desde la pestaña Seguimiento, saltar el selector y abrir directo el flujo de cliente.
+              if (activeTab === 'seguimiento') {
+                setTaskFlow('seguimiento');
+                setSelectedClienteTask(null);
+                setSearchClienteTask("");
+                form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+                setShowCreateDialog(true);
+              } else {
+                setShowChooser(true);
+              }
+            }} className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
               <Plus className="h-4 w-4 mr-2" />
-              Nueva Tarea
+              {activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea'}
             </Button>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
@@ -1461,9 +1481,13 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
+              Tareas
+            </TabsTrigger>
+            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
+              <Building2 className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
             </TabsTrigger>
             {user?.role !== 'tecnico_obra' && !isMarketing && (
@@ -1483,7 +1507,8 @@ export default function TareasPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="tareas" className="space-y-6">
+        {(activeTab === 'tareas' || activeTab === 'seguimiento') && (
+        <div className="space-y-6">
 
           {/* Segment Tabs - hidden for salesperson y cuando solo hay un segmento visible
               (marketing / supervisor con segmento único): no tiene sentido mostrar una sola pestaña */}
@@ -1859,9 +1884,13 @@ export default function TareasPage() {
                     <CheckSquare className="h-9 w-9 text-white" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">No hay tareas</h3>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">
+                  {activeTab === 'seguimiento' ? "No hay seguimientos" : "No hay tareas"}
+                </h3>
                 <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
-                  {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
+                  {activeTab === 'seguimiento'
+                    ? "Aún no hay clientes en seguimiento."
+                    : (viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas.")}
                 </p>
                 {canCreateTasks && (
                   <Button
@@ -2473,7 +2502,8 @@ export default function TareasPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </TabsContent>
+        </div>
+        )}
 
         {/* Vista Calendario */}
         <TabsContent value="calendario" className="space-y-6">
@@ -2485,7 +2515,7 @@ export default function TareasPage() {
               const task = filteredTasks.find(t => t.id === taskId);
               if (task) {
                 setExpandedTasks(new Set([taskId]));
-                setActiveTab("tareas");
+                setActiveTab((task as any).payload?.kind === 'seguimiento_cliente' ? "seguimiento" : "tareas");
               }
             }}
             salespeople={availableUsers}

@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showChangelogDialog, setShowChangelogDialog] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(["/ecommerce"]));
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // Colapsar el sidebar a un rail de íconos (persistido por navegador). Solo aplica en desktop;
   // en móvil el drawer siempre se abre a ancho completo.
