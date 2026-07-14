@@ -44,6 +44,13 @@ const FACT_JOINS = sql`
   LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
 `;
 
+// El flete se factura como una línea de producto cuyo nombre contiene "flete"
+// (misma heurística que /api/sales/fletes). No forma parte de la comisión del
+// vendedor: se EXCLUYE de la base imponible (facturado/costo/margen) y se
+// contabiliza aparte para poder auditar cuánto se descuenta por este concepto.
+const FREIGHT_MATCH = sql`fv."nokoprct" ILIKE '%flete%'`;
+const NOT_FREIGHT = sql`(fv."nokoprct" IS NULL OR fv."nokoprct" NOT ILIKE '%flete%')`;
+
 // ─── Tablas en runtime (deploy de migraciones no confiable) ───
 
 let ensureTablesPromise: Promise<void> | null = null;
@@ -149,6 +156,7 @@ async function getCommissionSummary(startDate: string, endDate: string) {
       WHERE fv."tido" = 'FCV'
         AND fv."nokofu" IS NOT NULL AND fv."nokofu" != ''
         AND fv."monto" IS NOT NULL
+        AND ${NOT_FREIGHT}
         AND fv."feemdo" >= ${startDate}::date
         AND fv."feemdo" <= ${endDate}::date
     ),
@@ -193,6 +201,45 @@ async function getCommissionSummary(startDate: string, endDate: string) {
 
   const rows = (result.rows || []) as any[];
 
+  // Flete facturado en el período, atribuido al vendedor del documento.
+  // Las líneas de flete suelen venir con nokofu en NULL (son doc-level), así
+  // que se resuelve el vendedor por el documento (idmaeedo) al que pertenecen.
+  const freightResult = await db.execute(sql`
+    WITH doc_sp AS (
+      SELECT idmaeedo, MAX(nokofu) AS salesperson
+      FROM ventas.fact_ventas
+      WHERE tido = 'FCV'
+        AND nokofu IS NOT NULL AND nokofu != ''
+        AND feemdo >= ${startDate}::date
+        AND feemdo <= ${endDate}::date
+      GROUP BY idmaeedo
+    )
+    SELECT
+      COALESCE(NULLIF(fv."nokofu", ''), ds.salesperson) AS salesperson,
+      SUM(fv."monto") AS freight_amount,
+      COUNT(*) AS freight_lines
+    FROM ventas.fact_ventas fv
+    LEFT JOIN doc_sp ds ON ds.idmaeedo = fv."idmaeedo"
+    WHERE fv."tido" = 'FCV'
+      AND ${FREIGHT_MATCH}
+      AND fv."monto" IS NOT NULL
+      AND fv."feemdo" >= ${startDate}::date
+      AND fv."feemdo" <= ${endDate}::date
+    GROUP BY 1
+  `);
+
+  const freightRows = (freightResult.rows || []) as any[];
+  const freightByName = new Map<string, { amount: number; lines: number }>();
+  let freightTotal = 0;
+  let freightUnassigned = 0;
+  for (const r of freightRows) {
+    const amount = num(r.freight_amount);
+    freightTotal += amount;
+    const name = (r.salesperson as string) || "";
+    if (!name) { freightUnassigned += amount; continue; }
+    freightByName.set(name, { amount, lines: num(r.freight_lines) });
+  }
+
   // % por defecto configurado por vendedor
   const settings = await db.select().from(commissionSettings);
   const pctByName = new Map<string, number>();
@@ -204,6 +251,8 @@ async function getCommissionSummary(startDate: string, endDate: string) {
     const netMargin = netRevenue - netCost;
     const commissionPct = pctByName.get(r.salesperson) ?? 0;
     const commissionAmount = num(r.commission_amount);
+    const freight = freightByName.get(r.salesperson as string);
+    const freightAmount = freight?.amount ?? 0;
     return {
       salesperson: r.salesperson as string,
       netRevenue,
@@ -215,6 +264,9 @@ async function getCommissionSummary(startDate: string, endDate: string) {
       overriddenClientCount: num(r.overridden_client_count),
       commissionPct,
       commissionAmount,
+      // Flete excluido de la base (para auditoría)
+      freightAmount,
+      freightLines: freight?.lines ?? 0,
     };
   });
 
@@ -225,10 +277,13 @@ async function getCommissionSummary(startDate: string, endDate: string) {
       acc.commissionAmount += it.commissionAmount;
       return acc;
     },
-    { netRevenue: 0, netMargin: 0, commissionAmount: 0 },
+    { netRevenue: 0, netMargin: 0, commissionAmount: 0, freightAmount: 0 },
   );
+  // El total de flete se toma de TODO lo facturado como flete en el período
+  // (incluye lo no atribuible a un vendedor), para que la auditoría cuadre.
+  totals.freightAmount = freightTotal;
 
-  return { startDate, endDate, items, totals };
+  return { startDate, endDate, items, totals, freightUnassigned };
 }
 
 /**
@@ -242,6 +297,7 @@ async function getSalespersonDetail(salesperson: string, startDate: string, endD
     WHERE fv."tido" = 'FCV'
       AND fv."nokofu" = ${salesperson}
       AND fv."monto" IS NOT NULL
+      AND ${NOT_FREIGHT}
       AND fv."feemdo" >= ${startDate}::date
       AND fv."feemdo" <= ${endDate}::date
   `;
