@@ -601,14 +601,14 @@ export default function TareasPage() {
   });
 
   // Query for available users (for assignments)
-  const { data: availableUsers } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
+  const { data: availableUsers } = useQuery<Array<{ id: string; salespersonName: string; role: string; supervisorId?: string | null; assignedSegment?: string | null; isActive?: boolean }>>({
     queryKey: ["/api/users/salespeople"],
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.salespeople as any,
   });
 
   // Query for available supervisors (for assignments)
-  const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
+  const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string; assignedSegment?: string | null }>>({
     queryKey: ["/api/users/salespeople/supervisors"],
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.supervisors as any,
@@ -975,6 +975,25 @@ export default function TareasPage() {
     // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente
     const payload = seguimientoMode ? { kind: 'seguimiento_cliente' } : undefined;
     createTaskMutation.mutate({ ...data, ...(payload ? { payload } : {}) } as any);
+  };
+
+  // Abre el flujo de "nuevo seguimiento" con un vendedor ya preasignado (roster de Equipo).
+  const openAssignClienteFor = (vendedorId: string) => {
+    setTaskFlow('seguimiento');
+    setSelectedClienteTask(null);
+    setSearchClienteTask("");
+    form.reset({
+      title: "",
+      description: "",
+      priority: "medium",
+      segmento: segmentoFilter !== 'all' ? segmentoFilter : null,
+      groupId: null,
+      dueDate: "",
+      clienteId: null,
+      clienteNombre: null,
+      assignments: vendedorId ? [{ assigneeType: "salesperson", assigneeId: vendedorId }] : [],
+    });
+    setShowCreateDialog(true);
   };
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
@@ -1876,7 +1895,7 @@ export default function TareasPage() {
                 <div className="animate-spin rounded-full h-10 w-10 border-3 border-orange-200 border-t-orange-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
               </div>
-            ) : filteredTasks.length === 0 ? (
+            ) : (filteredTasks.length === 0 && !(activeTab === 'seguimiento' && groupByEquipo && !isSalesperson)) ? (
               <div className="text-center py-20">
                 <div className="relative w-20 h-20 mx-auto mb-5">
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 blur-lg opacity-25" />
@@ -2086,6 +2105,160 @@ export default function TareasPage() {
                     <div className="px-1.5 sm:px-3 py-2 space-y-1 sm:space-y-1.5">
                       {completedTasks.map(renderTaskCard)}
                     </div>
+                  </div>
+                );
+              }
+
+              // Vista SEGUIMIENTO + EQUIPO: roster del equipo. Muestra a cada vendedor (aunque
+              // no tenga clientes todavía) para que supervisor/admin le asigne clientes.
+              // Un "cliente asignado" es un seguimiento_cliente ligado a ese vendedor.
+              if (activeTab === 'seguimiento' && groupByEquipo && !isSalesperson) {
+                // Mapa vendedorId -> sus clientes (seguimientos) del segmento en curso
+                const clientesPorVendedor: Record<string, typeof filteredTasks> = {};
+                activeTasks.forEach((task) => {
+                  task.assignments
+                    .filter((a) => a.assigneeType === 'salesperson')
+                    .forEach((a) => {
+                      (clientesPorVendedor[a.assigneeId] ||= []).push(task);
+                    });
+                });
+
+                // Matcher de segmento tolerante (misma convención que effectiveSegment)
+                const enSegmento = (seg?: string | null) => {
+                  if (segmentoFilter === 'all') return true;
+                  const s = (seg || '').toLowerCase();
+                  const def = SEGMENTOS.find((x) => x.value === segmentoFilter);
+                  if (!def) return true;
+                  return s.includes(def.value) || s.includes(def.label.toLowerCase());
+                };
+
+                const allVendedores = (availableUsers || []).filter(
+                  (u) => u.role === 'salesperson' && u.isActive !== false,
+                );
+                const supervisores = (availableSupervisors || []).filter((s) => s.role === 'supervisor');
+
+                // Fila de un vendedor: cabecera + sus clientes + botón "Asignar cliente".
+                const renderVendedorRow = (v: { id: string; salespersonName: string }) => {
+                  const clientes = clientesPorVendedor[v.id] || [];
+                  const total = clientes.length;
+                  const done = clientes.filter(isTaskDone).length;
+                  const pct = total > 0 ? (done / total) * 100 : 0;
+                  const isCollapsed = collapsedGroups.has(`vend-${v.id}`);
+                  return (
+                    <div key={v.id} className="border-b border-slate-100 last:border-b-0">
+                      <div className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                        <button onClick={() => toggleGroupCollapsed(`vend-${v.id}`)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                          <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
+                          <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                            {v.salespersonName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-semibold text-slate-800 truncate">{v.salespersonName}</span>
+                          <span className="text-xs text-slate-400 font-medium flex-shrink-0">{total} cliente{total !== 1 ? 's' : ''}</span>
+                          {total > 0 && (
+                            <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+                              <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#cbd5e1' }} />
+                              </div>
+                              <span className={`text-[11px] font-medium whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>{done}/{total}</span>
+                            </div>
+                          )}
+                        </button>
+                        {canCreateTasks && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openAssignClienteFor(v.id)}
+                            className="ml-auto flex-shrink-0 h-7 px-2.5 text-xs border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                            data-testid={`button-assign-cliente-${v.id}`}
+                          >
+                            <Plus className="h-3.5 w-3.5 sm:mr-1" />
+                            <span className="hidden sm:inline">Asignar cliente</span>
+                          </Button>
+                        )}
+                      </div>
+                      {!isCollapsed && (
+                        <div className="px-1.5 sm:px-3 pb-2 space-y-1 sm:space-y-1.5">
+                          {clientes.length > 0 ? (
+                            clientes.map(renderTaskCard)
+                          ) : (
+                            <p className="text-xs text-slate-400 italic px-3 py-3">Sin clientes asignados todavía.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                // Supervisor / encargado: solo su equipo (una sección).
+                if (user.role === 'supervisor' || user.role === 'encargado_area') {
+                  const miEquipo = allVendedores.filter((v) => v.supervisorId === user.id);
+                  if (miEquipo.length === 0) {
+                    return <p className="text-center text-sm text-slate-400 py-10">No tienes vendedores en tu equipo.</p>;
+                  }
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                      {miEquipo
+                        .slice()
+                        .sort((a, b) => (clientesPorVendedor[b.id]?.length || 0) - (clientesPorVendedor[a.id]?.length || 0))
+                        .map(renderVendedorRow)}
+                    </div>
+                  );
+                }
+
+                // Admin: agrupar por supervisor (secciones). El segmento suele vivir en el equipo,
+                // no en el supervisor (ej. supervisores sin assignedSegment propio) → una sección
+                // es visible si el supervisor matchea el segmento, si no tiene segmento propio, o si
+                // alguno de sus vendedores ya tiene clientes en el segmento en curso.
+                const sinSupervisor = allVendedores.filter((v) => !v.supervisorId && (enSegmento(v.assignedSegment) || (clientesPorVendedor[v.id]?.length)));
+                const secciones = supervisores
+                  .map((sup) => ({
+                    sup,
+                    vendedores: allVendedores.filter((v) => v.supervisorId === sup.id),
+                  }))
+                  .filter((sec) => sec.vendedores.length > 0)
+                  .filter((sec) =>
+                    segmentoFilter === 'all' ||
+                    !sec.sup.assignedSegment ||
+                    enSegmento(sec.sup.assignedSegment) ||
+                    sec.vendedores.some((v) => clientesPorVendedor[v.id]?.length),
+                  );
+
+                if (secciones.length === 0 && sinSupervisor.length === 0) {
+                  return <p className="text-center text-sm text-slate-400 py-10">No hay vendedores para este segmento.</p>;
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {secciones.map(({ sup, vendedores }) => (
+                      <div key={sup.id}>
+                        <div className="flex items-center gap-2 px-1 mb-2">
+                          <div className="w-6 h-6 rounded-lg bg-slate-800 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {sup.salespersonName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-slate-700">{sup.salespersonName}</span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Equipo</span>
+                          <span className="text-xs text-slate-400 ml-1">{vendedores.length} vendedor{vendedores.length !== 1 ? 'es' : ''}</span>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                          {vendedores
+                            .slice()
+                            .sort((a, b) => (clientesPorVendedor[b.id]?.length || 0) - (clientesPorVendedor[a.id]?.length || 0))
+                            .map(renderVendedorRow)}
+                        </div>
+                      </div>
+                    ))}
+                    {sinSupervisor.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 px-1 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                          <Users className="h-3 w-3" />
+                          Sin supervisor
+                        </div>
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 overflow-hidden">
+                          {sinSupervisor.map(renderVendedorRow)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               }
