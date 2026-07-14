@@ -67,6 +67,7 @@ import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
+import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -1439,7 +1440,7 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Seguimiento
@@ -1450,6 +1451,10 @@ export default function TareasPage() {
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
               </TabsTrigger>
             )}
+            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
+              <MapPin className="h-4 w-4 mr-2 hidden sm:inline" />
+              Rutas Comerciales
+            </TabsTrigger>
             <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CalendarIcon className="h-4 w-4 mr-2 hidden sm:inline" />
               Calendario
@@ -2443,6 +2448,11 @@ export default function TareasPage() {
             />
           </TabsContent>
         )}
+
+        {/* Rutas Comerciales — el supervisor crea rutas y asigna clientes; el vendedor ve las suyas */}
+        <TabsContent value="rutas-comerciales" className="space-y-6">
+          <RutasComercialesContent />
+        </TabsContent>
 
       </Tabs>
     </div>
