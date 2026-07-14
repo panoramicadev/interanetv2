@@ -132,6 +132,12 @@ export default function Marketing() {
   const { user } = useAuth();
   const { can } = usePermissions();
 
+  // Filtro de período compartido entre las pestañas Gastos y Presupuesto,
+  // para que al cambiar de pestaña se mantenga el mismo mes/año y cruzar datos rápido.
+  const now = new Date();
+  const [selectedMes, setSelectedMes] = useState(now.getMonth() + 1);
+  const [selectedAnio, setSelectedAnio] = useState(now.getFullYear());
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -231,14 +237,26 @@ export default function Marketing() {
           {/* Tab: Gastos */}
           {isAdmin && (
             <TabsContent value="gastos" className="space-y-6">
-              <GastosTabMarketing userRole={user.role} />
+              <GastosTabMarketing
+                userRole={user.role}
+                selectedMes={selectedMes}
+                setSelectedMes={setSelectedMes}
+                selectedAnio={selectedAnio}
+                setSelectedAnio={setSelectedAnio}
+              />
             </TabsContent>
           )}
 
           {/* Tab: Presupuesto (tabla Excel) */}
           {isAdmin && (
             <TabsContent value="presupuesto" className="space-y-6">
-              <PresupuestoTabMarketing userRole={user.role} />
+              <PresupuestoTabMarketing
+                userRole={user.role}
+                selectedMes={selectedMes}
+                setSelectedMes={setSelectedMes}
+                selectedAnio={selectedAnio}
+                setSelectedAnio={setSelectedAnio}
+              />
             </TabsContent>
           )}
 
