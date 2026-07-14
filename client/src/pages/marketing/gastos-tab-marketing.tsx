@@ -106,11 +106,20 @@ function formatCLP(amount: number): string {
     return "$" + amount.toLocaleString("es-CL", { maximumFractionDigits: 0 });
 }
 
-export default function GastosTabMarketing({ userRole }: { userRole: string }) {
+export default function GastosTabMarketing({
+    userRole,
+    selectedMes,
+    setSelectedMes,
+    selectedAnio,
+    setSelectedAnio,
+}: {
+    userRole: string;
+    selectedMes: number;
+    setSelectedMes: (mes: number) => void;
+    selectedAnio: number;
+    setSelectedAnio: (anio: number) => void;
+}) {
     const { toast } = useToast();
-    const now = new Date();
-    const [selectedMes, setSelectedMes] = useState(now.getMonth() + 1);
-    const [selectedAnio, setSelectedAnio] = useState(now.getFullYear());
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingGasto, setEditingGasto] = useState<GastoMarketing | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
