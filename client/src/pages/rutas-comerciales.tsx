@@ -53,6 +53,19 @@ const ESTADO_LABEL: Record<string, string> = {
 };
 
 export default function RutasComerciales() {
+  return (
+    <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 m-3 sm:m-4">
+      <RutasComercialesContent />
+    </div>
+  );
+}
+
+/**
+ * Contenido reutilizable de Rutas Comerciales.
+ * Se usa como página standalone (envuelto en el container de arriba) y
+ * embebido como pestaña dentro del Panel de Trabajo (tareas.tsx).
+ */
+export function RutasComercialesContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const canManage = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
@@ -91,7 +104,7 @@ export default function RutasComerciales() {
   });
 
   return (
-    <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 m-3 sm:m-4 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="space-y-0.5">
