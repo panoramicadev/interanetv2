@@ -1744,7 +1744,7 @@ export default function TareasPage() {
                   onClick={() => setTaskView('equipo')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'equipo' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  <Users className="h-3.5 w-3.5" /> Equipo
+                  <Users className="h-3.5 w-3.5" /> Mi Equipo
                 </button>
                 <button
                   onClick={() => setTaskView('grupos')}
@@ -2137,46 +2137,85 @@ export default function TareasPage() {
                   return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
                 }
 
+                // Card de miembro del equipo — foco en la persona y sus clientes asignados.
                 const renderPersonRow = (id: string, grp: PersonGroup, muted = false) => {
                   const completed = grp.tasks.filter(isTaskDone).length;
                   const total = grp.tasks.length;
                   const pct = total > 0 ? (completed / total) * 100 : 0;
                   const isCollapsed = collapsedGroups.has(id);
+                  const done = pct === 100;
+                  const isSupervisor = grp.role === 'supervisor';
+                  // Anillo de progreso (SVG) alrededor del avatar.
+                  const R = 20, C = 2 * Math.PI * R;
                   return (
-                    <div key={id} className="border-b border-slate-100 last:border-b-0">
+                    <div
+                      key={id}
+                      className={`rounded-2xl border bg-white overflow-hidden transition-all duration-200 ${
+                        muted
+                          ? 'border-dashed border-slate-200 bg-slate-50/40'
+                          : `border-slate-200/80 shadow-sm hover:shadow-md ${!isCollapsed ? 'ring-1 ring-orange-100' : ''}`
+                      }`}
+                    >
                       <button
                         onClick={() => toggleGroupCollapsed(id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3.5 px-3.5 sm:px-4 py-3.5 hover:bg-slate-50/70 transition-colors text-left"
                       >
-                        <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
-                          muted ? 'bg-slate-200 text-slate-500' : grp.role === 'supervisor' ? 'bg-slate-800 text-white' : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {grp.name.charAt(0).toUpperCase()}
+                        {/* Avatar con anillo de progreso */}
+                        <div className="relative flex-shrink-0 w-[52px] h-[52px]">
+                          <svg className="absolute inset-0 -rotate-90" width="52" height="52" viewBox="0 0 52 52">
+                            <circle cx="26" cy="26" r={R} fill="none" strokeWidth="3" className="stroke-slate-100" />
+                            {total > 0 && (
+                              <circle
+                                cx="26" cy="26" r={R} fill="none" strokeWidth="3" strokeLinecap="round"
+                                stroke={done ? '#10b981' : muted ? '#cbd5e1' : '#f97316'}
+                                strokeDasharray={C}
+                                strokeDashoffset={C - (pct / 100) * C}
+                                className="transition-all duration-700"
+                              />
+                            )}
+                          </svg>
+                          <div className={`absolute inset-[6px] rounded-full flex items-center justify-center text-sm font-bold ${
+                            muted ? 'bg-slate-100 text-slate-500'
+                              : isSupervisor ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white'
+                              : 'bg-gradient-to-br from-orange-400 to-orange-600 text-white'
+                          }`}>
+                            {grp.name.charAt(0).toUpperCase()}
+                          </div>
                         </div>
-                        <div className="flex items-baseline gap-1.5 min-w-0">
-                          <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
-                          {grp.role === 'supervisor' && (
-                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide flex-shrink-0">Supervisor</span>
-                          )}
+
+                        {/* Nombre + rol + clientes */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
+                            {isSupervisor && (
+                              <span className="text-[9px] font-bold text-slate-500 bg-slate-100 uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0">Supervisor</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-400">
+                            <Building2 className="h-3 w-3" />
+                            {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} asignado${total !== 1 ? 's' : ''}`}
+                          </div>
                         </div>
-                        <span className="text-xs text-slate-400 font-medium flex-shrink-0">{total}</span>
+
+                        {/* Métrica de avance */}
                         {total > 0 && (
-                          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-                            <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <span className={`text-[13px] font-bold tabular-nums ${done ? 'text-emerald-600' : 'text-slate-700'}`}>
+                              {completed}<span className="text-slate-300 font-medium">/{total}</span>
+                            </span>
+                            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                               <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#cbd5e1' }}
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${pct}%`, backgroundColor: done ? '#10b981' : muted ? '#cbd5e1' : '#f97316' }}
                               />
                             </div>
-                            <span className={`text-[11px] font-medium whitespace-nowrap ${pct === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              {completed}/{total}
-                            </span>
                           </div>
                         )}
+
+                        <ChevronRight className={`h-4 w-4 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
                       </button>
                       {!isCollapsed && (
-                        <div className="px-1.5 sm:px-3 pb-2 space-y-1 sm:space-y-1.5">
+                        <div className="px-1.5 sm:px-2.5 pb-2.5 pt-0.5 space-y-1 sm:space-y-1.5 border-t border-slate-100/80 bg-slate-50/30">
                           {grp.tasks.map(renderTaskCard)}
                         </div>
                       )}
@@ -2184,12 +2223,44 @@ export default function TareasPage() {
                   );
                 };
 
+                // Métricas de equipo (solo miembros operativos).
+                const teamTotal = people.reduce((s, [, g]) => s + g.tasks.length, 0);
+                const teamDone = people.reduce((s, [, g]) => s + g.tasks.filter(isTaskDone).length, 0);
+                const teamPct = teamTotal > 0 ? Math.round((teamDone / teamTotal) * 100) : 0;
+
                 return (
                   <>
                     {people.length > 0 && (
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                        {people.map(([id, grp]) => renderPersonRow(id, grp))}
-                      </div>
+                      <>
+                        {/* Resumen del equipo */}
+                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mb-4">
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Users className="h-3 w-3" /> Equipo
+                            </div>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{people.length}</div>
+                            <div className="text-[11px] text-slate-400 mt-1">persona{people.length !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Building2 className="h-3 w-3" /> Clientes
+                            </div>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{teamTotal}</div>
+                            <div className="text-[11px] text-slate-400 mt-1">asignado{teamTotal !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <Check className="h-3 w-3" /> Avance
+                            </div>
+                            <div className={`text-2xl font-bold leading-none ${teamPct === 100 ? 'text-emerald-600' : 'text-orange-600'}`}>{teamPct}%</div>
+                            <div className="text-[11px] text-slate-400 mt-1">{teamDone}/{teamTotal} listo{teamDone !== 1 ? 's' : ''}</div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {people.map(([id, grp]) => renderPersonRow(id, grp))}
+                        </div>
+                      </>
                     )}
                   </>
                 );
