@@ -12,43 +12,48 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw, Truck,
+  DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
+  Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, type LucideIcon,
 } from "lucide-react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-} from "recharts";
 
 // ─── Tipos ───
 interface CommissionItem {
   salesperson: string;
-  grossRevenue: number;
   netRevenue: number;
-  grossCost: number;
   netCost: number;
-  grossMargin: number;
   netMargin: number;
   netMarginPct: number;
+  // Regularización del flete (4% que asume la empresa)
+  fleteObjetivo: number;
+  fleteCobrado: number;
+  fleteDeficit: number;
+  marginAdjusted: number;
+  marginAdjustedPct: number;
   lineCount: number;
   overriddenClientCount: number;
   commissionPct: number;
   commissionAmount: number;
-  freightAmount: number;
-  freightLines: number;
+}
+interface CommissionTotals {
+  netRevenue: number; netMargin: number;
+  fleteObjetivo: number; fleteCobrado: number; fleteDeficit: number;
+  marginAdjusted: number; commissionAmount: number;
 }
 interface CommissionSummary {
   startDate: string;
   endDate: string;
   items: CommissionItem[];
-  totals: { netRevenue: number; netMargin: number; commissionAmount: number; freightAmount: number };
-  freightUnassigned: number;
+  totals: CommissionTotals;
 }
 interface DetailClient {
   client: string; revenue: number; cost: number; margin: number; lineCount: number;
+  fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number;
 }
 interface DetailDocument {
   document: string; numero: string; client: string; fecha: string;
   revenue: number; cost: number; margin: number; lineCount: number;
+  fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number; clientPct: number | null;
 }
 interface SalespersonDetail {
@@ -144,10 +149,15 @@ export default function Comisiones() {
 
   const exportCsv = () => {
     if (!items.length) return;
-    const header = ["Vendedor", "Facturado neto", "Costo neto", "Margen neto", "Flete excluido", "% Comisión", "Comisión a pagar"];
+    const header = [
+      "Vendedor", "Facturado neto", "Costo neto", "Margen neto",
+      "Flete cobrado", "Flete objetivo 4%", "Regularización flete", "Margen ajustado",
+      "% Comisión", "Comisión a pagar",
+    ];
     const rows = items.map((it) => [
-      it.salesperson, Math.round(it.netRevenue), Math.round(it.netCost),
-      Math.round(it.netMargin), Math.round(it.freightAmount), it.commissionPct, Math.round(it.commissionAmount),
+      it.salesperson, Math.round(it.netRevenue), Math.round(it.netCost), Math.round(it.netMargin),
+      Math.round(it.fleteCobrado), Math.round(it.fleteObjetivo), Math.round(it.fleteDeficit), Math.round(it.marginAdjusted),
+      it.commissionPct, Math.round(it.commissionAmount),
     ]);
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
@@ -178,7 +188,7 @@ export default function Comisiones() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Comisiones de Vendedores</h1>
             <p className="text-sm text-slate-500">
-              Comisión sobre el margen de lo facturado (FCV). El flete se excluye automáticamente de la base.
+              Comisión sobre el margen de lo facturado (FCV), tras regularizar el 4% de flete que asume la empresa.
             </p>
           </div>
         </div>
@@ -216,16 +226,16 @@ export default function Comisiones() {
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} />
-        <KpiCard label="Margen neto total" value={formatCLP(summary?.totals.netMargin)} loading={isLoading} />
-        <KpiCard label="Flete excluido" value={formatCLP(summary?.totals.freightAmount)} loading={isLoading} freight />
-        <KpiCard label="Comisión total a pagar" value={formatCLP(summary?.totals.commissionAmount)} loading={isLoading}
-          highlight />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} />
+        <KpiCard icon={TrendingUp} label="Margen neto total" value={formatCLP(summary?.totals.netMargin)} loading={isLoading} />
+        <KpiCard icon={Truck} label="Regularización flete (4%)" value={formatCLP(summary?.totals.fleteDeficit)} loading={isLoading}
+          sub={summary ? `Cobrado ${formatCLP(summary.totals.fleteCobrado)} · objetivo ${formatCLP(summary.totals.fleteObjetivo)}` : undefined}
+          accent="amber" showMinus />
+        <KpiCard icon={Scale} label="Margen ajustado (base comisión)" value={formatCLP(summary?.totals.marginAdjusted)} loading={isLoading} />
+        <KpiCard icon={BadgeDollarSign} label="Comisión total a pagar" value={formatCLP(summary?.totals.commissionAmount)} loading={isLoading}
+          accent="emerald" />
       </div>
-
-      {/* Auditoría de flete: cuánto se descuenta por vendedor */}
-      <FreightAuditCard items={items} totals={summary?.totals} unassigned={summary?.freightUnassigned} loading={isLoading} />
 
       {/* Tabla principal */}
       <Card>
@@ -242,7 +252,9 @@ export default function Comisiones() {
                   <TableHead className="text-right">Facturado neto</TableHead>
                   <TableHead className="text-right">Costo neto</TableHead>
                   <TableHead className="text-right">Margen neto</TableHead>
-                  <TableHead className="text-right">Flete excluido</TableHead>
+                  <TableHead className="text-right">Flete cobrado</TableHead>
+                  <TableHead className="text-right">Reg. flete 4%</TableHead>
+                  <TableHead className="text-right">Margen ajustado</TableHead>
                   <TableHead className="text-right w-28">% Comisión</TableHead>
                   <TableHead className="text-right">Comisión a pagar</TableHead>
                 </TableRow>
@@ -251,13 +263,13 @@ export default function Comisiones() {
                 {isLoading && (
                   Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell>
+                      <TableCell colSpan={10}><Skeleton className="h-8 w-full" /></TableCell>
                     </TableRow>
                   ))
                 )}
                 {!isLoading && items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-slate-500 py-10">
+                    <TableCell colSpan={10} className="text-center text-slate-500 py-10">
                       No hay ventas facturadas en el período seleccionado.
                     </TableCell>
                   </TableRow>
@@ -288,8 +300,15 @@ export default function Comisiones() {
                           {formatCLP(it.netMargin)}
                           <span className="text-xs text-slate-400 ml-1">({it.netMarginPct.toFixed(1)}%)</span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-amber-600">
-                          {it.freightAmount > 0 ? formatCLP(it.freightAmount) : <span className="text-slate-300">—</span>}
+                        <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.fleteCobrado)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {it.fleteDeficit > 0
+                            ? <span className="text-rose-600">− {formatCLP(it.fleteDeficit)}</span>
+                            : <span className="text-slate-300">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatCLP(it.marginAdjusted)}
+                          <span className="text-xs text-slate-400 ml-1">({it.marginAdjustedPct.toFixed(1)}%)</span>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="relative inline-flex items-center">
@@ -310,7 +329,7 @@ export default function Comisiones() {
                       </TableRow>
                       {isOpen && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-slate-50/60 dark:bg-slate-900/40 p-0">
+                          <TableCell colSpan={10} className="bg-slate-50/60 dark:bg-slate-900/40 p-0">
                             <SalespersonDetailPanel
                               salesperson={it.salesperson}
                               startDate={startDate}
@@ -332,7 +351,11 @@ export default function Comisiones() {
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netRevenue)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netMargin)}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums text-amber-600">{formatCLP(summary?.totals.freightAmount)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-slate-500">{formatCLP(summary?.totals.fleteCobrado)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-rose-600">
+                      {(summary?.totals.fleteDeficit || 0) > 0 ? `− ${formatCLP(summary?.totals.fleteDeficit)}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.marginAdjusted)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right font-bold tabular-nums text-emerald-600">
                       {formatCLP(summary?.totals.commissionAmount)}
@@ -348,111 +371,51 @@ export default function Comisiones() {
   );
 }
 
-function KpiCard({ label, value, loading, highlight, freight }: {
-  label: string; value: string; loading?: boolean; highlight?: boolean; freight?: boolean;
+type KpiAccent = "slate" | "emerald" | "amber";
+
+const KPI_ACCENTS: Record<KpiAccent, {
+  card: string; iconWrap: string; icon: string; value: string;
+}> = {
+  slate: {
+    card: "border-slate-200 dark:border-slate-800",
+    iconWrap: "bg-slate-100 dark:bg-slate-800",
+    icon: "text-slate-500",
+    value: "text-slate-900 dark:text-white",
+  },
+  emerald: {
+    card: "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800/60 dark:bg-emerald-900/10",
+    iconWrap: "bg-emerald-500/15",
+    icon: "text-emerald-600",
+    value: "text-emerald-600",
+  },
+  amber: {
+    card: "border-amber-300 bg-amber-50/50 dark:border-amber-800/60 dark:bg-amber-900/10",
+    iconWrap: "bg-amber-500/15",
+    icon: "text-amber-600",
+    value: "text-amber-600",
+  },
+};
+
+function KpiCard({ icon: Icon, label, value, loading, accent = "slate", showMinus, sub }: {
+  icon?: LucideIcon; label: string; value: string; loading?: boolean;
+  accent?: KpiAccent; showMinus?: boolean; sub?: string;
 }) {
-  const cardClass = highlight
-    ? "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10"
-    : freight
-      ? "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10"
-      : "";
-  const valueClass = highlight ? "text-emerald-600" : freight ? "text-amber-600" : "text-slate-900 dark:text-white";
+  const a = KPI_ACCENTS[accent];
+  const displayValue = showMinus && value !== "$0" && value !== "—" ? `− ${value}` : value;
   return (
-    <Card className={cardClass}>
+    <Card className={`shadow-sm ${a.card}`}>
       <CardContent className="py-4">
-        <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-          {freight && <Truck className="w-3.5 h-3.5 text-amber-500" />}{label}
-        </p>
-        {loading ? <Skeleton className="h-7 w-32" />
-          : <p className={`text-2xl font-bold tabular-nums ${valueClass}`}>{value}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Auditoría de flete: gráfico de barras con lo que se descuenta por vendedor.
-// Ayuda a detectar de un vistazo dónde se concentra el flete facturado que NO
-// entra en la base de comisiones.
-function FreightAuditCard({ items, totals, unassigned, loading }: {
-  items: CommissionItem[];
-  totals?: { netRevenue: number; freightAmount: number };
-  unassigned?: number;
-  loading?: boolean;
-}) {
-  const chartData = useMemo(() => {
-    const rows = items
-      .filter((it) => it.freightAmount > 0)
-      .map((it) => ({ name: it.salesperson, flete: Math.round(it.freightAmount) }))
-      .sort((a, b) => b.flete - a.flete);
-    return rows.slice(0, 15);
-  }, [items]);
-
-  const freightTotal = totals?.freightAmount ?? 0;
-  const base = totals?.netRevenue ?? 0;
-  const pctOfBase = base > 0 ? (freightTotal / base) * 100 : 0;
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Truck className="w-4 h-4 text-amber-500" />
-          Auditoría de flete
-          <span className="text-xs font-normal text-slate-500 ml-1">
-            excluido de la base de comisiones
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-64 w-full" />
-        ) : chartData.length === 0 ? (
-          <p className="text-sm text-slate-500 py-10 text-center">
-            No se facturó flete en el período seleccionado.
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 mb-3 text-sm">
-              <span className="text-slate-500">
-                Total flete: <span className="font-semibold text-amber-600 tabular-nums">{formatCLP(freightTotal)}</span>
-              </span>
-              <span className="text-slate-500">
-                Sobre lo facturado: <span className="font-semibold tabular-nums">{pctOfBase.toFixed(2)}%</span>
-              </span>
-              {!!unassigned && unassigned > 0 && (
-                <span className="text-slate-500">
-                  Sin vendedor asignado: <span className="font-semibold tabular-nums">{formatCLP(unassigned)}</span>
-                </span>
-              )}
-            </div>
-            <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 34)}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 12, right: 24, top: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200 dark:stroke-slate-700" />
-                <XAxis
-                  type="number"
-                  tickFormatter={(v) => formatCLP(v)}
-                  tick={{ fontSize: 11 }}
-                  className="text-slate-500"
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={140}
-                  tick={{ fontSize: 11 }}
-                  className="text-slate-500"
-                />
-                <Tooltip
-                  formatter={(v: any) => [formatCLP(Number(v)), "Flete"]}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                />
-                <Bar dataKey="flete" radius={[0, 4, 4, 0]}>
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill="#f59e0b" />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </>
-        )}
+        <div className="flex items-center gap-2 mb-2">
+          {Icon && (
+            <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${a.iconWrap}`}>
+              <Icon className={`w-4 h-4 ${a.icon}`} />
+            </span>
+          )}
+          <p className="text-xs font-medium text-slate-500 leading-tight">{label}</p>
+        </div>
+        {loading ? <Skeleton className="h-8 w-32" />
+          : <p className={`text-2xl font-bold tabular-nums ${a.value}`}>{displayValue}</p>}
+        {sub && !loading && <p className="text-[11px] text-slate-400 mt-1 leading-tight">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -544,6 +507,9 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Facturado</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
+                <TableHead className="text-right">Flete cobrado</TableHead>
+                <TableHead className="text-right">Reg. flete 4%</TableHead>
+                <TableHead className="text-right">Margen ajustado</TableHead>
                 <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
@@ -553,6 +519,13 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   <TableCell>{c.client}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.margin)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {c.fleteDeficit > 0
+                      ? <span className="text-rose-600">− {formatCLP(c.fleteDeficit)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">{formatCLP(c.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
                     <PctCell
                       value={c.effectivePct}
@@ -564,7 +537,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 </TableRow>
               ))}
               {data && data.clients.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="text-center text-slate-500 py-6">Sin clientes</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">Sin clientes</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -581,6 +554,9 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Facturado</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
+                <TableHead className="text-right">Flete cobrado</TableHead>
+                <TableHead className="text-right">Reg. flete 4%</TableHead>
+                <TableHead className="text-right">Margen ajustado</TableHead>
                 <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
@@ -592,6 +568,13 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(d.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-slate-500" title={`Objetivo 4%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {d.fleteDeficit > 0
+                      ? <span className="text-rose-600">− {formatCLP(d.fleteDeficit)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">{formatCLP(d.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
                     <PctCell
                       value={d.effectivePct}
@@ -603,7 +586,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 </TableRow>
               ))}
               {data && data.documents.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">Sin ventas</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">Sin ventas</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
