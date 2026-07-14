@@ -40,9 +40,9 @@ interface GuionMarketing {
 }
 
 const tipoColors: Record<string, string> = {
-    reel: "bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-500/20",
-    video: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-    post: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
+    reel: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+    video: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+    post: "bg-orange-500/10 text-orange-600 border-orange-500/20",
     historia: "bg-orange-500/10 text-orange-600 border-orange-500/20",
 };
 
@@ -51,7 +51,7 @@ const estadoColors: Record<string, string> = {
     grabacion: "bg-yellow-100 text-yellow-700",
     edicion: "bg-blue-100 text-blue-700",
     completado: "bg-emerald-100 text-emerald-700",
-    publicado: "bg-purple-100 text-purple-700",
+    publicado: "bg-orange-100 text-orange-700",
 };
 
 const plataformaIcons: Record<string, JSX.Element> = {
@@ -217,7 +217,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
     };
 
     if (isLoading) {
-        return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
+        return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>;
     }
 
     return (
@@ -242,7 +242,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                     </Button>
                 </div>
                 {isAdmin && (
-                    <Button onClick={() => { setSelectedItem(null); setIsDialogOpen(true); }} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 ml-auto">
+                    <Button onClick={() => { setSelectedItem(null); setIsDialogOpen(true); }} className="rounded-xl bg-orange-600 hover:bg-orange-700 ml-auto">
                         <Plus className="mr-2 h-4 w-4" /> Nueva Creatividad
                     </Button>
                 )}
@@ -346,7 +346,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                     </div>
                                     {isAdmin && (
                                         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setIsDialogOpen(true); }}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-orange-600" onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setIsDialogOpen(true); }}>
                                                 <Edit className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={(e) => { e.stopPropagation(); if (confirm('¿Eliminar?')) deleteAction.mutate(item.id); }}>
@@ -366,7 +366,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                 {item.urlReferencia && (
                                     <div className="px-4 pb-2">
                                         <a href={item.urlReferencia} target="_blank" rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline font-medium"
+                                            className="inline-flex items-center gap-1 text-[11px] text-orange-600 hover:text-orange-700 hover:underline font-medium"
                                             onClick={e => e.stopPropagation()}>
                                             <ExternalLink className="h-3 w-3" /> Referencia
                                         </a>
@@ -417,7 +417,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                         {isApproved && (
                                             <Button
                                                 size="sm"
-                                                className="w-full h-8 text-xs rounded-lg bg-violet-600 hover:bg-violet-700 text-white"
+                                                className="w-full h-8 text-xs rounded-lg bg-orange-600 hover:bg-orange-700 text-white"
                                                 onClick={(e) => { e.stopPropagation(); handleOpenGuion(item); }}
                                             >
                                                 <Clapperboard className="h-3.5 w-3.5 mr-1.5" /> Crear Guión
@@ -466,12 +466,12 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                         <div className="h-px bg-slate-100" />
                                         <div className="flex flex-wrap gap-4">
                                             {viewItem.urlReferencia && (
-                                                <a href={viewItem.urlReferencia} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                                                <a href={viewItem.urlReferencia} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700">
                                                     <ExternalLink className="h-3.5 w-3.5" /> Referencia
                                                 </a>
                                             )}
                                             {viewItem.urlPublicacion && (
-                                                <a href={viewItem.urlPublicacion} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-fuchsia-600 hover:text-fuchsia-700">
+                                                <a href={viewItem.urlPublicacion} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700">
                                                     <ExternalLink className="h-3.5 w-3.5" /> Publicación
                                                 </a>
                                             )}
@@ -521,7 +521,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                 <DialogContent className="sm:max-w-[560px] rounded-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Clapperboard className="h-5 w-5 text-violet-600" />
+                            <Clapperboard className="h-5 w-5 text-orange-600" />
                             {editingGuionId ? "Editar Guión" : "Crear Guión"}
                         </DialogTitle>
                         {guionTarget && <p className="text-sm text-slate-500 mt-1">{guionTarget.titulo}</p>}
@@ -559,7 +559,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setGuionDialogOpen(false)}>Cancelar</Button>
                         <Button
-                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
                             disabled={guionSaveMutation.isPending}
                             onClick={handleGuionSubmit}
                         >
@@ -573,7 +573,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
             {/* ──── Editor Dialog ──── */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="sm:max-w-[520px] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
-                    <div className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-6 py-4 text-white">
+                    <div className="bg-gradient-to-r from-orange-600 to-orange-600 px-6 py-4 text-white">
                         <h2 className="text-lg font-bold">{selectedItem ? 'Editar Creatividad' : 'Nueva Creatividad'}</h2>
                         <p className="text-sm text-white/70">Registra una nueva idea de contenido</p>
                     </div>
@@ -642,7 +642,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                         </div>
                         <div className="flex justify-end gap-3 pt-2">
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                            <Button type="submit" disabled={formAction.isPending} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white min-w-[100px]">
+                            <Button type="submit" disabled={formAction.isPending} className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white min-w-[100px]">
                                 {formAction.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : selectedItem ? 'Actualizar' : 'Guardar'}
                             </Button>
                         </div>

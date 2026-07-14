@@ -358,7 +358,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
     if (isLoading) {
         return (
             <div className="flex justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
             </div>
         );
     }
@@ -403,7 +403,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                     {isAdmin && (
                         <Button
                             onClick={() => setAddDialogOpen(true)}
-                            className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                            className="rounded-xl bg-orange-600 hover:bg-orange-700"
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             Agregar Ítem
@@ -414,11 +414,11 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                <Card className="border-0 shadow-md bg-gradient-to-br from-orange-500 to-orange-600 text-white">
                     <CardContent className="pt-6">
-                        <p className="text-sm font-medium text-indigo-100">Presupuesto Anual {selectedAnio}</p>
+                        <p className="text-sm font-medium text-orange-100">Presupuesto Anual {selectedAnio}</p>
                         <p className="text-2xl font-bold mt-1">{formatCLP(totalAnual)}</p>
-                        <p className="text-xs text-indigo-200 mt-1">{items.length} ítems presupuestados</p>
+                        <p className="text-xs text-orange-200 mt-1">{items.length} ítems presupuestados</p>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
@@ -513,7 +513,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                             {mes}
                                         </th>
                                     ))}
-                                    <th className="px-3 py-3 text-right font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30">
+                                    <th className="px-3 py-3 text-right font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30">
                                         Total
                                     </th>
                                     {isAdmin && (
@@ -529,10 +529,10 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                 return (
                                     <tbody key={category}>
                                         {/* Category header */}
-                                        <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 border-t-2 border-indigo-200 dark:border-indigo-800">
+                                        <tr className="bg-gradient-to-r from-orange-50 to-orange-50 dark:from-orange-950/20 dark:to-orange-950/20 border-t-2 border-orange-200 dark:border-orange-800">
                                             <td
                                                 colSpan={totalCols}
-                                                className="px-4 py-2.5 font-bold text-indigo-800 dark:text-indigo-200 text-xs uppercase tracking-wider"
+                                                className="px-4 py-2.5 font-bold text-orange-800 dark:text-orange-200 text-xs uppercase tracking-wider"
                                             >
                                                 {category}
                                             </td>
@@ -542,7 +542,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                         {categoryItems.map((item, idx) => (
                                             <tr
                                                 key={item.id}
-                                                className={`border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-950/20 ${idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/50 dark:bg-slate-900/50"
+                                                className={`border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-orange-50/50 dark:hover:bg-orange-950/20 ${idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/50 dark:bg-slate-900/50"
                                                     }`}
                                             >
                                                 {/* Concepto cell */}
@@ -564,7 +564,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                         />
                                                     ) : (
                                                         <span
-                                                            className={`truncate block ${isAdmin ? "cursor-pointer hover:text-indigo-600 transition-colors" : ""}`}
+                                                            className={`truncate block ${isAdmin ? "cursor-pointer hover:text-orange-600 transition-colors" : ""}`}
                                                             onDoubleClick={() => handleConceptoEdit(item.id, item.concepto)}
                                                             title={isAdmin ? "Doble click para editar" : item.concepto}
                                                         >
@@ -601,7 +601,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                         <td
                                                             key={mes}
                                                             className={`px-2 py-2 text-right tabular-nums ${isAdmin
-                                                                ? "cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-950/40 transition-colors"
+                                                                ? "cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-950/40 transition-colors"
                                                                 : ""
                                                                 } ${val === 0 ? "text-slate-300 dark:text-slate-600" : "text-slate-700 dark:text-slate-300"}`}
                                                             onClick={() => handleCellClick(item.id, mes, item[mes as keyof PresupuestoItem] as string)}
@@ -631,7 +631,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                 })}
 
                                                 {/* Row total */}
-                                                <td className="px-3 py-2 text-right font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 tabular-nums">
+                                                <td className="px-3 py-2 text-right font-semibold text-orange-700 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-950/20 tabular-nums">
                                                     <div className="flex flex-col items-end leading-tight">
                                                         <span className="text-xs">{formatCLP(getRowTotal(item))}</span>
                                                         {showReal && (() => {
@@ -679,7 +679,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                                     </div>
                                                 </td>
                                             ))}
-                                            <td className="px-3 py-2 text-right font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 tabular-nums">
+                                            <td className="px-3 py-2 text-right font-bold text-orange-700 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-950/20 tabular-nums">
                                                 <div className="flex flex-col items-end leading-tight">
                                                     <span className="text-xs">{formatCLP(catTotals.total)}</span>
                                                     {showReal && realCatTotal > 0 && (
@@ -747,7 +747,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                                             <span className="text-xs">{formatCLP(val)}</span>
                                         </td>
                                     ))}
-                                    <td className="px-3 py-3 text-right font-bold bg-indigo-700/30 tabular-nums">
+                                    <td className="px-3 py-3 text-right font-bold bg-orange-700/30 tabular-nums">
                                         <span className="text-sm">{formatCLP(totalAnual)}</span>
                                     </td>
                                     {isAdmin && <td className="bg-slate-800"></td>}
@@ -780,7 +780,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                             {isAdmin && (
                                 <Button
                                     onClick={() => setAddDialogOpen(true)}
-                                    className="mt-4 rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                                    className="mt-4 rounded-xl bg-orange-600 hover:bg-orange-700"
                                 >
                                     <Plus className="mr-2 h-4 w-4" />
                                     Agregar Primer Ítem
@@ -831,7 +831,7 @@ export default function PresupuestoTabMarketing({ userRole }: { userRole: string
                         <Button
                             onClick={handleAddItem}
                             disabled={!newItem.concepto.trim() || createMutation.isPending}
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                            className="bg-orange-600 hover:bg-orange-700"
                         >
                             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Agregar

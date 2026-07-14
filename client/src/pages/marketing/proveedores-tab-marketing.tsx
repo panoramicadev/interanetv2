@@ -124,7 +124,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-violet-700 to-purple-800 text-white pb-4">
+                <CardHeader className="bg-gradient-to-r from-orange-700 to-orange-800 text-white pb-4">
                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Users className="h-5 w-5" />
@@ -151,8 +151,8 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
                     ) : (
                         <div className="divide-y divide-slate-100">
                             {proveedores.map((prov) => (
-                                <div key={prov.id} className="flex items-center gap-4 px-5 py-4 hover:bg-violet-50/40 transition-colors group">
-                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                <div key={prov.id} className="flex items-center gap-4 px-5 py-4 hover:bg-orange-50/40 transition-colors group">
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
                                         {prov.nombre.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -170,7 +170,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
                                     </div>
                                     {isAdmin && (
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-violet-600 hover:bg-violet-50" onClick={() => handleEditProv(prov)}>
+                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-orange-600 hover:bg-orange-50" onClick={() => handleEditProv(prov)}>
                                                 <Pencil className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => { setDeleteId(prov.id); setDeleteDialogOpen(true); }}>
@@ -190,7 +190,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5 text-violet-600" />
+                            <Users className="h-5 w-5 text-orange-600" />
                             {editingProv ? "Editar Proveedor" : "Nuevo Proveedor"}
                         </DialogTitle>
                     </DialogHeader>
@@ -232,7 +232,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={resetProvForm}>Cancelar</Button>
-                        <Button onClick={handleProvSubmit} disabled={!provForm.nombre.trim() || createProvMutation.isPending || updateProvMutation.isPending} className="bg-violet-600 hover:bg-violet-700">
+                        <Button onClick={handleProvSubmit} disabled={!provForm.nombre.trim() || createProvMutation.isPending || updateProvMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
                             {(createProvMutation.isPending || updateProvMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {editingProv ? "Guardar Cambios" : "Registrar"}
                         </Button>
