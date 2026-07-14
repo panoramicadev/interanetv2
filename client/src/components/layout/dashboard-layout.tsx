@@ -74,22 +74,51 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const map: Record<string, string> = {
       admin: "Administrador",
       supervisor: "Supervisor",
+      encargado_area: "Encargado de Área",
       salesperson: "Vendedor",
+      marketing: "Marketing",
+      recursos_humanos: "Recursos Humanos",
+      tecnico_obra: "Técnico de Obra",
       client: "Cliente",
       reception: "Recepción",
     };
     return map[role || ""] || "Usuario";
   };
 
-  const getRoleColor = (role?: string | null) => {
+  const getSegmentLabel = (u?: typeof user) => {
+    const raw = (u as any)?.assignedSegment ?? (u as any)?.segmento ?? (u as any)?.noruen;
+    if (!raw || typeof raw !== "string") return null;
     const map: Record<string, string> = {
-      admin: "bg-blue-500",
-      supervisor: "bg-emerald-500",
-      salesperson: "bg-violet-500",
-      client: "bg-amber-500",
-      reception: "bg-cyan-500",
+      ferreterias: "Ferretería",
+      ferreteria: "Ferretería",
+      construccion: "Construcción",
+      digital: "Digital",
+      industrial: "Industrial",
+      marketing: "Marketing",
     };
-    return map[role || ""] || "bg-slate-500";
+    const key = raw.trim().toLowerCase();
+    return map[key] || raw.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  // Avatar: foto de perfil si existe, si no un círculo naranja con las iniciales
+  const UserAvatar = ({ size = "w-9 h-9" }: { size?: string }) => {
+    const photo = (user as any)?.profileImageUrl as string | undefined;
+    if (photo) {
+      return (
+        <img
+          src={photo}
+          alt={getDisplayName(user?.firstName, user?.lastName)}
+          className={`${size} rounded-xl object-cover flex-shrink-0`}
+        />
+      );
+    }
+    return (
+      <div className={`${size} rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0`}>
+        <span className="text-sm font-bold text-white">
+          {getInitials(user?.firstName, user?.lastName)}
+        </span>
+      </div>
+    );
   };
 
   // Sidebar dinámico: base del rol filtrado por permisos efectivos
@@ -454,12 +483,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div
-                title={`${getDisplayName(user?.firstName, user?.lastName)} · ${getRoleTitle(user?.role)}`}
-                className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}
+                title={`${getDisplayName(user?.firstName, user?.lastName)} · ${getRoleTitle(user?.role)}${getSegmentLabel(user) ? ` · ${getSegmentLabel(user)}` : ""}`}
               >
-                <span className="text-sm font-bold text-white">
-                  {getInitials(user?.firstName, user?.lastName)}
-                </span>
+                <UserAvatar />
               </div>
               <button
                 className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
@@ -475,16 +501,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}>
-                <span className="text-sm font-bold text-white">
-                  {getInitials(user?.firstName, user?.lastName)}
-                </span>
-              </div>
+              <UserAvatar />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate leading-tight">
                   {getDisplayName(user?.firstName, user?.lastName)}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">{getRoleTitle(user?.role)}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[11px] font-medium text-[#fd6301]">
+                    {getRoleTitle(user?.role)}
+                  </span>
+                  {getSegmentLabel(user) && (
+                    <>
+                      <span className="text-slate-600">·</span>
+                      <span className="text-[11px] text-slate-400 truncate">
+                        {getSegmentLabel(user)}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
               <button
                 className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
