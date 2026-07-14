@@ -14516,9 +14516,14 @@ export function registerRoutes(app: Express): Server {
     } catch (e) { console.error("Error adding cliente to ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
 
+  // Además de supervisor/admin/encargado, el dueño de la ruta (quien la creó vía /quick)
+  // puede quitar clientes de su propia ruta desde la pestaña "Rutas" del cliente.
   app.delete('/api/rutas/:id/clientes/:koen', requireAuth, async (req: any, res) => {
     try {
-      if (!canManageRutas(req.user.role)) return res.status(403).json({ message: "No autorizado" });
+      const ruta = await storage.getRutaById(req.params.id);
+      if (!ruta) return res.status(404).json({ message: "Ruta no encontrada" });
+      const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
+      if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
       await storage.removeClienteFromRuta(req.params.id, req.params.koen);
       res.json({ message: "Cliente removido de la ruta" });
     } catch (e) { console.error("Error removing cliente from ruta:", e); res.status(500).json({ message: "Failed" }); }
