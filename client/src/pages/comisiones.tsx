@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
-  Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, type LucideIcon,
+  Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, SlidersHorizontal, type LucideIcon,
 } from "lucide-react";
 
 // ─── Tipos ───
@@ -180,34 +181,32 @@ export default function Comisiones() {
   return (
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-6">
       {/* Encabezado */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <DollarSign className="w-6 h-6 text-emerald-600" />
-          </div>
+          <span className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
+            <DollarSign className="w-6 h-6" />
+          </span>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Comisiones de Vendedores</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Comisiones de Vendedores</h1>
+            <p className="text-sm text-muted-foreground">
               Comisión sobre el margen de lo facturado (FCV), tras regularizar el 4% de flete que asume la empresa.
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCsv} disabled={!items.length}>
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={!items.length}
+          className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
           <Download className="w-4 h-4 mr-2" /> Exportar CSV
         </Button>
       </div>
 
       {/* Selector de período */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
         <CardContent className="py-4">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex gap-2">
-              <Button size="sm" variant={activePreset === "current" ? "default" : "outline"}
-                onClick={() => setRange(currentMonthRange())}>Mes actual</Button>
-              <Button size="sm" variant={activePreset === "last" ? "default" : "outline"}
-                onClick={() => setRange(lastMonthRange())}>Mes anterior</Button>
-              <Button size="sm" variant={activePreset === "year" ? "default" : "outline"}
-                onClick={() => setRange(yearRange())}>Este año</Button>
+            <div className="inline-flex gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+              <PresetButton active={activePreset === "current"} onClick={() => setRange(currentMonthRange())}>Mes actual</PresetButton>
+              <PresetButton active={activePreset === "last"} onClick={() => setRange(lastMonthRange())}>Mes anterior</PresetButton>
+              <PresetButton active={activePreset === "year"} onClick={() => setRange(yearRange())}>Este año</PresetButton>
             </div>
             <div className="flex items-end gap-2 ml-auto">
               <div>
@@ -227,7 +226,7 @@ export default function Comisiones() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} />
+        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} accent="orange" />
         <KpiCard icon={TrendingUp} label="Margen neto total" value={formatCLP(summary?.totals.netMargin)} loading={isLoading} />
         <KpiCard icon={Truck} label="Regularización flete (4%)" value={formatCLP(summary?.totals.fleteDeficit)} loading={isLoading}
           sub={summary ? `Cobrado ${formatCLP(summary.totals.fleteCobrado)} · objetivo ${formatCLP(summary.totals.fleteObjetivo)}` : undefined}
@@ -238,9 +237,15 @@ export default function Comisiones() {
       </div>
 
       {/* Tabla principal */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Vendedores ({items.length})</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="w-4 h-4 text-orange-600" />
+            Vendedores
+            <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/60">
+              {items.length}
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="px-0 sm:px-2">
           <div className="overflow-x-auto">
@@ -280,19 +285,40 @@ export default function Comisiones() {
                   return (
                     <Fragment key={it.salesperson}>
                       <TableRow
-                        className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        className={`cursor-pointer transition-colors ${isOpen ? "bg-orange-50/60 dark:bg-orange-950/20" : "hover:bg-orange-50/50 dark:hover:bg-orange-950/15"}`}
                         onClick={() => setExpanded(isOpen ? null : it.salesperson)}>
                         <TableCell>
-                          {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                          {isOpen ? <ChevronDown className="w-4 h-4 text-orange-500" />
                             : <ChevronRight className="w-4 h-4 text-slate-400" />}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {it.salesperson}
-                          {it.overriddenClientCount > 0 && (
-                            <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                              <Percent className="w-3 h-3 mr-1" />{it.overriddenClientCount} ajustado{it.overriddenClientCount > 1 ? "s" : ""}
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{it.salesperson}</span>
+                            {it.overriddenClientCount > 0 && (
+                              <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : it.salesperson); }}
+                                      className="gap-1 cursor-help border-orange-300 bg-orange-50 text-orange-700 font-medium hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+                                    >
+                                      <SlidersHorizontal className="w-3 h-3" />
+                                      {it.overriddenClientCount} {it.overriddenClientCount === 1 ? "cliente con % especial" : "clientes con % especial"}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs text-center">
+                                    <p>
+                                      {it.overriddenClientCount === 1
+                                        ? "Uno de sus clientes tiene un % de comisión distinto al general de este vendedor"
+                                        : `${it.overriddenClientCount} de sus clientes tienen un % de comisión distinto al general de este vendedor`}
+                                      {" "}({it.commissionPct}%). No es un error: es un ajuste manual. Abre la fila para verlo.
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{formatCLP(it.netRevenue)}</TableCell>
                         <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.netCost)}</TableCell>
@@ -371,7 +397,26 @@ export default function Comisiones() {
   );
 }
 
-type KpiAccent = "slate" | "emerald" | "amber";
+// Botón de preset de período con el look pill/naranja de Panorámica.
+function PresetButton({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-200 ${
+        active
+          ? "bg-white text-orange-600 shadow-sm dark:bg-slate-900"
+          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+type KpiAccent = "slate" | "emerald" | "amber" | "orange";
 
 const KPI_ACCENTS: Record<KpiAccent, {
   card: string; iconWrap: string; icon: string; value: string;
@@ -380,6 +425,12 @@ const KPI_ACCENTS: Record<KpiAccent, {
     card: "border-slate-200 dark:border-slate-800",
     iconWrap: "bg-slate-100 dark:bg-slate-800",
     icon: "text-slate-500",
+    value: "text-slate-900 dark:text-white",
+  },
+  orange: {
+    card: "border-orange-200 bg-orange-50/40 dark:border-orange-900/50 dark:bg-orange-950/10",
+    iconWrap: "bg-gradient-to-br from-orange-500 to-[#fd6301] shadow-sm shadow-orange-500/25",
+    icon: "text-white",
     value: "text-slate-900 dark:text-white",
   },
   emerald: {
@@ -403,7 +454,7 @@ function KpiCard({ icon: Icon, label, value, loading, accent = "slate", showMinu
   const a = KPI_ACCENTS[accent];
   const displayValue = showMinus && value !== "$0" && value !== "—" ? `− ${value}` : value;
   return (
-    <Card className={`shadow-sm ${a.card}`}>
+    <Card className={`rounded-2xl shadow-sm ${a.card}`}>
       <CardContent className="py-4">
         <div className="flex items-center gap-2 mb-2">
           {Icon && (
@@ -441,11 +492,16 @@ function PctCell({ value, isOverride, onSave, onReset }: {
   };
   return (
     <div className="inline-flex items-center gap-1.5 justify-end">
+      {isOverride && (
+        <Badge variant="outline" className="hidden sm:inline-flex border-orange-300 bg-orange-50 text-orange-700 text-[10px] px-1.5 py-0 font-medium dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
+          especial
+        </Badge>
+      )}
       <div className="relative inline-flex items-center">
         <Input
           type="number" min={0} max={100} step={0.1}
           value={shown}
-          className={`w-20 h-8 text-right pr-5 tabular-nums ${isOverride ? "border-amber-400 text-amber-700 dark:text-amber-400 font-medium" : ""}`}
+          className={`w-20 h-8 text-right pr-5 tabular-nums ${isOverride ? "border-orange-400 text-orange-700 dark:text-orange-400 font-semibold" : ""}`}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
@@ -456,7 +512,7 @@ function PctCell({ value, isOverride, onSave, onReset }: {
         type="button"
         onClick={onReset}
         title="Volver al % por defecto del vendedor"
-        className={`text-slate-300 hover:text-slate-600 transition-opacity ${isOverride ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`text-slate-300 hover:text-orange-600 transition-opacity ${isOverride ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <RotateCcw className="w-3.5 h-3.5" />
       </button>
@@ -484,15 +540,19 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
   return (
     <div className="p-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <Button size="sm" variant={tab === "clients" ? "default" : "outline"} onClick={() => setTab("clients")}>
-          <Users className="w-4 h-4 mr-1.5" /> Clientes ({data?.clients.length ?? 0})
-        </Button>
-        <Button size="sm" variant={tab === "documents" ? "default" : "outline"} onClick={() => setTab("documents")}>
-          <FileText className="w-4 h-4 mr-1.5" /> Ventas ({data?.documents.length ?? 0})
-        </Button>
+        <div className="inline-flex gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+          <button type="button" onClick={() => setTab("clients")}
+            className={`inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-200 ${tab === "clients" ? "bg-white text-orange-600 shadow-sm dark:bg-slate-900" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"}`}>
+            <Users className="w-4 h-4 mr-1.5" /> Clientes ({data?.clients.length ?? 0})
+          </button>
+          <button type="button" onClick={() => setTab("documents")}
+            className={`inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-200 ${tab === "documents" ? "bg-white text-orange-600 shadow-sm dark:bg-slate-900" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"}`}>
+            <FileText className="w-4 h-4 mr-1.5" /> Ventas ({data?.documents.length ?? 0})
+          </button>
+        </div>
         {data && (
           <span className="text-xs text-slate-500 ml-auto">
-            % por defecto del vendedor: <span className="font-medium tabular-nums">{data.defaultPct}%</span> · edítalo por cliente o venta (0 = no paga)
+            % por defecto del vendedor: <span className="font-semibold tabular-nums text-orange-600">{data.defaultPct}%</span> · edítalo por cliente o venta (0 = no paga)
           </span>
         )}
       </div>
