@@ -3903,6 +3903,7 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   paymentCondition: varchar("payment_condition"),
   paymentReceiptUrl: text("payment_receipt_url"),
   purchaseOrderPdfUrl: text("purchase_order_pdf_url"), // Optional OC PDF uploaded by client at checkout
+  purchaseOrderNumber: varchar("purchase_order_number"), // Optional OC number captured at checkout (from SKU quick-order / manual)
 
   // Invoice PDFs uploaded by admin
   invoiceUrls: jsonb("invoice_urls").default(sql`'[]'::jsonb`), // Array of {url, name, uploadedAt}

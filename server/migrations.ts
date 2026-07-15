@@ -728,6 +728,8 @@ export async function bootstrapDatabase(): Promise<void> {
     // Migración 045: descuento de sucursal y lista de precios usada en cada pedido eCommerce
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS branch_discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS price_list_used VARCHAR`);
+    // Número de Orden de Compra capturado en el checkout (aparte del PDF adjunto)
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS purchase_order_number VARCHAR`);
 
     // Asegurar columna destacado en crm_seguimiento_clientes (migración 044 — idempotente)
     await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS destacado BOOLEAN DEFAULT FALSE NOT NULL`);

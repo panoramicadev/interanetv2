@@ -389,28 +389,37 @@ function ReceptionPedidosView() {
                         </div>
 
                         <div className="min-w-0">
-                          {order.purchaseOrderPdfUrl ? (
-                            <div className="flex items-center gap-1">
-                              <a
-                                href={order.purchaseOrderPdfUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                title="Ver orden de compra"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Ver
-                              </a>
-                              <a
-                                href={order.purchaseOrderPdfUrl}
-                                download
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
-                                title="Descargar orden de compra"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </a>
+                          {order.purchaseOrderNumber || order.purchaseOrderPdfUrl ? (
+                            <div className="flex flex-col gap-1 items-start">
+                              {order.purchaseOrderNumber && (
+                                <span className="text-xs font-bold text-gray-900 truncate max-w-full" title={`OC ${order.purchaseOrderNumber}`}>
+                                  {order.purchaseOrderNumber}
+                                </span>
+                              )}
+                              {order.purchaseOrderPdfUrl && (
+                                <div className="flex items-center gap-1">
+                                  <a
+                                    href={order.purchaseOrderPdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                    title="Ver orden de compra"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    Ver
+                                  </a>
+                                  <a
+                                    href={order.purchaseOrderPdfUrl}
+                                    download
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                                    title="Descargar orden de compra"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <span className="text-gray-300">—</span>

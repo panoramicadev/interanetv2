@@ -522,6 +522,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         paymentCondition: clientData?.cpen || null,
         paymentMethod: selectedPaymentMethod,
         purchaseOrderPdfUrl: purchaseOrderPdfUrl || null,
+        purchaseOrderNumber: attachedOcMetadata?.ocNumber || null,
         branchId: checkoutBranchId,
       };
 

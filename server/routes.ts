@@ -9213,6 +9213,7 @@ export function registerRoutes(app: Express): Server {
         paymentCondition: z.string().optional().nullable(),
         paymentMethod: z.string().optional(),
         purchaseOrderPdfUrl: z.string().optional().nullable(),
+        purchaseOrderNumber: z.string().optional().nullable(),
         branchId: z.string().optional().nullable(),
       });
 
@@ -9323,6 +9324,7 @@ export function registerRoutes(app: Express): Server {
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
         purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
+        purchaseOrderNumber: orderData.purchaseOrderNumber?.trim() || null,
         ...(shouldAutoApprove ? { approvedAt: new Date(), approvedById: clientId } : {}),
       };
 
