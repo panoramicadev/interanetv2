@@ -37447,7 +37447,7 @@ Instrucciones extra:
     // Update ultimo/proximo contacto on the seguimiento record: un hito
     // agendado a futuro fija proximoContacto (no es un contacto ocurrido);
     // el resto conserva el comportamiento de marcar ultimoContacto.
-    const contactTypes = ['contacto', 'llamada', 'cotizacion', 'visita', 'venta'];
+    const contactTypes = ['contacto', 'llamada', 'whatsapp', 'cotizacion', 'visita', 'venta'];
     const contactUpdates: Record<string, Date> = {};
     if (fechaProg && fechaProg.getTime() > Date.now()) {
       contactUpdates.proximoContacto = fechaProg;

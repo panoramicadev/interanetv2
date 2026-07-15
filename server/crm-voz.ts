@@ -14,7 +14,7 @@ import { getOpenAI } from "./ai-agent";
 // AGENDA_TIPOS + tipos de bitácora (seguimiento/problema van a pedido_bitacora,
 // criterio BIT_COMPOSER_VALUES de seguimiento-cliente-detalle.tsx).
 const TIPOS_VALIDOS = new Set([
-  "contacto", "llamada", "cotizacion", "visita", "venta", "despacho", "nota",
+  "contacto", "llamada", "whatsapp", "cotizacion", "visita", "venta", "despacho", "nota",
   "reunion", "videollamada", "correo", "seguimiento", "problema",
 ]);
 
@@ -37,8 +37,8 @@ Tu tarea: separar el texto en interacciones y devolver SOLO un JSON válido con 
 
 Reglas:
 - "modo": "registrar" si relata algo que YA pasó (llamé, visité, se quejó, cotizamos…). "agendar" si es algo pendiente o a futuro (agéndame, hay que llamar, reunión el martes, recordar enviar…).
-- "tipo" si modo="registrar", uno de: "contacto" | "llamada" | "cotizacion" | "visita" | "venta" | "despacho" | "nota" | "seguimiento" | "problema". Usa "problema" para reclamos, atrasos, productos dañados o cualquier inconveniente. Usa "nota" si no calza con ninguno.
-- "tipo" si modo="agendar", uno de: "reunion" | "llamada" | "videollamada" | "correo" | "visita" | "seguimiento".
+- "tipo" si modo="registrar", uno de: "contacto" | "llamada" | "whatsapp" | "cotizacion" | "visita" | "venta" | "despacho" | "nota" | "seguimiento" | "problema". Usa "whatsapp" para mensajes de WhatsApp/chat. Usa "problema" para reclamos, atrasos, productos dañados o cualquier inconveniente. Usa "nota" si no calza con ninguno.
+- "tipo" si modo="agendar", uno de: "reunion" | "llamada" | "whatsapp" | "videollamada" | "correo" | "visita" | "seguimiento".
 - "descripcion": redacción breve y clara de ESA interacción, en español, conservando nombres, montos, productos y acuerdos mencionados. No repitas la fecha dentro de la descripción si ya va en "fecha".
 - "fecha": resuelve expresiones relativas usando la fecha de HOY que se te indica ("mañana", "pasado mañana", "el viernes" = el viernes que viene, "en dos semanas"…). null si no se menciona cuándo.
 - "hora": formato 24h "HH:MM" ("a las 3 de la tarde" = "15:00", "a las 10 y media" = "10:30"). null si no se menciona.
