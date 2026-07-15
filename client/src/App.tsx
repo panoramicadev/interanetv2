@@ -230,9 +230,9 @@ function Router() {
                   window.location.replace('/comisiones');
                   return null;
                 case 'marketing':
-                  // Marketing va directamente a su módulo
-                  window.location.replace('/marketing');
-                  return null;
+                  // Marketing aterriza en el Panel de Trabajo (tareas); el módulo de
+                  // Marketing sigue accesible desde el sidebar.
+                  return <TareasPage />;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':

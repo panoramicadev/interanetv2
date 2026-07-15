@@ -242,7 +242,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                     </Button>
                 </div>
                 {isAdmin && (
-                    <Button onClick={() => { setSelectedItem(null); setIsDialogOpen(true); }} className="rounded-xl bg-orange-600 hover:bg-orange-700 ml-auto">
+                    <Button onClick={() => { setSelectedItem(null); setIsDialogOpen(true); }} className="rounded-xl bg-[#fd6301] hover:bg-[#e35400] ml-auto">
                         <Plus className="mr-2 h-4 w-4" /> Nueva Creatividad
                     </Button>
                 )}
@@ -417,7 +417,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                         {isApproved && (
                                             <Button
                                                 size="sm"
-                                                className="w-full h-8 text-xs rounded-lg bg-orange-600 hover:bg-orange-700 text-white"
+                                                className="w-full h-8 text-xs rounded-lg bg-[#fd6301] hover:bg-[#e35400] text-white"
                                                 onClick={(e) => { e.stopPropagation(); handleOpenGuion(item); }}
                                             >
                                                 <Clapperboard className="h-3.5 w-3.5 mr-1.5" /> Crear Guión
@@ -559,7 +559,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setGuionDialogOpen(false)}>Cancelar</Button>
                         <Button
-                            className="bg-orange-600 hover:bg-orange-700 text-white"
+                            className="bg-[#fd6301] hover:bg-[#e35400] text-white"
                             disabled={guionSaveMutation.isPending}
                             onClick={handleGuionSubmit}
                         >
@@ -642,7 +642,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                         </div>
                         <div className="flex justify-end gap-3 pt-2">
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                            <Button type="submit" disabled={formAction.isPending} className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white min-w-[100px]">
+                            <Button type="submit" disabled={formAction.isPending} className="rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white min-w-[100px]">
                                 {formAction.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : selectedItem ? 'Actualizar' : 'Guardar'}
                             </Button>
                         </div>
