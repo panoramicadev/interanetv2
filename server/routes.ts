@@ -14440,11 +14440,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       // Admin ve TODAS las rutas (las creadas por cualquier supervisor en el apartado
-      // comercial); supervisor/encargado ven las suyas; el vendedor las asignadas a él.
+      // comercial); supervisor/encargado ven las suyas MÁS las asignadas a su equipo
+      // (incluye rutas que el admin cargó a nombre de sus vendedores); el vendedor,
+      // las asignadas a él.
       const rutas = user.role === 'admin'
         ? await storage.getAllRutas()
         : canManageRutas(user.role)
-          ? await storage.getRutasBySupervisor(user.id)
+          ? await storage.getRutasForManager(user.id)
           : await storage.getRutasByVendedor(user.id);
       res.json(rutas);
     } catch (e) { console.error("Error fetching rutas:", e); res.status(500).json({ message: "Failed to fetch rutas" }); }
