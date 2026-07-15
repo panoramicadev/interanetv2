@@ -303,7 +303,7 @@ export default function PromesasCompraPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${resumen.totalVendido.toLocaleString('es-CL')}</div>
-            <p className="text-xs text-muted-foreground mt-1">Facturas + NVV</p>
+            <p className="text-xs text-muted-foreground mt-1">NVV + GDV</p>
           </CardContent>
         </Card>
 

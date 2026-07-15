@@ -24463,21 +24463,15 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // OPTIMIZED: Use LEFT JOIN with weekly_ventas_cliente to get pre-aggregated sales
-    // NOTE: w.cliente_id and w.vendedor_id are actually client/vendor NAMES (nokoen/nokofu from fact_ventas)
-    // We need to join with users table to get the vendor's firstName+lastName to match with weekly_ventas_cliente.vendedor_id
+    // El "Vendido" de una promesa se mide con NVV (notas de venta / pedidos) + GDV
+    // (guías de despacho). No se usan facturas (FCV) porque la GDV es el espejo de
+    // lo que luego se factura: contar ambas duplicaría la venta. Ver getPromesasConCumplimiento.
     const promesasConVentas = await db.execute(sql`
-      SELECT 
+      SELECT
         p.*,
-        COALESCE(w.total_ventas, 0) as ventas_facturas_agregadas,
-        w.cantidad_transacciones,
         COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Usuario') as vendedor_nombre_calculado
       FROM promesas_compra p
       LEFT JOIN users u ON p.vendedor_id = u.id
-      LEFT JOIN ventas.weekly_ventas_cliente w 
-        ON p.cliente_nombre = w.cliente_id
-        AND UPPER(COALESCE(u.first_name || ' ' || u.last_name, u.email, '')) = UPPER(w.vendedor_id)
-        AND p.semana = w.semana
       ${whereParts.length > 0 ? sql`WHERE ${sql.join(whereParts, sql` AND `)}` : sql``}
       ORDER BY p.semana DESC
     `);
@@ -24520,6 +24514,37 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // OPTIMIZED: Batch fetch ALL GDV (guías de despacho) with a single query, then group in memory
+    // GDV vive en fact_ventas con tido = 'GDV'; excluimos las anuladas (esdo = 'C')
+    const gdvMap = new Map<string, number>();
+    if (clienteSemanas.length > 0) {
+      const gdvConditions = clienteSemanas.map(cs =>
+        sql`(nokoen = ${cs.nombre} AND feemdo >= ${cs.fechaInicio} AND feemdo <= ${cs.fechaFin})`
+      );
+
+      const ventasGdvBatch = await db.execute(sql`
+        SELECT
+          nokoen as cliente,
+          feemdo as fecha,
+          monto
+        FROM ventas.fact_ventas
+        WHERE tido = 'GDV'
+          AND (esdo IS NULL OR esdo != 'C')
+          AND (${sql.join(gdvConditions, sql` OR `)})
+      `);
+
+      for (const row of ventasGdvBatch.rows as any[]) {
+        const fecha = row.fecha;
+        for (const cs of clienteSemanas) {
+          if (row.cliente === cs.nombre && fecha >= cs.fechaInicio && fecha <= cs.fechaFin) {
+            const key = `${cs.nombre}|${cs.fechaInicio}|${cs.fechaFin}`;
+            const current = gdvMap.get(key) || 0;
+            gdvMap.set(key, current + parseFloat(row.monto || '0'));
+          }
+        }
+      }
+    }
+
     const resultados = (promesasConVentas.rows as any[]).map((row) => {
       const promesa: PromesaCompra = {
         id: row.id,
@@ -24549,12 +24574,12 @@ export class DatabaseStorage implements IStorage {
       else if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
         ventasReales = 0;
       }
-      // Calcular ventas reales (facturas agregadas + NVV)
+      // Calcular ventas reales = NVV (pedidos) + GDV (guías de despacho)
       else {
-        const ventasFacturas = parseFloat(row.ventas_facturas_agregadas || '0');
         const key = `${promesa.clienteNombre}|${promesa.fechaInicio}|${promesa.fechaFin}`;
         const ventasNvv = nvvMap.get(key) || 0;
-        ventasReales = ventasFacturas + ventasNvv;
+        const ventasGdv = gdvMap.get(key) || 0;
+        ventasReales = ventasNvv + ventasGdv;
       }
 
       const montoPrometido = parseFloat(promesa.montoPrometido as any);
