@@ -299,19 +299,19 @@ export default function TareasPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  // Vista de agrupación: por Equipo (persona asignada), por Grupos (proyecto) o
-  // Terminadas (todas las tareas completadas juntas). Por defecto arranca en Equipo.
-  const [taskView, setTaskView] = useState<'equipo' | 'grupos' | 'terminadas'>('equipo');
-  const groupByEquipo = taskView === 'equipo';
-  // En Seguimiento no existen las vistas Grupos/Terminadas: si quedaron seleccionadas
-  // desde la pestaña Tareas, volver siempre a Equipo al entrar a Seguimiento.
-  useEffect(() => {
-    if (activeTab === 'seguimiento' && taskView !== 'equipo') {
-      setTaskView('equipo');
-    }
-  }, [activeTab, taskView]);
+  // Vista de la pestaña Tareas: una sola lista plana ("lista") o las tareas
+  // completadas juntas ("terminadas"). El agrupado por persona ya no vive acá:
+  // esa vista de equipo es ahora la pestaña Seguimiento.
+  const [taskView, setTaskView] = useState<'lista' | 'terminadas'>('lista');
   const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
+  // Seguimiento (vista de equipo): colaboradores sumados "a mano" desde el buscador,
+  // para hacerles seguimiento aunque todavía no tengan ningún cliente asignado.
+  const [extraSeguimientoMembers, setExtraSeguimientoMembers] = useState<
+    Array<{ id: string; name: string; type: 'supervisor' | 'salesperson'; role?: string }>
+  >([]);
+  const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [showAddMember, setShowAddMember] = useState(false);
 
   // Selección múltiple / eliminación masiva (solo administrador)
   const [selectionMode, setSelectionMode] = useState(false);
@@ -983,6 +983,21 @@ export default function TareasPage() {
     // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente
     const payload = seguimientoMode ? { kind: 'seguimiento_cliente' } : undefined;
     createTaskMutation.mutate({ ...data, ...(payload ? { payload } : {}) } as any);
+  };
+
+  // Abre el flujo "Nuevo Seguimiento" (responsable → cliente). Si se pasa un miembro,
+  // queda preseleccionado como responsable para asignarle su primer cliente en un paso.
+  const openNuevoSeguimiento = (member?: { id: string; type: 'supervisor' | 'salesperson' }) => {
+    setTaskFlow('seguimiento');
+    setSelectedClienteTask(null);
+    setSearchClienteTask("");
+    form.reset({
+      title: "", description: "", priority: "medium",
+      segmento: segmentoFilter !== 'all' ? segmentoFilter : null,
+      groupId: null, dueDate: "", clienteId: null, clienteNombre: null,
+      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : [],
+    });
+    setShowCreateDialog(true);
   };
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra' || user.role === 'marketing';
@@ -1726,35 +1741,25 @@ export default function TareasPage() {
           {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
           {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Toggle Equipo / Grupos — segmented control (Equipo a la izquierda) */}
+              {/* Toggle Tareas / Terminadas — la vista por persona vive ahora en Seguimiento */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
                 <button
-                  onClick={() => setTaskView('equipo')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'equipo' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setTaskView('lista')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'lista' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  <Users className="h-3.5 w-3.5" /> Mi Equipo
+                  <CheckSquare className="h-3.5 w-3.5" /> Tareas
                 </button>
-                {activeTab !== 'seguimiento' && (
-                  <>
-                    <button
-                      onClick={() => setTaskView('grupos')}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'grupos' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      <FolderOpen className="h-3.5 w-3.5" /> Grupos
-                    </button>
-                    <button
-                      onClick={() => setTaskView('terminadas')}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      <Check className="h-3.5 w-3.5" /> Terminadas
-                      {kpiCompletadas > 0 && (
-                        <span className={`ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${taskView === 'terminadas' ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500 text-white'}`}>
-                          {kpiCompletadas}
-                        </span>
-                      )}
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => setTaskView('terminadas')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Check className="h-3.5 w-3.5" /> Terminadas
+                  {kpiCompletadas > 0 && (
+                    <span className={`ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${taskView === 'terminadas' ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500 text-white'}`}>
+                      {kpiCompletadas}
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Acciones a la derecha */}
@@ -1867,9 +1872,6 @@ export default function TareasPage() {
             </div>
           )}
 
-          {/* Bandeja de solicitudes del equipo — solo Marketing, en la vista Mi Equipo */}
-          {isMarketing && taskView === 'equipo' && <MarketingSolicitudesInbox />}
-
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
             {tasksQuery.isLoading ? (
@@ -1877,7 +1879,7 @@ export default function TareasPage() {
                 <div className="animate-spin rounded-full h-10 w-10 border-3 border-orange-200 border-t-orange-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
               </div>
-            ) : filteredTasks.length === 0 ? (
+            ) : (filteredTasks.length === 0 && activeTab !== 'seguimiento') ? (
               <div className="text-center py-20">
                 <div className="relative w-20 h-20 mx-auto mb-5">
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-[#fd6301] blur-lg opacity-25" />
@@ -1886,12 +1888,10 @@ export default function TareasPage() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">
-                  {activeTab === 'seguimiento' ? "No hay seguimientos" : "No hay tareas"}
+                  No hay tareas
                 </h3>
                 <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
-                  {activeTab === 'seguimiento'
-                    ? "Aún no hay clientes en seguimiento."
-                    : (viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas.")}
+                  {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
                 </p>
                 {canCreateTasks && (
                   <Button
@@ -2039,6 +2039,23 @@ export default function TareasPage() {
                             {(task as any).clienteNombre}
                           </span>
                         )}
+                        {/* Chip de grupo — el grupo pasa a ser una etiqueta de color en la tarjeta */}
+                        {(() => {
+                          const gId = (task as any).groupId;
+                          const gi = gId ? groups.findIndex((g: any) => g.id === gId) : -1;
+                          if (gi < 0) return null;
+                          const grp: any = groups[gi];
+                          const color = grp.color || groupColors[gi % groupColors.length];
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: `${color}1a`, color }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                              {grp.name}
+                            </span>
+                          );
+                        })()}
                         <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                           <User className="h-3 w-3" />
                           {task.assignments.length > 0
@@ -2092,66 +2109,70 @@ export default function TareasPage() {
                 );
               }
 
-              // Vista EQUIPO: agrupar por persona asignada, filas compactas tipo lista (rediseño).
-              // Los vendedores no gestionan equipo → siempre ven la vista por Grupos.
-              if (groupByEquipo && !isSalesperson) {
+              // Vista SEGUIMIENTO = MI EQUIPO: cada colaborador (usuario del sistema) es una
+              // card con sus clientes en seguimiento. Aparece aunque tenga 0 clientes, y se
+              // puede sumar a cualquier usuario "a mano" con el buscador. Para Marketing, su
+              // "trabajo asignado" son las solicitudes que recibe (bandeja arriba de todo).
+              // Los vendedores no gestionan equipo → ven su seguimiento como lista simple abajo.
+              if (activeTab === 'seguimiento' && !isSalesperson) {
                 type PersonGroup = { name: string; role: 'supervisor' | 'salesperson'; tasks: typeof filteredTasks };
-                // Un supervisor que se co-asigna junto al vendedor que realmente ejecuta no debería
-                // inflar su propio conteo de "tareas" — esas van a un balde aparte de supervisión.
+                const canManageTeam = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
                 const byPerson: Record<string, PersonGroup> = {};
-                const supervising: Record<string, PersonGroup> = {};
-                const addTo = (bucket: Record<string, PersonGroup>, id: string, name: string, role: PersonGroup['role'], task: typeof filteredTasks[number]) => {
-                  if (!bucket[id]) bucket[id] = { name, role, tasks: [] };
-                  bucket[id].tasks.push(task);
+                const addTo = (id: string, name: string, role: PersonGroup['role'], task: typeof filteredTasks[number]) => {
+                  if (!byPerson[id]) byPerson[id] = { name, role, tasks: [] };
+                  byPerson[id].tasks.push(task);
                 };
+                const nameFor = (id: string) =>
+                  availableSupervisors?.find((s) => s.id === id)?.salespersonName
+                  || availableUsers?.find((u) => u.id === id)?.salespersonName
+                  || id;
 
-                activeTasks.forEach((task) => {
+                filteredTasks.forEach((task) => {
                   if (task.assignments.length === 0) {
-                    addTo(byPerson, '__none__', 'Sin asignar', 'salesperson', task);
+                    addTo('__none__', 'Sin asignar', 'salesperson', task);
                     return;
                   }
-                  const salespeople = task.assignments.filter(a => a.assigneeType === 'salesperson');
-                  const supervisors = task.assignments.filter(a => a.assigneeType === 'supervisor');
-                  const hasOperational = salespeople.length > 0;
-
-                  salespeople.forEach((a) => {
-                    const name = availableUsers?.find((u) => u.id === a.assigneeId)?.salespersonName
-                      || availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName
-                      || a.assigneeId;
-                    addTo(byPerson, a.assigneeId, name, 'salesperson', task);
-                  });
-
-                  supervisors.forEach((a) => {
-                    const name = availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName
-                      || availableUsers?.find((u) => u.id === a.assigneeId)?.salespersonName
-                      || a.assigneeId;
-                    // Sin vendedor en la misma tarea → es una tarea propia del supervisor (legítima).
-                    // Con vendedor en la misma tarea → el supervisor solo acompaña, no cuenta como suya.
-                    addTo(hasOperational ? supervising : byPerson, a.assigneeId, name, 'supervisor', task);
+                  task.assignments.forEach((a) => {
+                    const role: PersonGroup['role'] = a.assigneeType === 'supervisor' ? 'supervisor' : 'salesperson';
+                    addTo(a.assigneeId, nameFor(a.assigneeId), role, task);
                   });
                 });
 
-                const people = Object.entries(byPerson).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
-                const supervisingList = Object.entries(supervising).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
-                if (people.length === 0 && supervisingList.length === 0) {
-                  return <p className="text-center text-sm text-slate-400 py-10">No hay tareas asignadas.</p>;
+                // Miembros del equipo que deben aparecer AUNQUE tengan 0 clientes:
+                //  - supervisor/encargado: sus vendedores (su equipo por defecto)
+                //  - cualquiera: los colaboradores sumados a mano desde el buscador
+                const ensureMember = (id: string, name: string, role: PersonGroup['role']) => {
+                  if (id && id !== user.id && !byPerson[id]) byPerson[id] = { name, role, tasks: [] };
+                };
+                if (user.role === 'supervisor' || user.role === 'encargado_area') {
+                  (supervisorSalespeople || []).forEach((sp) => ensureMember(sp.id, sp.salespersonName, 'salesperson'));
                 }
+                extraSeguimientoMembers.forEach((m) => ensureMember(m.id, m.name, m.type));
 
-                // Card de miembro del equipo — foco en la persona y sus clientes asignados.
-                const renderPersonRow = (id: string, grp: PersonGroup, muted = false) => {
+                const people = Object.entries(byPerson).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+
+                // Pool del buscador "agregar puntual": cualquier usuario del sistema no listado aún.
+                const alreadyIn = new Set(Object.keys(byPerson));
+                const addPool = [
+                  ...((availableSupervisors || []).map((s) => ({ id: s.id, name: s.salespersonName, type: 'supervisor' as const }))),
+                  ...((availableUsers || []).map((u) => ({ id: u.id, name: u.salespersonName, type: 'salesperson' as const }))),
+                ].filter((p) => !alreadyIn.has(p.id) && (!addMemberSearch || p.name.toLowerCase().includes(addMemberSearch.toLowerCase())));
+
+                // Card de colaborador — foco en la persona y sus clientes en seguimiento.
+                const renderPersonRow = (id: string, grp: PersonGroup) => {
                   const completed = grp.tasks.filter(isTaskDone).length;
                   const total = grp.tasks.length;
                   const pct = total > 0 ? (completed / total) * 100 : 0;
                   const isCollapsed = collapsedGroups.has(id);
-                  const done = pct === 100;
+                  const done = total > 0 && pct === 100;
                   const isSupervisor = grp.role === 'supervisor';
-                  // Anillo de progreso (SVG) alrededor del avatar.
+                  const isNone = id === '__none__';
                   const R = 20, C = 2 * Math.PI * R;
                   return (
                     <div
                       key={id}
                       className={`rounded-2xl border bg-white overflow-hidden transition-all duration-200 ${
-                        muted
+                        total === 0
                           ? 'border-dashed border-slate-200 bg-slate-50/40'
                           : `border-slate-200/80 shadow-sm hover:shadow-md ${!isCollapsed ? 'ring-1 ring-orange-100' : ''}`
                       }`}
@@ -2167,7 +2188,7 @@ export default function TareasPage() {
                             {total > 0 && (
                               <circle
                                 cx="26" cy="26" r={R} fill="none" strokeWidth="3" strokeLinecap="round"
-                                stroke={done ? '#10b981' : muted ? '#cbd5e1' : '#f97316'}
+                                stroke={done ? '#10b981' : '#f97316'}
                                 strokeDasharray={C}
                                 strokeDashoffset={C - (pct / 100) * C}
                                 className="transition-all duration-700"
@@ -2175,7 +2196,7 @@ export default function TareasPage() {
                             )}
                           </svg>
                           <div className={`absolute inset-[6px] rounded-full flex items-center justify-center text-sm font-bold ${
-                            muted ? 'bg-slate-100 text-slate-500'
+                            total === 0 ? 'bg-slate-100 text-slate-500'
                               : isSupervisor ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white'
                               : 'bg-gradient-to-br from-orange-400 to-[#fd6301] text-white'
                           }`}>
@@ -2186,14 +2207,14 @@ export default function TareasPage() {
                         {/* Nombre + rol + clientes */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className={`text-sm font-semibold truncate ${muted ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
-                            {isSupervisor && (
+                            <span className={`text-sm font-semibold truncate ${total === 0 ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
+                            {isSupervisor && !isNone && (
                               <span className="text-[9px] font-bold text-slate-500 bg-slate-100 uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0">Supervisor</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-400">
                             <Building2 className="h-3 w-3" />
-                            {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} asignado${total !== 1 ? 's' : ''}`}
+                            {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} en seguimiento`}
                           </div>
                         </div>
 
@@ -2206,7 +2227,7 @@ export default function TareasPage() {
                             <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                               <div
                                 className="h-full rounded-full transition-all duration-700"
-                                style={{ width: `${pct}%`, backgroundColor: done ? '#10b981' : muted ? '#cbd5e1' : '#f97316' }}
+                                style={{ width: `${pct}%`, backgroundColor: done ? '#10b981' : '#f97316' }}
                               />
                             </div>
                           </div>
@@ -2216,24 +2237,123 @@ export default function TareasPage() {
                       </button>
                       {!isCollapsed && (
                         <div className="px-1.5 sm:px-2.5 pb-2.5 pt-0.5 space-y-1 sm:space-y-1.5 border-t border-slate-100/80 bg-slate-50/30">
-                          {grp.tasks.map(renderTaskCard)}
+                          {grp.tasks.length > 0 ? (
+                            grp.tasks.map(renderTaskCard)
+                          ) : (
+                            <div className="px-3 py-4 text-center">
+                              <p className="text-xs text-slate-400 mb-2.5">Todavía no tiene clientes en seguimiento.</p>
+                              {canManageTeam && !isNone && (
+                                <button
+                                  onClick={() => openNuevoSeguimiento({ id, type: grp.role })}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
+                                >
+                                  <Plus className="h-3.5 w-3.5" /> Asignar primer cliente
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {/* Sumar otro cliente a un colaborador que ya tiene seguimientos */}
+                          {grp.tasks.length > 0 && canManageTeam && !isNone && (
+                            <button
+                              onClick={() => openNuevoSeguimiento({ id, type: grp.role })}
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-dashed border-slate-200 hover:border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Asignar otro cliente
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
                   );
                 };
 
-                // Métricas de equipo (solo miembros operativos).
+                // Métricas de equipo.
                 const teamTotal = people.reduce((s, [, g]) => s + g.tasks.length, 0);
                 const teamDone = people.reduce((s, [, g]) => s + g.tasks.filter(isTaskDone).length, 0);
                 const teamPct = teamTotal > 0 ? Math.round((teamDone / teamTotal) * 100) : 0;
 
                 return (
-                  <>
-                    {people.length > 0 && (
+                  <div className="space-y-4">
+                    {/* Marketing: sus solicitudes son su trabajo asignado */}
+                    {isMarketing && <MarketingSolicitudesInbox />}
+
+                    {/* Buscador para sumar puntualmente cualquier colaborador del sistema */}
+                    {canManageTeam && (
+                      <div className="rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm">
+                        {!showAddMember ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => { setShowAddMember(true); setAddMemberSearch(""); }}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Agregar colaborador
+                            </button>
+                            <button
+                              onClick={() => openNuevoSeguimiento()}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#fd6301] hover:bg-[#e35400] rounded-lg px-3 py-1.5 transition-colors"
+                            >
+                              <Building2 className="h-3.5 w-3.5" /> Nuevo seguimiento
+                            </button>
+                            <span className="text-[11px] text-slate-400 ml-auto pr-1">Suma a alguien de tu equipo para asignarle clientes.</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  autoFocus
+                                  placeholder="Buscar colaborador del sistema..."
+                                  value={addMemberSearch}
+                                  onChange={(e) => setAddMemberSearch(e.target.value)}
+                                  className="pl-10 bg-white border-slate-200 h-9 text-sm"
+                                />
+                              </div>
+                              <button
+                                onClick={() => { setShowAddMember(false); setAddMemberSearch(""); }}
+                                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                                title="Cerrar"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-100">
+                              {addPool.length === 0 ? (
+                                <p className="text-xs text-slate-400 text-center py-4">
+                                  {addMemberSearch.length > 0 ? 'Sin coincidencias.' : 'No hay más colaboradores para agregar.'}
+                                </p>
+                              ) : (
+                                addPool.slice(0, 30).map((p) => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => {
+                                      setExtraSeguimientoMembers((prev) => prev.some((m) => m.id === p.id) ? prev : [...prev, { id: p.id, name: p.name, type: p.type }]);
+                                      setShowAddMember(false);
+                                      setAddMemberSearch("");
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-orange-50/60 transition-colors text-left"
+                                  >
+                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${p.type === 'supervisor' ? 'bg-gradient-to-br from-slate-700 to-slate-900' : 'bg-gradient-to-br from-orange-400 to-[#fd6301]'}`}>
+                                      {p.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium text-slate-700 truncate">{p.name}</p>
+                                      <p className="text-[10px] text-slate-400 font-medium">{p.type === 'supervisor' ? 'Supervisor' : 'Vendedor'}</p>
+                                    </div>
+                                    <Plus className="h-4 w-4 text-orange-500 ml-auto flex-shrink-0" />
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {people.length > 0 ? (
                       <>
                         {/* Resumen del equipo */}
-                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mb-4">
+                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                               <Users className="h-3 w-3" /> Equipo
@@ -2246,7 +2366,7 @@ export default function TareasPage() {
                               <Building2 className="h-3 w-3" /> Clientes
                             </div>
                             <div className="text-2xl font-bold text-slate-800 leading-none">{teamTotal}</div>
-                            <div className="text-[11px] text-slate-400 mt-1">asignado{teamTotal !== 1 ? 's' : ''}</div>
+                            <div className="text-[11px] text-slate-400 mt-1">en seguimiento</div>
                           </div>
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
@@ -2261,192 +2381,59 @@ export default function TareasPage() {
                           {people.map(([id, grp]) => renderPersonRow(id, grp))}
                         </div>
                       </>
+                    ) : !isMarketing ? (
+                      <div className="text-center py-14">
+                        <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
+                          <Users className="h-7 w-7 text-orange-500" />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Aún no hay seguimientos</h3>
+                        <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
+                          Elige un colaborador de tu equipo y asígnale sus clientes para empezar a hacerle seguimiento.
+                        </p>
+                        {canManageTeam && (
+                          <button
+                            onClick={() => openNuevoSeguimiento()}
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#fd6301] hover:bg-[#e35400] rounded-lg px-4 py-2 transition-colors"
+                          >
+                            <Plus className="h-4 w-4" /> Nuevo seguimiento
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      // Marketing sin solicitudes ni seguimientos propios (la bandeja de
+                      // arriba se oculta sola cuando está vacía).
+                      <div className="text-center py-14">
+                        <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
+                          <TrendingUp className="h-7 w-7 text-orange-500" />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Sin solicitudes por ahora</h3>
+                        <p className="text-sm text-slate-500 max-w-sm mx-auto">
+                          Cuando el equipo te envíe solicitudes de marketing, aparecerán aquí para que las aceptes o rechaces.
+                        </p>
+                      </div>
                     )}
-                  </>
+                  </div>
                 );
               }
 
-              return (
-                <>
-                  {/* Grouped Tasks - sorted by most pending first */}
-                  {[...groups].sort((a, b) => {
-                    const aTasks = groupedTasks[a.id] || [];
-                    const bTasks = groupedTasks[b.id] || [];
-                    const aPending = aTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
-                    const bPending = bTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
-                    return bPending - aPending;
-                  }).map((group, groupIndex) => {
-                    const tasks = groupedTasks[group.id] || [];
-                    const completedCount = tasks.filter(t => {
-                      if (t.status === 'completada') return true;
-                      // Also check assignment-level completion (same logic as renderTaskCard)
-                      const myAssign = t.assignments.find(a =>
-                        (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
-                        (a.assigneeType === "salesperson" && a.assigneeId === user.id) ||
-                        (a.assigneeType === "user" && a.assigneeId === user.id)
-                      );
-                      const targetAssign = myAssign || (
-                        (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area')) ? t.assignments[0] : null
-                      );
-                      return targetAssign?.status === 'completed';
-                    }).length;
-                    const totalCount = tasks.length;
-                    const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-                    const borderColor = group.color || groupColors[groupIndex % groupColors.length];
-                    const isCollapsed = collapsedGroups.has(group.id);
-                    const isGroupSelected = selectedGroupIds.has(group.id);
-
-                    return (
-                      <div
-                        key={group.id}
-                        className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md ${
-                          selectionMode && isGroupSelected ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200'
-                        }`}
-                        style={{ borderLeftWidth: '4px', borderLeftColor: borderColor }}
-                      >
-                        {/* Group Header */}
-                        <div className="flex items-center">
-                          {selectionMode && user.role === 'admin' && (
-                            <div
-                              className="pl-2.5 sm:pl-4 flex items-center flex-shrink-0"
-                              onClick={(e) => { e.stopPropagation(); toggleGroupSelected(group.id); }}
-                            >
-                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${
-                                isGroupSelected ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300 bg-white hover:border-red-400'
-                              }`}>
-                                {isGroupSelected && <Check className="h-3 w-3" />}
-                              </div>
-                            </div>
-                          )}
-                        {editingGroupId === group.id ? (
-                          <div className="flex-1 min-w-0 flex items-center gap-2 px-2.5 sm:px-4 py-2.5">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: borderColor }} />
-                            <Input
-                              autoFocus
-                              value={editingGroupName}
-                              onChange={(e) => setEditingGroupName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') { e.preventDefault(); submitEditingGroup(); }
-                                if (e.key === 'Escape') { e.preventDefault(); setEditingGroupId(null); }
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-8 text-sm flex-1 min-w-0 border-orange-300 focus-visible:ring-orange-400/30"
-                              placeholder="Nombre del grupo"
-                            />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); submitEditingGroup(); }}
-                              disabled={renameGroupMutation.isPending || !editingGroupName.trim()}
-                              className="p-1.5 rounded-lg text-white bg-[#fd6301] hover:bg-[#e35400] transition-all flex-shrink-0 disabled:opacity-50"
-                              title="Guardar nombre"
-                            >
-                              {renameGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditingGroupId(null); }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all flex-shrink-0"
-                              title="Cancelar"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                        <button
-                          onClick={() => toggleGroupCollapsed(group.id)}
-                          className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
-                        >
-                          <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                          <div
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: borderColor }}
-                          />
-                          <span className="text-sm font-bold text-slate-800 tracking-wide">{group.name}</span>
-                          <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-600 font-semibold">
-                            {totalCount}
-                          </Badge>
-
-                          {/* Progress indicator */}
-                          {totalCount > 0 && (
-                            <div className="flex items-center gap-2 ml-auto mr-2">
-                              <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${progressPercent}%`,
-                                    backgroundColor: progressPercent === 100 ? '#10b981' : borderColor,
-                                  }}
-                                />
-                              </div>
-                              <span className={`text-[10px] font-semibold whitespace-nowrap ${progressPercent === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                {completedCount}/{totalCount}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Editar / eliminar grupo: solo el dueño del grupo o un administrador */}
-                          {!selectionMode && (user.role === 'admin' || group.userId === user.id) && (
-                            <div className={`flex items-center flex-shrink-0 ${totalCount > 0 ? '' : 'ml-auto'}`}>
-                              <span
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => { e.stopPropagation(); startEditingGroup(group.id, group.name); }}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); startEditingGroup(group.id, group.name); } }}
-                                className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-orange-50 text-slate-300 hover:text-orange-600 transition-all cursor-pointer"
-                                title="Renombrar grupo"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </span>
-                              <span
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteGroupMutation.mutate(group.id); } }}
-                                className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all cursor-pointer"
-                                title="Eliminar grupo"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </span>
-                            </div>
-                          )}
-                        </button>
-                        )}
-                        </div>
-
-                        {/* Task List */}
-                        {!isCollapsed && (
-                          <div className="border-t border-slate-100 bg-slate-50/30">
-                            {tasks.length > 0 ? (
-                              <div className="px-1.5 sm:px-3 py-1.5 sm:py-2 space-y-1 sm:space-y-1.5">
-                                {tasks.map(renderTaskCard)}
-                              </div>
-                            ) : (
-                              <div className="px-5 py-4 text-center">
-                                <p className="text-xs text-slate-400 italic">Sin tareas en este grupo</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Ungrouped Tasks */}
-                  {ungrouped.length > 0 && (
-                    <div className="space-y-1.5">
-                      {groups.length > 0 && (
-                        <div className="flex items-center gap-2 px-3 py-2 mt-2">
-                          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0" />
-                          <span className="text-sm font-bold text-slate-500 tracking-wide">Sin grupo</span>
-                          <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-500 font-semibold">
-                            {ungrouped.length}
-                          </Badge>
-                        </div>
-                      )}
-                      <div className="space-y-1.5">
-                        {ungrouped.map(renderTaskCard)}
-                      </div>
+              // LISTA PLANA (pestaña Tareas): una sola lista de tareas activas, sin
+              // secciones colapsables por grupo. El grupo queda como chip de color en
+              // cada tarjeta (ver renderTaskCard). Menos jerarquía, más directo.
+              if (viewTasks.length === 0) {
+                return (
+                  <div className="text-center py-16">
+                    <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
+                      <CheckSquare className="h-7 w-7 text-orange-500" />
                     </div>
-                  )}
-                </>
+                    <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">No hay tareas pendientes</h3>
+                    <p className="text-sm text-slate-500">Las tareas activas aparecerán aquí.</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-1.5">
+                  {viewTasks.map(renderTaskCard)}
+                </div>
               );
             })()}
           </div>
