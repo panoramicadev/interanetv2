@@ -866,6 +866,14 @@ export async function bootstrapDatabase(): Promise<void> {
       DROP CONSTRAINT IF EXISTS solicitudes_marketing_supervisor_id_salespeople_users_id_fk
     `);
 
+    // Una solicitud de Marketing puede originarse en un vendedor (cuando un cliente le pide
+    // algo) además del supervisor/encargado. Guardamos el rol del solicitante y, opcionalmente,
+    // el cliente de origen para que Marketing sepa para quién es el pedido.
+    console.log('  🏷️  Verificando columnas de origen en solicitudes_marketing...');
+    await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS solicitante_rol VARCHAR(255)`);
+    await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_id VARCHAR(255)`);
+    await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
+
     // Rutas comerciales (runtime bootstrap — el runner de migraciones no es confiable en prod).
     console.log('  🧭 Verificando tablas de rutas comerciales...');
     await db.execute(sql`
