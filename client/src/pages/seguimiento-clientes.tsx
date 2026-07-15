@@ -92,8 +92,24 @@ function isStaleContact(client: any) {
     (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
 }
 
+// Mapea el "Área" de la pestaña superior del Panel de Trabajo (valores de
+// SEGMENTOS en tareas.tsx) al segmento del CRM (SEGMENTOS_CRM en crm-seguimiento.ts).
+// Las áreas sin segmento CRM equivalente (marketing, "all") caen a "todos".
+const AREA_TO_SEGMENTO_CRM: Record<string, string> = {
+  ferreterias: "Ferretería",
+  construccion: "Construcción",
+  digital: "Industrial",
+};
+
 // ─── Página ───────────────────────────────────────────────────────────
-export default function SeguimientoClientes() {
+// `segmentoArea` llega cuando el CRM va embebido como pestaña del Panel de
+// Trabajo: sincroniza el filtro de Segmento con la pestaña superior de Área
+// (y oculta el dropdown propio para evitar el doble filtro). Sin la prop, el
+// CRM funciona standalone con su dropdown de Segmento habitual.
+export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: string } = {}) {
+  const embedded = segmentoArea !== undefined;
+  const segmentoDesdeArea = embedded ? (AREA_TO_SEGMENTO_CRM[segmentoArea!] ?? "todos") : undefined;
+
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -105,7 +121,9 @@ export default function SeguimientoClientes() {
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>(() => loadFiltrosPreference().prioridad ?? "todos");
   const [filtroVendedor, setFiltroVendedor] = useState<string>(() => loadFiltrosPreference().vendedor ?? "todos");
   const [filtroRegion, setFiltroRegion] = useState<string>(() => loadFiltrosPreference().region ?? "todos");
-  const [filtroSegmento, setFiltroSegmento] = useState<string>(() => loadFiltrosPreference().segmento ?? "todos");
+  const [filtroSegmento, setFiltroSegmento] = useState<string>(
+    () => segmentoDesdeArea ?? loadFiltrosPreference().segmento ?? "todos"
+  );
   const [soloDestacados, setSoloDestacados] = useState<boolean>(() => loadFiltrosPreference().soloDestacados ?? false);
   const [pinProblemas, setPinProblemas] = useState<boolean>(() => loadFiltrosPreference().pinProblemas ?? true);
   const [sortContacto, setSortContacto] = useState<"none" | "asc" | "desc">(() => loadFiltrosPreference().sortContacto ?? "desc");
@@ -116,6 +134,11 @@ export default function SeguimientoClientes() {
   const [hitoCliente, setHitoCliente] = useState<any>(null);
 
   const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
+
+  // Embebido en el Panel de Trabajo: al cambiar la pestaña de Área, seguir el segmento.
+  useEffect(() => {
+    if (segmentoDesdeArea !== undefined) setFiltroSegmento(segmentoDesdeArea);
+  }, [segmentoDesdeArea]);
 
   // Debounce de la búsqueda: la query usa el valor estabilizado.
   // Se persiste de inmediato (no debounced) para no perderla si el usuario
@@ -364,7 +387,8 @@ export default function SeguimientoClientes() {
     setFiltroPrioridad("todos");
     setFiltroVendedor("todos");
     setFiltroRegion("todos");
-    setFiltroSegmento("todos");
+    // Embebido: el segmento sigue atado al Área, no se limpia a "todos".
+    setFiltroSegmento(segmentoDesdeArea ?? "todos");
     setSoloDestacados(false);
   };
 
@@ -629,18 +653,21 @@ export default function SeguimientoClientes() {
               </SelectContent>
             </Select>
 
-            <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
-              <SelectTrigger className="w-[160px] shrink-0" data-testid="select-segmento-filter">
-                <Tags className="w-3.5 h-3.5 mr-1.5" />
-                {filtroSegmento === "todos" ? <span className="text-muted-foreground">Segmento</span> : <SelectValue />}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los segmentos</SelectItem>
-                {SEGMENTOS_CRM.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Embebido en el Panel: el segmento lo gobierna la pestaña de Área → sin dropdown propio (evita el doble filtro). */}
+            {!embedded && (
+              <Select value={filtroSegmento} onValueChange={setFiltroSegmento}>
+                <SelectTrigger className="w-[160px] shrink-0" data-testid="select-segmento-filter">
+                  <Tags className="w-3.5 h-3.5 mr-1.5" />
+                  {filtroSegmento === "todos" ? <span className="text-muted-foreground">Segmento</span> : <SelectValue />}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los segmentos</SelectItem>
+                  {SEGMENTOS_CRM.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Button
               variant={soloDestacados ? "default" : "outline"}
