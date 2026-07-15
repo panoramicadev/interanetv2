@@ -9,6 +9,7 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX
+- **Design system**: See [`DESIGN.md`](DESIGN.md) (human summary) and the `panoramica-design` skill (`.claude/skills/panoramica-design/SKILL.md`, full source of truth). Brand orange is `#fd6301`; reference module is the Panel de Trabajo (`client/src/pages/tareas.tsx`).
 - **Branding**: Panoramica 30th-anniversary logo on login and professional PDF documents.
 - **Responsiveness**: Mobile-first design across all interfaces.
 - **Theming**: Custom design tokens and CSS variables for consistent styling.
