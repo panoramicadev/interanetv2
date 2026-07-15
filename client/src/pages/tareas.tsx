@@ -1031,7 +1031,7 @@ export default function TareasPage() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
                 <CheckSquare className="w-5 h-5" />
               </span>
               Panel de Trabajo
@@ -1042,21 +1042,44 @@ export default function TareasPage() {
           </div>
           {canCreateTasks && (
             <>
-            <Button onClick={() => {
-              // Desde la pestaña Seguimiento, saltar el selector y abrir directo el flujo de cliente.
-              if (activeTab === 'seguimiento') {
-                setTaskFlow('seguimiento');
-                setSelectedClienteTask(null);
-                setSearchClienteTask("");
-                form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
-                setShowCreateDialog(true);
-              } else {
-                setShowChooser(true);
-              }
-            }} className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
-              <Plus className="h-4 w-4 mr-2" />
-              {activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea'}
-            </Button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área visible (admin/supervisor multi-segmento) */}
+              {!isSalesperson && visibleSegmentos.length > 1 && (
+                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Área</span>
+                    <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
+                      <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {visibleSegmentos.map((seg) => (
+                          <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              <Button onClick={() => {
+                // Desde la pestaña Seguimiento, saltar el selector y abrir directo el flujo de cliente.
+                if (activeTab === 'seguimiento') {
+                  setTaskFlow('seguimiento');
+                  setSelectedClienteTask(null);
+                  setSearchClienteTask("");
+                  form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+                  setShowCreateDialog(true);
+                } else {
+                  setShowChooser(true);
+                }
+              }} className="w-full sm:w-auto bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+                <Plus className="h-4 w-4 mr-2" />
+                {activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea'}
+              </Button>
+            </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
                 if (open && segmentoFilter && segmentoFilter !== 'all') {
@@ -1067,7 +1090,7 @@ export default function TareasPage() {
                 {/* Header */}
                 <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
                   <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-2.5 shadow-md shadow-orange-500/25">
+                    <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25">
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -1333,7 +1356,7 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-supervisor-${supervisor.id}`}
-                                            className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                                            className="data-[state=checked]:bg-[#fd6301] data-[state=checked]:border-orange-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -1374,7 +1397,7 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-salesperson-${salesperson.id}`}
-                                            className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                                            className="data-[state=checked]:bg-[#fd6301] data-[state=checked]:border-orange-600"
                                           />
                                           <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -1420,7 +1443,7 @@ export default function TareasPage() {
                       <Button
                         type="submit"
                         disabled={createTaskMutation.isPending}
-                        className="bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 px-6 font-semibold transition-all"
+                        className="bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 px-6 font-semibold transition-all"
                         data-testid="button-submit-task"
                       >
                         {createTaskMutation.isPending ? (
@@ -1518,24 +1541,7 @@ export default function TareasPage() {
         {(activeTab === 'tareas' || activeTab === 'seguimiento') && (
         <div className="space-y-6">
 
-          {/* Segment Tabs - hidden for salesperson y cuando solo hay un segmento visible
-              (marketing / supervisor con segmento único): no tiene sentido mostrar una sola pestaña */}
-          {!isSalesperson && visibleSegmentos.length > 1 && (
-            <div className={`flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0 ${visibleSegmentos.length > 1 ? 'sm:grid sm:grid-cols-4' : 'sm:flex'}`}>
-              {visibleSegmentos.map((seg) => (
-                <button
-                  key={seg.value}
-                  onClick={() => setSegmentoFilter(seg.value)}
-                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
-                    ? "bg-gradient-to-r from-orange-600 to-orange-600 text-white shadow-md shadow-orange-500/25"
-                    : "bg-white border border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/40 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
-                    }`}
-                >
-                  {seg.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
 
           {/* Filters and View Toggle - solo administrador (los demás roles ven el listado ya scopeado por su rol) */}
           {user.role === 'admin' && (
@@ -1606,21 +1612,6 @@ export default function TareasPage() {
                           <SelectItem value="high">Alta</SelectItem>
                           <SelectItem value="medium">Media</SelectItem>
                           <SelectItem value="low">Baja</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Cliente Filter */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-muted-foreground">Cliente:</Label>
-                      <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                        <SelectTrigger className="h-9 text-sm" data-testid="select-cliente-filter">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="with-client">Con Cliente</SelectItem>
-                          <SelectItem value="without-client">Sin Cliente</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1700,30 +1691,9 @@ export default function TareasPage() {
                         </Select>
                       </div>
                     </div>
-                    <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
-
-                    {/* Cliente Filter */}
-                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 flex-shrink-0">
-                        <Building2 className="h-4 w-4" />
-                      </div>
-                      <div className="flex flex-col leading-none">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Cliente</span>
-                        <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-cliente-filter-desktop">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
-                            <SelectItem value="with-client">Con Cliente</SelectItem>
-                            <SelectItem value="without-client">Sin Cliente</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
                   </div>
 
-                  <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-orange-500/25 rounded-full">
+                  <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-orange-500/25 rounded-full">
                     {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -1811,7 +1781,7 @@ export default function TareasPage() {
                     />
                     <Button
                       size="sm"
-                      className="h-6 px-2.5 text-[10px] bg-orange-600 hover:bg-orange-700 font-semibold"
+                      className="h-6 px-2.5 text-[10px] bg-[#fd6301] hover:bg-[#e35400] font-semibold"
                       disabled={!newGroupName.trim() || createGroupMutation.isPending}
                       onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter })}
                     >
@@ -1853,8 +1823,8 @@ export default function TareasPage() {
           {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && (
             <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
               {/* Puntita que apunta al botón "Nuevo Grupo" */}
-              <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-orange-600 dark:bg-orange-500" />
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-600 to-orange-600 text-white p-4 pr-10 shadow-lg shadow-orange-500/25">
+              <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-[#fd6301] dark:bg-orange-500" />
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#fd6301] to-[#fd6301] text-white p-4 pr-10 shadow-lg shadow-orange-500/25">
                 {/* Brillo decorativo */}
                 <div className="pointer-events-none absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
                 <button
@@ -1891,8 +1861,8 @@ export default function TareasPage() {
             ) : filteredTasks.length === 0 ? (
               <div className="text-center py-20">
                 <div className="relative w-20 h-20 mx-auto mb-5">
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 blur-lg opacity-25" />
-                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-[#fd6301] blur-lg opacity-25" />
+                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500 to-[#fd6301] flex items-center justify-center shadow-lg shadow-orange-500/25">
                     <CheckSquare className="h-9 w-9 text-white" />
                   </div>
                 </div>
@@ -1912,7 +1882,7 @@ export default function TareasPage() {
                       }
                       setShowCreateDialog(true);
                     }}
-                    className="bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 transition-all"
+                    className="bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primera tarea
@@ -2188,7 +2158,7 @@ export default function TareasPage() {
                           <div className={`absolute inset-[6px] rounded-full flex items-center justify-center text-sm font-bold ${
                             muted ? 'bg-slate-100 text-slate-500'
                               : isSupervisor ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white'
-                              : 'bg-gradient-to-br from-orange-400 to-orange-600 text-white'
+                              : 'bg-gradient-to-br from-orange-400 to-[#fd6301] text-white'
                           }`}>
                             {grp.name.charAt(0).toUpperCase()}
                           </div>
@@ -2347,7 +2317,7 @@ export default function TareasPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); submitEditingGroup(); }}
                               disabled={renameGroupMutation.isPending || !editingGroupName.trim()}
-                              className="p-1.5 rounded-lg text-white bg-orange-600 hover:bg-orange-700 transition-all flex-shrink-0 disabled:opacity-50"
+                              className="p-1.5 rounded-lg text-white bg-[#fd6301] hover:bg-[#e35400] transition-all flex-shrink-0 disabled:opacity-50"
                               title="Guardar nombre"
                             >
                               {renameGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -2745,7 +2715,7 @@ function EstimacionSemanalTab({
       {/* Resumen de cumplimiento Premium */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-orange-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-[#e35400] opacity-95 group-hover:opacity-100 transition-opacity" />
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <TrendingUp className="w-16 h-16 text-white" />
           </div>
@@ -2766,7 +2736,7 @@ function EstimacionSemanalTab({
         </Card>
 
         <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#fd6301] to-[#e35400] opacity-95 group-hover:opacity-100 transition-opacity" />
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <Building2 className="w-16 h-16 text-white" />
           </div>
@@ -4084,7 +4054,7 @@ function TaskDetailDialog({
               <div className={`rounded-xl p-2.5 shadow-sm flex-shrink-0 ${
                 isCompleted ? 'bg-emerald-600' :
                 task.priority === 'high' ? 'bg-red-600' :
-                'bg-gradient-to-br from-orange-500 to-orange-600'
+                'bg-gradient-to-br from-orange-500 to-[#fd6301]'
               }`}>
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
@@ -4240,7 +4210,7 @@ function TaskDetailDialog({
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-sm"
+                        className="bg-[#fd6301] hover:bg-[#e35400] text-white font-semibold text-xs shadow-sm"
                         disabled={updateDescriptionMutation.isPending}
                         onClick={() => updateDescriptionMutation.mutate(descriptionDraft.trim())}
                       >
@@ -4352,7 +4322,7 @@ function TaskDetailDialog({
                       />
                       <Button
                         size="sm"
-                        className="h-8 w-8 p-0 bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex-shrink-0"
+                        className="h-8 w-8 p-0 bg-[#fd6301] hover:bg-[#e35400] text-white shadow-sm flex-shrink-0"
                         disabled={updateDriveLinksMutation.isPending || !newLinkUrl.trim()}
                         onClick={addDriveLink}
                         title="Agregar enlace"
@@ -4625,7 +4595,7 @@ function DetailChatInput({ taskId, assignmentId }: { taskId: string; assignmentI
         <Button
           type="submit"
           size="sm"
-          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md"
+          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
           disabled={addCommentMutation.isPending || !text.trim()}
           data-testid="button-send-chat"
         >
@@ -4748,7 +4718,7 @@ function CommentsThread({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-[#fd6301] flex items-center justify-center text-white text-xs font-bold">
                         {comment.authorName?.charAt(0).toUpperCase() || 'U'}
                       </div>
                       <span className="text-xs font-semibold text-gray-800 truncate">
@@ -4801,7 +4771,7 @@ function CommentsThread({
             </Button>
             <Button
               size="sm"
-              className="h-8 px-4 bg-gradient-to-r from-blue-500 to-orange-600 hover:from-blue-600 hover:to-orange-700 text-white font-medium rounded-full"
+              className="h-8 px-4 bg-gradient-to-r from-blue-500 to-[#fd6301] hover:from-blue-600 hover:to-[#e35400] text-white font-medium rounded-full"
               onClick={handleSubmitComment}
               disabled={addCommentMutation.isPending || !editingText.trim()}
               data-testid={`button-submit-comment-${assignmentId}`}
@@ -4985,7 +4955,7 @@ function CalendarViewTab({
                 >
                   {/* Número del día */}
                   <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
-                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-orange-600 text-white' : ''
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-[#fd6301] text-white' : ''
                       }`}>
                       {format(day, 'd')}
                     </span>
@@ -5418,7 +5388,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                 {allRutas.filter((r) => !yaEn.has(r.id)).map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}{r.fecha ? ` · ${format(new Date(r.fecha), "dd MMM", { locale: es })}` : ""}</SelectItem>))}
               </SelectContent>
             </Select>
-            <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>
+            <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>
               {assign.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Asignar"}
             </Button>
           </div>
@@ -5439,7 +5409,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
             <Input type="date" value={visitaFecha} onChange={(e) => setVisitaFecha(e.target.value)} className="h-8 text-xs" />
           </div>
           <Input value={visitaNota} onChange={(e) => setVisitaNota(e.target.value)} placeholder="Nota (opcional)…" className="h-8 text-xs" />
-          <Button size="sm" className="w-full h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!visitaRuta || !visitaFecha || registrarVisita.isPending} onClick={() => registrarVisita.mutate()}>
+          <Button size="sm" className="w-full h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!visitaRuta || !visitaFecha || registrarVisita.isPending} onClick={() => registrarVisita.mutate()}>
             {registrarVisita.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
           </Button>
         </div>
@@ -5799,7 +5769,7 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="bg-orange-600 hover:bg-orange-700 text-white" disabled={!titulo.trim() || !descripcion.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
+          <Button className="bg-[#fd6301] hover:bg-[#e35400] text-white" disabled={!titulo.trim() || !descripcion.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
             {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar solicitud"}
           </Button>
         </DialogFooter>
@@ -5961,7 +5931,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
           {total > 0 && <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600">{done}/{total}</Badge>}
         </div>
         {canManage && !showForm && (
-          <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" onClick={() => setShowForm(true)}>
+          <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva actividad
           </Button>
         )}
@@ -5989,7 +5959,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
                   placeholder="Nombre de la ruta nueva…"
                   className="h-8 text-xs flex-1"
                 />
-                <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs" disabled={!nuevaRuta.trim() || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
+                <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!nuevaRuta.trim() || createRutaMut.isPending} onClick={() => createRutaMut.mutate()}>
                   {createRutaMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
                 </Button>
                 <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setCreatingRuta(false); setNuevaRuta(""); }}>Cancelar</Button>
@@ -6012,7 +5982,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
           )}
           <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción (opcional)…" className="text-xs resize-none" />
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-xs flex-1" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
+            <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs flex-1" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
               {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Agregar</>}
             </Button>
             <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => setShowForm(false)}>Cancelar</Button>
@@ -6097,7 +6067,7 @@ function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?
         {editing ? (
           <div className="flex items-center gap-1.5">
             <div className="w-[210px]"><DateTimePicker value={dateValue} onChange={setDateValue} /></div>
-            <button onClick={() => updateDueDate.mutate(dateValue ? new Date(dateValue).toISOString() : null)} disabled={updateDueDate.isPending} className="text-[11px] font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2 py-1 disabled:opacity-50">{updateDueDate.isPending ? "…" : "Guardar"}</button>
+            <button onClick={() => updateDueDate.mutate(dateValue ? new Date(dateValue).toISOString() : null)} disabled={updateDueDate.isPending} className="text-[11px] font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white rounded-lg px-2 py-1 disabled:opacity-50">{updateDueDate.isPending ? "…" : "Guardar"}</button>
             <button onClick={() => setEditing(false)} className="text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1">Cancelar</button>
           </div>
         ) : (
