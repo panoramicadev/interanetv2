@@ -985,7 +985,7 @@ export default function TareasPage() {
     createTaskMutation.mutate({ ...data, ...(payload ? { payload } : {}) } as any);
   };
 
-  const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra';
+  const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra' || user.role === 'marketing';
   // Solo admin/supervisor/encargado pueden enviar Solicitudes de Marketing (debe coincidir
   // con el allowlist del backend en POST /api/marketing/solicitudes). El técnico de obra
   // conserva 'Nueva Tarea' para Seguimiento/Otras, pero no ve la opción de Marketing.
@@ -1543,8 +1543,8 @@ export default function TareasPage() {
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
 
-          {/* Filters and View Toggle - solo administrador (los demás roles ven el listado ya scopeado por su rol) */}
-          {user.role === 'admin' && (
+          {/* Filters and View Toggle - solo administrador y solo en la pestaña Tareas (Seguimiento no usa estos filtros) */}
+          {user.role === 'admin' && activeTab !== 'seguimiento' && (
           <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80 overflow-hidden">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
@@ -1619,43 +1619,40 @@ export default function TareasPage() {
                 )}
               </div>
 
-              {/* Desktop: Always Visible Filters - barra moderna tipo combobox */}
-              <div className="hidden lg:block px-4 py-3">
-                <div className="flex items-center gap-1.5 flex-wrap justify-between">
-                  <div className="flex items-center gap-0.5 flex-wrap">
+              {/* Desktop: Always Visible Filters - cada filtro es una tarjeta-pill con aire propio */}
+              <div className="hidden lg:block px-5 py-4">
+                <div className="flex items-center gap-4 flex-wrap justify-between">
+                  <div className="flex items-center gap-3 flex-wrap">
                     {/* View Mode Toggle */}
                     {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
-                      <>
-                        <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
-                            <Eye className="h-4 w-4" />
-                          </div>
-                          <div className="flex flex-col leading-none">
-                            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Vista</span>
-                            <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                              <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-view-mode">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="my-tasks">Mis Tareas</SelectItem>
-                                <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                      <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
+                        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                          <Eye className="h-4 w-4" />
                         </div>
-                        <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
-                      </>
+                        <div className="flex flex-col leading-none">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Vista</span>
+                          <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                            <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-view-mode">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                              <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     )}
 
                     {/* Status Filter */}
-                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-emerald-200 hover:shadow transition-all">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
                         <CheckCircle className="h-4 w-4" />
                       </div>
                       <div className="flex flex-col leading-none">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Estado</span>
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Estado</span>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-status-filter">
+                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-status-filter">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1669,17 +1666,16 @@ export default function TareasPage() {
                         </Select>
                       </div>
                     </div>
-                    <div className="w-px h-9 bg-slate-200/80 dark:bg-slate-700" />
 
                     {/* Priority Filter */}
-                    <div className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 flex-shrink-0">
+                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-amber-200 hover:shadow transition-all">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 flex-shrink-0">
                         <AlertTriangle className="h-4 w-4" />
                       </div>
                       <div className="flex flex-col leading-none">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Prioridad</span>
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Prioridad</span>
                         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-priority-filter">
+                          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-priority-filter">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1693,7 +1689,7 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-orange-500/25 rounded-full">
+                  <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
                     {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -1703,7 +1699,7 @@ export default function TareasPage() {
           )}
 
           {/* Contador compacto para roles sin filtros (todos menos administrador) */}
-          {user.role !== 'admin' && (
+          {user.role !== 'admin' && activeTab !== 'seguimiento' && (
             <div className="flex items-center justify-between">
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
@@ -1712,8 +1708,8 @@ export default function TareasPage() {
           )}
 
           {/* Group Management Bar */}
-          {/* Group Management Bar - hidden for salesperson */}
-          {!isSalesperson && segmentoFilter !== "all" && (
+          {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
+          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
             <div className="flex items-center gap-2 flex-wrap">
               {/* Toggle Equipo / Grupos — segmented control (Equipo a la izquierda) */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
@@ -1820,7 +1816,7 @@ export default function TareasPage() {
           )}
 
           {/* Burbuja tutorial: ¿para qué sirven los grupos? - cerrable */}
-          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && (
+          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
             <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
               {/* Puntita que apunta al botón "Nuevo Grupo" */}
               <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-[#fd6301] dark:bg-orange-500" />
@@ -4024,7 +4020,9 @@ function TaskDetailDialog({
   };
 
   const canDeleteTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
-  const canUpdateStatus = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area');
+  // El creador de la tarea también puede marcarla completada/reabrirla (coincide con el backend
+  // canUpdate en PATCH /api/tasks/:id) — habilita al rol marketing sobre las tareas que crea.
+  const canUpdateStatus = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
   const isCompleted = task.status === 'completada';
   // Un seguimiento de cliente es un espacio de trabajo (no una tarea que se completa):
   // muestra progreso de sus actividades en vez de "Marcar completada".

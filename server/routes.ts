@@ -13969,8 +13969,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Admin, supervisor and tecnico_obra can create tasks
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'tecnico_obra') {
+      // Admin, supervisor, tecnico_obra and marketing can create tasks
+      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'tecnico_obra' && user.role !== 'marketing') {
         return res.status(403).json({ message: "Only administrators, supervisors and technical staff can create tasks" });
       }
 
