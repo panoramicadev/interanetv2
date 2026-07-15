@@ -13787,6 +13787,35 @@ export class DatabaseStorage implements IStorage {
     return this.attachVendedores(rutas);
   }
 
+  // Scope de manager (supervisor/encargado): ve las rutas que él creó MÁS las
+  // asignadas a cualquier vendedor de su equipo. Esto cubre el caso de rutas
+  // cargadas por el admin/otro manager a nombre de sus vendedores: quedan con
+  // supervisorId ajeno, pero el manager igual las ve porque su vendedor figura
+  // como asignado (vendedorId principal o tabla N-a-N ruta_vendedores).
+  async getRutasForManager(managerId: string): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
+    const team = await db.select({ id: salespeopleUsers.id })
+      .from(salespeopleUsers)
+      .where(and(
+        eq(salespeopleUsers.supervisorId, managerId),
+        inArray(salespeopleUsers.role, ['salesperson', 'encargado_area']),
+        eq(salespeopleUsers.isActive, true),
+      ));
+    const teamIds = team.map((t) => t.id);
+    // Rutas donde algún vendedor del equipo figura en la tabla N-a-N.
+    const asignadas = teamIds.length > 0
+      ? await db.select({ rutaId: rutaVendedores.rutaId })
+          .from(rutaVendedores).where(inArray(rutaVendedores.vendedorId, teamIds))
+      : [];
+    const rutaIds = Array.from(new Set(asignadas.map((a) => a.rutaId)));
+    const conds = [eq(rutasComerciales.supervisorId, managerId)];
+    if (teamIds.length > 0) conds.push(inArray(rutasComerciales.vendedorId, teamIds));
+    if (rutaIds.length > 0) conds.push(inArray(rutasComerciales.id, rutaIds));
+    const rutas = await db.select().from(rutasComerciales)
+      .where(conds.length > 1 ? or(...conds) : conds[0])
+      .orderBy(desc(rutasComerciales.createdAt));
+    return this.attachVendedores(rutas);
+  }
+
   // Todas las rutas (scope admin): ve las de cualquier supervisor/vendedor, no solo las propias.
   async getAllRutas(): Promise<Array<RutaComercial & { vendedores: Array<{ id: string; nombre: string | null }> }>> {
     const rutas = await db.select().from(rutasComerciales).orderBy(desc(rutasComerciales.createdAt));
