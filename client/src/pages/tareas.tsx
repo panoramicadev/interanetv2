@@ -69,6 +69,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
+import SeguimientoClientes from "@/pages/seguimiento-clientes";
+import { usePermissions } from "@/hooks/usePermissions";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -181,6 +183,15 @@ export default function TareasPage() {
   const isSalesperson = user?.role === 'salesperson';
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
+  // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
+  const { can } = usePermissions();
+  const showCrmTab = !isMarketing && can("clientes.seguimiento");
+  // Pestañas siempre presentes: Tareas, Seguimiento, Rutas Comerciales, Calendario (4).
+  // Estimación y Marketing solo para no-técnico y no-marketing; CRM según permiso.
+  const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
+  const visibleTabCount = 4 + (showExtraSegmentTabs ? 2 : 0) + (showCrmTab ? 1 : 0);
+  const tabsGridClass =
+    ({ 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
   // View state - vendedores always see "my-tasks"
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
@@ -853,6 +864,15 @@ export default function TareasPage() {
     if (activeTab === 'seguimiento' && !isSeguimientoTask) return false;
     if (activeTab === 'tareas' && isSeguimientoTask) return false;
 
+    // Pestaña Marketing: solo tareas del área marketing SIN cliente asociado.
+    // Las que tienen cliente se ven en la pestaña Marketing de la ficha del cliente.
+    if (activeTab === 'marketing') {
+      if (isSeguimientoTask) return false;
+      if ((task as any).segmento !== 'marketing') return false;
+      if ((task as any).clienteId || (task as any).clienteNombre) return false;
+      return true;
+    }
+
     // Cliente filter
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
     if (clienteFilter === "without-client" && (task as any).clienteId) return false;
@@ -1079,8 +1099,8 @@ export default function TareasPage() {
                   setSearchClienteTask("");
                   form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
                   setShowCreateDialog(true);
-                } else if (isMarketing) {
-                  // La encargada de Marketing crea directamente una tarea de su área:
+                } else if (isMarketing || activeTab === 'marketing') {
+                  // Desde el área/pestaña Marketing se crea directo una tarea del área:
                   // saltar el selector y abrir el formulario estándar con segmento = marketing.
                   setTaskFlow('otras');
                   setSelectedClienteTask(null);
@@ -1097,7 +1117,10 @@ export default function TareasPage() {
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
-                if (open && segmentoFilter && segmentoFilter !== 'all') {
+                if (open && activeTab === 'marketing') {
+                  // En la pestaña Marketing la tarea siempre es del área marketing.
+                  form.setValue('segmento', 'marketing');
+                } else if (open && segmentoFilter && segmentoFilter !== 'all') {
                   form.setValue('segmento', segmentoFilter);
                 }
               }}>
@@ -1527,7 +1550,7 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${(user?.role === 'tecnico_obra' || isMarketing) ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${tabsGridClass}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
               Tareas
@@ -1542,6 +1565,18 @@ export default function TareasPage() {
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
               </TabsTrigger>
             )}
+            {user?.role !== 'tecnico_obra' && !isMarketing && (
+              <TabsTrigger value="marketing" data-testid="tab-marketing" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
+                <Palette className="h-4 w-4 mr-2 hidden sm:inline" />
+                Marketing
+              </TabsTrigger>
+            )}
+            {showCrmTab && (
+              <TabsTrigger value="crm" data-testid="tab-crm" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
+                <Users className="h-4 w-4 mr-2 hidden sm:inline" />
+                CRM
+              </TabsTrigger>
+            )}
             <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
               <MapPin className="h-4 w-4 mr-2 hidden sm:inline" />
               Rutas Comerciales
@@ -1553,7 +1588,7 @@ export default function TareasPage() {
           </TabsList>
         </div>
 
-        {(activeTab === 'tareas' || activeTab === 'seguimiento') && (
+        {(activeTab === 'tareas' || activeTab === 'seguimiento' || activeTab === 'marketing') && (
         <div className="space-y-6">
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
@@ -2610,6 +2645,13 @@ export default function TareasPage() {
         <TabsContent value="rutas-comerciales" className="space-y-6">
           <RutasComercialesContent />
         </TabsContent>
+
+        {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
+        {showCrmTab && (
+          <TabsContent value="crm" className="space-y-6">
+            <SeguimientoClientes />
+          </TabsContent>
+        )}
 
       </Tabs>
     </div>
@@ -4468,7 +4510,7 @@ function TaskDetailDialog({
                     <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
                     <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} taskId={task.id} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
-                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
+                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
               </div>
@@ -5074,7 +5116,7 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
           <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} taskId={task.id} /></TabsContent>
-          <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
+          <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
         </div>
       </Tabs>
     </div>
@@ -5581,13 +5623,32 @@ function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose }: { clie
   );
 }
 
-function MarketingClientePanel({ clienteNombre, canManage }: { clienteNombre: string; canManage: boolean }) {
+function MarketingClientePanel({ clienteId, clienteNombre, canManage }: { clienteId?: string; clienteNombre: string; canManage: boolean }) {
   const { toast } = useToast();
   const [assignOpen, setAssignOpen] = useState(false);
   const { data = [], isLoading } = useQuery<Array<{ itemId: string; itemNombre: string; unidad: string; cantidadEnPoder: number }>>({
     queryKey: ["/api/marketing/inventario-por-cliente", { cliente: clienteNombre }],
     enabled: !!clienteNombre,
   });
+
+  // Tareas del área Marketing asociadas a este cliente (por id o por nombre).
+  // Reusa la caché de ["/api/tasks"] que ya alimenta el listado principal.
+  const { data: allTasks = [], isLoading: isLoadingTasks } = useQuery<Array<any>>({
+    queryKey: ["/api/tasks"],
+    enabled: !!clienteNombre || !!clienteId,
+  });
+  const tareasMarketing = (allTasks || []).filter((t) => {
+    if (t.segmento !== "marketing") return false;
+    const matchId = clienteId && String(t.clienteId || "") === String(clienteId);
+    const matchNombre = clienteNombre && String(t.clienteNombre || "") === String(clienteNombre);
+    return matchId || matchNombre;
+  });
+  const estadoTarea = (t: any): { done: boolean; label: string; cls: string } => {
+    const done = t.status === "completada" || (t.assignments || []).some((a: any) => a.status === "completed");
+    if (done) return { done, label: "Terminada", cls: "bg-green-100 text-green-700" };
+    if (t.status === "en_proceso" || t.status === "en_progreso") return { done, label: "En proceso", cls: "bg-blue-100 text-blue-700" };
+    return { done, label: "Pendiente", cls: "bg-amber-100 text-amber-700" };
+  };
 
   // Refrescar tanto lo que tiene el cliente como el inventario global (el stock cambió).
   const refetchAll = () => {
@@ -5605,7 +5666,34 @@ function MarketingClientePanel({ clienteNombre, canManage }: { clienteNombre: st
   });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
+      {/* Tareas de Marketing asociadas al cliente */}
+      <div className="space-y-2">
+        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Tareas de marketing</p>
+        {isLoadingTasks ? (
+          <p className="text-xs text-slate-400">Cargando tareas…</p>
+        ) : tareasMarketing.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">El cliente no tiene tareas de marketing asociadas.</p>
+        ) : (
+          <div className="space-y-1">
+            {tareasMarketing.map((t) => {
+              const est = estadoTarea(t);
+              return (
+                <div key={t.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+                  <Palette className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
+                  <span className={`font-medium flex-1 truncate ${est.done ? "text-slate-400 line-through" : "text-slate-700"}`}>{t.title}</span>
+                  {t.dueDate && (
+                    <span className="text-[10px] text-slate-400 flex-shrink-0">{format(new Date(t.dueDate), "dd MMM", { locale: es })}</span>
+                  )}
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${est.cls}`}>{est.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Elementos entregados</p>
         {canManage && (
@@ -5643,6 +5731,7 @@ function MarketingClientePanel({ clienteNombre, canManage }: { clienteNombre: st
           ))}
         </div>
       )}
+      </div>
       {assignOpen && (
         <AssignMarketingDialog open={assignOpen} onOpenChange={setAssignOpen} clienteNombre={clienteNombre} onDone={refetchAll} />
       )}
