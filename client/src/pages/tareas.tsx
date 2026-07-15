@@ -1077,6 +1077,31 @@ export default function TareasPage() {
     );
   }
 
+  // Selector de Área reutilizable — la card-pill con el ícono de edificio y el dropdown de segmento.
+  // Vive normalmente en el header; cuando el administrador está en Tareas/Marketing se muestra
+  // a la derecha de la fila de filtros (areaSelectorInFilters) para aprovechar mejor ese espacio.
+  const areaSelectorInFilters = user.role === 'admin' && (activeTab === 'tareas' || activeTab === 'marketing') && !isSalesperson && visibleSegmentos.length > 1;
+  const areaSelector = (
+    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+        <Building2 className="h-4 w-4" />
+      </div>
+      <div className="flex flex-col leading-none">
+        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Área</span>
+        <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {visibleSegmentos.map((seg) => (
+              <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
@@ -1096,27 +1121,10 @@ export default function TareasPage() {
           {(canCreateTasks || canRequestMarketing) && (
             <>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área visible (admin/supervisor multi-segmento) */}
-              {!isSalesperson && visibleSegmentos.length > 1 && (
-                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                  <div className="flex flex-col leading-none">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Área</span>
-                    <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
-                      <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {visibleSegmentos.map((seg) => (
-                          <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área
+                  visible. Cuando el admin está en Tareas/Marketing se muestra a la derecha de los
+                  filtros (areaSelectorInFilters) en lugar de aquí. */}
+              {!isSalesperson && visibleSegmentos.length > 1 && !areaSelectorInFilters && areaSelector}
               <Button onClick={() => {
                 // El vendedor solo puede pedirle a Marketing: abrimos directo ese diálogo.
                 if (onlyMarketingRequest) {
@@ -1141,7 +1149,7 @@ export default function TareasPage() {
                 } else {
                   setShowChooser(true);
                 }
-              }} className="w-full sm:w-auto bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+              }} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
                 {onlyMarketingRequest ? <TrendingUp className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                 {onlyMarketingRequest ? 'Solicitar a Marketing' : (activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea')}
               </Button>
@@ -1770,9 +1778,12 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
-                    {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
-                  </Badge>
+                  <div className="flex items-center gap-3 flex-wrap justify-end">
+                    {areaSelectorInFilters && areaSelector}
+                    <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
+                      {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -1820,7 +1831,7 @@ export default function TareasPage() {
                     <Button
                       size="sm"
                       onClick={() => setShowCreateGroup(true)}
-                      className="h-8 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/50 shadow-sm transition-all"
+                      className="h-8 rounded-2xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/50 shadow-sm transition-all"
                     >
                       <Plus className="h-3.5 w-3.5 mr-1.5" />
                       Nuevo Grupo
@@ -1871,7 +1882,7 @@ export default function TareasPage() {
                     <Button
                       size="sm"
                       onClick={exitSelectionMode}
-                      className="h-8 text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all"
+                      className="h-8 rounded-2xl text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all"
                     >
                       <X className="h-3.5 w-3.5 mr-1.5" />
                       Cancelar
@@ -1880,7 +1891,7 @@ export default function TareasPage() {
                     <Button
                       size="sm"
                       onClick={() => setSelectionMode(true)}
-                      className="h-8 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-red-300 hover:text-red-600 hover:bg-red-50/50 shadow-sm transition-all"
+                      className="h-8 rounded-2xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-red-300 hover:text-red-600 hover:bg-red-50/50 shadow-sm transition-all"
                     >
                       <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
                       Seleccionar
