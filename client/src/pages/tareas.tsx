@@ -2776,83 +2776,69 @@ function EstimacionSemanalTab({
         </CardHeader>
       </Card>
 
-      {/* Resumen de cumplimiento Premium */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-[#e35400] opacity-95 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <TrendingUp className="w-16 h-16 text-white" />
-          </div>
-          <CardContent className="relative p-6">
-            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Total Prometido
-            </p>
-            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+      {/* Resumen de cumplimiento */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Total Prometido */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">Prometido</span>
+              <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-slate-500" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               ${resumen.totalPrometido.toLocaleString('es-CL')}
-            </h3>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold">
-                {resumen.totalPromesas} PROMESAS
-              </Badge>
             </div>
+            <p className="text-[11px] text-slate-400 mt-1">{resumen.totalPromesas} promesas</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#fd6301] to-[#e35400] opacity-95 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <Building2 className="w-16 h-16 text-white" />
-          </div>
-          <CardContent className="relative p-6">
-            <p className="text-orange-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              Total Vendido
-            </p>
-            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+        {/* Total Vendido */}
+        <Card className="border border-orange-200 dark:border-orange-900/40 shadow-sm rounded-2xl">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">Vendido</span>
+              <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center">
+                <Building2 className="h-4 w-4 text-[#fd6301]" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               ${resumen.totalVendido.toLocaleString('es-CL')}
-            </h3>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold">
-                FACTURAS + NVV
-              </Badge>
             </div>
+            <p className="text-[11px] text-slate-400 mt-1">NVV + GDV</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-teal-600 opacity-95 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <CheckCircle className="w-16 h-16 text-white" />
-          </div>
-          <CardContent className="relative p-6">
-            <p className="text-emerald-500 border border-white/20 px-2 py-0.5 rounded bg-white text-[10px] font-black uppercase tracking-wider mb-2 w-fit">
-              Cumplidas
-            </p>
-            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+        {/* Cumplidas */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-600">Cumplidas</span>
+              <div className="h-8 w-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+                <CheckCircle className="h-4 w-4 text-emerald-600" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">
               {resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}
-            </h3>
-            <p className="text-emerald-100 text-[10px] sm:text-xs font-medium">
-              {resumen.superadas} superadas, {resumen.cumplidasParcialmente} parcial
-            </p>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{resumen.superadas} superadas · {resumen.cumplidasParcialmente} parcial</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-600 opacity-95 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <AlertCircle className="w-16 h-16 text-white" />
-          </div>
-          <CardContent className="relative p-6">
-            <p className="text-orange-500 border border-white/20 px-2 py-0.5 rounded bg-white text-[10px] font-black uppercase tracking-wider mb-2 w-fit">
-              Incumplidas
-            </p>
-            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+        {/* Incumplidas */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-red-600">Incumplidas</span>
+              <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-red-600 tracking-tight">
               {resumen.insuficientes + resumen.noCumplidas}
-            </h3>
-            <p className="text-orange-100 text-[10px] sm:text-xs font-medium">
-              {resumen.insuficientes} insuficientes, {resumen.noCumplidas} sin ventas
-            </p>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{resumen.insuficientes} insufic. · {resumen.noCumplidas} sin ventas</p>
           </CardContent>
         </Card>
       </div>
@@ -2950,31 +2936,31 @@ function EstimacionSemanalTab({
                         </td>
                         <td className="text-center py-3 px-4">
                           {item.estado === 'superado' && (
-                            <Badge className="bg-green-500 text-white">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Superado
                             </Badge>
                           )}
                           {item.estado === 'cumplido' && (
-                            <Badge className="bg-blue-500 text-white">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
                             </Badge>
                           )}
                           {item.estado === 'cumplido_parcialmente' && (
-                            <Badge className="bg-yellow-500 text-white">
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
-                              Cumplido Parcialmente
+                              Parcialmente
                             </Badge>
                           )}
                           {item.estado === 'insuficiente' && (
-                            <Badge className="bg-orange-500 text-white">
+                            <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 font-medium rounded-full">
                               <AlertCircle className="mr-1 h-3 w-3" />
                               Insuficiente
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
-                            <Badge variant="destructive">
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-medium rounded-full">
                               <XCircle className="mr-1 h-3 w-3" />
                               No Cumplido
                             </Badge>
@@ -3014,27 +3000,27 @@ function EstimacionSemanalTab({
                             )}
                           </div>
                           {item.estado === 'superado' && (
-                            <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               Superado
                             </Badge>
                           )}
                           {item.estado === 'cumplido' && (
-                            <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               Cumplido
                             </Badge>
                           )}
                           {item.estado === 'cumplido_parcialmente' && (
-                            <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               Parcial
                             </Badge>
                           )}
                           {item.estado === 'insuficiente' && (
-                            <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                            <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               Insufic.
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               No Cump.
                             </Badge>
                           )}
