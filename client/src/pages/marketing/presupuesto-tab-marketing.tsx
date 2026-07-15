@@ -491,7 +491,7 @@ export default function PresupuestoTabMarketing({
                     {isAdmin && (
                         <Button
                             onClick={() => setAddDialogOpen(true)}
-                            className="rounded-xl bg-orange-600 hover:bg-orange-700"
+                            className="rounded-xl bg-[#fd6301] hover:bg-[#e35400]"
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             Agregar Ítem
@@ -1046,7 +1046,7 @@ export default function PresupuestoTabMarketing({
                             {isAdmin && (
                                 <Button
                                     onClick={() => setAddDialogOpen(true)}
-                                    className="mt-4 rounded-xl bg-orange-600 hover:bg-orange-700"
+                                    className="mt-4 rounded-xl bg-[#fd6301] hover:bg-[#e35400]"
                                 >
                                     <Plus className="mr-2 h-4 w-4" />
                                     Agregar Primer Ítem
@@ -1099,7 +1099,7 @@ export default function PresupuestoTabMarketing({
                         <Button
                             onClick={handleAddItem}
                             disabled={!newItem.concepto.trim() || createMutation.isPending}
-                            className="bg-orange-600 hover:bg-orange-700"
+                            className="bg-[#fd6301] hover:bg-[#e35400]"
                         >
                             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Agregar

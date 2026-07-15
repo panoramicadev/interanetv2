@@ -439,7 +439,7 @@ export default function GastosTabMarketing({
                     </Select>
                 </div>
                 {isAdmin && (
-                    <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl bg-orange-600 hover:bg-orange-700 ml-auto">
+                    <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl bg-[#fd6301] hover:bg-[#e35400] ml-auto">
                         <Plus className="mr-2 h-4 w-4" />
                         Registrar Gasto
                     </Button>
@@ -486,7 +486,7 @@ export default function GastosTabMarketing({
                             <p className="text-lg font-medium">Sin gastos registrados</p>
                             <p className="text-sm">Registra gastos para llevar el control mensual.</p>
                             {isAdmin && (
-                                <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="mt-4 rounded-xl bg-orange-600 hover:bg-orange-700">
+                                <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="mt-4 rounded-xl bg-[#fd6301] hover:bg-[#e35400]">
                                     <Plus className="mr-2 h-4 w-4" /> Registrar Primer Gasto
                                 </Button>
                             )}
@@ -673,7 +673,7 @@ export default function GastosTabMarketing({
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={resetForm}>Cancelar</Button>
-                        <Button onClick={handleSubmit} disabled={!formData.concepto.trim() || !formData.monto || createMutation.isPending || updateMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
+                        <Button onClick={handleSubmit} disabled={!formData.concepto.trim() || !formData.monto || createMutation.isPending || updateMutation.isPending} className="bg-[#fd6301] hover:bg-[#e35400]">
                             {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {editingGasto ? "Guardar Cambios" : "Registrar"}
                         </Button>

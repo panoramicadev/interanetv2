@@ -188,7 +188,7 @@ export default function Marketing() {
               <TabsTrigger
                 value="inventario"
                 data-testid="tab-inventario"
-                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
               >
                 <Package className="h-4 w-4 shrink-0" />
                 <span className="hidden sm:inline">Inventario</span>
@@ -198,7 +198,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="gastos"
                   data-testid="tab-gastos"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <Receipt className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Gastos</span>
@@ -209,7 +209,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="presupuesto"
                   data-testid="tab-presupuesto"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <DollarSign className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Presupuesto</span>
@@ -220,7 +220,7 @@ export default function Marketing() {
                 <TabsTrigger
                   value="proveedores"
                   data-testid="tab-proveedores"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Proveedores</span>
@@ -791,7 +791,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
                         onClick={() => {
                           if (newComment.trim()) addCommentMutation.mutate(newComment.trim());
                         }}
-                        className="bg-orange-600 hover:bg-orange-700"
+                        className="bg-[#fd6301] hover:bg-[#e35400]"
                       >
                         {addCommentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       </Button>
@@ -1411,7 +1411,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
           </Button>
         </div>
         {canManage && (
-          <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-orange-600 hover:bg-orange-700">
+          <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-[#fd6301] hover:bg-[#e35400]">
             <Plus className="mr-2 h-4 w-4" /> Nuevo Item
           </Button>
         )}

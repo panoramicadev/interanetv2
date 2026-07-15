@@ -1072,6 +1072,14 @@ export default function TareasPage() {
                   setSearchClienteTask("");
                   form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
                   setShowCreateDialog(true);
+                } else if (isMarketing) {
+                  // La encargada de Marketing crea directamente una tarea de su área:
+                  // saltar el selector y abrir el formulario estándar con segmento = marketing.
+                  setTaskFlow('otras');
+                  setSelectedClienteTask(null);
+                  setSearchClienteTask("");
+                  form.reset({ title: "", description: "", priority: "medium", segmento: 'marketing', groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+                  setShowCreateDialog(true);
                 } else {
                   setShowChooser(true);
                 }
@@ -1732,6 +1740,11 @@ export default function TareasPage() {
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'terminadas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                       <Check className="h-3.5 w-3.5" /> Terminadas
+                      {kpiCompletadas > 0 && (
+                        <span className={`ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${taskView === 'terminadas' ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500 text-white'}`}>
+                          {kpiCompletadas}
+                        </span>
+                      )}
                     </button>
                   </>
                 )}

@@ -124,7 +124,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-orange-700 to-orange-800 text-white pb-4">
+                <CardHeader className="bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white pb-4">
                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Users className="h-5 w-5" />
@@ -232,7 +232,7 @@ export default function ProveedoresTabMarketing({ userRole }: { userRole: string
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={resetProvForm}>Cancelar</Button>
-                        <Button onClick={handleProvSubmit} disabled={!provForm.nombre.trim() || createProvMutation.isPending || updateProvMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
+                        <Button onClick={handleProvSubmit} disabled={!provForm.nombre.trim() || createProvMutation.isPending || updateProvMutation.isPending} className="bg-[#fd6301] hover:bg-[#e35400]">
                             {(createProvMutation.isPending || updateProvMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {editingProv ? "Guardar Cambios" : "Registrar"}
                         </Button>
