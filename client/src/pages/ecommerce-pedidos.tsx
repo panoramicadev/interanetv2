@@ -392,7 +392,9 @@ function ReceptionPedidosView() {
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-gray-500">{timeAgo(order.createdAt)}</span>
+                          <span className="text-[10px] text-gray-500">
+                            {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy", { locale: es }) : "—"}
+                          </span>
                         </div>
 
                         <div className="flex justify-end">
