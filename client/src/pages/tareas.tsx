@@ -2652,7 +2652,7 @@ export default function TareasPage() {
         {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
         {showCrmTab && (
           <TabsContent value="crm" className="space-y-6">
-            <SeguimientoClientes />
+            <SeguimientoClientes segmentoArea={segmentoFilter} />
           </TabsContent>
         )}
 
