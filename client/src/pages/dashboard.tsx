@@ -167,12 +167,22 @@ export default function Dashboard() {
       return `${year}-${String(month).padStart(2, '0')}`;
     } else if (selection.period === "full-year") {
       return `${selection.years[0]}-01`; // Placeholder for year view
-    } else if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
+    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
       // For day selection, use months array (not month singular)
       const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
       const day = selection.days[0];
       return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "days" && selection.days && selection.days.length > 0) {
+      // Rango de días → se comporta como un período agregado (rango de fechas),
+      // no como comparativa día-a-día. Formato que espera el backend para "range".
+      const year = selection.years[0];
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      const mm = String(month).padStart(2, '0');
+      const sortedDays = [...selection.days].sort((a, b) => a - b);
+      const firstDay = String(sortedDays[0]).padStart(2, '0');
+      const lastDay = String(sortedDays[sortedDays.length - 1]).padStart(2, '0');
+      return `${year}-${mm}-${firstDay}_${year}-${mm}-${lastDay}`;
     } else if (selection.period === "custom-range") {
       return "custom-range";
     }
@@ -180,7 +190,9 @@ export default function Dashboard() {
   })();
 
   const filterType: "day" | "month" | "year" | "range" = (() => {
-    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "day") return "day";
+    // Un rango de días se trata como período agregado (range), no como comparativa.
+    if (selection.period === "days") return "range";
     if (selection.period === "month" || selection.period === "months") return "month";
     if (selection.period === "full-year") return "year";
     if (selection.period === "custom-range") return "range";
@@ -224,6 +236,16 @@ export default function Dashboard() {
     if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
       return { from: selection.startDate, to: selection.endDate };
     }
+    // Rango de días → rango de fechas real para las vistas embebidas (detalle vendedor/sucursal/segmento).
+    if (selection.period === "days" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = (selection.months && selection.months.length > 0 ? selection.months[0] : 1) - 1;
+      const sortedDays = [...selection.days].sort((a, b) => a - b);
+      return {
+        from: new Date(year, month, sortedDays[0]),
+        to: new Date(year, month, sortedDays[sortedDays.length - 1]),
+      };
+    }
     return undefined;
   })();
 
@@ -256,8 +278,7 @@ export default function Dashboard() {
     if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
     // Multiple years with month(s) selected (mes-a-año comparison)
     if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) return true;
-    // Multiple days selected
-    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
+    // Nota: un rango de días NO entra en comparativa; se trata como período agregado (range).
     // Multiple years with full-year view
     if (selection.years.length > 1 && selection.period === "full-year") return true;
     return false;
@@ -280,19 +301,6 @@ export default function Dashboard() {
             period: `${year}-${String(month).padStart(2, '0')}`,
             label: monthName,
             filterType: "month"
-          });
-        });
-      });
-    } else if (selection.period === "days" && selection.days && selection.months && selection.months.length > 0) {
-      const month = selection.months[0]; // Use first month from months array (1-12)
-      selection.days.forEach(day => {
-        selection.years.forEach(year => {
-          const date = new Date(year, month - 1, day); // month - 1 for Date object
-          const dateLabel = format(date, "dd MMM yyyy");
-          periods.push({
-            period: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-            label: dateLabel,
-            filterType: "day"
           });
         });
       });

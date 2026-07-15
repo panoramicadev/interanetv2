@@ -137,12 +137,21 @@ export default function SucursalDetail({
       return `${year}-${String(month).padStart(2, '0')}`;
     } else if (selection.period === "full-year") {
       return `${selection.years[0]}-01`;
-    } else if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
+    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
       // For day selection, use months array (not month singular)
       const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
       const day = selection.days[0];
       return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "days" && selection.days && selection.days.length > 0) {
+      // Rango de días → período agregado (rango de fechas), no comparativa.
+      const year = selection.years[0];
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      const mm = String(month).padStart(2, '0');
+      const sortedDays = [...selection.days].sort((a, b) => a - b);
+      const firstDay = String(sortedDays[0]).padStart(2, '0');
+      const lastDay = String(sortedDays[sortedDays.length - 1]).padStart(2, '0');
+      return `${year}-${mm}-${firstDay}_${year}-${mm}-${lastDay}`;
     } else if (selection.period === "custom-range") {
       return "custom-range";
     }
@@ -150,7 +159,8 @@ export default function SucursalDetail({
   })();
 
   const filterType: "day" | "month" | "year" | "range" = embedded && dashboardFilterType ? dashboardFilterType : (() => {
-    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "day") return "day";
+    if (selection.period === "days") return "range";
     if (selection.period === "month" || selection.period === "months") return "month";
     if (selection.period === "full-year") return "year";
     if (selection.period === "custom-range") return "range";
@@ -174,6 +184,15 @@ export default function SucursalDetail({
     if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
       return { from: selection.startDate, to: selection.endDate };
     }
+    if (selection.period === "days" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = (selection.months && selection.months.length > 0 ? selection.months[0] : 1) - 1;
+      const sortedDays = [...selection.days].sort((a, b) => a - b);
+      return {
+        from: new Date(year, month, sortedDays[0]),
+        to: new Date(year, month, sortedDays[sortedDays.length - 1]),
+      };
+    }
     return undefined;
   })();
 
@@ -190,10 +209,7 @@ export default function SucursalDetail({
       console.log("✅ Modo comparativo: múltiples meses");
       return true;
     }
-    if (selection.period === "days" && selection.days && selection.days.length > 1) {
-      console.log("✅ Modo comparativo: múltiples días");
-      return true;
-    }
+    // Un rango de días NO entra en comparativa; se trata como período agregado (range).
     if (selection.years.length > 1 && selection.period === "full-year") {
       console.log("✅ Modo comparativo: múltiples años");
       return true;
