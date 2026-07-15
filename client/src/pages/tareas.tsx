@@ -911,6 +911,22 @@ export default function TareasPage() {
     return aPrio - bPrio;
   }) || [];
 
+  // Calendario: mostrar únicamente lo relacionado de cualquier forma con el
+  // usuario logueado (tareas que creó o que le fueron asignadas), sin importar
+  // el rol ni los filtros de las otras pestañas. Se deriva de todos los datos
+  // (no de filteredTasks) para que el calendario sea siempre "lo mío".
+  const calendarTasks = (tasksQuery.data || []).filter((task) => {
+    const isCreatedByMe = task.createdByUserId === user.id;
+    const isAssignedToMe = task.assignments.some(
+      (a) =>
+        (a.assigneeType === "supervisor" ||
+          a.assigneeType === "salesperson" ||
+          (a as any).assigneeType === "user") &&
+        a.assigneeId === user.id,
+    );
+    return isCreatedByMe || isAssignedToMe;
+  });
+
   // Selected task for detail view
   const selectedTask = selectedTaskId ? filteredTasks.find(t => t.id === selectedTaskId) || tasksQuery.data?.find(t => t.id === selectedTaskId) || null : null;
 
@@ -2592,11 +2608,11 @@ export default function TareasPage() {
         {/* Vista Calendario */}
         <TabsContent value="calendario" className="space-y-6">
           <CalendarViewTab
-            tasks={filteredTasks}
+            tasks={calendarTasks}
             calendarMonth={calendarMonth}
             setCalendarMonth={setCalendarMonth}
             onTaskClick={(taskId) => {
-              const task = filteredTasks.find(t => t.id === taskId);
+              const task = calendarTasks.find(t => t.id === taskId);
               if (task) {
                 setExpandedTasks(new Set([taskId]));
                 setActiveTab((task as any).payload?.kind === 'seguimiento_cliente' ? "seguimiento" : "tareas");
