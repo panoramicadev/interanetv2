@@ -4971,6 +4971,9 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
   supervisorId: varchar("supervisor_id").references(() => salespeopleUsers.id),
   supervisorName: varchar("supervisor_name"),
+  solicitanteRol: varchar("solicitante_rol"), // rol de quien pide: supervisor, encargado_area, salesperson, admin
+  clienteId: varchar("cliente_id"), // cliente de origen cuando un vendedor pide en su nombre (opcional)
+  clienteNombre: varchar("cliente_nombre"),
   fechaSolicitud: timestamp("fecha_solicitud").notNull().defaultNow(),
   fechaEntrega: date("fecha_entrega"), // Fecha esperada de entrega
   fechaCompletado: timestamp("fecha_completado"), // Fecha real de completado

@@ -27753,9 +27753,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Solo admin, supervisor y encargado de área pueden crear solicitudes de marketing
-      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'encargado_area') {
-        return res.status(403).json({ message: 'Solo administradores, supervisores y encargados de área pueden crear solicitudes' });
+      // Quién puede pedirle a Marketing: admin, supervisor, encargado de área y también el
+      // vendedor (canaliza pedidos que le hace un cliente). El resto queda bloqueado.
+      const puedeSolicitar = ['admin', 'supervisor', 'encargado_area', 'salesperson'].includes(user.role);
+      if (!puedeSolicitar) {
+        return res.status(403).json({ message: 'No tienes permiso para crear solicitudes de marketing' });
       }
 
       let solicitanteId = user.id;
@@ -27787,6 +27789,11 @@ export function registerRoutes(app: Express): Server {
         ...req.body,
         supervisorId: solicitanteId.toString(),
         supervisorName: solicitanteName,
+        // Rol de quien origina el pedido (Marketing lo usa para saber de dónde viene)
+        solicitanteRol: user.role === 'admin' && req.body.solicitanteId ? 'admin' : user.role,
+        // Cliente de origen (opcional; típico cuando un vendedor pide en nombre de su cliente)
+        clienteId: req.body.clienteId || null,
+        clienteNombre: req.body.clienteNombre || null,
       };
 
       // Convert fechaEntrega to proper format if provided
@@ -27847,8 +27854,9 @@ export function registerRoutes(app: Express): Server {
       if (anio) filters.anio = parseInt(anio as string);
       if (estado) filters.estado = estado as string;
 
-      // Supervisors can only see their own solicitudes
-      if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
+      // Supervisores, encargados y vendedores solo ven sus propias solicitudes.
+      // Admin y Marketing ven todas (Marketing gestiona la bandeja del equipo).
+      if (['supervisor', 'encargado_area', 'salesperson'].includes(user.role)) {
         filters.supervisorId = user.id;
       }
 
@@ -27932,11 +27940,11 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/solicitudes/:id/estado', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { estado, motivoRechazo, monto, pdfPresupuesto } = req.body;
+      const { estado, motivoRechazo, monto, pdfPresupuesto, fechaEntrega } = req.body;
 
-      // Only admin can change estado
-      if (user.role !== 'admin') {
-        return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
+      // Admin y el equipo de Marketing pueden gestionar el estado (aceptar/rechazar/completar).
+      if (user.role !== 'admin' && user.role !== 'marketing') {
+        return res.status(403).json({ message: 'Solo Marketing o un administrador pueden cambiar el estado' });
       }
 
       if (!estado) {
@@ -27947,7 +27955,15 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Motivo de rechazo es requerido' });
       }
 
-      const solicitud = await storage.updateSolicitudMarketingEstado(req.params.id, estado, motivoRechazo, monto, pdfPresupuesto);
+      const solicitud = await storage.updateSolicitudMarketingEstado(
+        req.params.id,
+        estado,
+        motivoRechazo,
+        monto,
+        pdfPresupuesto,
+        // Plazo final que fija Marketing al aceptar la solicitud
+        fechaEntrega ? String(fechaEntrega).split('T')[0] : undefined,
+      );
       res.json(solicitud);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al cambiar estado', error: error.message });

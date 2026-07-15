@@ -986,10 +986,12 @@ export default function TareasPage() {
   };
 
   const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra' || user.role === 'marketing';
-  // Solo admin/supervisor/encargado pueden enviar Solicitudes de Marketing (debe coincidir
-  // con el allowlist del backend en POST /api/marketing/solicitudes). El técnico de obra
-  // conserva 'Nueva Tarea' para Seguimiento/Otras, pero no ve la opción de Marketing.
-  const canRequestMarketing = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+  // Quién puede enviar Solicitudes de Marketing (debe coincidir con el allowlist del backend
+  // en POST /api/marketing/solicitudes): admin/supervisor/encargado y el vendedor, que canaliza
+  // pedidos de sus clientes. El técnico de obra conserva 'Nueva Tarea' pero no ve la opción.
+  const canRequestMarketing = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'salesperson';
+  // El vendedor no crea tareas comunes; su único acceso al botón es la Solicitud de Marketing.
+  const onlyMarketingRequest = canRequestMarketing && !canCreateTasks;
 
   // KPIs presentacionales — reutilizan la misma lógica de completado que las tarjetas
   const isTaskDone = (t: typeof filteredTasks[number]) =>
@@ -1040,7 +1042,7 @@ export default function TareasPage() {
               Gestiona tareas del equipo, estimaciones de ventas y seguimiento de clientes
             </p>
           </div>
-          {canCreateTasks && (
+          {(canCreateTasks || canRequestMarketing) && (
             <>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área visible (admin/supervisor multi-segmento) */}
@@ -1065,6 +1067,11 @@ export default function TareasPage() {
                 </div>
               )}
               <Button onClick={() => {
+                // El vendedor solo puede pedirle a Marketing: abrimos directo ese diálogo.
+                if (onlyMarketingRequest) {
+                  setShowMarketingDialog(true);
+                  return;
+                }
                 // Desde la pestaña Seguimiento, saltar el selector y abrir directo el flujo de cliente.
                 if (activeTab === 'seguimiento') {
                   setTaskFlow('seguimiento');
@@ -1076,8 +1083,8 @@ export default function TareasPage() {
                   setShowChooser(true);
                 }
               }} className="w-full sm:w-auto bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
-                <Plus className="h-4 w-4 mr-2" />
-                {activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea'}
+                {onlyMarketingRequest ? <TrendingUp className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                {onlyMarketingRequest ? 'Solicitar a Marketing' : (activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea')}
               </Button>
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
@@ -1846,6 +1853,9 @@ export default function TareasPage() {
               </div>
             </div>
           )}
+
+          {/* Bandeja de solicitudes del equipo — solo Marketing, en la vista Mi Equipo */}
+          {isMarketing && taskView === 'equipo' && <MarketingSolicitudesInbox />}
 
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
@@ -5711,6 +5721,22 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
   const [descripcion, setDescripcion] = useState("");
   const [urgencia, setUrgencia] = useState("media");
   const [fechaSugerida, setFechaSugerida] = useState("");
+  // Cliente de origen (opcional): cuando el pedido nace de un cliente que atiende un vendedor.
+  const [searchCliente, setSearchCliente] = useState("");
+  const [clienteSel, setClienteSel] = useState<{ koen: string; nokoen: string } | null>(null);
+  const { data: clientesResult = [] } = useQuery<Array<{ id: string; koen: string; nokoen: string }>>({
+    queryKey: ['/api/clients/search', 'solicitud-marketing', searchCliente],
+    queryFn: async () => {
+      if (searchCliente.length < 2) return [];
+      const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(searchCliente)}`);
+      return response.json();
+    },
+    enabled: open && searchCliente.length >= 2,
+  });
+  const reset = () => {
+    setTitulo(""); setDescripcion(""); setUrgencia("media"); setFechaSugerida("");
+    setSearchCliente(""); setClienteSel(null);
+  };
   const createMutation = useMutation({
     mutationFn: async () => {
       const base = fechaSugerida ? new Date(fechaSugerida) : new Date();
@@ -5719,6 +5745,8 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
         descripcion: descripcion.trim(),
         urgencia,
         fechaEntrega: fechaSugerida || undefined,
+        clienteId: clienteSel?.koen || undefined,
+        clienteNombre: clienteSel?.nokoen || undefined,
         mes: base.getMonth() + 1,
         anio: base.getFullYear(),
       });
@@ -5727,7 +5755,7 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
       queryClient.invalidateQueries({ queryKey: ["/api/marketing/solicitudes"] });
       toast({ title: "Solicitud enviada", description: "Marketing recibió tu pedido y definirá el plazo final." });
       onOpenChange(false);
-      setTitulo(""); setDescripcion(""); setUrgencia("media"); setFechaSugerida("");
+      reset();
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo enviar la solicitud.", variant: "destructive" }),
   });
@@ -5746,6 +5774,39 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción *</Label>
             <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder="Detallá qué necesitás de Marketing…" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente (opcional)</Label>
+            {clienteSel ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-orange-50/50">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-slate-800 truncate">{clienteSel.nokoen}</p>
+                  <p className="text-xs text-slate-500">Código: {clienteSel.koen}</p>
+                </div>
+                <button type="button" className="text-slate-400 hover:text-red-600" onClick={() => setClienteSel(null)}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <Input value={searchCliente} onChange={(e) => setSearchCliente(e.target.value)} placeholder="Buscá el cliente que pidió esto…" />
+                {searchCliente.length >= 2 && clientesResult.length > 0 && (
+                  <div className="max-h-36 overflow-y-auto border rounded-lg bg-white shadow-sm">
+                    {clientesResult.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left hover:bg-orange-50 border-b last:border-b-0 transition-colors"
+                        onClick={() => { setClienteSel({ koen: c.koen, nokoen: c.nokoen }); setSearchCliente(""); }}
+                      >
+                        <p className="font-medium text-sm">{c.nokoen}</p>
+                        <p className="text-xs text-gray-500">Código: {c.koen}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -5773,6 +5834,240 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================================================================================
+// MarketingSolicitudesInbox — Bandeja de solicitudes que el equipo (supervisores/
+// encargados) envía a Marketing. La encargada las ve acá, las ACEPTA fijando un plazo
+// final (pasan a "En mi flujo") o las RECHAZA indicando un motivo.
+// ==================================================================================
+interface SolicitudMarketingItem {
+  id: string;
+  titulo: string;
+  descripcion?: string | null;
+  urgencia?: string | null;
+  estado: string;
+  supervisorName?: string | null;
+  solicitanteRol?: string | null;
+  clienteNombre?: string | null;
+  fechaSolicitud?: string | null;
+  fechaEntrega?: string | null;
+  motivoRechazo?: string | null;
+}
+
+const ROL_LABEL: Record<string, string> = {
+  salesperson: "Vendedor",
+  supervisor: "Supervisor",
+  encargado_area: "Encargado",
+  admin: "Admin",
+};
+
+const URGENCIA_STYLES: Record<string, string> = {
+  alta: "bg-red-100 text-red-700 border-red-200",
+  media: "bg-amber-100 text-amber-700 border-amber-200",
+  baja: "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+function formatFechaCorta(v?: string | null): string {
+  if (!v) return "";
+  const d = new Date(v.includes("T") ? v : `${v}T00:00:00`);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function MarketingSolicitudesInbox() {
+  const { toast } = useToast();
+  const [aceptar, setAceptar] = useState<SolicitudMarketingItem | null>(null);
+  const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
+  const [plazo, setPlazo] = useState("");
+  const [motivo, setMotivo] = useState("");
+
+  const { data: solicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
+    queryKey: ["/api/marketing/solicitudes"],
+  });
+
+  const estadoMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Record<string, any> }) =>
+      apiRequest("POST", `/api/marketing/solicitudes/${id}/estado`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/solicitudes"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo actualizar la solicitud.", variant: "destructive" }),
+  });
+
+  const pendientes = solicitudes.filter((s) => s.estado === "solicitado");
+  const enFlujo = solicitudes.filter((s) => s.estado === "en_proceso");
+
+  const confirmarAceptar = () => {
+    if (!aceptar) return;
+    estadoMutation.mutate(
+      { id: aceptar.id, body: { estado: "en_proceso", fechaEntrega: plazo || undefined } },
+      {
+        onSuccess: () => {
+          toast({ title: "Solicitud aceptada", description: "Pasó a tu flujo de trabajo." });
+          setAceptar(null); setPlazo("");
+        },
+      },
+    );
+  };
+
+  const confirmarRechazar = () => {
+    if (!rechazar || !motivo.trim()) return;
+    estadoMutation.mutate(
+      { id: rechazar.id, body: { estado: "rechazado", motivoRechazo: motivo.trim() } },
+      {
+        onSuccess: () => {
+          toast({ title: "Solicitud rechazada", description: "Se notificó el motivo al solicitante." });
+          setRechazar(null); setMotivo("");
+        },
+      },
+    );
+  };
+
+  if (isLoading || (pendientes.length === 0 && enFlujo.length === 0)) return null;
+
+  return (
+    <div className="space-y-5 mb-6">
+      {/* Pendientes de aceptación */}
+      {pendientes.length > 0 && (
+        <div className="rounded-2xl border border-orange-200/70 bg-orange-50/40 dark:bg-orange-900/10 dark:border-orange-800/40 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-[#fd6301] flex items-center justify-center shadow-sm">
+              <Send className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Solicitudes del equipo</h3>
+              <p className="text-xs text-slate-500">Pedidos que esperan tu aprobación</p>
+            </div>
+            <Badge className="ml-auto bg-[#fd6301] text-white font-semibold">{pendientes.length}</Badge>
+          </div>
+          <div className="space-y-2.5">
+            {pendientes.map((s) => (
+              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
+                      {s.urgencia && (
+                        <Badge variant="outline" className={`text-[10px] font-semibold border ${URGENCIA_STYLES[s.urgencia] || URGENCIA_STYLES.baja}`}>
+                          {s.urgencia.toUpperCase()}
+                        </Badge>
+                      )}
+                    </div>
+                    {s.descripcion && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{s.descripcion}</p>}
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 flex-wrap">
+                      <span className="inline-flex items-center gap-1"><User className="h-3 w-3" /> {s.supervisorName || "—"}{s.solicitanteRol && ROL_LABEL[s.solicitanteRol] ? ` · ${ROL_LABEL[s.solicitanteRol]}` : ""}</span>
+                      {s.clienteNombre && <span className="inline-flex items-center gap-1 text-slate-500"><Building2 className="h-3 w-3" /> {s.clienteNombre}</span>}
+                      {s.fechaEntrega && <span className="inline-flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> Sugerida: {formatFechaCorta(s.fechaEntrega)}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
+                    onClick={() => { setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
+                    onClick={() => { setRechazar(s); setMotivo(""); }}
+                  >
+                    <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* En mi flujo (aceptadas) */}
+      {enFlujo.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/70 bg-white/60 dark:bg-slate-900/40 dark:border-slate-700/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm">
+              <Play className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">En mi flujo</h3>
+              <p className="text-xs text-slate-500">Solicitudes aceptadas en curso</p>
+            </div>
+            <Badge className="ml-auto bg-emerald-500 text-white font-semibold">{enFlujo.length}</Badge>
+          </div>
+          <div className="space-y-2.5">
+            {enFlujo.map((s) => (
+              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
+                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-400 flex-wrap">
+                      <span className="inline-flex items-center gap-1"><User className="h-3 w-3" /> {s.supervisorName || "—"}</span>
+                      {s.clienteNombre && <span className="inline-flex items-center gap-1 text-slate-500"><Building2 className="h-3 w-3" /> {s.clienteNombre}</span>}
+                      {s.fechaEntrega && (
+                        <span className="inline-flex items-center gap-1 text-orange-600 font-medium"><CalendarIcon className="h-3 w-3" /> Plazo: {formatFechaCorta(s.fechaEntrega)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                    disabled={estadoMutation.isPending}
+                    onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada" }) })}
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dialog: aceptar + fijar plazo */}
+      <Dialog open={!!aceptar} onOpenChange={(o) => { if (!o) { setAceptar(null); setPlazo(""); } }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-[#fd6301]" /> Aceptar solicitud</DialogTitle>
+            <DialogDescription>Definí el plazo final para "{aceptar?.titulo}". Pasará a tu flujo de trabajo.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha límite</Label>
+            <Input type="date" value={plazo} onChange={(e) => setPlazo(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAceptar(null); setPlazo(""); }}>Cancelar</Button>
+            <Button className="bg-[#fd6301] hover:bg-[#e35400] text-white" disabled={estadoMutation.isPending} onClick={confirmarAceptar}>
+              {estadoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aceptar y agendar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: rechazar + motivo */}
+      <Dialog open={!!rechazar} onOpenChange={(o) => { if (!o) { setRechazar(null); setMotivo(""); } }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><XCircle className="h-5 w-5 text-red-600" /> Rechazar solicitud</DialogTitle>
+            <DialogDescription>Indicá por qué rechazás "{rechazar?.titulo}". El solicitante verá el motivo.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Motivo del rechazo *</Label>
+            <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Ej: No hay presupuesto este mes / falta información…" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRechazar(null); setMotivo(""); }}>Cancelar</Button>
+            <Button variant="destructive" disabled={!motivo.trim() || estadoMutation.isPending} onClick={confirmarRechazar}>
+              {estadoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rechazar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
