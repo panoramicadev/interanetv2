@@ -6,7 +6,7 @@
 import {
   Sparkles, UserCheck, FileText, ShoppingCart,
   PhoneCall, MapPin, MessageSquare, RefreshCw,
-  Users, Mail, Video, XCircle,
+  Users, Mail, Video, XCircle, MessageCircle,
 } from "lucide-react";
 import { getTodayAtMidnight } from "@/lib/dateUtils";
 
@@ -114,6 +114,7 @@ export function getPrioridadConfig(prioridad: string | null | undefined) {
 export const HITO_TIPOS = [
   { value: "contacto", label: "Contacto", icon: UserCheck, color: "text-blue-500", ring: "bg-blue-100 dark:bg-blue-900/40" },
   { value: "llamada", label: "Llamada", icon: PhoneCall, color: "text-indigo-500", ring: "bg-indigo-100 dark:bg-indigo-900/40" },
+  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-green-600", ring: "bg-green-100 dark:bg-green-900/40" },
   { value: "cotizacion", label: "Cotización", icon: FileText, color: "text-amber-500", ring: "bg-amber-100 dark:bg-amber-900/40" },
   { value: "visita", label: "Visita", icon: MapPin, color: "text-green-500", ring: "bg-green-100 dark:bg-green-900/40" },
   { value: "venta", label: "Venta", icon: ShoppingCart, color: "text-emerald-600", ring: "bg-emerald-100 dark:bg-emerald-900/40" },
@@ -128,6 +129,7 @@ export const HITO_TIPOS = [
 export const AGENDA_TIPOS = [
   { value: "reunion", label: "Reunión", icon: Users, color: "text-violet-500", ring: "bg-violet-100 dark:bg-violet-900/40" },
   { value: "llamada", label: "Llamada", icon: PhoneCall, color: "text-indigo-500", ring: "bg-indigo-100 dark:bg-indigo-900/40" },
+  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-green-600", ring: "bg-green-100 dark:bg-green-900/40" },
   { value: "videollamada", label: "Videollamada", icon: Video, color: "text-fuchsia-500", ring: "bg-fuchsia-100 dark:bg-fuchsia-900/40" },
   { value: "correo", label: "Correo", icon: Mail, color: "text-sky-500", ring: "bg-sky-100 dark:bg-sky-900/40" },
   { value: "visita", label: "Visita", icon: MapPin, color: "text-green-500", ring: "bg-green-100 dark:bg-green-900/40" },

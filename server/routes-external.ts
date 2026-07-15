@@ -536,7 +536,7 @@ const OPENAPI_SPEC = {
         summary: 'Agregar hito al timeline (nota, llamada, visita, cotización, venta, etc.)',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['tipo', 'descripcion'], properties: {
-          tipo: { type: 'string', enum: ['contacto', 'llamada', 'cotizacion', 'visita', 'venta', 'despacho', 'nota', 'sistema'] },
+          tipo: { type: 'string', enum: ['contacto', 'llamada', 'whatsapp', 'cotizacion', 'visita', 'venta', 'despacho', 'nota', 'sistema'] },
           descripcion: { type: 'string' },
           documentoTipo: { type: 'string', enum: ['nvv', 'gdv', 'factura', 'cotizacion'] },
           documentoNumero: { type: 'string' },
@@ -1718,7 +1718,7 @@ router.post('/crm/seguimiento/:id/hito', requireApiRole(['read_write', 'admin'])
     }).returning();
 
     // Match internal logic: refresh ultimoContacto for outbound interaction types
-    const contactTypes = ['contacto', 'llamada', 'cotizacion', 'visita', 'venta'];
+    const contactTypes = ['contacto', 'llamada', 'whatsapp', 'cotizacion', 'visita', 'venta'];
     if (contactTypes.includes(tipo)) {
       await db.update(crmSeguimientoClientes)
         .set({ ultimoContacto: new Date(), updatedAt: new Date() })
