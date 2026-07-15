@@ -5,7 +5,7 @@ import { es } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle, FileText,
-  Search, Filter, ChevronRight,
+  Search, Filter, ChevronRight, Eye, Download,
   DollarSign, Loader2, Database, Inbox, Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -345,10 +345,11 @@ function ReceptionPedidosView() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                <div className="grid grid-cols-[1fr_150px_120px_110px_100px_90px_40px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   <span>Cliente</span>
                   <span>Vendedor</span>
                   <span>Estado</span>
+                  <span>OC</span>
                   <span className="text-right">Total</span>
                   <span>Fecha</span>
                   <span />
@@ -364,7 +365,7 @@ function ReceptionPedidosView() {
                       <div
                         key={order.id}
                         onClick={() => setSelectedOrder(order)}
-                        className="grid grid-cols-[1fr_150px_120px_100px_90px_40px] gap-4 px-5 py-4 hover:bg-orange-50/30 cursor-pointer transition-colors items-center group"
+                        className="grid grid-cols-[1fr_150px_120px_110px_100px_90px_40px] gap-4 px-5 py-4 hover:bg-orange-50/30 cursor-pointer transition-colors items-center group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center flex-shrink-0 border border-gray-200 text-sm font-bold text-gray-400">
@@ -385,6 +386,35 @@ function ReceptionPedidosView() {
                             <StatusIcon className="w-3 h-3" />
                             {status.label}
                           </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          {order.purchaseOrderPdfUrl ? (
+                            <div className="flex items-center gap-1">
+                              <a
+                                href={order.purchaseOrderPdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                title="Ver orden de compra"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Ver
+                              </a>
+                              <a
+                                href={order.purchaseOrderPdfUrl}
+                                download
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                                title="Descargar orden de compra"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
                         </div>
 
                         <div className="text-right">
