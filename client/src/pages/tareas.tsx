@@ -6210,6 +6210,14 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
 
   const pendientes = solicitudes.filter((s) => s.estado === "solicitado");
   const enFlujo = solicitudes.filter((s) => s.estado === "en_proceso");
+  // El solicitante también ve el desenlace: sin esto, una solicitud rechazada o
+  // completada vuelve a "desaparecer" de su vista sin explicación (el motivo del
+  // rechazo solo queda guardado en motivoRechazo).
+  const resueltas = viewer === "solicitante"
+    ? solicitudes
+        .filter((s) => s.estado === "rechazado" || s.estado === "completado")
+        .sort((a, b) => new Date(b.fechaSolicitud || 0).getTime() - new Date(a.fechaSolicitud || 0).getTime())
+    : [];
 
   const confirmarAceptar = () => {
     if (!aceptar) return;
@@ -6237,7 +6245,7 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
     );
   };
 
-  if (isLoading || (pendientes.length === 0 && enFlujo.length === 0)) return null;
+  if (isLoading || (pendientes.length === 0 && enFlujo.length === 0 && resueltas.length === 0)) return null;
 
   return (
     <div className="space-y-5 mb-6">
@@ -6354,6 +6362,49 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
                     </Button>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Resueltas (solo solicitante): rechazadas con su motivo + completadas */}
+      {resueltas.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/70 bg-white/60 dark:bg-slate-900/40 dark:border-slate-700/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-slate-500 flex items-center justify-center shadow-sm">
+              <CheckCircle className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Resueltas</h3>
+              <p className="text-xs text-slate-500">Solicitudes que Marketing completó o rechazó</p>
+            </div>
+            <Badge className="ml-auto bg-slate-500 text-white font-semibold">{resueltas.length}</Badge>
+          </div>
+          <div className="space-y-2.5">
+            {resueltas.map((s) => (
+              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm opacity-90">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
+                  {s.estado === "rechazado" ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold border bg-red-100 text-red-700 border-red-200 inline-flex items-center gap-1">
+                      <XCircle className="h-3 w-3" /> Rechazada
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-semibold border bg-emerald-100 text-emerald-700 border-emerald-200 inline-flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" /> Completada
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-400 flex-wrap">
+                  {s.clienteNombre && <span className="inline-flex items-center gap-1 text-slate-500"><Building2 className="h-3 w-3" /> {s.clienteNombre}</span>}
+                  {s.fechaSolicitud && <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> Enviada: {formatFechaCorta(s.fechaSolicitud)}</span>}
+                </div>
+                {s.estado === "rechazado" && s.motivoRechazo && (
+                  <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-lg px-2.5 py-1.5 mt-2">
+                    <span className="font-semibold">Motivo:</span> {s.motivoRechazo}
+                  </p>
+                )}
               </div>
             ))}
           </div>
