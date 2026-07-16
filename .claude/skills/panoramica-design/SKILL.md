@@ -124,8 +124,13 @@ Color del ícono por categoría: Vista→naranja, Estado→emerald, Prioridad→
 
 ### Barra de filtros (uso del espacio)
 Fila `flex ... justify-between`: los filtros a la **izquierda**; a la **derecha**,
-los selectores de contexto (p.ej. el selector de Área) + el badge contador
-agrupados. No dejar el contador solo flotando: aprovechar el ancho.
+el badge contador. No dejar el contador solo flotando: aprovechar el ancho.
+
+### Selector de Área (contexto global)
+El selector de Área vive **siempre en el header de la página** (junto al CTA
+"Nueva Tarea"), visible en **todas las pestañas** — cambia el contexto de todo
+el módulo, no de una sola vista (corrección del usuario, jul-2026: antes iba en
+la fila de filtros en Tareas/Marketing y parecía "desaparecer" en otras pestañas).
 
 ### Badge contador
 ```
