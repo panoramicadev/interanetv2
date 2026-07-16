@@ -25,7 +25,8 @@ const poolConfig = {
   statement_timeout: 60000,
   query_timeout: 60000,
   application_name: 'dashboard-app',
-  ssl: { rejectUnauthorized: false },
+  // Postgres local (p. ej. homebrew) no soporta SSL: respetar sslmode=disable en la URL.
+  ssl: process.env.DATABASE_URL.includes('sslmode=disable') ? undefined : { rejectUnauthorized: false },
 };
 
 export const pool = new Pool(poolConfig);
