@@ -2763,36 +2763,44 @@ function EstimacionSemanalTab({
   return (
     <div className="space-y-3 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
-          <p className="text-muted-foreground text-sm sm:text-base mt-0.5 sm:mt-1">
-            Registra compromisos de compra y compara con ventas reales
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0">
+            <TrendingUp className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base mt-0.5">
+              Registra compromisos de compra y compara con ventas reales
+            </p>
+          </div>
         </div>
-        <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10">
+        <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all">
           <Plus className="mr-1 sm:mr-2 h-4 w-4" />
           Nueva Promesa
         </Button>
       </div>
 
       {/* Selector de período */}
-      <Card>
-        <CardHeader className="py-3 sm:py-6">
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
+        <CardHeader className="py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base sm:text-lg">{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</CardTitle>
-              <CardDescription className="text-xs sm:text-sm mt-0.5">
-                {getPeriodLabel()}
-              </CardDescription>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+                <CalendarIcon className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</span>
+                <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{getPeriodLabel()}</span>
+              </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
-              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-periodo-anterior" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
+              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-periodo-anterior" className="h-8 w-8 p-0 sm:h-9 sm:w-9 rounded-lg border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-orange-600 transition-all">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-periodo-actual" className="h-8 px-2 sm:h-9 sm:px-3 text-xs sm:text-sm">
+              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-periodo-actual" className="h-8 px-3 sm:h-9 sm:px-4 text-xs sm:text-sm rounded-2xl font-semibold border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-orange-600 transition-all">
                 {esConstruccion ? 'Mes Actual' : 'Hoy'}
               </Button>
-              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-periodo-siguiente" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
+              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-periodo-siguiente" className="h-8 w-8 p-0 sm:h-9 sm:w-9 rounded-lg border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-orange-600 transition-all">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -2868,30 +2876,35 @@ function EstimacionSemanalTab({
       </div>
 
       {/* Lista de promesas con cumplimiento */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
         <CardHeader className="py-3 sm:py-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
             <div>
-              <CardTitle className="text-base sm:text-lg">Detalle de Promesas</CardTitle>
+              <CardTitle className="text-base sm:text-lg text-slate-800 dark:text-slate-100">Detalle de Promesas</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-0.5">Comparación de compromisos vs. ventas reales</CardDescription>
             </div>
             {/* Filtro por vendedor (solo para admin/supervisor) */}
             {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Label className="text-xs sm:text-sm whitespace-nowrap">Vendedor:</Label>
-                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-filtro-vendedor">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {salespeople.map((salesperson) => (
-                      <SelectItem key={salesperson.id} value={salesperson.id}>
-                        {salesperson.fullName || salesperson.salespersonName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col leading-none">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                  <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                    <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {salespeople.map((salesperson) => (
+                        <SelectItem key={salesperson.id} value={salesperson.id}>
+                          {salesperson.fullName || salesperson.salespersonName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </div>
@@ -2899,41 +2912,45 @@ function EstimacionSemanalTab({
         <CardContent>
           {isLoadingPromesas ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
             </div>
           ) : promesasCumplimiento.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay promesas registradas para esta semana</p>
+            <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
+                <CalendarIcon className="h-7 w-7 text-orange-400" />
+              </div>
+              <p className="font-medium">No hay promesas registradas para esta semana</p>
             </div>
           ) : promesasFiltradas.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay promesas para el vendedor seleccionado</p>
+            <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
+                <Filter className="h-7 w-7 text-orange-400" />
+              </div>
+              <p className="font-medium">No hay promesas para el vendedor seleccionado</p>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Desktop view */}
-              <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200">
+              <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full">
-                  <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
+                  <thead className="bg-slate-50/80 dark:bg-slate-800/60 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
-                        <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendedor</th>
+                        <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Vendedor</th>
                       )}
-                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cliente</th>
-                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Prometido</th>
-                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendido</th>
-                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cumplimiento</th>
-                      <th className="text-center py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</th>
-                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones</th>
+                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Cliente</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Prometido</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Vendido</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Cumplimiento</th>
+                      <th className="text-center py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Estado</th>
+                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Observaciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {promesasFiltradas.map((item) => (
                       <tr
                         key={item.promesa.id}
-                        className="border-b hover:bg-muted/50 cursor-pointer transition-colors"
+                        className="hover:bg-orange-50/40 dark:hover:bg-orange-950/20 cursor-pointer transition-colors"
                         data-testid={`row-promesa-${item.promesa.id}`}
                         onClick={() => {
                           setSelectedPromesa(item);
@@ -2941,18 +2958,18 @@ function EstimacionSemanalTab({
                         }}
                       >
                         {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && (
-                          <td className="py-3 px-4 text-sm">{getVendedorNombre(item.promesa.vendedorId)}</td>
+                          <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-300">{getVendedorNombre(item.promesa.vendedorId)}</td>
                         )}
-                        <td className="py-3 px-4 font-medium">{item.promesa.clienteNombre}</td>
-                        <td className="text-right py-3 px-4">${parseFloat(item.promesa.montoPrometido).toLocaleString('es-CL')}</td>
-                        <td className="text-right py-3 px-4">${item.ventasReales.toLocaleString('es-CL')}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-100">{item.promesa.clienteNombre}</td>
+                        <td className="text-right py-3 px-4 text-slate-700 dark:text-slate-200 tabular-nums">${parseFloat(item.promesa.montoPrometido).toLocaleString('es-CL')}</td>
+                        <td className="text-right py-3 px-4 text-slate-700 dark:text-slate-200 tabular-nums">${item.ventasReales.toLocaleString('es-CL')}</td>
                         <td className="text-right py-3 px-4">
                           <div className="flex items-center justify-end gap-2">
-                            <span className={item.cumplimiento >= 100 ? 'text-green-600 font-semibold' : item.cumplimiento >= 80 ? 'text-yellow-600 font-semibold' : 'text-red-600 font-semibold'}>
+                            <span className={`tabular-nums ${item.cumplimiento >= 100 ? 'text-emerald-600 font-semibold' : item.cumplimiento >= 80 ? 'text-amber-600 font-semibold' : 'text-red-600 font-semibold'}`}>
                               {item.cumplimiento.toFixed(1)}%
                             </span>
                             {item.cumplimiento >= 100 ? (
-                              <TrendingUp className="h-4 w-4 text-green-600" />
+                              <TrendingUp className="h-4 w-4 text-emerald-600" />
                             ) : (
                               <TrendingDown className="h-4 w-4 text-red-600" />
                             )}
@@ -2960,37 +2977,37 @@ function EstimacionSemanalTab({
                         </td>
                         <td className="text-center py-3 px-4">
                           {item.estado === 'superado' && (
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium rounded-full">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Superado
                             </Badge>
                           )}
                           {item.estado === 'cumplido' && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium rounded-full">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
                             </Badge>
                           )}
                           {item.estado === 'cumplido_parcialmente' && (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-medium rounded-full">
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900 font-medium rounded-full">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Parcialmente
                             </Badge>
                           )}
                           {item.estado === 'insuficiente' && (
-                            <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 font-medium rounded-full">
+                            <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 dark:bg-orange-950/40 dark:border-orange-900 font-medium rounded-full">
                               <AlertCircle className="mr-1 h-3 w-3" />
                               Insuficiente
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-medium rounded-full">
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 font-medium rounded-full">
                               <XCircle className="mr-1 h-3 w-3" />
                               No Cumplido
                             </Badge>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.promesa.observaciones || '-'}</td>
+                        <td className="py-3 px-4 text-sm text-slate-500 dark:text-slate-400">{item.promesa.observaciones || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3002,7 +3019,7 @@ function EstimacionSemanalTab({
                 {promesasFiltradas.map((item) => (
                   <Card
                     key={item.promesa.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm cursor-pointer hover:border-orange-200 hover:shadow-md transition-all"
                     data-testid={`card-promesa-${item.promesa.id}`}
                     onClick={() => {
                       setSelectedPromesa(item);
@@ -3061,11 +3078,11 @@ function EstimacionSemanalTab({
                           <div>
                             <p className="text-[10px] text-muted-foreground">Cumplim.</p>
                             <div className="flex items-center gap-1">
-                              <span className={`text-sm font-semibold ${item.cumplimiento >= 100 ? 'text-green-600' : item.cumplimiento >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              <span className={`text-sm font-semibold ${item.cumplimiento >= 100 ? 'text-emerald-600' : item.cumplimiento >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
                                 {item.cumplimiento.toFixed(0)}%
                               </span>
                               {item.cumplimiento >= 100 ? (
-                                <TrendingUp className="h-3 w-3 text-green-600" />
+                                <TrendingUp className="h-3 w-3 text-emerald-600" />
                               ) : (
                                 <TrendingDown className="h-3 w-3 text-red-600" />
                               )}
@@ -3557,7 +3574,7 @@ function CreatePromesaDialog({
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="sm:w-auto"
+              className="sm:w-auto rounded-2xl"
               data-testid="button-cancelar"
             >
               Cancelar
@@ -3571,7 +3588,7 @@ function CreatePromesaDialog({
                 (clienteTipo === "potencial" && !manualClienteNombre.trim()) ||
                 !montoPrometido
               }
-              className="sm:w-auto"
+              className="sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
               data-testid="button-guardar-promesa"
             >
               {createMutation.isPending ? (
@@ -3715,24 +3732,29 @@ function EditPromesaDialog({
 
         <div className="space-y-6 py-4 px-1">
           {/* Información del Cliente */}
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Información del Cliente</h3>
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Información del Cliente</h3>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm text-blue-700 dark:text-blue-300">Cliente</Label>
-                <p className="font-medium text-blue-900 dark:text-blue-100">{promesa.promesa.clienteNombre}</p>
+                <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Cliente</Label>
+                <p className="font-medium text-slate-800 dark:text-slate-100">{promesa.promesa.clienteNombre}</p>
               </div>
               <div>
-                <Label className="text-sm text-blue-700 dark:text-blue-300">Tipo</Label>
-                <p className="font-medium text-blue-900 dark:text-blue-100 capitalize">{promesa.promesa.clienteTipo || 'activo'}</p>
+                <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Tipo</Label>
+                <p className="font-medium text-slate-800 dark:text-slate-100 capitalize">{promesa.promesa.clienteTipo || 'activo'}</p>
               </div>
               <div>
-                <Label className="text-sm text-blue-700 dark:text-blue-300">Semana</Label>
-                <p className="font-medium text-blue-900 dark:text-blue-100">Semana {promesa.promesa.numeroSemana} del {promesa.promesa.anio}</p>
+                <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Semana</Label>
+                <p className="font-medium text-slate-800 dark:text-slate-100">Semana {promesa.promesa.numeroSemana} del {promesa.promesa.anio}</p>
               </div>
               <div>
-                <Label className="text-sm text-blue-700 dark:text-blue-300">Periodo</Label>
-                <p className="font-medium text-blue-900 dark:text-blue-100">
+                <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Periodo</Label>
+                <p className="font-medium text-slate-800 dark:text-slate-100">
                   {format(new Date(promesa.promesa.fechaInicio), 'dd MMM', { locale: es })} - {format(new Date(promesa.promesa.fechaFin), 'dd MMM', { locale: es })}
                 </p>
               </div>
@@ -3742,8 +3764,8 @@ function EditPromesaDialog({
           {/* Monto Prometido */}
           <div>
             <Label className="text-sm font-semibold mb-2 block">Monto Prometido</Label>
-            <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg">
-              <p className="text-2xl font-bold">${montoPrometido.toLocaleString('es-CL')}</p>
+            <div className="p-3 border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl">
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">${montoPrometido.toLocaleString('es-CL')}</p>
             </div>
           </div>
 
@@ -3771,8 +3793,8 @@ function EditPromesaDialog({
                 </p>
               </>
             ) : (
-              <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-2xl font-bold">${ventasActuales.toLocaleString('es-CL')}</p>
+              <div className="p-3 border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">${ventasActuales.toLocaleString('es-CL')}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {promesa.promesa.ventasRealesManual ? 'Monto manual ingresado' : 'Ventas automáticas detectadas'}
                 </p>
@@ -3784,12 +3806,12 @@ function EditPromesaDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-semibold mb-2 block">Cumplimiento</Label>
-              <div className="flex items-center gap-3 p-3 border-2 rounded-lg bg-gray-50 dark:bg-gray-900">
-                <span className={`text-3xl font-bold ${cumplimientoActual >= 100 ? 'text-green-600' : cumplimientoActual >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+              <div className="flex items-center gap-3 p-3 border border-slate-200/70 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900">
+                <span className={`text-3xl font-bold tabular-nums ${cumplimientoActual >= 100 ? 'text-emerald-600' : cumplimientoActual >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
                   {cumplimientoActual.toFixed(1)}%
                 </span>
                 {cumplimientoActual >= 100 ? (
-                  <TrendingUp className="h-6 w-6 text-green-600" />
+                  <TrendingUp className="h-6 w-6 text-emerald-600" />
                 ) : (
                   <TrendingDown className="h-6 w-6 text-red-600" />
                 )}
@@ -3797,33 +3819,33 @@ function EditPromesaDialog({
             </div>
             <div>
               <Label className="text-sm font-semibold mb-2 block">Estado</Label>
-              <div className="p-3 border-2 rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+              <div className="p-3 border border-slate-200/70 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
                 {estadoActual === 'superado' && (
-                  <Badge className="bg-green-500 text-white text-base px-4 py-2">
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 text-sm font-medium px-4 py-1.5 rounded-full">
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Superado
                   </Badge>
                 )}
                 {estadoActual === 'cumplido' && (
-                  <Badge className="bg-blue-500 text-white text-base px-4 py-2">
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900 text-sm font-medium px-4 py-1.5 rounded-full">
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Cumplido
                   </Badge>
                 )}
                 {estadoActual === 'cumplido_parcialmente' && (
-                  <Badge className="bg-yellow-500 text-white text-base px-4 py-2">
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900 text-sm font-medium px-4 py-1.5 rounded-full">
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Cumplido Parcialmente
                   </Badge>
                 )}
                 {estadoActual === 'insuficiente' && (
-                  <Badge className="bg-orange-500 text-white text-base px-4 py-2">
+                  <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 dark:bg-orange-950/40 dark:border-orange-900 text-sm font-medium px-4 py-1.5 rounded-full">
                     <AlertCircle className="mr-2 h-4 w-4" />
                     Insuficiente
                   </Badge>
                 )}
                 {estadoActual === 'no_cumplido' && (
-                  <Badge variant="destructive" className="text-base px-4 py-2">
+                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 text-sm font-medium px-4 py-1.5 rounded-full">
                     <XCircle className="mr-2 h-4 w-4" />
                     No Cumplido
                   </Badge>
@@ -3847,8 +3869,8 @@ function EditPromesaDialog({
                 data-testid="textarea-observaciones-edit"
               />
             ) : (
-              <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg min-h-20">
-                <p className="text-sm">{observaciones || 'Sin observaciones'}</p>
+              <div className="p-3 border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl min-h-20">
+                <p className="text-sm text-slate-600 dark:text-slate-300">{observaciones || 'Sin observaciones'}</p>
               </div>
             )}
           </div>
@@ -3862,7 +3884,7 @@ function EditPromesaDialog({
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="destructive"
-                    className="sm:w-auto"
+                    className="sm:w-auto rounded-2xl"
                     data-testid="button-eliminar-promesa"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -3902,7 +3924,7 @@ function EditPromesaDialog({
               <Button
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="sm:w-auto"
+                className="sm:w-auto rounded-2xl"
                 data-testid="button-cerrar"
               >
                 {canEdit ? 'Cancelar' : 'Cerrar'}
@@ -3911,7 +3933,7 @@ function EditPromesaDialog({
                 <Button
                   onClick={handleSubmit}
                   disabled={updateMutation.isPending}
-                  className="sm:w-auto"
+                  className="sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
                   data-testid="button-actualizar-promesa"
                 >
                   {updateMutation.isPending ? (

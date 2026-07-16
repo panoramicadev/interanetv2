@@ -24494,7 +24494,12 @@ export class DatabaseStorage implements IStorage {
 
     // El "Vendido" de una promesa se mide con NVV (notas de venta / pedidos) + GDV
     // (guías de despacho). No se usan facturas (FCV) porque la GDV es el espejo de
-    // lo que luego se factura: contar ambas duplicaría la venta. Ver getPromesasConCumplimiento.
+    // lo que luego se factura: contar ambas duplicaría la venta.
+    // OJO: nvv.fact_nvv es un snapshot de líneas ABIERTAS con monto PENDIENTE — al
+    // facturarse, la NVV desaparece de ahí y la GDV puede emitirse en otra semana.
+    // Sin memoria, el vendido decaería a "solo lo facturado en la semana"; por eso
+    // ventas_reales_max conserva el mejor valor calculado (el cumplimiento se
+    // considera desde la NVV y no retrocede).
     const promesasConVentas = await db.execute(sql`
       SELECT
         p.*,
@@ -24574,6 +24579,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // High-water pendiente de persistir: promesas cuyo cálculo superó el máximo guardado
+    const maxUpdates: Array<{ id: string; max: number }> = [];
+
     const resultados = (promesasConVentas.rows as any[]).map((row) => {
       const promesa: PromesaCompra = {
         id: row.id,
@@ -24588,6 +24596,7 @@ export class DatabaseStorage implements IStorage {
         fechaFin: row.fecha_fin,
         montoPrometido: row.monto_prometido,
         ventasRealesManual: row.ventas_reales_manual,
+        ventasRealesMax: row.ventas_reales_max,
         observaciones: row.observaciones,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -24608,7 +24617,14 @@ export class DatabaseStorage implements IStorage {
         const key = `${promesa.clienteNombre}|${promesa.fechaInicio}|${promesa.fechaFin}`;
         const ventasNvv = nvvMap.get(key) || 0;
         const ventasGdv = gdvMap.get(key) || 0;
-        ventasReales = ventasNvv + ventasGdv;
+        const calculado = ventasNvv + ventasGdv;
+        // El crédito ganado desde la NVV no retrocede cuando esta se factura y
+        // sale del snapshot de fact_nvv: se toma el mejor valor observado.
+        const maxRegistrado = promesa.ventasRealesMax != null ? parseFloat(promesa.ventasRealesMax as any) : 0;
+        ventasReales = Math.max(calculado, maxRegistrado);
+        if (calculado > maxRegistrado) {
+          maxUpdates.push({ id: promesa.id, max: calculado });
+        }
       }
 
       const montoPrometido = parseFloat(promesa.montoPrometido as any);
@@ -24632,6 +24648,22 @@ export class DatabaseStorage implements IStorage {
         estado,
       };
     });
+
+    // Persistir el high-water (best effort: un fallo de escritura no debe romper el reporte)
+    if (maxUpdates.length > 0) {
+      try {
+        for (const u of maxUpdates) {
+          await db.execute(sql`
+            UPDATE promesas_compra
+            SET ventas_reales_max = ${u.max}
+            WHERE id = ${u.id}
+              AND (ventas_reales_max IS NULL OR ventas_reales_max < ${u.max})
+          `);
+        }
+      } catch (error: any) {
+        console.error('[PROMESAS] No se pudo actualizar ventas_reales_max:', error.message);
+      }
+    }
 
     return resultados;
   }
