@@ -960,6 +960,25 @@ export async function bootstrapDatabase(): Promise<void> {
     // Columnas de ruta (idempotente, para tablas ya creadas)
     await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_id VARCHAR(255)`);
     await db.execute(sql`ALTER TABLE task_actividades ADD COLUMN IF NOT EXISTS ruta_nombre VARCHAR(255)`);
+    // Backfill: los seguimientos de cliente creados antes del cambio "Fecha de Revisión"
+    // tienen due_date pero ninguna actividad que la refleje en "Tareas del cliente".
+    // Se les crea la actividad 'revision' una sola vez (NOT EXISTS la hace idempotente);
+    // los nuevos registros los mantiene sincronizados el endpoint de tareas.
+    try {
+      await db.execute(sql`
+        INSERT INTO task_actividades (task_id, tipo, descripcion, fecha, estado)
+        SELECT t.id, 'revision', 'Revisión del cliente', t.due_date, 'pendiente'
+        FROM tasks t
+        WHERE t.payload->>'kind' = 'seguimiento_cliente'
+          AND t.due_date IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM task_actividades a WHERE a.task_id = t.id AND a.tipo = 'revision'
+          )
+      `);
+    } catch (err: any) {
+      // No frena el bootstrap: en una BD fresca la tabla tasks puede no existir todavía.
+      console.warn('  ⚠️ Backfill de actividades de revisión omitido:', err.message);
+    }
 
     // Inventario de Marketing — estas tablas solo viven en la migración drizzle 0000,
     // que el runner de migraciones roto no aplica en prod. Sin ellas, /api/marketing/inventario
