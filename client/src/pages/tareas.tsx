@@ -88,6 +88,7 @@ const ACTIVIDAD_TIPOS = [
   { value: "cotizacion", label: "Cotización", badge: "bg-orange-100 text-orange-700" },
   { value: "cobranza", label: "Cobranza", badge: "bg-amber-100 text-amber-700" },
   { value: "correo", label: "Correo", badge: "bg-cyan-100 text-cyan-700" },
+  { value: "revision", label: "Revisión", badge: "bg-violet-100 text-violet-700" },
   { value: "otro", label: "Otro", badge: "bg-slate-100 text-slate-600" },
 ] as const;
 
@@ -1233,7 +1234,7 @@ export default function TareasPage() {
                           <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
                             <CalendarIcon className="w-3.5 h-3.5" />
                           </span>
-                          Clasificación y plazo
+                          {seguimientoMode ? "Clasificación y revisión" : "Clasificación y plazo"}
                         </div>
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1292,7 +1293,7 @@ export default function TareasPage() {
                               name="dueDate"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha Límite</FormLabel>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : "Fecha Límite"}</FormLabel>
                                   <FormControl>
                                     <DateTimePicker value={field.value || ""} onChange={field.onChange} />
                                   </FormControl>
@@ -2007,7 +2008,10 @@ export default function TareasPage() {
                 const isCompleted = task.status === 'completada' || (targetAssignment?.status === 'completed');
                 const canComplete = targetAssignment &&
                   (user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || (myAssignment && myAssignment.assigneeId === user.id));
-                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+                // En seguimiento la fecha es una revisión programada del cliente, no una
+                // fecha límite: no aplica la lógica de "vencida" (borde/badge rojos).
+                const isSeguimientoCard = (task as any).payload?.kind === 'seguimiento_cliente';
+                const isOverdue = !isSeguimientoCard && task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
                 const lockedByGroup = !!(task as any).groupId && selectedGroupIds.has((task as any).groupId);
                 const isTaskSelected = selectedTaskIds.has(task.id) || lockedByGroup;
 
@@ -2089,10 +2093,11 @@ export default function TareasPage() {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {task.dueDate && (
                           <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                            isSeguimientoCard ? 'bg-violet-50 text-violet-700' :
                             isOverdue ? 'bg-red-100 text-red-700' : isCompleted ? 'text-slate-400' : 'text-slate-500'
                           }`}>
                             <CalendarIcon className="h-3 w-3" />
-                            {format(new Date(task.dueDate), "dd MMM", { locale: es })}
+                            {isSeguimientoCard ? `Revisión ${format(new Date(task.dueDate), "dd MMM", { locale: es })}` : format(new Date(task.dueDate), "dd MMM", { locale: es })}
                           </span>
                         )}
                         {(task as any).clienteNombre && (
@@ -6432,20 +6437,37 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
 
 // ==================================================================================
 // HeaderMeta — Fecha límite (editable) + Cliente en la cabecera del detalle de tarea.
+// En un seguimiento de cliente la fecha no es un plazo: es la "Fecha de Revisión"
+// (opcional, solo día) y al guardarla queda registrada también como actividad
+// 'revision' en "Tareas del cliente" (lo sincroniza el backend).
 // ==================================================================================
 function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?: boolean }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const canEditDate = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || task.createdByUserId === user?.id;
+  // El seguimiento es el espacio de trabajo del vendedor asignado: puede registrar la
+  // fecha de revisión aunque no haya creado la tarea (el backend limita ese caso a dueDate).
+  const isAssignedToMe = ((task.assignments || []) as any[]).some((a) => a.assigneeId === user?.id);
+  const canEditDate = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || task.createdByUserId === user?.id || (isSeguimiento && isAssignedToMe);
   const [editing, setEditing] = useState(false);
-  const [dateValue, setDateValue] = useState(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : "");
+  const [dateValue, setDateValue] = useState(task.dueDate ? format(new Date(task.dueDate), isSeguimiento ? "yyyy-MM-dd" : "yyyy-MM-dd'T'HH:mm") : "");
   const isCompleted = task.status === 'completada';
   const updateDueDate = useMutation({
     mutationFn: async (dueDate: string | null) => apiRequest("PATCH", `/api/tasks/${task.id}`, { dueDate }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" }); setEditing(false); toast({ title: "Fecha actualizada" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      // la revisión se refleja como actividad en la pestaña Tareas del cliente
+      if (isSeguimiento) queryClient.invalidateQueries({ queryKey: ["/api/tasks", task.id, "actividades"] });
+      setEditing(false);
+      toast({ title: isSeguimiento ? "Fecha de revisión actualizada" : "Fecha actualizada" });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo actualizar la fecha.", variant: "destructive" }),
   });
-  const overdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+  const overdue = !isSeguimiento && task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+  const save = () => {
+    if (!dateValue) return updateDueDate.mutate(null);
+    // La revisión es solo fecha: se guarda a mediodía local para evitar corrimientos de zona horaria.
+    updateDueDate.mutate(new Date(isSeguimiento ? `${dateValue}T12:00:00` : dateValue).toISOString());
+  };
   return (
     <div className="flex items-center gap-x-6 gap-y-2 mt-3 flex-wrap pl-[52px]">
       {task.clienteNombre && (
@@ -6455,24 +6477,28 @@ function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?
           <span className="font-semibold text-emerald-700 truncate">{task.clienteNombre}</span>
         </div>
       )}
-      {!isSeguimiento && (
       <div className="flex items-center gap-1.5 text-sm">
         <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha límite</span>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isSeguimiento ? "Fecha de Revisión" : "Fecha límite"}</span>
         {editing ? (
           <div className="flex items-center gap-1.5">
-            <div className="w-[210px]"><DateTimePicker value={dateValue} onChange={setDateValue} /></div>
-            <button onClick={() => updateDueDate.mutate(dateValue ? new Date(dateValue).toISOString() : null)} disabled={updateDueDate.isPending} className="text-[11px] font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white rounded-lg px-2 py-1 disabled:opacity-50">{updateDueDate.isPending ? "…" : "Guardar"}</button>
+            {isSeguimiento ? (
+              <Input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className="h-8 w-[150px] text-xs" />
+            ) : (
+              <div className="w-[210px]"><DateTimePicker value={dateValue} onChange={setDateValue} /></div>
+            )}
+            <button onClick={save} disabled={updateDueDate.isPending} className="text-[11px] font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white rounded-lg px-2 py-1 disabled:opacity-50">{updateDueDate.isPending ? "…" : "Guardar"}</button>
             <button onClick={() => setEditing(false)} className="text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1">Cancelar</button>
           </div>
         ) : (
-          <button onClick={() => canEditDate && setEditing(true)} className={`flex items-center gap-1 font-semibold ${overdue ? "text-red-600" : task.dueDate ? "text-slate-800" : "text-slate-400 italic"} ${canEditDate ? "hover:underline" : ""}`}>
-            {task.dueDate ? format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es }) : "Sin fecha"}
+          <button onClick={() => canEditDate && setEditing(true)} className={`flex items-center gap-1 font-semibold ${overdue ? "text-red-600" : task.dueDate ? (isSeguimiento ? "text-violet-700" : "text-slate-800") : "text-slate-400 italic"} ${canEditDate ? "hover:underline" : ""}`}>
+            {task.dueDate
+              ? format(new Date(task.dueDate), isSeguimiento ? "dd MMM yyyy" : "dd MMM yyyy, HH:mm", { locale: es })
+              : isSeguimiento ? (canEditDate ? "Registrar fecha de revisión" : "Sin fecha de revisión") : "Sin fecha"}
             {canEditDate && <Pencil className="h-3 w-3 text-slate-400" />}
           </button>
         )}
       </div>
-      )}
     </div>
   );
 }

@@ -14046,6 +14046,26 @@ export function registerRoutes(app: Express): Server {
       }));
 
       const task = await storage.createTask(taskData, assignmentsWithDefaults);
+
+      // Si un seguimiento de cliente nace con fecha de revisión, esa fecha queda
+      // registrada también como "tarea del cliente" (actividad tipo 'revision').
+      if ((payload as any)?.kind === 'seguimiento_cliente' && taskData.dueDate) {
+        try {
+          await storage.createActividad({
+            taskId: task.id,
+            tipo: 'revision',
+            descripcion: 'Revisión del cliente',
+            fecha: taskData.dueDate,
+            estado: 'pendiente',
+            responsableId: null,
+            responsableNombre: null,
+            rutaId: null,
+            rutaNombre: null,
+            createdBy: user.id,
+          });
+        } catch (err) { console.error("Error creando actividad de revisión:", err); }
+      }
+
       res.status(201).json(task);
     } catch (error) {
       console.error("Error creating task:", error);
@@ -14063,8 +14083,13 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Task not found" });
       }
 
-      // Only admin, supervisor, or task creator can update task
-      const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
+      // Only admin, supervisor, or task creator can update task. En un seguimiento de
+      // cliente el asignado también puede (limitado más abajo a status/dueDate, para
+      // que registre su fecha de revisión aunque no haya creado la tarea).
+      const isSeguimientoCliente = (task.payload as any)?.kind === 'seguimiento_cliente';
+      const isAssignedToTask = (task.assignments || []).some((a: any) => a.assigneeId === user.id);
+      const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id
+        || (isSeguimientoCliente && isAssignedToTask);
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
@@ -14108,15 +14133,18 @@ export function registerRoutes(app: Express): Server {
         // Salesperson can only update status of tasks assigned to them
         const isAssigned = task.assignments.some(assignment =>
           (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
-          (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment)
+          (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment) ||
+          (isSeguimientoCliente && assignment.assigneeId === user.id)
         );
 
         if (!isAssigned) {
           return res.status(403).json({ message: "Not authorized to update this task" });
         }
 
-        // Only allow status updates for assigned salesperson
-        if (Object.keys(updates).some(key => key !== 'status')) {
+        // Only allow status updates for assigned salesperson; en su seguimiento el
+        // vendedor asignado también registra/edita la fecha de revisión (dueDate).
+        const allowedFields = isSeguimientoCliente ? ['status', 'dueDate'] : ['status'];
+        if (Object.keys(updates).some(key => !allowedFields.includes(key))) {
           return res.status(403).json({ message: "Salesperson can only update task status" });
         }
       }
@@ -14138,6 +14166,38 @@ export function registerRoutes(app: Express): Server {
       };
 
       const updatedTask = await storage.updateTask(id, processedUpdates);
+
+      // La fecha de revisión de un seguimiento vive también como "tarea del cliente":
+      // registrarla o moverla crea/actualiza la actividad 'revision' pendiente, y
+      // quitarla la elimina. Las revisiones ya completadas no se tocan.
+      if (isSeguimientoCliente && dueDate !== undefined) {
+        try {
+          const acts = await storage.getActividadesByTask(id);
+          const revision = acts.find((a: any) => a.tipo === 'revision' && a.estado === 'pendiente');
+          const fecha = dueDate ? new Date(dueDate) : null;
+          if (fecha) {
+            if (revision) {
+              await storage.updateActividad(revision.id, { fecha });
+            } else {
+              await storage.createActividad({
+                taskId: id,
+                tipo: 'revision',
+                descripcion: 'Revisión del cliente',
+                fecha,
+                estado: 'pendiente',
+                responsableId: null,
+                responsableNombre: null,
+                rutaId: null,
+                rutaNombre: null,
+                createdBy: user.id,
+              });
+            }
+          } else if (revision) {
+            await storage.deleteActividad(revision.id);
+          }
+        } catch (err) { console.error("Error sincronizando actividad de revisión:", err); }
+      }
+
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task:", error);
