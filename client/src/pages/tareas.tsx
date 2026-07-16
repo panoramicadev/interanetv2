@@ -1947,6 +1947,13 @@ export default function TareasPage() {
             </div>
           )}
 
+          {/* Pestaña Marketing: solicitudes al área (pendientes de aceptación / en proceso),
+              encima de las tareas. Admin ve todas y puede aceptar/rechazar; supervisor,
+              encargado y vendedor ven solo las que enviaron, en modo lectura. */}
+          {activeTab === 'marketing' && taskView !== 'terminadas' && (
+            <MarketingSolicitudesInbox viewer={user.role === 'admin' ? 'admin' : 'solicitante'} />
+          )}
+
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
             {tasksQuery.isLoading ? (
@@ -6176,8 +6183,13 @@ function formatFechaCorta(v?: string | null): string {
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function MarketingSolicitudesInbox() {
+// viewer: 'marketing' = la encargada gestiona su bandeja (comportamiento original);
+// 'admin' = ve todas las solicitudes y también puede gestionarlas (el backend se lo
+// permite); 'solicitante' = supervisor/encargado/vendedor solo ve el estado de las
+// solicitudes que él mismo envió (el GET ya viene scopeado por rol desde el server).
+function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketing' | 'admin' | 'solicitante' }) {
   const { toast } = useToast();
+  const canManage = viewer !== 'solicitante';
   const [aceptar, setAceptar] = useState<SolicitudMarketingItem | null>(null);
   const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
   const [plazo, setPlazo] = useState("");
@@ -6237,8 +6249,16 @@ function MarketingSolicitudesInbox() {
               <Send className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Solicitudes del equipo</h3>
-              <p className="text-xs text-slate-500">Pedidos que esperan tu aprobación</p>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">
+                {viewer === 'solicitante' ? 'Mis solicitudes a Marketing' : 'Solicitudes del equipo'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {viewer === 'solicitante'
+                  ? 'Esperando aceptación de Marketing'
+                  : viewer === 'admin'
+                    ? 'Pedidos pendientes de aceptación por Marketing'
+                    : 'Pedidos que esperan tu aprobación'}
+              </p>
             </div>
             <Badge className="ml-auto bg-[#fd6301] text-white font-semibold">{pendientes.length}</Badge>
           </div>
@@ -6263,23 +6283,29 @@ function MarketingSolicitudesInbox() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
-                    onClick={() => { setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
-                  >
-                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
-                    onClick={() => { setRechazar(s); setMotivo(""); }}
-                  >
-                    <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
-                  </Button>
-                </div>
+                {canManage ? (
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
+                      onClick={() => { setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
+                      onClick={() => { setRechazar(s); setMotivo(""); }}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-1">
+                    <Clock className="h-3 w-3" /> Esperando aceptación
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -6294,8 +6320,12 @@ function MarketingSolicitudesInbox() {
               <Play className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">En mi flujo</h3>
-              <p className="text-xs text-slate-500">Solicitudes aceptadas en curso</p>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">
+                {viewer === 'marketing' ? 'En mi flujo' : 'En proceso'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {viewer === 'solicitante' ? 'Aceptadas por Marketing, en curso' : 'Solicitudes aceptadas en curso'}
+              </p>
             </div>
             <Badge className="ml-auto bg-emerald-500 text-white font-semibold">{enFlujo.length}</Badge>
           </div>
@@ -6313,14 +6343,16 @@ function MarketingSolicitudesInbox() {
                       )}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                    disabled={estadoMutation.isPending}
-                    onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada" }) })}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
-                  </Button>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                      disabled={estadoMutation.isPending}
+                      onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada" }) })}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
