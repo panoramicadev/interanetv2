@@ -874,6 +874,16 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_id VARCHAR(255)`);
     await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
 
+    // Promesas de compra: el cumplimiento se considera desde la NVV, pero nvv.fact_nvv
+    // solo conserva líneas abiertas (al facturarse, la NVV desaparece y la GDV puede caer
+    // en otra semana) → sin memoria, el vendido de una semana decae a "solo lo facturado".
+    // ventas_reales_max guarda el mejor valor calculado y evita ese retroceso.
+    console.log('  🤝 Verificando columna ventas_reales_max en promesas_compra...');
+    await db.execute(sql`
+      ALTER TABLE promesas_compra
+      ADD COLUMN IF NOT EXISTS ventas_reales_max NUMERIC(15, 2)
+    `);
+
     // Rutas comerciales (runtime bootstrap — el runner de migraciones no es confiable en prod).
     console.log('  🧭 Verificando tablas de rutas comerciales...');
     await db.execute(sql`

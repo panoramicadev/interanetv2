@@ -5743,6 +5743,9 @@ export const promesasCompra = pgTable("promesas_compra", {
   clienteTipo: varchar("cliente_tipo", { length: 20 }).default("activo"), // "activo" o "potencial"
   montoPrometido: numeric("monto_prometido", { precision: 15, scale: 2 }).notNull(),
   ventasRealesManual: numeric("ventas_reales_manual", { precision: 15, scale: 2 }), // Ventas reales ingresadas manualmente por admin/supervisor
+  // Mayor "vendido" (NVV+GDV) observado para la promesa: fact_nvv solo conserva líneas
+  // abiertas, así que al facturarse la NVV el crédito desaparecería sin esta memoria.
+  ventasRealesMax: numeric("ventas_reales_max", { precision: 15, scale: 2 }),
   semana: varchar("semana", { length: 10 }).notNull(), // Formato: YYYY-WW (ej: 2025-42)
   anio: integer("anio").notNull(),
   numeroSemana: integer("numero_semana").notNull(), // 1-52
