@@ -1276,10 +1276,6 @@ function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartC
   onNuevo: () => void;
 }) {
   const [isDragTarget, setIsDragTarget] = useState(false);
-  const totalMonto = useMemo(
-    () => items.reduce((sum: number, c: any) => sum + (parseFloat(c.montoEstimado) || 0), 0),
-    [items]
-  );
 
   return (
     <div
@@ -1299,9 +1295,6 @@ function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartC
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${estado.dot}`} />
         <span className="text-xs font-semibold text-foreground">{estado.label}</span>
         <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{items.length}</Badge>
-        <span className={`ml-auto text-[11px] font-semibold tabular-nums ${estado.text}`}>
-          {formatCLP(totalMonto)}
-        </span>
       </div>
 
       {/* Cards */}
