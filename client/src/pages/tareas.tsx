@@ -184,7 +184,7 @@ export default function TareasPage() {
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
   // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
-  const { can } = usePermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
   // Pestañas siempre presentes: Tareas, Seguimiento, Rutas Comerciales, Calendario (4).
   // Estimación y Marketing solo para no-técnico y no-marketing; CRM según permiso.
@@ -300,8 +300,24 @@ export default function TareasPage() {
   // Estado para vista Calendario
   const [calendarMonth, setCalendarMonth] = useState(new Date());
 
-  // Estado para controlar la pestaña activa
-  const [activeTab, setActiveTab] = useState("tareas");
+  // Estado para controlar la pestaña activa. Se rehidrata desde ?tab= para
+  // que "Volver" desde el detalle de un lead del CRM regrese a esta pestaña
+  // y no a la raíz del panel.
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    const validas = ["tareas", "seguimiento", "estimacion", "marketing", "crm", "rutas-comerciales", "calendario"];
+    return tab && validas.includes(tab) ? tab : "tareas";
+  });
+
+  // Si la URL pide la pestaña CRM pero el usuario no tiene el permiso
+  // (link compartido), cae a Tareas en vez de quedar en una pestaña vacía.
+  // Espera a que haya usuario: sin él `can()` siempre da false y resetearía
+  // la pestaña en un refresh directo de /tareas?tab=crm.
+  useEffect(() => {
+    if (user && permissionsReady && !showCrmTab && activeTab === "crm") {
+      setActiveTab("tareas");
+    }
+  }, [user, permissionsReady, showCrmTab, activeTab]);
 
   // Estado para vista de detalle de tarea
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -1077,10 +1093,9 @@ export default function TareasPage() {
     );
   }
 
-  // Selector de Área reutilizable — la card-pill con el ícono de edificio y el dropdown de segmento.
-  // Vive normalmente en el header; cuando el administrador está en Tareas/Marketing se muestra
-  // a la derecha de la fila de filtros (areaSelectorInFilters) para aprovechar mejor ese espacio.
-  const areaSelectorInFilters = user.role === 'admin' && (activeTab === 'tareas' || activeTab === 'marketing') && !isSalesperson && visibleSegmentos.length > 1;
+  // Selector de Área — la card-pill con el ícono de edificio y el dropdown de segmento.
+  // Vive SIEMPRE en el header (junto a "Nueva Tarea"), en todas las pestañas, para
+  // que el administrador pueda cambiar de área desde cualquier vista.
   const areaSelector = (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
       <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
@@ -1121,10 +1136,8 @@ export default function TareasPage() {
           {(canCreateTasks || canRequestMarketing) && (
             <>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área
-                  visible. Cuando el admin está en Tareas/Marketing se muestra a la derecha de los
-                  filtros (areaSelectorInFilters) en lugar de aquí. */}
-              {!isSalesperson && visibleSegmentos.length > 1 && !areaSelectorInFilters && areaSelector}
+              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área visible. */}
+              {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
               <Button onClick={() => {
                 // El vendedor solo puede pedirle a Marketing: abrimos directo ese diálogo.
                 if (onlyMarketingRequest) {
@@ -1779,7 +1792,6 @@ export default function TareasPage() {
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap justify-end">
-                    {areaSelectorInFilters && areaSelector}
                     <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
                       {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                     </Badge>
@@ -2622,13 +2634,9 @@ export default function TareasPage() {
             tasks={calendarTasks}
             calendarMonth={calendarMonth}
             setCalendarMonth={setCalendarMonth}
-            onTaskClick={(taskId) => {
-              const task = calendarTasks.find(t => t.id === taskId);
-              if (task) {
-                setExpandedTasks(new Set([taskId]));
-                setActiveTab((task as any).payload?.kind === 'seguimiento_cliente' ? "seguimiento" : "tareas");
-              }
-            }}
+            onOpenDetail={(taskId) => setSelectedTaskId(taskId)}
+            getStatusBadge={getStatusBadge}
+            getPriorityBadge={getPriorityBadge}
             salespeople={availableUsers}
             supervisors={availableSupervisors}
           />
@@ -4871,19 +4879,33 @@ function CalendarViewTab({
   tasks,
   calendarMonth,
   setCalendarMonth,
-  onTaskClick,
+  onOpenDetail,
+  getStatusBadge,
+  getPriorityBadge,
   salespeople,
   supervisors,
 }: {
   tasks: Array<Task & { assignments: TaskAssignment[] }>;
   calendarMonth: Date;
   setCalendarMonth: (date: Date) => void;
-  onTaskClick: (taskId: string) => void;
+  onOpenDetail: (taskId: string) => void;
+  getStatusBadge: (status: string) => JSX.Element;
+  getPriorityBadge: (priority: string) => JSX.Element;
   salespeople: Array<{ id: string; salespersonName: string; role: string }> | undefined;
   supervisors: Array<{ id: string; salespersonName: string; role: string }> | undefined;
 }) {
   const monthStart = startOfMonth(calendarMonth);
   const monthEnd = endOfMonth(calendarMonth);
+
+  // Popup de vista rápida: clic en una tarea del calendario → info resumida;
+  // "+N más" → lista de todas las tareas de ese día.
+  const [popupTask, setPopupTask] = useState<(Task & { assignments: TaskAssignment[] }) | null>(null);
+  const [popupDay, setPopupDay] = useState<Date | null>(null);
+
+  const assigneeName = (a: TaskAssignment) =>
+    salespeople?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+    supervisors?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+    "Sin nombre";
 
   const getDaysInMonth = () => {
     const days: Date[] = [];
@@ -5029,7 +5051,7 @@ function CalendarViewTab({
                     {dayTasks.slice(0, 3).map((task) => (
                       <button
                         key={task.id}
-                        onClick={() => onTaskClick(task.id)}
+                        onClick={() => setPopupTask(task)}
                         className={`w-full text-left px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[10px] sm:text-xs font-medium truncate border transition-all hover:shadow-md ${getStatusColor(task.status)}`}
                         title={task.title}
                         data-testid={`calendar-task-${task.id}`}
@@ -5041,9 +5063,13 @@ function CalendarViewTab({
                       </button>
                     ))}
                     {dayTasks.length > 3 && (
-                      <div className="text-[10px] sm:text-xs text-gray-500 font-medium px-1.5">
+                      <button
+                        onClick={() => setPopupDay(day)}
+                        className="w-full text-left text-[10px] sm:text-xs text-gray-500 hover:text-orange-600 font-medium px-1.5 transition-colors"
+                        data-testid={`calendar-more-${format(day, 'yyyy-MM-dd')}`}
+                      >
                         +{dayTasks.length - 3} más
-                      </div>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -5078,6 +5104,151 @@ function CalendarViewTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* Popup de vista rápida de la tarea */}
+      <Dialog open={!!popupTask} onOpenChange={(open) => { if (!open) setPopupTask(null); }}>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-2xl" data-testid="calendar-task-popup">
+          {popupTask && (
+            <>
+              {/* Header */}
+              <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
+                <div className="flex items-start gap-3">
+                  <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25 flex-shrink-0">
+                    <CalendarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <DialogTitle className="text-lg font-bold text-foreground leading-snug pr-6">
+                      {popupTask.title}
+                    </DialogTitle>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      {getStatusBadge(popupTask.status ?? 'pendiente')}
+                      {getPriorityBadge(popupTask.priority ?? 'medium')}
+                      {(popupTask as any).segmento && (
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-900">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          {SEGMENTOS.find((s) => s.value === (popupTask as any).segmento)?.label ?? (popupTask as any).segmento}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contenido */}
+              <div className="px-6 py-5 space-y-4">
+                {popupTask.description && (
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {popupTask.description}
+                  </p>
+                )}
+
+                <div className="space-y-2.5 text-sm">
+                  {popupTask.dueDate && (
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                        <Clock className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-200 capitalize">
+                        {format(new Date(popupTask.dueDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
+                      </span>
+                    </div>
+                  )}
+                  {(popupTask as any).clienteNombre && (
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 flex-shrink-0">
+                        <Building2 className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-200 truncate">{(popupTask as any).clienteNombre}</span>
+                    </div>
+                  )}
+                </div>
+
+                {popupTask.assignments.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <Users className="h-3.5 w-3.5" /> Asignados
+                    </div>
+                    <div className="space-y-1">
+                      {popupTask.assignments.map((a) => {
+                        const done = a.status === 'completada' || a.status === 'completed';
+                        const dotColor = done ? 'bg-green-500' : a.status === 'en_progreso' ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600';
+                        return (
+                          <div key={a.id} className="flex items-center gap-2.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 px-3 py-2">
+                            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-[#fd6301] text-white text-xs font-bold flex-shrink-0">
+                              {assigneeName(a).charAt(0).toUpperCase()}
+                            </span>
+                            <span className="text-sm text-slate-700 dark:text-slate-200 truncate flex-1">{assigneeName(a)}</span>
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} title={done ? 'Completada' : a.status === 'en_progreso' ? 'En progreso' : 'Pendiente'} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-end gap-2">
+                <Button variant="outline" className="rounded-2xl" onClick={() => setPopupTask(null)} data-testid="calendar-popup-close">
+                  Cerrar
+                </Button>
+                <Button
+                  className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
+                  onClick={() => {
+                    const id = popupTask.id;
+                    setPopupTask(null);
+                    onOpenDetail(id);
+                  }}
+                  data-testid="calendar-popup-detail"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Ver detalle completo
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Popup con todas las tareas de un día ("+N más") */}
+      <Dialog open={!!popupDay} onOpenChange={(open) => { if (!open) setPopupDay(null); }}>
+        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden rounded-2xl" data-testid="calendar-day-popup">
+          {popupDay && (
+            <>
+              <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25">
+                    <CalendarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-lg font-bold text-foreground capitalize">
+                      {format(popupDay, "EEEE d 'de' MMMM", { locale: es })}
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {getTasksForDay(popupDay).length} tarea{getTasksForDay(popupDay).length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-4 py-4 space-y-1.5 max-h-[50vh] overflow-y-auto">
+                {getTasksForDay(popupDay).map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => { setPopupDay(null); setPopupTask(task); }}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-all hover:shadow-md ${getStatusColor(task.status)}`}
+                    data-testid={`calendar-day-task-${task.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getPriorityColor(task.priority)}`} />
+                      <span className="truncate">{task.title}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

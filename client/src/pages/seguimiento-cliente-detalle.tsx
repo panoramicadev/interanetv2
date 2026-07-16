@@ -147,6 +147,12 @@ export default function SeguimientoClienteDetalle() {
   const [, params] = useRoute("/seguimiento-clientes/:id");
   const clientId = params?.id;
 
+  // Si se llegó desde la pestaña CRM del Panel de Trabajo (?from=panel),
+  // "Volver" regresa a esa pestaña; si no, a la página de Seguimiento.
+  const fromPanel = new URLSearchParams(window.location.search).get("from") === "panel";
+  const backPath = fromPanel ? "/tareas?tab=crm" : "/seguimiento-clientes";
+  const backLabel = fromPanel ? "Volver al Panel de Trabajo" : "Volver al Seguimiento";
+
   const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
   // ─── Estado local ───────────────────────────────────────────────
@@ -336,7 +342,7 @@ export default function SeguimientoClienteDetalle() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
       toast({ title: "Cliente eliminado" });
-      navigate("/seguimiento-clientes");
+      navigate(backPath);
     },
     onError: (err: Error) => {
       toast({ title: "Error al eliminar el cliente", description: err.message, variant: "destructive" });
@@ -746,9 +752,9 @@ export default function SeguimientoClienteDetalle() {
         <div className="text-center">
           <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground mb-4">No se encontró el cliente</p>
-          <Button variant="outline" onClick={() => navigate("/seguimiento-clientes")}>
+          <Button variant="outline" onClick={() => navigate(backPath)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver al Seguimiento
+            {backLabel}
           </Button>
         </div>
       </div>
@@ -796,12 +802,12 @@ export default function SeguimientoClienteDetalle() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/seguimiento-clientes")}
+          onClick={() => navigate(backPath)}
           className="text-muted-foreground hover:text-foreground -ml-2"
           data-testid="btn-volver"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />
-          Volver al Seguimiento
+          {backLabel}
         </Button>
 
         {/* ═══ Header hero ═══ */}

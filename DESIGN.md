@@ -15,8 +15,9 @@ El módulo de referencia en código es el **Panel de Trabajo**
   - Secundario: blanco con borde gris y hover naranja.
 - **Tabs:** track gris `rounded-2xl`; pestaña activa = fondo blanco + texto naranja.
 - **Filtros:** cada filtro es una "tarjeta-pill" blanca con un ícono de color y un
-  selector sin bordes. La fila deja los filtros a la izquierda y el selector de
-  contexto (Área) + el contador a la derecha.
+  selector sin bordes. La fila deja los filtros a la izquierda y el contador a la
+  derecha. El selector de contexto (Área) vive siempre en el header de la página,
+  visible en todas las pestañas.
 - **Header de página:** título con un ícono-chip naranja cuadrado + subtítulo gris.
 - **Dark mode** siempre contemplado; diseño responsive (los filtros colapsan en móvil).
 
