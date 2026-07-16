@@ -184,7 +184,7 @@ export default function TareasPage() {
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
   // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
-  const { can } = usePermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
   // Pestañas siempre presentes: Tareas, Seguimiento, Rutas Comerciales, Calendario (4).
   // Estimación y Marketing solo para no-técnico y no-marketing; CRM según permiso.
@@ -300,8 +300,24 @@ export default function TareasPage() {
   // Estado para vista Calendario
   const [calendarMonth, setCalendarMonth] = useState(new Date());
 
-  // Estado para controlar la pestaña activa
-  const [activeTab, setActiveTab] = useState("tareas");
+  // Estado para controlar la pestaña activa. Se rehidrata desde ?tab= para
+  // que "Volver" desde el detalle de un lead del CRM regrese a esta pestaña
+  // y no a la raíz del panel.
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    const validas = ["tareas", "seguimiento", "estimacion", "marketing", "crm", "rutas-comerciales", "calendario"];
+    return tab && validas.includes(tab) ? tab : "tareas";
+  });
+
+  // Si la URL pide la pestaña CRM pero el usuario no tiene el permiso
+  // (link compartido), cae a Tareas en vez de quedar en una pestaña vacía.
+  // Espera a que haya usuario: sin él `can()` siempre da false y resetearía
+  // la pestaña en un refresh directo de /tareas?tab=crm.
+  useEffect(() => {
+    if (user && permissionsReady && !showCrmTab && activeTab === "crm") {
+      setActiveTab("tareas");
+    }
+  }, [user, permissionsReady, showCrmTab, activeTab]);
 
   // Estado para vista de detalle de tarea
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);

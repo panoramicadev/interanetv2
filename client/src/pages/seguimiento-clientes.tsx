@@ -355,7 +355,9 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
 
   // ─── Handlers ────────────────────────────────────────────────────
   const handleViewClient = (client: any) => {
-    navigate(`/seguimiento-clientes/${client.id}`);
+    // Embebido en el Panel de Trabajo: el detalle necesita saber el origen
+    // para que "Volver" regrese a la pestaña CRM y no a la página antigua.
+    navigate(`/seguimiento-clientes/${client.id}${embedded ? "?from=panel" : ""}`);
   };
 
   const toggleDestacado = (client: any) => {
