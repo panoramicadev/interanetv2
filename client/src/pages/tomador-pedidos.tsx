@@ -729,7 +729,7 @@ export const QuotePDFDocument = ({ quote, items: rawItems, shippingCost = 0, sho
   );
 };
 
-export default function TomadorPedidos({ variant = "v1", builderOnly = false, initialClientRut, initialClientData, onClose }: {
+export default function TomadorPedidos({ variant = "v1", builderOnly = false, initialClientRut, initialClientData, onClose, onSaved }: {
   variant?: "v1" | "v2";
   /** Modo embebido: renderiza SOLO el constructor de presupuesto V2 como
    *  modal (sin la página), abierto de inmediato. Lo usa el detalle del
@@ -743,6 +743,10 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
   initialClientData?: { nombre?: string; rut?: string; email?: string; telefono?: string; direccion?: string };
   /** Se llama cuando el constructor se cierra en modo embebido. */
   onClose?: () => void;
+  /** Se llama al crear una cotización NUEVA (no en ediciones): entrega
+   *  monto, número y RUT para que el CRM Seguimiento deje el hito en el
+   *  timeline y vincule el RUT en la pestaña RUT/Compras. */
+  onSaved?: (info: { id: string; quoteNumber?: string; total: number; clientRut?: string }) => void;
 } = {}) {
   const isV2 = variant === "v2" || builderOnly;
   const { user } = useAuth();
@@ -3134,6 +3138,19 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
           typeof query.queryKey[0] === 'string' &&
           (query.queryKey[0] as string).startsWith('/api/quotes')
       });
+
+      // Solo para cotizaciones NUEVAS: avisar al padre (CRM Seguimiento)
+      // con monto/número/RUT para que registre el hito y vincule el RUT.
+      // En ediciones no se dispara, así el timeline no se llena de
+      // duplicados al re-guardar el mismo presupuesto.
+      if (!editingQuoteId) {
+        onSaved?.({
+          id: quote.id,
+          quoteNumber: quote.quoteNumber,
+          total,
+          clientRut: quoteForm.clientRut?.trim() || undefined,
+        });
+      }
 
       // Mark quote as saved and store ID for PDF and order actions
       setSavedQuoteId(quote.id);
