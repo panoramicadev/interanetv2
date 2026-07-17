@@ -720,6 +720,27 @@ export default function SeguimientoClienteDetalle() {
     }
   };
 
+  // Al guardar una cotización NUEVA en el Tomador embebido: deja el hito en
+  // el timeline de Actividad con el monto (para ver de un vistazo cuánto se
+  // cotizó) y vincula el RUT de la cotización en la pestaña RUT/Compras.
+  const handleCotizacionSaved = (info: { id: string; quoteNumber?: string; total: number; clientRut?: string }) => {
+    const numero = info.quoteNumber;
+    const montoTxt = formatCLP(info.total);
+    const numTxt = numero ? `N° ${numero} ` : "";
+    addHitoMutation.mutate({
+      tipo: "cotizacion",
+      descripcion: `Cotización ${numTxt}por ${montoTxt}`.replace(/\s+/g, " ").trim(),
+      documentoTipo: "cotizacion",
+      documentoNumero: numero || null,
+    });
+    // El RUT de la cotización manda: si es distinto al vinculado (o el lead
+    // no tenía RUT), lo registra en RUT/Compras para cruzar pedidos/NVV.
+    const rut = info.clientRut?.trim();
+    if (rut && rut !== client?.rut) {
+      linkRutMutation.mutate(rut);
+    }
+  };
+
   const handleChangeEstado = (value: string) => {
     if (!client) return;
     // Cotización abre el constructor de presupuesto del Tomador 2 como
@@ -2051,6 +2072,7 @@ export default function SeguimientoClienteDetalle() {
               telefono: client.telefono || undefined,
               direccion: [client.comuna, client.region].filter(Boolean).join(", ") || undefined,
             }}
+            onSaved={handleCotizacionSaved}
             onClose={() => setShowCotizador(false)}
           />
         </Suspense>
