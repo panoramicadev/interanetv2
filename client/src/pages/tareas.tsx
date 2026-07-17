@@ -2600,9 +2600,9 @@ export default function TareasPage() {
                 );
               }
 
-              // LISTA PLANA (pestaña Tareas): una sola lista de tareas activas, sin
-              // secciones colapsables por grupo. El grupo queda como chip de color en
-              // cada tarjeta (ver renderTaskCard). Menos jerarquía, más directo.
+              // VISTA POR GRUPOS (pestaña Tareas): las tareas se agrupan en secciones
+              // colapsables según su grupo (proyecto), con las "Sin grupo" al final.
+              // Si no hay grupos definidos, degrada a una lista plana simple.
               if (viewTasks.length === 0) {
                 return (
                   <div className="text-center py-16">
@@ -2614,9 +2614,189 @@ export default function TareasPage() {
                   </div>
                 );
               }
+
+              // Solo mostramos las secciones por grupo cuando existen grupos con tareas
+              // en la vista actual; si no, una lista plana simple.
+              const groupsWithTasks = groups.filter((g: any) => (groupedTasks[g.id] || []).length > 0);
+              if (groupsWithTasks.length === 0) {
+                return (
+                  <div className="space-y-1.5">
+                    {viewTasks.map(renderTaskCard)}
+                  </div>
+                );
+              }
+
               return (
-                <div className="space-y-1.5">
-                  {viewTasks.map(renderTaskCard)}
+                <div className="space-y-2">
+                  {/* Grupos ordenados por más pendientes primero */}
+                  {[...groupsWithTasks].sort((a, b) => {
+                    const aTasks = groupedTasks[a.id] || [];
+                    const bTasks = groupedTasks[b.id] || [];
+                    const aPending = aTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
+                    const bPending = bTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
+                    return bPending - aPending;
+                  }).map((group, groupIndex) => {
+                    const tasks = groupedTasks[group.id] || [];
+                    const completedCount = tasks.filter(t => {
+                      if (t.status === 'completada') return true;
+                      const myAssign = t.assignments.find(a =>
+                        (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "salesperson" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "user" && a.assigneeId === user.id)
+                      );
+                      const targetAssign = myAssign || (
+                        (user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area') ? t.assignments[0] : null
+                      );
+                      return targetAssign?.status === 'completed';
+                    }).length;
+                    const totalCount = tasks.length;
+                    const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+                    const borderColor = group.color || groupColors[groupIndex % groupColors.length];
+                    const isCollapsed = collapsedGroups.has(group.id);
+                    const isGroupSelected = selectedGroupIds.has(group.id);
+                    // El dueño del grupo o un admin puede renombrar/eliminar. Los vendedores
+                    // no gestionan grupos → solo los ven colapsables.
+                    const canManageGroup = !isSalesperson && (user.role === 'admin' || group.userId === user.id);
+
+                    return (
+                      <div
+                        key={group.id}
+                        className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md ${
+                          selectionMode && isGroupSelected ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200'
+                        }`}
+                        style={{ borderLeftWidth: '4px', borderLeftColor: borderColor }}
+                      >
+                        {/* Encabezado del grupo */}
+                        <div className="flex items-center">
+                          {selectionMode && user.role === 'admin' && (
+                            <div
+                              className="pl-2.5 sm:pl-4 flex items-center flex-shrink-0"
+                              onClick={(e) => { e.stopPropagation(); toggleGroupSelected(group.id); }}
+                            >
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${
+                                isGroupSelected ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300 bg-white hover:border-red-400'
+                              }`}>
+                                {isGroupSelected && <Check className="h-3 w-3" />}
+                              </div>
+                            </div>
+                          )}
+                          {editingGroupId === group.id ? (
+                            <div className="flex-1 min-w-0 flex items-center gap-2 px-2.5 sm:px-4 py-2.5">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: borderColor }} />
+                              <Input
+                                autoFocus
+                                value={editingGroupName}
+                                onChange={(e) => setEditingGroupName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { e.preventDefault(); submitEditingGroup(); }
+                                  if (e.key === 'Escape') { e.preventDefault(); setEditingGroupId(null); }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-8 text-sm flex-1 min-w-0 border-orange-300 focus-visible:ring-orange-400/30"
+                                placeholder="Nombre del grupo"
+                              />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); submitEditingGroup(); }}
+                                disabled={renameGroupMutation.isPending || !editingGroupName.trim()}
+                                className="p-1.5 rounded-lg text-white bg-[#fd6301] hover:bg-[#e35400] transition-all flex-shrink-0 disabled:opacity-50"
+                                title="Guardar nombre"
+                              >
+                                {renameGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingGroupId(null); }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all flex-shrink-0"
+                                title="Cancelar"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => toggleGroupCollapsed(group.id)}
+                              className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
+                            >
+                              <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: borderColor }} />
+                              <span className="text-sm font-bold text-slate-800 tracking-wide">{group.name}</span>
+                              <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-600 font-semibold">
+                                {totalCount}
+                              </Badge>
+
+                              {/* Indicador de progreso */}
+                              {totalCount > 0 && (
+                                <div className="flex items-center gap-2 ml-auto mr-2">
+                                  <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{
+                                        width: `${progressPercent}%`,
+                                        backgroundColor: progressPercent === 100 ? '#10b981' : borderColor,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className={`text-[10px] font-semibold whitespace-nowrap ${progressPercent === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    {completedCount}/{totalCount}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Renombrar / eliminar: solo el dueño del grupo o un admin */}
+                              {!selectionMode && canManageGroup && (
+                                <div className={`flex items-center flex-shrink-0 ${totalCount > 0 ? '' : 'ml-auto'}`}>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => { e.stopPropagation(); startEditingGroup(group.id, group.name); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); startEditingGroup(group.id, group.name); } }}
+                                    className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-orange-50 text-slate-300 hover:text-orange-600 transition-all cursor-pointer"
+                                    title="Renombrar grupo"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteGroupMutation.mutate(group.id); } }}
+                                    className="opacity-0 group-hover/header:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all cursor-pointer"
+                                    title="Eliminar grupo"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </span>
+                                </div>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Tareas del grupo */}
+                        {!isCollapsed && (
+                          <div className="border-t border-slate-100 bg-slate-50/30">
+                            <div className="px-1.5 sm:px-3 py-1.5 sm:py-2 space-y-1 sm:space-y-1.5">
+                              {tasks.map(renderTaskCard)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Tareas sin grupo */}
+                  {ungrouped.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 px-3 py-2 mt-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0" />
+                        <span className="text-sm font-bold text-slate-500 tracking-wide">Sin grupo</span>
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-500 font-semibold">
+                          {ungrouped.length}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ungrouped.map(renderTaskCard)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
