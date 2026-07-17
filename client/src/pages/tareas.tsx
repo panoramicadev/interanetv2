@@ -2262,7 +2262,29 @@ export default function TareasPage() {
                 );
               };
 
-              const groupColors = ['#3b82f6', '#f59e0b', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#f97316'];
+              const groupColors = ['#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#06b6d4', '#f59e0b', '#ef4444'];
+              // Los grupos guardan su color como nombre Tailwind ('blue', 'indigo'…) o como hex.
+              // Sin normalizar, un nombre se usa como color CSS crudo (ej. 'blue' → azul puro #00f),
+              // que sale saturado y desentona con la paleta. Lo mapeamos a un hex armónico.
+              const NAMED_COLOR_HEX: Record<string, string> = {
+                slate: '#64748b', gray: '#6b7280', red: '#ef4444', orange: '#f97316', amber: '#f59e0b',
+                yellow: '#eab308', lime: '#84cc16', green: '#10b981', emerald: '#10b981', teal: '#14b8a6',
+                cyan: '#06b6d4', sky: '#0ea5e9', blue: '#3b82f6', indigo: '#6366f1', violet: '#8b5cf6',
+                purple: '#8b5cf6', fuchsia: '#d946ef', pink: '#ec4899', rose: '#f43f5e',
+              };
+              const resolveGroupColor = (raw: string | null | undefined, i: number): string => {
+                if (raw) {
+                  if (raw.startsWith('#')) return raw;
+                  if (NAMED_COLOR_HEX[raw]) return NAMED_COLOR_HEX[raw];
+                }
+                return groupColors[i % groupColors.length];
+              };
+              const hexToRgba = (hex: string, alpha: number): string => {
+                let h = hex.replace('#', '');
+                if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+                const int = parseInt(h, 16);
+                return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+              };
 
               // Vista TERMINADAS: todas las tareas completadas juntas, en una sola lista.
               if (taskView === 'terminadas') {
@@ -2651,7 +2673,7 @@ export default function TareasPage() {
                     }).length;
                     const totalCount = tasks.length;
                     const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-                    const borderColor = group.color || groupColors[groupIndex % groupColors.length];
+                    const borderColor = resolveGroupColor(group.color, groupIndex);
                     const isCollapsed = collapsedGroups.has(group.id);
                     const isGroupSelected = selectedGroupIds.has(group.id);
                     // El dueño del grupo o un admin puede renombrar/eliminar. Los vendedores
@@ -2662,9 +2684,9 @@ export default function TareasPage() {
                       <div
                         key={group.id}
                         className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md ${
-                          selectionMode && isGroupSelected ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200'
-                        }`}
-                        style={{ borderLeftWidth: '4px', borderLeftColor: borderColor }}
+                          selectionMode && isGroupSelected ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200/80'
+                        } ${!isCollapsed && !(selectionMode && isGroupSelected) ? 'shadow-md' : ''}`}
+                        style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}
                       >
                         {/* Encabezado del grupo */}
                         <div className="flex items-center">
@@ -2714,19 +2736,33 @@ export default function TareasPage() {
                           ) : (
                             <button
                               onClick={() => toggleGroupCollapsed(group.id)}
-                              className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
+                              className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-4 py-3 hover:bg-slate-50/70 transition-colors group/header text-left"
                             >
-                              <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: borderColor }} />
-                              <span className="text-sm font-bold text-slate-800 tracking-wide">{group.name}</span>
-                              <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 bg-slate-100 text-slate-600 font-semibold">
-                                {totalCount}
-                              </Badge>
+                              {/* Chip de identidad: inicial sobre un tinte del color del grupo */}
+                              <div
+                                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-[13px] font-bold"
+                                style={{ backgroundColor: hexToRgba(borderColor, 0.14), color: borderColor }}
+                              >
+                                {(group.name?.charAt(0) || '·').toUpperCase()}
+                              </div>
+
+                              {/* Nombre + resumen */}
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-800 truncate">{group.name}</span>
+                                <span className="block mt-0.5 text-[11px] font-medium text-slate-400">
+                                  {totalCount} tarea{totalCount !== 1 ? 's' : ''}
+                                  {progressPercent === 100
+                                    ? ' · completado'
+                                    : completedCount > 0
+                                      ? ` · ${completedCount} lista${completedCount !== 1 ? 's' : ''}`
+                                      : ''}
+                                </span>
+                              </div>
 
                               {/* Indicador de progreso */}
                               {totalCount > 0 && (
-                                <div className="flex items-center gap-2 ml-auto mr-2">
-                                  <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                                  <div className="w-16 sm:w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                                     <div
                                       className="h-full rounded-full transition-all duration-500"
                                       style={{
@@ -2735,15 +2771,15 @@ export default function TareasPage() {
                                       }}
                                     />
                                   </div>
-                                  <span className={`text-[10px] font-semibold whitespace-nowrap ${progressPercent === 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                    {completedCount}/{totalCount}
+                                  <span className={`text-[11px] font-bold tabular-nums whitespace-nowrap ${progressPercent === 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                    {completedCount}<span className="text-slate-300 font-medium">/{totalCount}</span>
                                   </span>
                                 </div>
                               )}
 
                               {/* Renombrar / eliminar: solo el dueño del grupo o un admin */}
                               {!selectionMode && canManageGroup && (
-                                <div className={`flex items-center flex-shrink-0 ${totalCount > 0 ? '' : 'ml-auto'}`}>
+                                <div className="flex items-center flex-shrink-0">
                                   <span
                                     role="button"
                                     tabIndex={0}
@@ -2766,6 +2802,8 @@ export default function TareasPage() {
                                   </span>
                                 </div>
                               )}
+
+                              <ChevronRight className={`h-4 w-4 text-slate-300 flex-shrink-0 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
                             </button>
                           )}
                         </div>
