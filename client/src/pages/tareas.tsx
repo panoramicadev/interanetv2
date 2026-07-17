@@ -61,7 +61,8 @@ import {
   DollarSign,
   Package,
   MapPin,
-  Palette
+  Palette,
+  HardHat
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -198,6 +199,12 @@ export default function TareasPage() {
   const visibleTabCount = 4 + (showExtraSegmentTabs ? 2 : 0) + (showCrmTab ? 1 : 0);
   const tabsGridClass =
     ({ 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
+  // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
+  // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
+  // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
+  const tabTriggerClass =
+    "inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg whitespace-nowrap";
+  const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // View state - vendedores always see "my-tasks"
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
@@ -311,7 +318,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "marketing", "crm", "rutas-comerciales", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "marketing", "crm", "rutas-comerciales", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -659,6 +666,10 @@ export default function TareasPage() {
   // Para Construcción usar período mensual (YYYY-MM), para otros usar semanal (YYYY-WW)
   // Supervisor: verificar si alguno de sus vendedores es de CONSTRUCCION
   const esConstruccion = (() => {
+    // Admin (u otro rol con selector de Área): el área elegida es la fuente de verdad.
+    if (segmentoFilter === 'construccion') {
+      return true;
+    }
     // Si el usuario tiene segmento asignado directamente
     if ((user as any)?.assignedSegment?.toLowerCase()?.includes('construcc')) {
       return true;
@@ -671,6 +682,16 @@ export default function TareasPage() {
     }
     return false;
   })();
+
+  // Construcción no tiene "Estimación de ventas" (la reemplaza "Obras"). Si el
+  // usuario venía parado en esa pestaña y cambia a un área de Construcción,
+  // regresa a Tareas para no quedar en una pestaña sin trigger visible.
+  useEffect(() => {
+    if (esConstruccion && activeTab === "estimacion") {
+      setActiveTab("tareas");
+    }
+  }, [esConstruccion, activeTab]);
+
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
     : `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
@@ -1621,38 +1642,46 @@ export default function TareasPage() {
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${tabsGridClass}`}>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-              <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass}>
+              <CheckSquare className={tabIconClass} />
               Tareas
             </TabsTrigger>
-            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-              <Building2 className="h-4 w-4 mr-2 hidden sm:inline" />
+            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass}>
+              <Building2 className={tabIconClass} />
               Seguimiento
             </TabsTrigger>
-            {user?.role !== 'tecnico_obra' && !isMarketing && (
-              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-                <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
-                {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
+            {/* Construcción reemplaza "Estimación de ventas" por "Obras" (próximamente). */}
+            {user?.role !== 'tecnico_obra' && !isMarketing && !esConstruccion && (
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className={tabTriggerClass}>
+                <TrendingUp className={tabIconClass} />
+                Estimación de ventas
+              </TabsTrigger>
+            )}
+            {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
+              <TabsTrigger value="obras" data-testid="tab-obras" className={tabTriggerClass}>
+                <HardHat className={tabIconClass} />
+                Obras
+                <span className="ml-1 hidden sm:inline text-[9px] font-bold uppercase tracking-wide text-orange-500 bg-orange-100 dark:bg-orange-900/40 rounded px-1 py-px">Pronto</span>
               </TabsTrigger>
             )}
             {user?.role !== 'tecnico_obra' && !isMarketing && (
-              <TabsTrigger value="marketing" data-testid="tab-marketing" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-                <Palette className="h-4 w-4 mr-2 hidden sm:inline" />
+              <TabsTrigger value="marketing" data-testid="tab-marketing" className={tabTriggerClass}>
+                <Palette className={tabIconClass} />
                 Marketing
               </TabsTrigger>
             )}
             {showCrmTab && (
-              <TabsTrigger value="crm" data-testid="tab-crm" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-                <Users className="h-4 w-4 mr-2 hidden sm:inline" />
+              <TabsTrigger value="crm" data-testid="tab-crm" className={tabTriggerClass}>
+                <Users className={tabIconClass} />
                 CRM
               </TabsTrigger>
             )}
-            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-              <MapPin className="h-4 w-4 mr-2 hidden sm:inline" />
+            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass}>
+              <MapPin className={tabIconClass} />
               Rutas Comerciales
             </TabsTrigger>
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg">
-              <CalendarIcon className="h-4 w-4 mr-2 hidden sm:inline" />
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
+              <CalendarIcon className={tabIconClass} />
               Calendario
             </TabsTrigger>
           </TabsList>
@@ -2723,8 +2752,9 @@ export default function TareasPage() {
           />
         </TabsContent>
 
-        {/* Técnico de Obra no tiene acceso a promesas de compra */}
-        {user?.role !== 'tecnico_obra' && (
+        {/* Técnico de Obra no tiene acceso a promesas de compra.
+            Construcción tampoco: su pestaña de Estimación se reemplaza por "Obras". */}
+        {user?.role !== 'tecnico_obra' && !esConstruccion && (
           <TabsContent value="estimacion" className="space-y-6">
             <EstimacionSemanalTab
               selectedWeek={selectedWeek}
@@ -2741,6 +2771,24 @@ export default function TareasPage() {
               user={user}
               esConstruccion={esConstruccion}
             />
+          </TabsContent>
+        )}
+
+        {/* Obras — módulo propio de Construcción (reemplaza Estimación de ventas). Próximamente. */}
+        {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
+          <TabsContent value="obras" className="space-y-6">
+            <div className="flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-16">
+              <span className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
+                <HardHat className="h-8 w-8" />
+              </span>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Obras</h3>
+              <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+                El seguimiento de obras para el área de Construcción estará disponible próximamente.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-orange-100 dark:bg-orange-900/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400">
+                Próximamente
+              </span>
+            </div>
           </TabsContent>
         )}
 
