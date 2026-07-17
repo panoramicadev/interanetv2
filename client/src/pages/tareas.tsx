@@ -184,6 +184,11 @@ export default function TareasPage() {
   const isSalesperson = user?.role === 'salesperson';
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
+  // Marketing: sub-vista dentro del Panel de Trabajo. Antes el panel de solicitudes y
+  // "Mis tareas" iban apilados y había que scrollear hasta el fondo para llegar a las
+  // tareas. Ahora son dos sub-vistas ('solicitudes' = triage de pedidos del equipo /
+  // 'tareas' = sus tareas propias) bajo una barra-resumen fija con los conteos.
+  const [marketingSubView, setMarketingSubView] = useState<'solicitudes' | 'tareas'>('solicitudes');
   // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
   const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
@@ -1071,6 +1076,18 @@ export default function TareasPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t)
   ).length;
 
+  // Marketing: conteos de solicitudes para la barra-resumen de sub-vistas. Comparte el
+  // mismo queryKey que MarketingManagerPanel (react-query dedup: no dispara doble fetch).
+  const { data: mktSolicitudes = [] } = useQuery<SolicitudMarketingItem[]>({
+    queryKey: ["/api/marketing/solicitudes"],
+    enabled: isMarketing,
+  });
+  const mktPendientes = mktSolicitudes.filter((s) => s.estado === "solicitado").length;
+  const mktEnCurso = mktSolicitudes.filter((s) => s.estado === "en_proceso").length;
+  // En la sub-vista de Solicitudes ocultamos el contenido de "Mis tareas" (contador,
+  // barra de grupos, tutorial y lista) para que cada sub-vista ocupe su propia pantalla.
+  const hideMktTasks = isMarketing && activeTab === 'tareas' && marketingSubView === 'solicitudes';
+
   // El detalle de tarea se muestra como PÁGINA dentro del área de contenido
   // (el sidebar del DashboardLayout queda visible a la izquierda), no como modal.
   if (selectedTaskId && selectedTask) {
@@ -1646,17 +1663,56 @@ export default function TareasPage() {
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
 
-          {/* Encargada de Marketing: su panel administrativo de solicitudes vive PRIMERO
-              en su única vista (las pestañas están ocultas para el rol, así que la bandeja
-              de Seguimiento nunca le era alcanzable). Debajo, separadas, sus tareas propias. */}
+          {/* Encargada de Marketing: barra-resumen fija con dos sub-vistas —
+              "Solicitudes" (triage de pedidos del equipo) y "Mis tareas" (sus tareas
+              propias)— para no tener que scrollear hasta el fondo. Los conteos viven en
+              los propios toggles; el panel/tareas se muestran según la sub-vista activa. */}
           {isMarketing && activeTab === 'tareas' && (
-            <>
-              <MarketingManagerPanel />
-              <div className="flex items-center gap-2 pt-1">
-                <CheckSquare className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-bold text-slate-800 dark:text-white">Mis tareas</h2>
-              </div>
-            </>
+            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-sm p-1.5 flex flex-col sm:flex-row gap-1.5">
+              {([
+                { key: 'solicitudes' as const, icon: Send, label: 'Solicitudes', sub: mktPendientes > 0 ? `${mktPendientes} por aceptar` : mktEnCurso > 0 ? `${mktEnCurso} en curso` : 'Al día', badge: mktPendientes, badgeTone: 'bg-[#fd6301] text-white' },
+                { key: 'tareas' as const, icon: CheckSquare, label: 'Mis tareas', sub: kpiPendientes > 0 ? `${kpiPendientes} pendiente${kpiPendientes !== 1 ? 's' : ''}` : 'Todo listo', badge: kpiPendientes, badgeTone: 'bg-orange-100 text-[#fd6301] dark:bg-orange-500/15 dark:text-orange-300' },
+              ]).map((t) => {
+                const active = marketingSubView === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setMarketingSubView(t.key)}
+                    className={`flex-1 flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
+                      active
+                        ? 'bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white shadow-md shadow-orange-500/25'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? 'bg-white/20' : 'bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 dark:text-orange-400'}`}>
+                      <t.icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <div className="font-bold text-sm">{t.label}</div>
+                      <div className={`text-[11px] ${active ? 'text-white/85' : 'text-slate-400'}`}>{t.sub}</div>
+                    </div>
+                    {t.badge > 0 && (
+                      <span className={`flex-shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold ${active ? 'bg-white text-[#fd6301]' : t.badgeTone}`}>
+                        {t.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sub-vista Solicitudes: el panel administrativo de la encargada. */}
+          {isMarketing && activeTab === 'tareas' && marketingSubView === 'solicitudes' && (
+            <MarketingManagerPanel />
+          )}
+
+          {/* Encabezado de "Mis tareas" en la sub-vista de tareas propias. */}
+          {isMarketing && activeTab === 'tareas' && marketingSubView === 'tareas' && (
+            <div className="flex items-center gap-2 pt-1">
+              <CheckSquare className="h-4 w-4 text-orange-500" />
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white">Mis tareas</h2>
+            </div>
           )}
 
           {/* Filters and View Toggle - solo administrador y solo en la pestaña Tareas (Seguimiento no usa estos filtros) */}
@@ -1817,7 +1873,7 @@ export default function TareasPage() {
           )}
 
           {/* Contador compacto para roles sin filtros (todos menos administrador) */}
-          {user.role !== 'admin' && activeTab !== 'seguimiento' && (
+          {user.role !== 'admin' && activeTab !== 'seguimiento' && !hideMktTasks && (
             <div className="flex items-center justify-between">
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
@@ -1827,7 +1883,7 @@ export default function TareasPage() {
 
           {/* Group Management Bar */}
           {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
-          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
+          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !hideMktTasks && (
             <div className="flex items-center gap-2 flex-wrap">
               {/* Toggle Tareas / Terminadas — la vista por persona vive ahora en Seguimiento */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
@@ -1929,7 +1985,7 @@ export default function TareasPage() {
           )}
 
           {/* Burbuja tutorial: ¿para qué sirven los grupos? - cerrable */}
-          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
+          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !hideMktTasks && (
             <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
               {/* Puntita que apunta al botón "Nuevo Grupo" */}
               <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-[#fd6301] dark:bg-orange-500" />
@@ -1969,7 +2025,7 @@ export default function TareasPage() {
 
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
-            {tasksQuery.isLoading ? (
+            {hideMktTasks ? null : tasksQuery.isLoading ? (
               <div className="text-center py-16">
                 <div className="animate-spin rounded-full h-10 w-10 border-3 border-orange-200 border-t-orange-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
