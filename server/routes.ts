@@ -36610,6 +36610,10 @@ Instrucciones extra:
   app.get('/api/crm/seguimiento/stats', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
     const vendedorFilter = req.query.vendedor as string;
+    // Filtro por segmento/Área: las tarjetas KPI deben acotarse igual que el listado
+    // del pipeline (mismo criterio `segmento` propio || `linkedSegmento` derivado del
+    // rubro del cliente). Se aplica en JS tras traer el join, como en el cliente.
+    const segmentoFilter = req.query.segmento as string;
 
     // Build where conditions
     const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
@@ -36630,9 +36634,17 @@ Instrucciones extra:
       conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
     }
 
-    const allClients = await db.select()
+    const allClientsRaw = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        linkedSegmento: sql<string>`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`.as('linked_segmento'),
+      })
       .from(crmSeguimientoClientes)
+      .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
       .where(and(...conditions));
+
+    const allClients = (segmentoFilter && segmentoFilter !== 'todos')
+      ? allClientsRaw.filter((c: any) => ((c.segmento || c.linkedSegmento || '').trim() === segmentoFilter))
+      : allClientsRaw;
 
     const porEstado: Record<string, number> = {};
     const porPrioridad: Record<string, number> = {};

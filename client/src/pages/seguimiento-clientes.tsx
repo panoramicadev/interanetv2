@@ -193,11 +193,14 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
     },
   });
 
+  // Las tarjetas KPI se acotan al segmento/Área activa igual que el listado: sin
+  // esto quedaban en total general mientras los leads sí se filtraban.
   const { data: stats } = useQuery({
-    queryKey: ["/api/crm/seguimiento/stats", filtroVendedor],
+    queryKey: ["/api/crm/seguimiento/stats", filtroVendedor, filtroSegmento],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filtroVendedor !== "todos") params.set("vendedor", filtroVendedor);
+      if (filtroSegmento !== "todos") params.set("segmento", filtroSegmento);
       const res = await fetch(`/api/crm/seguimiento/stats?${params}`);
       if (!res.ok) throw new Error("Error al cargar estadísticas");
       return res.json();
@@ -545,7 +548,7 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
             icon={Users}
             label="Total activos"
             shortLabel="Activos"
-            value={String(stats?.total ?? clientes.length)}
+            value={String(stats?.total ?? filteredClientes.length)}
             iconBox="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
           />
           <KpiCard
