@@ -82,9 +82,16 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     key: "market.mailing",
     label: "Mailing",
-    description: "Campañas de correo a clientes",
+    description: "Correos transaccionales a clientes (venta, cobranza, automatizaciones)",
     group: "market",
     href: "/mailing",
+  },
+  {
+    key: "market.campanas",
+    label: "Campañas de Marketing",
+    description: "Armar y enviar campañas de correo masivo (newsletters) a clientes, CRM y listas",
+    group: "market",
+    href: "/campanas",
   },
   {
     key: "market.configuracion",
@@ -575,7 +582,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["postventa.reclamos", "gastos"],
   recursos_humanos: ["rrhh.comisiones", "gastos"],
-  marketing: ["marketing", "gastos"],
+  marketing: ["marketing", "market.campanas", "gastos"],
   area_produccion: ["postventa.reclamos", "gastos"],
   area_logistica: ["postventa.reclamos", "gastos"],
   area_aplicacion: ["postventa.reclamos", "gastos"],
