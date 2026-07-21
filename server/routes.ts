@@ -36888,11 +36888,17 @@ Instrucciones extra:
     const porEstado: Record<string, number> = {};
     const porPrioridad: Record<string, number> = {};
     let sinContacto7Dias = 0;
+    let activos = 0;
     const ahora = new Date();
 
     for (const c of allClients) {
+      // porEstado conserva TODOS los estados (incluye "perdido") para el pipeline;
+      // pero "perdido" ("No le Interesa / Perdido") no cuenta como lead activo y
+      // se excluye de "Total activos" y de "Sin interacción (7+ días)".
       porEstado[c.estado] = (porEstado[c.estado] || 0) + 1;
       porPrioridad[c.prioridad] = (porPrioridad[c.prioridad] || 0) + 1;
+      if (c.estado === 'perdido') continue;
+      activos++;
       if (c.ultimoContacto) {
         const diff = (ahora.getTime() - new Date(c.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24);
         if (diff > 7) sinContacto7Dias++;
@@ -36942,7 +36948,9 @@ Instrucciones extra:
     }
 
     res.json({
-      total: allClients.length,
+      // "Total activos" excluye "perdido"; allClients.length (con perdido)
+      // queda disponible vía la suma de porEstado si se necesita el bruto.
+      total: activos,
       porEstado,
       porPrioridad,
       sinContacto7Dias,
