@@ -31,6 +31,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { PushNotificationsButton } from '@/components/PushNotificationsButton';
 
 interface Notification {
   id: string;
@@ -273,11 +274,12 @@ export default function NotificacionesPage() {
 
   return (
     <div className="container mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Notificaciones</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Gestiona las comunicaciones internas del equipo</p>
         </div>
+        <PushNotificationsButton />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

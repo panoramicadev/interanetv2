@@ -4007,6 +4007,25 @@ export const emailNotificationSettings = pgTable("email_notification_settings", 
 export type EmailNotificationSetting = typeof emailNotificationSettings.$inferSelect;
 export type InsertEmailNotificationSetting = typeof emailNotificationSettings.$inferInsert;
 
+// Suscripciones Web Push (PWA): una fila por dispositivo/navegador suscrito.
+// El endpoint es único por dispositivo; si otro usuario inicia sesión en el
+// mismo dispositivo, la suscripción se reasigna (upsert por endpoint).
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // FK to users.id
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("IDX_push_subscriptions_user_id").on(table.userId),
+}));
+
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
 export const insertEmailNotificationSettingSchema = createInsertSchema(emailNotificationSettings).omit({
   id: true,
   createdAt: true,
@@ -7809,3 +7828,40 @@ export const insertRetailLocationSchema = createInsertSchema(retailLocations, {
 
 export type RetailLocation = typeof retailLocations.$inferSelect;
 export type InsertRetailLocation = z.infer<typeof insertRetailLocationSchema>;
+
+// ==================================================
+// Panel de Trabajo — registro de cambios por sección
+// Cada mutación del panel (tareas, seguimiento, estimación, marketing, CRM,
+// rutas) deja una fila acá; los "no vistos" por usuario se calculan contra
+// panel_change_seen (marcador last_seen por usuario+sección+segmento).
+// ==================================================
+export const panelChangeLog = pgTable("panel_change_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  section: varchar("section", { length: 30 }).notNull(), // 'tareas' | 'seguimiento' | 'estimacion' | 'marketing' | 'crm' | 'rutas'
+  segmento: varchar("segmento", { length: 30 }), // área del cambio; null = aplica a todas
+  entityType: varchar("entity_type", { length: 40 }).notNull(), // 'task' | 'task_group' | 'comment' | 'actividad' | 'promesa' | 'solicitud' | 'seguimiento' | 'ruta'...
+  entityId: varchar("entity_id"), // id del registro cambiado (para destacarlo al entrar)
+  action: varchar("action", { length: 30 }).notNull(), // 'created' | 'updated' | 'completed' | 'reopened' | 'deleted' | 'commented' | 'estado'
+  title: text("title").notNull(), // descripción humana: «Tarea "X" completada»
+  userId: varchar("user_id").notNull(), // FK users.id (autor del cambio)
+  userName: varchar("user_name", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  createdAtIdx: index("IDX_panel_change_log_created_at").on(table.createdAt),
+  sectionIdx: index("IDX_panel_change_log_section").on(table.section),
+}));
+
+export const panelChangeSeen = pgTable("panel_change_seen", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // FK users.id
+  section: varchar("section", { length: 30 }).notNull(),
+  segmento: varchar("segmento", { length: 30 }).notNull().default("__all"), // bucket de área; '__all' = cambios sin segmento
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+}, (table) => ({
+  userSectionSegmentoIdx: unique("panel_change_seen_unique").on(table.userId, table.section, table.segmento),
+  userIdIdx: index("IDX_panel_change_seen_user_id").on(table.userId),
+}));
+
+export type PanelChangeLogEntry = typeof panelChangeLog.$inferSelect;
+export type InsertPanelChangeLogEntry = typeof panelChangeLog.$inferInsert;
+export type PanelChangeSeenMarker = typeof panelChangeSeen.$inferSelect;

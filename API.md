@@ -37,13 +37,16 @@ https://tu-dominio.replit.app/api/external
 
 ---
 
-## Descubrimiento — `/help`
+## Descubrimiento — `/help` y `/openapi.json`
 
-Endpoint auto-descriptivo. Devuelve un JSON con todos los endpoints, sus filtros y body shapes. Útil para que un asistente IA descubra la API sin doc estática:
+Endpoints auto-descriptivos. Útiles para que un asistente IA descubra la API sin doc estática:
 
 ```http
-GET /api/external/help
+GET /api/external/help          → catálogo JSON con endpoints, filtros y body shapes
+GET /api/external/openapi.json  → spec OpenAPI 3.0 (Claude / ChatGPT / Postman)
 ```
+
+> **MCP:** existe un servidor MCP oficial (`mcp-panoramica`) que expone esta API como 51 tools para Claude Desktop / Claude Code / Cursor, en stdio o HTTP (Railway). Ver el repo `mcp-panoramica-v2` (README + TOOLS.md).
 
 ---
 
@@ -105,7 +108,24 @@ Devuelve cada cliente enriquecido con: `totalTransactions`, `totalSales`, `lastT
 
 ---
 
-### 3. Usuarios y vendedores (read)
+### 3. Puntos de venta (read)
+
+```http
+GET /puntos-de-venta
+```
+
+Sucursales propias, distribuidores y ferreterías **activas** — la misma data del mapa "Dónde Comprar". Pensado para integrarse en el sitio público (CORS abierto, cache 5 min).
+
+**Filtros:**
+- `type` — `sucursal_propia` | `distribuidor` | `ferreteria`
+- `region` — case-insensitive
+- `comuna` — case-insensitive
+
+**Respuesta:** array con `id`, `name`, `type`, `address`, `comuna`, `region`, `latitude`, `longitude`, `phone`, `email`, `website`, `schedule`, `logoUrl`, `active`.
+
+---
+
+### 4. Usuarios y vendedores (read)
 
 ```http
 GET /usuarios
@@ -129,7 +149,7 @@ GET /usuarios
 
 ---
 
-### 4. CRM Leads (read & write)
+### 5. CRM Leads (read & write)
 
 ```http
 GET    /crm/leads
@@ -159,7 +179,66 @@ Stages: `lead`, `contacto`, `visita`, `lista_precio`, `campana`, `primera_venta`
 
 ---
 
-### 5. Reclamos (read & write)
+### 6. CRM Seguimiento de Clientes — Pipeline (read & write) ⭐
+
+Control total del panel **Seguimiento de Clientes** (`/seguimiento-clientes` en la intranet). Los registros pueden vincularse por RUT a clientes del ERP, lo que habilita detección automática de compras y consulta de NVV/GDV.
+
+```http
+GET    /crm/seguimiento                      → listar (enriquecido con datos ERP)
+GET    /crm/seguimiento/:id                  → detalle + hitos[] (timeline)
+POST   /crm/seguimiento                      → crear (rut opcional autovincula al ERP)
+PATCH  /crm/seguimiento/:id                  → editar / reasignar vendedor
+DELETE /crm/seguimiento/:id                  → soft delete (active=false)
+
+POST   /crm/seguimiento/:id/hito             → agregar hito al timeline
+GET    /crm/seguimiento/:id/bitacora         → listar bitácora (panel derecho)
+POST   /crm/seguimiento/:id/bitacora         → agregar entrada de bitácora
+DELETE /crm/seguimiento/:id/bitacora/:entryId → borrar entrada
+
+POST   /crm/seguimiento/:id/vincular-rut     → vincular RUT → cliente ERP
+GET    /crm/seguimiento/:id/detectar-compras → últimas 20 ventas + hitos automáticos
+GET    /crm/seguimiento/:id/nvv              → NVV/GDV del vinculado (últimos 6 meses)
+
+GET    /crm/seguimiento/stats                → totales por estado/prioridad + sin contacto >7d
+GET    /crm/seguimiento/segmentos            → catálogo de segmentos del ERP
+```
+
+**Filtros GET `/crm/seguimiento`:** `vendedor` (salespeople_users.id), `estado`, `prioridad`, `busqueda` (ILIKE nombre/empresa/rut/email), `limit` (default 100), `offset`.
+
+Estados del pipeline: `nuevo` → `contactado` → `cotizacion` → `venta` → `despacho` → `completado` | `perdido`. Prioridades: `baja` | `media` | `alta`.
+
+**Body POST `/crm/seguimiento`:**
+```json
+{
+  "nombre": "Juan Pérez",
+  "vendedorId": "<salespeople_users.id>",
+  "telefono": "+56912345678",
+  "email": "juan@empresa.cl",
+  "empresa": "Constructora XYZ",
+  "rut": "76.123.456-7",
+  "estado": "cotizacion",
+  "prioridad": "media",
+  "origen": "manual",
+  "notas": "...",
+  "montoEstimado": 2500000,
+  "proximoContacto": "2026-08-01T10:00:00Z",
+  "region": "RM", "comuna": "Maipú",
+  "contactoEncargado": "...", "segmento": "MCT",
+  "condicionPago": "credito_30", "destacado": false
+}
+```
+
+Orígenes válidos: `manual`, `digital_organico`, `digital_pagado`, `referido`, `web`, `llamada`.
+
+**Hitos (`POST .../hito`):** `tipo`* (`contacto` | `llamada` | `whatsapp` | `cotizacion` | `visita` | `venta` | `despacho` | `nota` | `sistema`), `descripcion`*, `documentoTipo` (`nvv`|`gdv`|`factura`|`cotizacion`), `documentoNumero`, `autor` (default: nombre de la API key). Los tipos de contacto refrescan `ultimoContacto`.
+
+**Bitácora (`POST .../bitacora`):** `nota`*, `tipo` (`nota` | `llamada` | `visita` | `seguimiento` | `problema`), `autor`. Distinta del timeline de hitos: es el cuaderno de notas internas del panel derecho. Refresca `ultimoContacto` salvo tipo `problema`.
+
+Cambios de `estado` o de `vendedorId` vía PATCH generan hitos automáticos tipo `sistema` para el audit trail.
+
+---
+
+### 7. Reclamos (read & write)
 
 ```http
 GET  /reclamos
@@ -185,7 +264,7 @@ Estados: `registrado`, `en_revision_tecnica`, `en_area_responsable`, `resuelto`,
 
 ---
 
-### 6. Mantención (read & write)
+### 8. Mantención (read & write)
 
 ```http
 GET  /mantencion
@@ -212,7 +291,7 @@ Tipos: `correctivo`, `preventivo`, `predictivo`.
 
 ---
 
-### 7. Tareas (read & write)
+### 9. Tareas (read & write)
 
 ```http
 GET    /tareas
@@ -239,7 +318,7 @@ Estados: `pending`, `in_progress`, `completed`, `cancelled`.
 
 ---
 
-### 8. Notificaciones (read & write)
+### 10. Notificaciones (read & write)
 
 ```http
 GET  /notificaciones
@@ -264,7 +343,7 @@ POST /notificaciones
 
 ---
 
-### 9. Inventario (read)
+### 11. Inventario (read)
 
 ```http
 GET /inventario
@@ -291,7 +370,7 @@ GET /inventario
 
 ---
 
-### 10. Pedidos eCommerce (read & write)
+### 12. Pedidos eCommerce (read & write)
 
 ```http
 GET   /ecommerce/orders
@@ -309,24 +388,27 @@ Estados válidos (schema real): `pending`, `approved`, `modified`, `rejected`, `
 
 ---
 
-### 11. Productos y lista de precios (read) ⭐
+### 13. Productos y listas de precios (read) ⭐
 
 Necesario para que un asistente IA pueda buscar productos antes de armar una cotización.
 
 ```http
-GET /productos                  → lista flat sobre price_list (todos los precios)
-GET /productos/grupos           → productos agrupados como en la tienda (padre + variantes)
-GET /productos/:codigo          → detalle por código exacto + stock por bodega
+GET /productos                        → lista flat sobre price_list (todos los precios)
+GET /productos/grupos                 → productos agrupados como en la tienda (padre + variantes)
+GET /productos/:codigo                → detalle por código exacto + stock por bodega
+GET /listas-precio                    → listas disponibles (LP01 base + custom)
+GET /listas-precio/:code/productos    → productos con precios de una lista específica
 ```
 
 #### `GET /productos`
 
-**Filtros:** `search` (busca en código, producto, unidad), `unidad`, `tipoProducto`, `color`, `limit`, `offset`.
+**Filtros:** `search` (busca en código, producto, unidad), `unidad`, `tipoProducto`, `color`, `priceList` (`LP01` default | `LP02` | `LP03` | …), `limit`, `offset`.
 
 **Respuesta:**
 ```json
 {
   "total": 4,
+  "priceList": "LP01",
   "items": [
     {
       "codigo": "PCA960ECOPAC2",
@@ -339,6 +421,12 @@ GET /productos/:codigo          → detalle por código exacto + stock por bodeg
       "precioMinimo": 4220,
       "precioCanalDigital": 0,
       "precioOferta": null,
+      "listaPrecio": "LP01",
+      "precioListaCustom": null,
+      "precioEfectivo": 5150,
+      "costoProduccion": 2100,
+      "porcentajeUtilidad": 59.2,
+      "margenLista": 59.22,
       "esPersonalizado": false,
       "modoPrecio": null,
       "cantidadProducto": null,
@@ -348,6 +436,19 @@ GET /productos/:codigo          → detalle por código exacto + stock por bodeg
   ]
 }
 ```
+
+> Con `?priceList=LP02` el campo `precioEfectivo` refleja el override de esa lista (si el SKU lo tiene) y `precioListaCustom` trae ese valor.
+
+#### `GET /listas-precio`
+
+Devuelve `LP01` (Lista Base, tabla `price_list` completa) + las listas custom (`LP02` Mix, `LP03` MCT, `LP04` Panoramica Store, …) con `code`, `name`, `active`, `isBase` e `itemCount` (cantidad de SKUs con override).
+
+#### `GET /listas-precio/:code/productos`
+
+**Filtros:** `search`, `limit`, `offset`.
+
+- `LP01` → todos los items de `price_list` (`codigo`, `producto`, `unidad`, `precio`, `costoProduccion`).
+- `LP02+` → solo los SKUs con override: `precio`, `precioBase` (LP01) y `diferenciaVsBase`.
 
 #### `GET /productos/grupos` — vista de tienda
 
@@ -407,6 +508,13 @@ Devuelve el producto único con **todos los tiers de precio** y **stock por bode
     "canalDigital": 0,
     "oferta": null
   },
+  "preciosPorLista": { "LP01": 5530, "LP02": 5200, "LP04": 5990 },
+  "costos": {
+    "costoProduccion": 2100,
+    "porcentajeUtilidad": 62,
+    "margenLista": 62.03,
+    "margenMinimo": 54.25
+  },
   "esPersonalizado": false,
   "modoPrecio": null,
   "cantidadProducto": null,
@@ -438,7 +546,7 @@ Para una cotización estándar usar `precioLista`. Si el cliente tiene descuento
 
 ---
 
-### 12. Cotizaciones / Presupuestos (read & write) ⭐
+### 14. Cotizaciones / Presupuestos (read & write) ⭐
 
 Mismos datos que el **tomador de pedidos**. Las cotizaciones creadas vía API aparecen en la UI con los presupuestos normales.
 
@@ -454,7 +562,15 @@ GET    /cotizaciones/:id/items        → listar items
 POST   /cotizaciones/:id/items        → agregar item
 PATCH  /cotizaciones/items/:itemId    → editar item
 DELETE /cotizaciones/items/:itemId    → borrar item
+
+GET    /cotizaciones/:id/pdf          → PDF binario (?format=html para HTML)
+GET    /cotizaciones/:id/pdf-url      → URL pública firmada del PDF
 ```
+
+#### PDF de la cotización
+
+- `GET /cotizaciones/:id/pdf` — devuelve el PDF renderizado con la misma plantilla del tomador de pedidos (`application/pdf`). Con `?format=html` devuelve el HTML.
+- `GET /cotizaciones/:id/pdf-url?ttlMinutes=60` — devuelve `{ url, quoteNumber, filename, expiresAt }`. La URL es pública y firmada (default 60 min, máx 1440): se puede abrir en el navegador o compartir con el cliente **sin API key**. Recomendado para asistentes de chat.
 
 **Filtros GET `/cotizaciones`:** `status`, `salespersonName`, `clientName`, `dateFrom`, `dateTo`, `createdBy`, `limit`, `offset`.
 
@@ -543,15 +659,28 @@ Al agregar/editar/borrar items, los totales del quote se recalculan automáticam
 
 ---
 
-### 13. Dashboard de ventas (read)
+### 15. Dashboard de ventas (read)
 
 ```http
 GET /dashboard
 ```
 
-**Filtros:** `period` (`YYYY` | `YYYY-MM` | `YYYY-MM-DD`), `filterType` (`year`|`month`|`day`), `segment`, `salesperson`, `client`.
+**Filtros:** `period` (`YYYY` | `YYYY-MM` | `YYYY-MM-DD`), `filterType` (`year`|`month`|`day`, se auto-detecta del formato de `period`), `segment`, `salesperson`, `client`.
 
-Devuelve métricas agregadas: ventas totales, unidades, transacciones, clientes activos, ticket promedio, totales anuales, meta global, ventas por segmento, tendencia, NVV/GDV pendientes y total combinado.
+Devuelve métricas agregadas: ventas totales, unidades, transacciones, clientes activos, ticket promedio, totales anuales, meta global (si `period` es mes), ventas por segmento, tendencia (mensual para año, diaria para mes), NVV/GDV pendientes y total combinado.
+
+---
+
+### 16. API Keys (admin only)
+
+```http
+GET    /api-keys              → listar keys (sin hash)
+POST   /api-keys              → crear key — body: name*, description, role, expiresAt
+PATCH  /api-keys/:id/toggle   → activar/desactivar — body: { "isActive": true|false }
+DELETE /api-keys/:id          → eliminar
+```
+
+Requiere una key con rol `admin`. El valor completo de la key (`mk_<role>_...`) **solo se devuelve al crearla** — después solo se ve el prefijo.
 
 ---
 
@@ -666,6 +795,8 @@ Usuario: *"Cotizá 5 baldes de esmalte al agua blanco para Constructora ABC, ven
 
 ---
 
-**Versión:** 2.0
-**Última actualización:** 2026-04-30
+**Versión:** 2.1
+**Última actualización:** 2026-07-21
 **Mantenido por:** Equipo Panorámica
+
+**Changelog 2.1 (2026-07-21):** documentados puntos de venta, pipeline CRM Seguimiento de Clientes (14 endpoints, incl. hitos y bitácora), listas de precios custom (`/listas-precio`, filtro `priceList`, costos y márgenes en respuestas de productos), PDF de cotizaciones (binario + URL firmada) y gestión de API keys.

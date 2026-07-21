@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { emailService } from './services/email';
 import { wrapEmailContent } from './email-templates';
 import { eq } from 'drizzle-orm';
+import { sendPushForNotification } from './push';
 
 interface NotificationData {
   targetType: 'general' | 'personal' | 'departamento';
@@ -36,6 +37,17 @@ export async function createAutoNotification(data: NotificationData & { emailNot
 
     const notificationId = result[0]?.id;
     console.log(`✅ Notificación automática creada: ${data.title}`);
+
+    // Web Push (PWA): mejor esfuerzo, nunca bloquea la creación de la notificación
+    sendPushForNotification({
+      targetType: data.targetType,
+      targetUserId: data.targetUserId,
+      targetDepartment: data.targetDepartment,
+      title: data.title,
+      message: data.message,
+      actionUrl: data.actionUrl,
+      priority: data.priority,
+    }).catch((err: any) => console.error('[push] Error enviando push:', err?.message));
 
     // Send email notification if configured
     if (data.emailNotificationType) {

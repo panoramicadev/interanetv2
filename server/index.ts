@@ -69,6 +69,10 @@ app.use((req, res, next) => {
   const { registerB2CRoutes } = await import('./routes-b2c');
   registerB2CRoutes(app);
 
+  // Register Web Push (PWA) routes
+  const { registerPushRoutes } = await import('./routes-push');
+  registerPushRoutes(app);
+
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

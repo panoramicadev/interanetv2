@@ -86,6 +86,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
 import { executeCostosETL, costosEtlProgressEmitter } from "./etl-costos";
 import * as NotifyHelper from "./notifications-helper";
+import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
 import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
@@ -408,6 +409,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
+import { sendPushForNotification } from './push';
 import { warehouses, ecommerceOrders } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
@@ -530,6 +532,9 @@ export function registerRoutes(app: Express): Server {
 
   // Módulo de Recursos Humanos: comisiones de vendedores
   registerCommissionRoutes(app);
+
+  // Panel de Trabajo: cambios recientes por sección (badges de pestañas + campana)
+  registerPanelChangesRoutes(app);
 
   // Register log routes (admin only)
   registerLogRoutes(app, requireRoles);
@@ -14066,6 +14071,33 @@ export function registerRoutes(app: Express): Server {
         } catch (err) { console.error("Error creando actividad de revisión:", err); }
       }
 
+      // Notificación personal (in-app + push) a cada asignado distinto del creador.
+      // Estos ids se excluyen del push amplio del panel para no duplicar avisos.
+      const assigneeUserIds = Array.from(
+        new Set(assignments.map((a) => a.assigneeId).filter((id) => id && id !== user.id))
+      );
+      const creatorName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      for (const assigneeId of assigneeUserIds) {
+        void NotifyHelper.createAutoNotification({
+          targetType: 'personal',
+          targetUserId: assigneeId,
+          title: '📋 Nueva tarea asignada',
+          message: `${creatorName} te asignó: ${title}`,
+          priority: priority === 'high' ? 'alta' : 'media',
+          actionUrl: '/tareas',
+          createdByName: creatorName,
+        });
+      }
+
+      await logPanelChange(user, {
+        section: panelSectionForTask(task),
+        action: 'created',
+        entityType: 'task',
+        entityId: task.id,
+        title: panelTaskTitle(task, 'created'),
+        segmento: normalizePanelSegmento(task.segmento),
+      }, { skipPushUserIds: assigneeUserIds });
+
       res.status(201).json(task);
     } catch (error) {
       console.error("Error creating task:", error);
@@ -14198,6 +14230,23 @@ export function registerRoutes(app: Express): Server {
         } catch (err) { console.error("Error sincronizando actividad de revisión:", err); }
       }
 
+      {
+        const changeAction = updates.status === 'completada'
+          ? 'completed'
+          : updates.status === 'pendiente' && task.status === 'completada'
+            ? 'reopened'
+            : 'updated';
+        const forLog = updatedTask ?? task;
+        await logPanelChange(user, {
+          section: panelSectionForTask(forLog),
+          action: changeAction,
+          entityType: 'task',
+          entityId: id,
+          title: panelTaskTitle(forLog, changeAction),
+          segmento: normalizePanelSegmento(forLog.segmento),
+        });
+      }
+
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task:", error);
@@ -14222,6 +14271,16 @@ export function registerRoutes(app: Express): Server {
       }
 
       await storage.deleteTask(id);
+
+      await logPanelChange(user, {
+        section: panelSectionForTask(task),
+        action: 'deleted',
+        entityType: 'task',
+        entityId: id,
+        title: panelTaskTitle(task, 'deleted'),
+        segmento: normalizePanelSegmento(task.segmento),
+      });
+
       res.json({ message: "Task deleted successfully" });
     } catch (error) {
       console.error("Error deleting task:", error);
@@ -14294,6 +14353,20 @@ export function registerRoutes(app: Express): Server {
         if (task.status === 'completada') {
           await storage.updateTask(taskId, { status: 'pendiente' });
         }
+      }
+
+      if (status) {
+        const isDone = status === 'completed';
+        const isRevert = status === 'pending';
+        const changeAction = isDone ? 'completed' : isRevert ? 'reopened' : 'updated';
+        await logPanelChange(user, {
+          section: panelSectionForTask(task),
+          action: changeAction,
+          entityType: 'task',
+          entityId: taskId,
+          title: panelTaskTitle(task, changeAction),
+          segmento: normalizePanelSegmento(task.segmento),
+        });
       }
 
       res.json(updatedAssignment);
@@ -14381,6 +14454,15 @@ export function registerRoutes(app: Express): Server {
         content: content.trim()
       });
 
+      await logPanelChange(user, {
+        section: panelSectionForTask(task),
+        action: 'commented',
+        entityType: 'task',
+        entityId: taskId, // se destaca la tarjeta de la tarea comentada
+        title: `Nuevo comentario en "${task.title}"`,
+        segmento: normalizePanelSegmento(task.segmento),
+      });
+
       res.status(201).json(comment);
     } catch (error) {
       console.error("Error adding comment:", error);
@@ -14435,6 +14517,14 @@ export function registerRoutes(app: Express): Server {
         userId: user.id,
         color: color || 'blue',
       });
+      await logPanelChange(user, {
+        section: 'tareas',
+        action: 'created',
+        entityType: 'task_group',
+        entityId: group.id,
+        title: `Grupo "${name}" creado`,
+        segmento: normalizePanelSegmento(segmento),
+      });
       res.status(201).json(group);
     } catch (error) {
       console.error("Error creating task group:", error);
@@ -14449,6 +14539,14 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const { name, color, sortOrder } = req.body;
       const group = await storage.updateTaskGroup(id, user.id, { name, color, sortOrder }, user.role === 'admin');
+      await logPanelChange(user, {
+        section: 'tareas',
+        action: 'updated',
+        entityType: 'task_group',
+        entityId: id,
+        title: `Grupo "${group?.name ?? name ?? ''}" actualizado`,
+        segmento: normalizePanelSegmento((group as any)?.segmento),
+      });
       res.json(group);
     } catch (error: any) {
       console.error("Error updating task group:", error);
@@ -14465,6 +14563,13 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       const { id } = req.params;
       await storage.deleteTaskGroup(id, user.id, user.role === 'admin');
+      await logPanelChange(user, {
+        section: 'tareas',
+        action: 'deleted',
+        entityType: 'task_group',
+        entityId: id,
+        title: 'Grupo de tareas eliminado',
+      });
       res.json({ message: "Group deleted successfully" });
     } catch (error) {
       console.error("Error deleting task group:", error);
@@ -14536,6 +14641,14 @@ export function registerRoutes(app: Express): Server {
         : await storage.getSalespeopleUnderSupervisor(user.id);
       const nombreDe = (id: string) => catalogo.find((v: any) => v.id === id)?.salespersonName ?? null;
       await storage.setRutaVendedores(ruta.id, vendedorIds.map((id) => ({ id, nombre: nombreDe(id) })));
+      await logPanelChange(user, {
+        section: 'rutas',
+        action: 'created',
+        entityType: 'ruta',
+        entityId: ruta.id,
+        title: `Ruta "${ruta.nombre}" creada`,
+        segmento: normalizePanelSegmento((ruta as any).segmento),
+      });
       res.status(201).json(ruta);
     } catch (e) { console.error("Error creating ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
   });
@@ -14567,6 +14680,14 @@ export function registerRoutes(app: Express): Server {
           } as any);
         } catch (err) { console.error("Error asignando cliente a ruta rápida:", err); }
       }
+      await logPanelChange(user, {
+        section: 'rutas',
+        action: 'created',
+        entityType: 'ruta',
+        entityId: ruta.id,
+        title: `Ruta "${ruta.nombre}" creada`,
+        segmento: normalizePanelSegmento((ruta as any).segmento),
+      });
       res.status(201).json(ruta);
     } catch (e) { console.error("Error creating quick ruta:", e); res.status(500).json({ message: "Failed to create ruta" }); }
   });
@@ -14588,19 +14709,35 @@ export function registerRoutes(app: Express): Server {
         rest.vendedorId = ids[0];
       }
       if (rest.fecha !== undefined && rest.fecha) rest.fecha = new Date(rest.fecha);
-      res.json(await storage.updateRuta(req.params.id, rest));
+      const rutaActualizada = await storage.updateRuta(req.params.id, rest);
+      await logPanelChange(user, {
+        section: 'rutas',
+        action: 'updated',
+        entityType: 'ruta',
+        entityId: req.params.id,
+        title: `Ruta "${(rutaActualizada as any)?.nombre ?? ''}" actualizada`,
+        segmento: normalizePanelSegmento((rutaActualizada as any)?.segmento),
+      });
+      res.json(rutaActualizada);
     } catch (e) { console.error("Error updating ruta:", e); res.status(500).json({ message: "Failed to update ruta" }); }
   });
 
-  // Elimina la ruta completa (clientes + histórico de visitas). Además de admin/supervisor/
-  // encargado, el dueño de la ruta (quien la creó al vuelo vía /quick) puede borrar la suya.
+  // Elimina la ruta completa (clientes + histórico de visitas). Solo administradores:
+  // supervisores/encargados y dueños de la ruta pueden gestionarla pero no borrarla.
   app.delete('/api/rutas/:id', requireAuth, async (req: any, res) => {
     try {
       const ruta = await storage.getRutaById(req.params.id);
       if (!ruta) return res.status(404).json({ message: "Ruta no encontrada" });
-      const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
-      if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
+      if (req.user.role !== 'admin') return res.status(403).json({ message: "Solo los administradores pueden eliminar rutas" });
       await storage.deleteRuta(req.params.id);
+      await logPanelChange(req.user, {
+        section: 'rutas',
+        action: 'deleted',
+        entityType: 'ruta',
+        entityId: req.params.id,
+        title: `Ruta "${(ruta as any).nombre}" eliminada`,
+        segmento: normalizePanelSegmento((ruta as any).segmento),
+      });
       res.json({ message: "Ruta eliminada" });
     } catch (e) { console.error("Error deleting ruta:", e); res.status(500).json({ message: "Failed to delete ruta" }); }
   });
@@ -14612,7 +14749,15 @@ export function registerRoutes(app: Express): Server {
       const { insertRutaClienteSchema } = await import('@shared/schema');
       const parsed = insertRutaClienteSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.issues });
-      res.status(201).json(await storage.addClienteToRuta(req.params.id, parsed.data));
+      const rutaCliente = await storage.addClienteToRuta(req.params.id, parsed.data);
+      await logPanelChange(req.user, {
+        section: 'rutas',
+        action: 'updated',
+        entityType: 'ruta',
+        entityId: req.params.id,
+        title: `Cliente ${parsed.data.clienteNombre ?? parsed.data.clienteId} agregado a una ruta`,
+      });
+      res.status(201).json(rutaCliente);
     } catch (e) { console.error("Error adding cliente to ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
 
@@ -14660,6 +14805,14 @@ export function registerRoutes(app: Express): Server {
           } catch (err) { console.error("Error registrando evidencia de visita:", err); }
         }
       }
+      await logPanelChange(req.user, {
+        section: 'rutas',
+        action: visitado ? 'completed' : 'reopened',
+        entityType: 'ruta',
+        entityId: req.params.id,
+        title: `Visita a ${rc.clienteNombre ?? req.params.koen} ${visitado ? 'realizada' : 'marcada pendiente'} en ruta "${(ruta as any).nombre}"`,
+        segmento: normalizePanelSegmento((ruta as any).segmento),
+      });
       res.json(rc);
     } catch (e) { console.error("Error marcando visita de ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
@@ -14732,6 +14885,13 @@ export function registerRoutes(app: Express): Server {
           }
         } catch (err) { console.error("Error registrando visita de ruta desde actividad:", err); }
       }
+      await logPanelChange(user, {
+        section: 'seguimiento',
+        action: 'created',
+        entityType: 'actividad',
+        entityId: req.params.id, // se destaca la tarjeta del seguimiento
+        title: `Actividad "${tipo}" registrada${descripcion ? `: ${String(descripcion).slice(0, 80)}` : ''}`,
+      });
       res.status(201).json(act);
     } catch (e) { console.error("Error creating actividad:", e); res.status(500).json({ message: "Failed" }); }
   });
@@ -14757,12 +14917,28 @@ export function registerRoutes(app: Express): Server {
           if (clienteId) await storage.setRutaClienteVisitado(act.rutaId, clienteId, estado === 'completada');
         } catch (err) { console.error("Error sincronizando ruta desde actividad:", err); }
       }
+      await logPanelChange(req.user, {
+        section: 'seguimiento',
+        action: estado === 'completada' ? 'completed' : 'updated',
+        entityType: 'actividad',
+        entityId: act.taskId,
+        title: `Actividad "${act.tipo}" ${estado === 'completada' ? 'completada' : 'actualizada'}`,
+      });
       res.json(act);
     } catch (e) { console.error("Error updating actividad:", e); res.status(500).json({ message: "Failed" }); }
   });
 
   app.delete('/api/tasks/actividades/:actId', requireAuth, async (req: any, res) => {
-    try { await storage.deleteActividad(req.params.actId); res.json({ message: "Actividad eliminada" }); }
+    try {
+      await storage.deleteActividad(req.params.actId);
+      await logPanelChange(req.user, {
+        section: 'seguimiento',
+        action: 'deleted',
+        entityType: 'actividad',
+        title: 'Actividad eliminada',
+      });
+      res.json({ message: "Actividad eliminada" });
+    }
     catch (e) { console.error("Error deleting actividad:", e); res.status(500).json({ message: "Failed" }); }
   });
 
@@ -16690,6 +16866,18 @@ export function registerRoutes(app: Express): Server {
       });
 
       const notification = await storage.createNotification(validatedData);
+
+      // Web Push (PWA): notificar también a los dispositivos suscritos
+      sendPushForNotification({
+        targetType: notification.targetType,
+        targetUserId: notification.userId,
+        targetDepartment: notification.department,
+        title: notification.title,
+        message: notification.message,
+        actionUrl: notification.actionUrl,
+        priority: notification.priority,
+      }).catch((err: any) => console.error('[push] Error enviando push:', err?.message));
+
       res.status(201).json(notification);
     } catch (error: any) {
       console.error("Error creating notification:", error);
@@ -27887,6 +28075,14 @@ export function registerRoutes(app: Express): Server {
         solicitanteName
       );
 
+      await logPanelChange(user, {
+        section: 'marketing',
+        action: 'created',
+        entityType: 'solicitud',
+        entityId: solicitud.id,
+        title: `Solicitud de marketing "${solicitudData.titulo}" creada`,
+      });
+
       res.status(201).json(solicitud);
     } catch (error: any) {
       console.error('Error creating marketing solicitud:', error);
@@ -27976,6 +28172,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       const updated = await storage.updateSolicitudMarketing(req.params.id, req.body);
+      await logPanelChange(user, {
+        section: 'marketing',
+        action: 'updated',
+        entityType: 'solicitud',
+        entityId: req.params.id,
+        title: `Solicitud de marketing "${(updated as any)?.titulo ?? solicitud.titulo}" actualizada`,
+      });
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar solicitud', error: error.message });
@@ -27992,6 +28195,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       await storage.deleteSolicitudMarketing(req.params.id);
+      await logPanelChange(user, {
+        section: 'marketing',
+        action: 'deleted',
+        entityType: 'solicitud',
+        entityId: req.params.id,
+        title: 'Solicitud de marketing eliminada',
+      });
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar solicitud', error: error.message });
@@ -28026,6 +28236,13 @@ export function registerRoutes(app: Express): Server {
         // Plazo final que fija Marketing al aceptar la solicitud
         fechaEntrega ? String(fechaEntrega).split('T')[0] : undefined,
       );
+      await logPanelChange(user, {
+        section: 'marketing',
+        action: 'estado',
+        entityType: 'solicitud',
+        entityId: req.params.id,
+        title: `Solicitud "${(solicitud as any)?.titulo ?? ''}" pasó a ${estado}`,
+      });
       res.json(solicitud);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
@@ -32520,6 +32737,14 @@ Instrucciones extra:
         console.error('Error al agregar cliente a seguimiento:', seguimientoError.message);
       }
 
+      await logPanelChange(user, {
+        section: 'estimacion',
+        action: 'created',
+        entityType: 'promesa',
+        entityId: promesa.id,
+        title: `Promesa de compra de ${validatedData.clienteNombre ?? 'cliente'} creada`,
+      });
+
       res.status(201).json(promesa);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -32675,6 +32900,13 @@ Instrucciones extra:
       }
 
       const updated = await storage.updatePromesaCompra(req.params.id, req.body);
+      await logPanelChange(user, {
+        section: 'estimacion',
+        action: 'updated',
+        entityType: 'promesa',
+        entityId: req.params.id,
+        title: `Promesa de compra de ${(updated as any)?.clienteNombre ?? promesa.clienteNombre ?? 'cliente'} actualizada`,
+      });
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar promesa de compra', error: error.message });
@@ -32713,6 +32945,13 @@ Instrucciones extra:
       // Admin puede eliminar cualquier promesa (no requiere verificación adicional)
 
       await storage.deletePromesaCompra(req.params.id);
+      await logPanelChange(user, {
+        section: 'estimacion',
+        action: 'deleted',
+        entityType: 'promesa',
+        entityId: req.params.id,
+        title: `Promesa de compra de ${promesa.clienteNombre ?? 'cliente'} eliminada`,
+      });
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar promesa de compra', error: error.message });
@@ -37324,6 +37563,15 @@ Instrucciones extra:
       autorNombre: vendedorNombre,
     });
 
+    await logPanelChange(user, {
+      section: 'crm',
+      action: 'created',
+      entityType: 'crm_cliente',
+      entityId: created.id,
+      title: `Cliente "${created.nombre}" agregado al CRM`,
+      segmento: normalizePanelSegmento(created.segmento),
+    });
+
     res.status(201).json(created);
   }));
 
@@ -37407,6 +37655,17 @@ Instrucciones extra:
       .where(eq(crmSeguimientoClientes.id, id))
       .returning();
 
+    await logPanelChange(user, {
+      section: 'crm',
+      action: req.body.estado && req.body.estado !== existing.estado ? 'estado' : 'updated',
+      entityType: 'crm_cliente',
+      entityId: id,
+      title: req.body.estado && req.body.estado !== existing.estado
+        ? `Cliente "${existing.nombre}" pasó a ${req.body.estado}`
+        : `Cliente "${existing.nombre}" actualizado en CRM`,
+      segmento: normalizePanelSegmento(updated?.segmento ?? existing.segmento),
+    });
+
     res.json(updated);
   }));
 
@@ -37432,6 +37691,15 @@ Instrucciones extra:
     await db.update(crmSeguimientoClientes)
       .set({ active: false, updatedAt: new Date() })
       .where(eq(crmSeguimientoClientes.id, id));
+
+    await logPanelChange(user, {
+      section: 'crm',
+      action: 'deleted',
+      entityType: 'crm_cliente',
+      entityId: id,
+      title: `Cliente "${existing.nombre}" eliminado del CRM`,
+      segmento: normalizePanelSegmento(existing.segmento),
+    });
 
     res.json({ success: true });
   }));
@@ -37533,6 +37801,15 @@ Instrucciones extra:
         .set({ ...contactUpdates, updatedAt: new Date() })
         .where(eq(crmSeguimientoClientes.id, id));
     }
+
+    await logPanelChange(user, {
+      section: 'crm',
+      action: 'created',
+      entityType: 'crm_hito',
+      entityId: id, // se destaca la tarjeta del cliente en el CRM
+      title: `Hito "${tipo}" registrado para ${existing.nombre}`,
+      segmento: normalizePanelSegmento(existing.segmento),
+    });
 
     res.status(201).json(hito);
   }));

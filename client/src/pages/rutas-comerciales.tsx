@@ -74,6 +74,8 @@ export function RutasComercialesContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const canManage = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
+  // Borrar rutas es exclusivo del admin; supervisores/encargados solo las gestionan.
+  const isAdmin = user?.role === "admin";
 
   const [showCreate, setShowCreate] = useState(false);
   const [nombre, setNombre] = useState("");
@@ -244,7 +246,7 @@ export function RutasComercialesContent() {
                   <Badge variant="outline" className={`text-[11px] ${ESTADO_BADGE[ruta.estado] || ESTADO_BADGE.activa}`}>
                     {ESTADO_LABEL[ruta.estado] || ruta.estado}
                   </Badge>
-                  {canManage && (
+                  {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <button className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all" title="Eliminar ruta">

@@ -72,6 +72,8 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
+import { PanelChangesBell } from "@/components/panel/PanelChangesBell";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -98,6 +100,11 @@ const ACTIVIDAD_TIPOS = [
 // volver. Es transitorio: se limpia al cerrar la pestaña, no queda guardado
 // para siempre.
 const FILTERS_STORAGE_KEY = "tareas-panel-filtros";
+
+// Normaliza texto para el buscador de tareas: minúsculas y sin tildes, para
+// que "López" calce con "lopez" y viceversa.
+const normalizeSearchText = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 type TareasFiltrosPersistidos = {
   status: string;
@@ -320,6 +327,24 @@ export default function TareasPage() {
     const tab = new URLSearchParams(window.location.search).get("tab");
     const validas = ["tareas", "seguimiento", "estimacion", "obras", "marketing", "crm", "rutas-comerciales", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
+  });
+
+  // Buscador de la pestaña Tareas: filtra en vivo por cliente, palabra clave,
+  // descripción o asignado (con debounce, mismo patrón que el CRM).
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskSearchDebounced, setTaskSearchDebounced] = useState("");
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTaskSearchDebounced(taskSearch), 250);
+    return () => clearTimeout(t);
+  }, [taskSearch]);
+
+  // Cambios recientes del panel: badges por pestaña, campana junto a Área y
+  // destacado de los ítems modificados al entrar a cada sección.
+  const panelChanges = usePanelChangesController({
+    enabled: isAuthenticated && !!user,
+    segmentoFilter,
+    activeTab,
   });
 
   // Si la URL pide la pestaña CRM pero el usuario no tiene el permiso
@@ -907,6 +932,23 @@ export default function TareasPage() {
     if (activeTab === 'seguimiento' && !isSeguimientoTask) return false;
     if (activeTab === 'tareas' && isSeguimientoTask) return false;
 
+    // Buscador: cada término debe calzar en título, descripción, cliente o
+    // asignado (sin tildes ni mayúsculas). Aplica en Tareas y Marketing;
+    // Seguimiento tiene su propio buscador de equipo.
+    if ((activeTab === 'tareas' || activeTab === 'marketing') && taskSearchDebounced.trim()) {
+      const terms = normalizeSearchText(taskSearchDebounced).split(/\s+/).filter(Boolean);
+      const assigneeNames = task.assignments
+        .map((a) =>
+          availableUsers?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+          availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+          "")
+        .join(" ");
+      const haystack = normalizeSearchText(
+        `${task.title} ${task.description ?? ""} ${(task as any).clienteNombre ?? ""} ${assigneeNames}`,
+      );
+      if (!terms.every((t) => haystack.includes(t))) return false;
+    }
+
     // Pestaña Marketing: solo tareas del área marketing SIN cliente asociado.
     // Las que tienen cliente se ven en la pestaña Marketing de la ficha del cliente.
     if (activeTab === 'marketing') {
@@ -1156,7 +1198,91 @@ export default function TareasPage() {
     </div>
   );
 
+  // Badge naranja de cambios no vistos de una pestaña (misma familia que el
+  // pill de conteo de Solicitudes de Marketing).
+  const tabChangeBadge = (tab: string) => {
+    const section = PANEL_TAB_TO_SECTION[tab];
+    const count = section ? panelChanges.counts[section] ?? 0 : 0;
+    if (!count) return null;
+    return (
+      <span
+        className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#fd6301] text-white text-[10px] font-bold shadow-sm shadow-orange-500/30"
+        data-testid={`badge-tab-changes-${tab}`}
+      >
+        {count > 99 ? "99+" : count}
+      </span>
+    );
+  };
+
+  // Radix solo dispara onValueChange al CAMBIAR de pestaña; al re-pinchar la
+  // activa igual damos por vistos sus cambios (el badge desaparece y las
+  // tarjetas modificadas quedan destacadas).
+  const handleTabTriggerClick = (tab: string) => {
+    if (tab !== activeTab) return; // el cambio de pestaña lo maneja el efecto del hook
+    const section = PANEL_TAB_TO_SECTION[tab];
+    if (section) panelChanges.enterSection(section);
+  };
+
+  // Sugerencias del buscador: clientes presentes en las tareas que calzan con
+  // lo tipeado ("identifica clientes"); elegir uno filtra la lista por él.
+  const searchSuggestions = taskSearch.trim().length >= 1
+    ? clientesEnTareas
+        .filter((c) => normalizeSearchText(String(c)).includes(normalizeSearchText(taskSearch.trim())))
+        .slice(0, 6)
+    : [];
+
+  // Buscador de tareas — tarjeta-pill de la misma familia que Vista/Estado/Prioridad.
+  const taskSearchBox = (
+    <div className="relative flex-1 min-w-[220px] max-w-md">
+      <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-sky-200 hover:shadow focus-within:border-sky-300 transition-all">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400 flex-shrink-0">
+          <Search className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col leading-none flex-1 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Buscar</span>
+          <input
+            value={taskSearch}
+            onChange={(e) => { setTaskSearch(e.target.value); setShowSearchSuggestions(true); }}
+            onFocus={() => setShowSearchSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 150)}
+            placeholder="Cliente o palabra clave…"
+            className="h-5 w-full bg-transparent border-0 outline-none font-semibold text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-500 p-0"
+            data-testid="input-task-search"
+          />
+        </div>
+        {taskSearch && (
+          <button
+            onClick={() => { setTaskSearch(""); setShowSearchSuggestions(false); }}
+            className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+            data-testid="button-clear-task-search"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {showSearchSuggestions && searchSuggestions.length > 0 && (
+        <div className="absolute z-30 left-0 right-0 top-full mt-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden">
+          <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold text-slate-400">Clientes</div>
+          {searchSuggestions.map((c) => (
+            <button
+              key={String(c)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setTaskSearch(String(c)); setShowSearchSuggestions(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors"
+              data-testid={`suggestion-cliente-${String(c)}`}
+            >
+              <Building2 className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+              <span className="truncate">{String(c)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
+    <PanelChangesContext.Provider value={panelChanges}>
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
       <div className="space-y-4 sm:space-y-6">
@@ -1175,8 +1301,11 @@ export default function TareasPage() {
           {(canCreateTasks || canRequestMarketing) && (
             <>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              {/* Selector de Área — reemplaza las pestañas de segmento; solo cuando hay más de un área visible. */}
-              {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
+              {/* Campana de cambios + Selector de Área — el selector reemplaza las pestañas de segmento; solo cuando hay más de un área visible. */}
+              <div className="flex items-center gap-2">
+                <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
+                {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
+              </div>
               <Button onClick={() => {
                 // El vendedor solo puede pedirle a Marketing: abrimos directo ese diálogo.
                 if (onlyMarketingRequest) {
@@ -1642,19 +1771,22 @@ export default function TareasPage() {
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${tabsGridClass}`}>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass}>
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
               <CheckSquare className={tabIconClass} />
               Tareas
+              {tabChangeBadge("tareas")}
             </TabsTrigger>
-            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass}>
+            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass} onClick={() => handleTabTriggerClick("seguimiento")}>
               <Building2 className={tabIconClass} />
               Seguimiento
+              {tabChangeBadge("seguimiento")}
             </TabsTrigger>
             {/* Construcción reemplaza "Estimación de ventas" por "Obras" (próximamente). */}
             {user?.role !== 'tecnico_obra' && !isMarketing && !esConstruccion && (
-              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className={tabTriggerClass}>
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className={tabTriggerClass} onClick={() => handleTabTriggerClick("estimacion")}>
                 <TrendingUp className={tabIconClass} />
                 Estimación de ventas
+                {tabChangeBadge("estimacion")}
               </TabsTrigger>
             )}
             {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
@@ -1665,20 +1797,23 @@ export default function TareasPage() {
               </TabsTrigger>
             )}
             {user?.role !== 'tecnico_obra' && !isMarketing && (
-              <TabsTrigger value="marketing" data-testid="tab-marketing" className={tabTriggerClass}>
+              <TabsTrigger value="marketing" data-testid="tab-marketing" className={tabTriggerClass} onClick={() => handleTabTriggerClick("marketing")}>
                 <Palette className={tabIconClass} />
                 Marketing
+                {tabChangeBadge("marketing")}
               </TabsTrigger>
             )}
             {showCrmTab && (
-              <TabsTrigger value="crm" data-testid="tab-crm" className={tabTriggerClass}>
+              <TabsTrigger value="crm" data-testid="tab-crm" className={tabTriggerClass} onClick={() => handleTabTriggerClick("crm")}>
                 <Users className={tabIconClass} />
                 CRM
+                {tabChangeBadge("crm")}
               </TabsTrigger>
             )}
-            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass}>
+            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass} onClick={() => handleTabTriggerClick("rutas-comerciales")}>
               <MapPin className={tabIconClass} />
               Rutas Comerciales
+              {tabChangeBadge("rutas-comerciales")}
             </TabsTrigger>
             <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
               <CalendarIcon className={tabIconClass} />
@@ -1746,7 +1881,8 @@ export default function TareasPage() {
 
           {/* Filters and View Toggle - solo administrador y solo en la pestaña Tareas (Seguimiento no usa estos filtros) */}
           {user.role === 'admin' && activeTab !== 'seguimiento' && (
-          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80 overflow-hidden">
+          // Sin overflow-hidden: el dropdown de sugerencias del buscador debe poder salir de la card
+          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
               <div className="lg:hidden">
@@ -1767,6 +1903,21 @@ export default function TareasPage() {
 
                 {filtersExpanded && (
                   <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
+                    {/* Buscador (móvil) */}
+                    <div className="space-y-1.5 pt-3">
+                      <Label className="text-xs font-medium text-muted-foreground">Buscar:</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          value={taskSearch}
+                          onChange={(e) => setTaskSearch(e.target.value)}
+                          placeholder="Cliente o palabra clave…"
+                          className="h-9 pl-9 text-sm"
+                          data-testid="input-task-search-mobile"
+                        />
+                      </div>
+                    </div>
+
                     {/* View Mode Toggle */}
                     {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
                       <div className="space-y-1.5">
@@ -1888,6 +2039,9 @@ export default function TareasPage() {
                         </Select>
                       </div>
                     </div>
+
+                    {/* Buscador AJAX: cliente o palabra clave */}
+                    {taskSearchBox}
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap justify-end">
@@ -1901,9 +2055,10 @@ export default function TareasPage() {
           </Card>
           )}
 
-          {/* Contador compacto para roles sin filtros (todos menos administrador) */}
+          {/* Contador compacto para roles sin filtros (todos menos administrador) — con buscador */}
           {user.role !== 'admin' && activeTab !== 'seguimiento' && !hideMktTasks && (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              {taskSearchBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
@@ -2131,6 +2286,11 @@ export default function TareasPage() {
                 const isOverdue = !isSeguimientoCard && task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
                 const lockedByGroup = !!(task as any).groupId && selectedGroupIds.has((task as any).groupId);
                 const isTaskSelected = selectedTaskIds.has(task.id) || lockedByGroup;
+                // Cambio reciente no visto hasta esta visita: la tarjeta queda destacada.
+                const isRecentChange =
+                  panelChanges.highlights.tareas?.has(task.id) ||
+                  panelChanges.highlights.seguimiento?.has(task.id) ||
+                  panelChanges.highlights.marketing?.has(task.id);
 
                 return (
                   <div
@@ -2139,10 +2299,12 @@ export default function TareasPage() {
                       selectionMode && isTaskSelected
                         ? 'bg-red-50 border-red-300 ring-1 ring-red-300'
                         : isCompleted
-                        ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
+                        ? `bg-emerald-50/40 border-emerald-200/60 ${isRecentChange ? 'ring-2 ring-[#fd6301]/25 opacity-90' : 'opacity-60'}`
                         : isOverdue
                           ? 'bg-white border-red-200 hover:border-red-300'
-                          : 'bg-white border-slate-200 hover:border-orange-200'
+                          : isRecentChange
+                            ? 'bg-orange-50/70 border-orange-300 ring-2 ring-[#fd6301]/25 hover:border-orange-400'
+                            : 'bg-white border-slate-200 hover:border-orange-200'
                     }`}
                     onClick={() => {
                       if (!selectionMode) { setSelectedTaskId(task.id); return; }
@@ -2659,6 +2821,8 @@ export default function TareasPage() {
                     return bPending - aPending;
                   }).map((group, groupIndex) => {
                     const tasks = groupedTasks[group.id] || [];
+                    // Con búsqueda activa: ocultar grupos sin coincidencias.
+                    if (taskSearchDebounced.trim() && tasks.length === 0) return null;
                     const completedCount = tasks.filter(t => {
                       if (t.status === 'completada') return true;
                       const myAssign = t.assignments.find(a =>
@@ -2674,7 +2838,8 @@ export default function TareasPage() {
                     const totalCount = tasks.length;
                     const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
                     const borderColor = resolveGroupColor(group.color, groupIndex);
-                    const isCollapsed = collapsedGroups.has(group.id);
+                    // Con búsqueda activa los grupos se expanden para mostrar las coincidencias.
+                    const isCollapsed = collapsedGroups.has(group.id) && !taskSearchDebounced.trim();
                     const isGroupSelected = selectedGroupIds.has(group.id);
                     // El dueño del grupo o un admin puede renombrar/eliminar. Los vendedores
                     // no gestionan grupos → solo los ven colapsables.
@@ -3024,6 +3189,7 @@ export default function TareasPage() {
 
       </Tabs>
     </div>
+    </PanelChangesContext.Provider>
   );
 }
 
@@ -3061,6 +3227,8 @@ function EstimacionSemanalTab({
   const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
   const [selectedPromesa, setSelectedPromesa] = useState<PromesaCumplimiento | null>(null);
   const [vendedorFilter, setVendedorFilter] = useState<string>("all");
+  // Promesas con cambios recientes no vistos: quedan destacadas al entrar.
+  const estimacionHighlights = usePanelHighlights('estimacion');
 
   // Query para obtener lista de vendedores (para filtro)
   const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
@@ -3292,7 +3460,9 @@ function EstimacionSemanalTab({
                     {promesasFiltradas.map((item) => (
                       <tr
                         key={item.promesa.id}
-                        className="hover:bg-orange-50/40 dark:hover:bg-orange-950/20 cursor-pointer transition-colors"
+                        className={`hover:bg-orange-50/40 dark:hover:bg-orange-950/20 cursor-pointer transition-colors ${
+                          estimacionHighlights.has(item.promesa.id) ? 'bg-orange-50/70 dark:bg-orange-950/30 shadow-[inset_3px_0_0_#fd6301]' : ''
+                        }`}
                         data-testid={`row-promesa-${item.promesa.id}`}
                         onClick={() => {
                           setSelectedPromesa(item);
@@ -3361,7 +3531,11 @@ function EstimacionSemanalTab({
                 {promesasFiltradas.map((item) => (
                   <Card
                     key={item.promesa.id}
-                    className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm cursor-pointer hover:border-orange-200 hover:shadow-md transition-all"
+                    className={`rounded-2xl shadow-sm cursor-pointer hover:shadow-md transition-all ${
+                      estimacionHighlights.has(item.promesa.id)
+                        ? 'border-orange-300 ring-2 ring-[#fd6301]/25 bg-orange-50/50 dark:bg-orange-950/20'
+                        : 'border-slate-200/70 dark:border-slate-800 hover:border-orange-200'
+                    }`}
                     data-testid={`card-promesa-${item.promesa.id}`}
                     onClick={() => {
                       setSelectedPromesa(item);
@@ -5846,6 +6020,9 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
 
 function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { clienteId: string; clienteNombre: string; canManage: boolean; taskId?: string }) {
   const { toast } = useToast();
+  // Borrar rutas es exclusivo del admin; canManage sigue controlando asignar/marcar visitas.
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.role === "admin";
   const [selRuta, setSelRuta] = useState("");
   const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
   const [visitaRuta, setVisitaRuta] = useState("");
@@ -5956,7 +6133,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                     {r.visitado ? `Realizada${r.fechaVisita ? ` · ${format(new Date(r.fechaVisita), "dd MMM", { locale: es })}` : ""}` : "Pendiente"}
                   </Badge>
                 )}
-                {canManage && (
+                {isAdmin && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Eliminar ruta">
@@ -6526,6 +6703,14 @@ function formatFechaCorta(v?: string | null): string {
 function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketing' | 'admin' | 'solicitante' }) {
   const { toast } = useToast();
   const canManage = viewer !== 'solicitante';
+  // Solicitudes con cambios recientes no vistos: quedan destacadas al entrar.
+  const marketingHighlights = usePanelHighlights('marketing');
+  const solicitudCardClass = (id: string, extra = "") =>
+    `rounded-xl border p-3.5 shadow-sm ${extra} ${
+      marketingHighlights.has(id)
+        ? 'border-orange-300 ring-2 ring-[#fd6301]/25 bg-orange-50/60 dark:bg-orange-950/20 dark:border-orange-800'
+        : 'border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700'
+    }`;
   const [aceptar, setAceptar] = useState<SolicitudMarketingItem | null>(null);
   const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
   const [plazo, setPlazo] = useState("");
@@ -6608,7 +6793,7 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
           </div>
           <div className="space-y-2.5">
             {pendientes.map((s) => (
-              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm">
+              <div key={s.id} className={solicitudCardClass(s.id)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -6675,7 +6860,7 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
           </div>
           <div className="space-y-2.5">
             {enFlujo.map((s) => (
-              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm">
+              <div key={s.id} className={solicitudCardClass(s.id)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
@@ -6719,7 +6904,7 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
           </div>
           <div className="space-y-2.5">
             {resueltas.map((s) => (
-              <div key={s.id} className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm opacity-90">
+              <div key={s.id} className={solicitudCardClass(s.id, "opacity-90")}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
                   {s.estado === "rechazado" ? (

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v4.0.0';
+const CACHE_VERSION = 'v4.1.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
@@ -115,4 +115,48 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ==================== WEB PUSH (PWA) ====================
+// En iOS (16.4+) esto solo corre si la app está instalada en la pantalla de inicio.
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'Pinturas Panorámica', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = data.title || 'Pinturas Panorámica';
+  const options = {
+    body: data.body || '',
+    icon: '/panoramica-icon.png',
+    badge: '/favicon.png',
+    tag: data.tag || undefined,
+    data: { url: data.url || '/notificaciones' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/notificaciones';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Si la app ya está abierta, enfocarla y navegar a la URL de la notificación
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) {
+            return client.navigate(url);
+          }
+          return;
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
 });

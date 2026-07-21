@@ -1027,6 +1027,54 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE inventario_marketing_movimientos ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_inv_marketing_mov_item" ON inventario_marketing_movimientos (item_id)`);
 
+    // Panel de Trabajo: change-log por sección + marcadores de visto por usuario
+    // (migración 062 — runtime bootstrap porque el runner no es confiable en prod).
+    console.log('  🔔 Verificando tablas de cambios del Panel de Trabajo...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS panel_change_log (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        section VARCHAR(30) NOT NULL,
+        segmento VARCHAR(30),
+        entity_type VARCHAR(40) NOT NULL,
+        entity_id VARCHAR,
+        action VARCHAR(30) NOT NULL,
+        title TEXT NOT NULL,
+        user_id VARCHAR NOT NULL,
+        user_name VARCHAR(200),
+        created_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_panel_change_log_created_at" ON panel_change_log (created_at)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_panel_change_log_section" ON panel_change_log (section)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS panel_change_seen (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        section VARCHAR(30) NOT NULL,
+        segmento VARCHAR(30) NOT NULL DEFAULT '__all',
+        last_seen_at TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT panel_change_seen_unique UNIQUE (user_id, section, segmento)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_panel_change_seen_user_id" ON panel_change_seen (user_id)`);
+
+    // Web Push (PWA): suscripciones por dispositivo para notificaciones push
+    // (migración 063 — runtime bootstrap porque el runner no es confiable en prod).
+    console.log('  📲 Verificando tabla de suscripciones Web Push...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT now(),
+        last_used_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_push_subscriptions_user_id" ON push_subscriptions (user_id)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
