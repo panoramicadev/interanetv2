@@ -211,7 +211,9 @@ export function MultiColorProductCard({
   };
   const totalQty = rowSkus.reduce((n, sku) => n + selected[sku].qty, 0);
   const totalAmt = rowSkus.reduce((n, sku) => n + priceOf(sku) * selected[sku].qty, 0);
-  const stock = (() => { const v = resolve(colors[0]); return v ? v.stock : 0; })();
+  // Stock de lo REALMENTE seleccionado (suma de las variantes elegidas), no del
+  // primer color del producto. Cada fila muestra además su stock individual.
+  const selectedStock = rowSkus.reduce((n, sku) => n + Math.floor(Number(variantBySku[sku]?.stock ?? 0)), 0);
   const fromPrice = Math.min(...colors.map((c) => Number(resolve(c)?.priceList ?? resolve(c)?.price ?? 0)).filter((n) => n > 0));
 
   const handleAdd = () => {
@@ -313,6 +315,14 @@ export function MultiColorProductCard({
                   <span style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 9, fontWeight: 700, color: "#fd6301", background: "#fff7ed", border: "1px solid #fde6d3", padding: "1px 6px", borderRadius: 6, whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: ".02em" }}>{line.format}</span>
                     {lineStep > 1 && <span style={{ fontSize: 9, fontWeight: 600, color: "#94a3b8", whiteSpace: "nowrap" }}>de a {lineStep}</span>}
+                    {(() => {
+                      const s = Math.floor(Number(v?.stock ?? 0));
+                      return (
+                        <span style={{ fontSize: 9, fontWeight: 700, whiteSpace: "nowrap", color: s > 0 ? "#16a34a" : "#dc2626" }}>
+                          {s > 0 ? `Stock ${s}` : "Sin stock"}
+                        </span>
+                      );
+                    })()}
                   </span>
                 </div>
               );
@@ -378,7 +388,7 @@ export function MultiColorProductCard({
               {rowSkus.length > 0 ? `${rowSkus.length} ${rowSkus.length === 1 ? "color" : "colores"} · ${totalQty} un. · ${clp(totalAmt)}` : "Elige uno o más colores para cotizar"}
             </div>
             {rowSkus.length > 0 && (
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#16a34a", marginTop: 2 }}>Desde {clp(fromPrice)} · Stock {stock}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: selectedStock > 0 ? "#16a34a" : "#dc2626", marginTop: 2 }}>Desde {clp(fromPrice)} · {rowSkus.length > 1 ? "Stock total" : "Stock"} {selectedStock}</div>
             )}
           </div>
           <button onClick={handleAdd} disabled={rowSkus.length === 0} style={{ display: "flex", alignItems: "center", gap: 7, border: "none", fontFamily: FONT, fontSize: 14, fontWeight: 700, padding: "12px 18px", borderRadius: 12, whiteSpace: "nowrap", background: rowSkus.length > 0 ? "#fd6301" : "#f1f5f9", color: rowSkus.length > 0 ? "#fff" : "#cbd5e1", cursor: rowSkus.length > 0 ? "pointer" : "not-allowed", boxShadow: rowSkus.length > 0 ? "0 3px 10px rgba(253,99,1,.3)" : "none" }}>
