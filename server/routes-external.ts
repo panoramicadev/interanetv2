@@ -728,6 +728,7 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
     endpoints: {
       'GET /ventas': { filters: ['startDate', 'endDate', 'salesperson', 'segment', 'client', 'product', 'client_rut', 'limit', 'offset'] },
       'GET /clientes': { filters: ['search', 'segment', 'salesperson', 'creditStatus', 'businessType', 'debtStatus', 'entityType', 'salesPeriod', 'limit', 'offset'] },
+      'GET /puntos-de-venta': { filters: ['type (sucursal_propia|distribuidor|ferreteria)', 'region', 'comuna'], note: 'puntos de venta activos con lat/long para el mapa "Dónde Comprar" — CORS abierto' },
       'GET /usuarios': { filters: ['role', 'source (users|salespeople|all)', 'limit'], note: 'returns { users, salespeople, counts }' },
       'GET /notificaciones': { filters: ['type', 'priority', 'departamento', 'archived', 'targetType', 'userId', 'limit', 'offset'] },
       'POST /notificaciones': { body: ['title*', 'message*', 'type', 'priority', 'departamento', 'actionUrl'] },

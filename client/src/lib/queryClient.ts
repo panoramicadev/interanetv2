@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -111,6 +111,14 @@ export const getQueryFn: <T>(options: {
   };
 
 export const queryClient = new QueryClient({
+  // Tras CUALQUIER mutación exitosa se refresca el resumen de cambios del
+  // Panel de Trabajo, para que los badges de las pestañas/campana reflejen la
+  // acción propia al instante (el resto de usuarios lo ve por polling).
+  mutationCache: new MutationCache({
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/panel-changes/summary"] });
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),

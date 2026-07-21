@@ -25897,7 +25897,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper method to map user roles to departments
-  private getUserDepartments(userRole: string): string[] {
+  // Público: también lo usa el servicio de Web Push (server/push.ts) para
+  // resolver qué usuarios reciben notificaciones de un departamento.
+  getUserDepartments(userRole: string): string[] {
     const roleMapping: Record<string, string[]> = {
       'admin': ['laboratorio', 'logistica', 'finanzas', 'ventas', 'produccion', 'planificacion', 'bodega_materias_primas', 'area_produccion', 'area_logistica', 'area_aplicacion', 'area_materia_prima', 'area_colores', 'area_envase', 'area_etiqueta', 'reception'],
       'supervisor': ['ventas', 'logistica'],
