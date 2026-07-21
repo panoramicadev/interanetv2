@@ -73,6 +73,12 @@ app.use((req, res, next) => {
   const { registerPushRoutes } = await import('./routes-push');
   registerPushRoutes(app);
 
+  // Register Mailing / Campañas de Marketing routes + scheduler
+  const { registerCampaignRoutes } = await import('./routes-campaigns');
+  registerCampaignRoutes(app);
+  const { startCampaignScheduler } = await import('./services/campaigns');
+  startCampaignScheduler();
+
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

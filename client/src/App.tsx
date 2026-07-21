@@ -103,6 +103,7 @@ import PedidoConfirmado from "@/pages/pedido-confirmado";
 import SeguimientoPublico from "@/pages/seguimiento-publico";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import MailingPage from "@/pages/mailing";
+import CampanasPage from "@/pages/campanas";
 import DondeComprar from "@/pages/donde-comprar";
 import RetailLocationsAdmin from "@/pages/retail-locations-admin";
 import Registro from "@/pages/registro";
@@ -272,6 +273,7 @@ function Router() {
             <Route path="/logistica-rutas" component={guarded("market.logistica", LogisticaRutas)} />
             <Route path="/cotizaciones-b2c" component={CotizacionesB2C} />
             <Route path="/mailing" component={guarded("market.mailing", MailingPage)} />
+            <Route path="/campanas" component={guarded("market.campanas", CampanasPage)} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={guarded("clientes", ClientesUnificado)} />

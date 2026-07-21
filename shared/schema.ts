@@ -7867,3 +7867,102 @@ export const panelChangeSeen = pgTable("panel_change_seen", {
 export type PanelChangeLogEntry = typeof panelChangeLog.$inferSelect;
 export type InsertPanelChangeLogEntry = typeof panelChangeLog.$inferInsert;
 export type PanelChangeSeenMarker = typeof panelChangeSeen.$inferSelect;
+
+// ==================================================================================
+// MAILING — CAMPAÑAS DE MARKETING (envío masivo con Resend)
+// ==================================================================================
+// Módulo separado del mailing transaccional (venta/cobranza). Permite armar
+// campañas de correo, construir la audiencia desde clientes / CRM / seguimiento /
+// listas manuales, y enviarlas masivamente. El tracking por destinatario vive en
+// email_campaign_recipients (un registro por correo). Visible para admin y marketing.
+
+// Plantillas reutilizables de contenido (bloque HTML que se envuelve con la
+// plantilla de marca al enviar). Permite reusar diseños entre campañas.
+export const emailCampaignTemplates = pgTable("email_campaign_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  subject: varchar("subject"), // asunto sugerido
+  preheader: varchar("preheader"), // texto de preview en la bandeja
+  bodyHtml: text("body_html").notNull(), // contenido del cuerpo (sin header/footer de marca)
+  createdBy: varchar("created_by"), // FK users.id
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  nameIdx: index("IDX_email_campaign_templates_name").on(table.name),
+}));
+
+// Campaña de correo. status: draft | scheduled | sending | sent | partial | failed | cancelled
+export const emailCampaigns = pgTable("email_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // nombre interno de la campaña
+  subject: varchar("subject").notNull(), // asunto del correo
+  preheader: varchar("preheader"), // texto de preview en la bandeja
+  fromName: varchar("from_name"), // nombre del remitente (opcional; usa default de Resend si no)
+  replyTo: varchar("reply_to"), // responder-a (opcional)
+  bodyHtml: text("body_html").notNull().default(""), // contenido del cuerpo (se envuelve con branding al enviar)
+  status: varchar("status").notNull().default("draft"),
+  scheduledAt: timestamp("scheduled_at"), // si está programada
+  totalRecipients: integer("total_recipients").notNull().default(0),
+  sentCount: integer("sent_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
+  registerInCrm: boolean("register_in_crm").notNull().default(false), // insertar contactos manuales en CRM/Seguimiento
+  createdBy: varchar("created_by"), // FK users.id
+  startedAt: timestamp("started_at"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  statusIdx: index("IDX_email_campaigns_status").on(table.status),
+  scheduledIdx: index("IDX_email_campaigns_scheduled_at").on(table.scheduledAt),
+  createdAtIdx: index("IDX_email_campaigns_created_at").on(table.createdAt),
+}));
+
+// Un registro por destinatario de una campaña. source: client | manual | crm | seguimiento
+// status: pending | sent | failed | skipped
+export const emailCampaignRecipients = pgTable("email_campaign_recipients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull(), // FK email_campaigns.id
+  email: varchar("email").notNull(),
+  name: varchar("name"), // nombre para personalizar ({{nombre}})
+  source: varchar("source").notNull().default("manual"),
+  sourceId: varchar("source_id"), // id/koen del origen (cliente, lead, seguimiento)
+  status: varchar("status").notNull().default("pending"),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  campaignIdx: index("IDX_email_campaign_recipients_campaign").on(table.campaignId),
+  statusIdx: index("IDX_email_campaign_recipients_status").on(table.status),
+  campaignEmailUnique: unique("email_campaign_recipients_campaign_email_unique").on(table.campaignId, table.email),
+}));
+
+export type EmailCampaign = typeof emailCampaigns.$inferSelect;
+export type InsertEmailCampaign = typeof emailCampaigns.$inferInsert;
+export type EmailCampaignRecipient = typeof emailCampaignRecipients.$inferSelect;
+export type InsertEmailCampaignRecipient = typeof emailCampaignRecipients.$inferInsert;
+export type EmailCampaignTemplate = typeof emailCampaignTemplates.$inferSelect;
+export type InsertEmailCampaignTemplate = typeof emailCampaignTemplates.$inferInsert;
+
+export const insertEmailCampaignSchema = createInsertSchema(emailCampaigns, {
+  name: z.string().min(1, "El nombre es requerido"),
+  subject: z.string().min(1, "El asunto es requerido"),
+}).omit({
+  id: true,
+  totalRecipients: true,
+  sentCount: true,
+  failedCount: true,
+  startedAt: true,
+  sentAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEmailCampaignTemplateSchema = createInsertSchema(emailCampaignTemplates, {
+  name: z.string().min(1, "El nombre es requerido"),
+  bodyHtml: z.string().min(1, "El contenido es requerido"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
