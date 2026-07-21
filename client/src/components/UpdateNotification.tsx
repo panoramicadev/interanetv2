@@ -21,12 +21,23 @@ export function UpdateNotification() {
   }, []);
 
   const handleUpdate = () => {
-    if (registration && registration.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      });
+    // Este SW llama skipWaiting() en el install, así que cuando el usuario
+    // pincha, la versión nueva casi siempre está YA activa y registration.waiting
+    // es null: en ese caso basta recargar. Antes ese camino no hacía nada y el
+    // botón parecía muerto.
+    const waiting = registration?.waiting;
+    if (waiting) {
+      navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        () => window.location.reload(),
+        { once: true }
+      );
+      waiting.postMessage({ type: 'SKIP_WAITING' });
+      // Red de seguridad: si controllerchange no llega (el SW se activó entre
+      // el render del aviso y el click), recargar igual.
+      window.setTimeout(() => window.location.reload(), 1500);
+    } else {
+      window.location.reload();
     }
   };
 
