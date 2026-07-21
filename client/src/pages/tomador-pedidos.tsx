@@ -3918,12 +3918,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
           </div>
           <div>
             <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight flex items-center gap-2`}>
-              {isV2 ? "Tomador de Pedidos 2" : "Tomador de Pedidos"}
-              {isV2 && (
-                <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5">
-                  Beta
-                </span>
-              )}
+              Tomador de Pedidos
             </h1>
             <p className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-sm'} mt-0.5`}>
               {isV2 ? "Nuevo catálogo: varios colores por producto" : "Presupuestos, cotizaciones y pedidos"}
