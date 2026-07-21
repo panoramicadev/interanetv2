@@ -4504,9 +4504,6 @@ function TaskDetailDialog({
 }: TaskDetailDialogProps) {
   const { toast } = useToast();
   const [chatText, setChatText] = useState("");
-  const [activeAssignmentChat, setActiveAssignmentChat] = useState<string>(
-    task.assignments[0]?.id || ""
-  );
   const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
   const [selectedSegmento, setSelectedSegmento] = useState<string>((task as any).segmento || "__none__");
 
@@ -4739,30 +4736,15 @@ function TaskDetailDialog({
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Left Panel: Chat / Bitácora (permanente) */}
           <div className="lg:w-[400px] lg:flex-shrink-0 flex flex-col min-h-0 border-r border-slate-200 bg-slate-50/40">
-            <div className="px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0 flex items-center justify-between">
+            <div className="px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0 flex items-center gap-2">
               <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-orange-600" /> Bitácora / Chat
               </h4>
-              {task.assignments.length > 1 && (
-                <Select value={activeAssignmentChat} onValueChange={setActiveAssignmentChat}>
-                  <SelectTrigger className="w-auto max-w-[150px] h-8 text-xs border-slate-200"><SelectValue placeholder="Asignación" /></SelectTrigger>
-                  <SelectContent>
-                    {task.assignments.map((a) => (<SelectItem key={a.id} value={a.id} className="text-xs">{getAssigneeName(a)}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              )}
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              {activeAssignmentChat && (
-                <DetailChatPanel
-                  taskId={task.id}
-                  assignmentId={activeAssignmentChat}
-                  assigneeName={getAssigneeName(task.assignments.find(a => a.id === activeAssignmentChat) || task.assignments[0])}
-                  userRole={user.role}
-                />
-              )}
+              <DetailChatPanel taskId={task.id} userRole={user.role} />
             </div>
-            <DetailChatInput taskId={task.id} assignmentId={activeAssignmentChat} />
+            <DetailChatInput taskId={task.id} />
           </div>
 
           {/* Right Panel: pestañas (Detalle + info del cliente) */}
@@ -5075,19 +5057,21 @@ function TaskDetailDialog({
 // ==================================================================================
 // DetailChatPanel - Panel de mensajes del chat en el detalle
 // ==================================================================================
-function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { taskId: string; assignmentId: string; assigneeName: string; userRole: string }) {
+function DetailChatPanel({ taskId, userRole }: { taskId: string; userRole: string }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  // Hilo único de la tarea (todas las asignaciones) estilo WhatsApp: no se filtra por miembro.
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
-    queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'],
+    queryKey: ['/api/tasks', taskId, 'comments'],
     refetchInterval: 3000,
   });
 
   const deleteCommentMutation = useMutation({
     mutationFn: async (commentId: string) => {
-      return apiRequest('DELETE', `/api/tasks/${taskId}/assignments/${assignmentId}/comments/${commentId}`);
+      return apiRequest('DELETE', `/api/tasks/${taskId}/comments/${commentId}`);
     },
     onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
       toast({ title: "Comentario eliminado" });
     },
   });
@@ -5112,41 +5096,51 @@ function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { tas
         <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
           <MessageSquare className="h-6 w-6 text-slate-400" />
         </div>
-        <p className="text-sm font-medium text-slate-600">Sin comentarios aún</p>
-        <p className="text-xs text-slate-400 mt-1">Escribe el primer mensaje para {assigneeName}</p>
+        <p className="text-sm font-medium text-slate-600">Sin mensajes aún</p>
+        <p className="text-xs text-slate-400 mt-1">Escribe el primer mensaje de esta bitácora</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-3">
-      {comments.map((comment) => (
-        <div
-          key={comment.id}
-          className="group bg-white rounded-xl p-3.5 border border-slate-200 hover:border-orange-200 hover:shadow-sm transition-all"
-        >
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-              {comment.authorName?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <span className="text-xs font-semibold text-slate-800 truncate">{comment.authorName}</span>
-            <span className="text-[10px] text-slate-400 flex-shrink-0">
-              {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
-            </span>
-            <div className="flex-1" />
-            {userRole === 'admin' && (
-              <button
-                onClick={() => deleteCommentMutation.mutate(comment.id)}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all"
-                title="Eliminar comentario"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
+    <div className="p-4 space-y-2">
+      {comments.map((comment) => {
+        const isMine = comment.authorId === user?.id;
+        const canDelete = isMine || userRole === 'admin';
+        return (
+          <div key={comment.id} className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+            {!isMine && (
+              <span className="text-[11px] font-semibold text-slate-500 ml-1 mb-0.5">{comment.authorName}</span>
             )}
+            <div className="flex items-end gap-1.5 max-w-[85%]">
+              {isMine && canDelete && (
+                <button
+                  onClick={() => deleteCommentMutation.mutate(comment.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
+                  title="Eliminar mensaje"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+              <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#fd6301] text-white rounded-br-md' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md'}`}>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
+                <span className={`block text-[10px] mt-0.5 text-right ${isMine ? 'text-white/70' : 'text-slate-400'}`}>
+                  {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
+                </span>
+              </div>
+              {!isMine && userRole === 'admin' && (
+                <button
+                  onClick={() => deleteCommentMutation.mutate(comment.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
+                  title="Eliminar mensaje"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
-          <p className="text-sm text-slate-700 pl-8 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
-        </div>
-      ))}
+        );
+      })}
       <div ref={chatEndRef} />
     </div>
   );
@@ -5155,20 +5149,20 @@ function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { tas
 // ==================================================================================
 // DetailChatInput - Input de chat para el panel de detalle
 // ==================================================================================
-function DetailChatInput({ taskId, assignmentId }: { taskId: string; assignmentId: string }) {
+function DetailChatInput({ taskId }: { taskId: string }) {
   const { toast } = useToast();
   const [text, setText] = useState("");
 
   const addCommentMutation = useMutation({
     mutationFn: async (content: string) => {
-      const response = await apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments`, {
+      const response = await apiRequest(`/api/tasks/${taskId}/comments`, {
         method: 'POST',
         data: { content },
       });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
       setText("");
     },
     onError: () => {
@@ -6020,14 +6014,11 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
 
 function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { clienteId: string; clienteNombre: string; canManage: boolean; taskId?: string }) {
   const { toast } = useToast();
-  // Borrar rutas es exclusivo del admin; canManage sigue controlando asignar/marcar visitas.
+  // Quitar al cliente de una ruta (desde la papelera) es exclusivo del admin; canManage sigue controlando asignar/marcar visitas.
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.role === "admin";
   const [selRuta, setSelRuta] = useState("");
   const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
-  const [visitaRuta, setVisitaRuta] = useState("");
-  const [visitaFecha, setVisitaFecha] = useState("");
-  const [visitaNota, setVisitaNota] = useState("");
 
   const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; fecha: string | null; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
@@ -6066,25 +6057,16 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo asignar.", variant: "destructive" }),
   });
-  const registrarVisita = useMutation({
-    mutationFn: async () => apiRequest("POST", `/api/rutas/${visitaRuta}/visitas`, { clienteId, clienteNombre, fecha: visitaFecha, nota: visitaNota.trim() || undefined }),
+  // Quitar SOLO a este cliente de la ruta: desasocia al cliente sin borrar la ruta
+  // ni su histórico de visitas (la ruta sigue existiendo en el apartado de Rutas).
+  const quitarDeRutaMut = useMutation({
+    mutationFn: async (rutaId: string) => apiRequest("DELETE", `/api/rutas/${rutaId}/clientes/${encodeURIComponent(clienteId)}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
-      setVisitaFecha(""); setVisitaNota("");
-      toast({ title: "Visita registrada" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo registrar la visita.", variant: "destructive" }),
-  });
-  // Eliminar la ruta por completo (borra la ruta, sus clientes asignados y su histórico de visitas).
-  const eliminarRutaMut = useMutation({
-    mutationFn: async (rutaId: string) => apiRequest("DELETE", `/api/rutas/${rutaId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rutas"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
-      toast({ title: "Ruta eliminada" });
+      toast({ title: "Cliente quitado de la ruta" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo eliminar la ruta.", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo quitar de la ruta.", variant: "destructive" }),
   });
   // Marcar la ruta como realizada / pendiente para este cliente (para saber si se hizo).
   const toggleVisitado = useMutation({
@@ -6136,21 +6118,21 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                 {isAdmin && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Eliminar ruta">
+                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Quitar de esta ruta">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar la ruta "{r.nombre}"?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Quitar este cliente de la ruta "{r.nombre}"?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción no se puede deshacer. Se eliminará la ruta junto con su histórico de visitas.
+                          Solo se desasociará este cliente de la ruta. La ruta y su histórico de visitas se conservan en el apartado de Rutas.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => eliminarRutaMut.mutate(r.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => quitarDeRutaMut.mutate(r.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Quitar de la ruta
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -6174,26 +6156,6 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
           </div>
         )}
       </div>
-
-      {/* Registrar visita (queda en el histórico) */}
-      {canManage && rutasCliente.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><CalendarIcon className="h-3.5 w-3.5" /> Registrar visita</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <Select value={visitaRuta} onValueChange={setVisitaRuta}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Ruta" /></SelectTrigger>
-              <SelectContent>
-                {rutasCliente.map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}</SelectItem>))}
-              </SelectContent>
-            </Select>
-            <Input type="date" value={visitaFecha} onChange={(e) => setVisitaFecha(e.target.value)} className="h-8 text-xs" />
-          </div>
-          <Input value={visitaNota} onChange={(e) => setVisitaNota(e.target.value)} placeholder="Nota (opcional)…" className="h-8 text-xs" />
-          <Button size="sm" className="w-full h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!visitaRuta || !visitaFecha || registrarVisita.isPending} onClick={() => registrarVisita.mutate()}>
-            {registrarVisita.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Registrar visita</>}
-          </Button>
-        </div>
-      )}
 
       {/* Histórico de visitas */}
       <div className="space-y-2">
@@ -6233,7 +6195,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
 // Diálogo para completar una ruta: permite adjuntar una foto (cámara o galería) y detecta
 // la geolocalización del dispositivo. Al confirmar marca la ruta como realizada para el
 // cliente y guarda la evidencia (foto + coordenadas) en el histórico de visitas.
-function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose }: { clienteId: string; clienteNombre: string; ruta: { id: string; nombre: string }; onClose: () => void }) {
+function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose, actividadId, taskId }: { clienteId: string; clienteNombre: string; ruta: { id: string; nombre: string }; onClose: () => void; actividadId?: string; taskId?: string }) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
@@ -6279,9 +6241,15 @@ function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose }: { clie
         nota: nota.trim() || null,
         clienteNombre,
       });
+      // Si venimos de completar una actividad "visita" de "Tareas del cliente", marcarla
+      // también como completada para que el check quede reflejado en esa lista.
+      if (actividadId) {
+        await apiRequest("PATCH", `/api/tasks/actividades/${actividadId}`, { estado: "completada" });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
-      toast({ title: "Ruta marcada como realizada" });
+      if (taskId) queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
+      toast({ title: actividadId ? "Visita completada" : "Ruta marcada como realizada" });
       onClose();
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "No se pudo completar la ruta.", variant: "destructive" });
@@ -7330,8 +7298,10 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
   // se la haya asignado antes. La fecha de la actividad puede ser pasada o futura.
   const [creatingRuta, setCreatingRuta] = useState(false);
   const [nuevaRuta, setNuevaRuta] = useState("");
+  // Actividad "visita" que se está completando: abre el diálogo de foto/evidencia.
+  const [completingVisita, setCompletingVisita] = useState<{ actId: string; rutaId: string; rutaNombre: string } | null>(null);
 
-  const { data: actividades = [], isLoading } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null; rutaNombre: string | null }>>({
+  const { data: actividades = [], isLoading } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null; rutaId: string | null; rutaNombre: string | null }>>({
     queryKey: ["/api/tasks", taskId, "actividades"],
   });
   const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
@@ -7397,6 +7367,16 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
 
   return (
     <div className="space-y-3">
+      {completingVisita && (
+        <CompletarRutaDialog
+          clienteId={clienteId}
+          clienteNombre={clienteNombre || ""}
+          ruta={{ id: completingVisita.rutaId, nombre: completingVisita.rutaNombre }}
+          actividadId={completingVisita.actId}
+          taskId={taskId}
+          onClose={() => setCompletingVisita(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h4 className="text-sm font-bold text-slate-800">Tareas del cliente</h4>
@@ -7475,7 +7455,15 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
               <div key={a.id} className={`flex items-start gap-2.5 rounded-xl px-3 py-2 border transition-all ${doneAct ? "bg-slate-50/60 border-slate-100 opacity-70" : "bg-white border-slate-200"}`}>
                 {canManage ? (
                   <button
-                    onClick={() => toggleMut.mutate({ id: a.id, estado: doneAct ? "pendiente" : "completada" })}
+                    onClick={() => {
+                      // Completar una visita ligada a una ruta pide foto/evidencia (igual que
+                      // "Realizada" en la pestaña Rutas). Desmarcar o cualquier otro tipo es directo.
+                      if (!doneAct && a.tipo === "visita" && a.rutaId) {
+                        setCompletingVisita({ actId: a.id, rutaId: a.rutaId, rutaNombre: a.rutaNombre || "Visita de ruta" });
+                      } else {
+                        toggleMut.mutate({ id: a.id, estado: doneAct ? "pendiente" : "completada" });
+                      }
+                    }}
                     className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${doneAct ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 hover:border-emerald-400"}`}
                   >
                     {doneAct && <Check className="h-3 w-3" />}

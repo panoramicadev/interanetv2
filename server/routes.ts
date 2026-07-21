@@ -14411,6 +14411,73 @@ export function registerRoutes(app: Express): Server {
   // Task Comments - Sistema de comentarios en hilo
   // ==================================================================================
 
+  // Hilo único de la tarea (chat estilo WhatsApp): todos los comentarios de todas las
+  // asignaciones, en orden cronológico. No separa por miembro.
+  app.get('/api/tasks/:taskId/comments', requireAuth, async (req: any, res) => {
+    try {
+      const comments = await storage.getTaskCommentsByTask(req.params.taskId);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching task comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  // Publicar en el hilo único de la tarea. El comentario se ancla a la asignación del
+  // propio usuario si la tiene; si no, a la primera asignación de la tarea (el FK exige
+  // una asignación válida, pero el chat se muestra unificado igualmente).
+  app.post('/api/tasks/:taskId/comments', requireAuth, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const user = req.user;
+      const { content } = req.body;
+      if (!content || content.trim() === '') {
+        return res.status(400).json({ message: "El comentario no puede estar vacío" });
+      }
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!task.assignments || task.assignments.length === 0) {
+        return res.status(400).json({ message: "La tarea no tiene asignaciones" });
+      }
+      const own = task.assignments.find(a => a.assigneeId === user.id);
+      const targetAssignment = own || task.assignments[0];
+      const authorName = user.name || user.fullName || user.email || 'Usuario';
+      const comment = await storage.addTaskComment({
+        assignmentId: targetAssignment.id,
+        authorId: user.id,
+        authorName,
+        content: content.trim(),
+      });
+      await logPanelChange(user, {
+        section: panelSectionForTask(task),
+        action: 'commented',
+        entityType: 'task',
+        entityId: taskId,
+        title: `Nuevo comentario en "${task.title}"`,
+        segmento: normalizePanelSegmento(task.segmento),
+      });
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error("Error adding task comment:", error);
+      res.status(500).json({ message: "Failed to add comment" });
+    }
+  });
+
+  // Eliminar un comentario del hilo único: el autor puede borrar el suyo; el admin, cualquiera.
+  app.delete('/api/tasks/:taskId/comments/:commentId', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role === 'admin') {
+        await storage.deleteTaskCommentById(req.params.commentId);
+      } else {
+        await storage.deleteTaskComment(req.params.commentId, req.user.id);
+      }
+      res.json({ message: "Comment deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task comment:", error);
+      res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
   // Get comments for an assignment
   app.get('/api/tasks/:taskId/assignments/:assignmentId/comments', requireAuth, async (req: any, res) => {
     try {
@@ -14783,7 +14850,14 @@ export function registerRoutes(app: Express): Server {
       const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
       if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
       const visitado = req.body?.visitado === true || req.body?.visitado === 'true';
-      const rc = await storage.setRutaClienteVisitado(req.params.id, req.params.koen, visitado);
+      // El cliente puede tener la visita como actividad suelta sin estar formalmente en
+      // ruta_clientes; en ese caso no marcamos el estado pero igual guardamos la evidencia.
+      let rc: any = null;
+      try {
+        rc = await storage.setRutaClienteVisitado(req.params.id, req.params.koen, visitado);
+      } catch (err) {
+        console.warn("Cliente no asignado a la ruta al marcar visitado, se continúa para registrar evidencia:", (err as any)?.message);
+      }
       // Al marcar como realizada se puede adjuntar evidencia (foto + geolocalización) que
       // queda registrada en el histórico de visitas del cliente.
       if (visitado) {
@@ -14793,7 +14867,7 @@ export function registerRoutes(app: Express): Server {
             await storage.addRutaVisita({
               rutaId: req.params.id,
               clienteId: req.params.koen,
-              clienteNombre: clienteNombre || rc.clienteNombre || null,
+              clienteNombre: clienteNombre || rc?.clienteNombre || null,
               fecha: new Date(),
               nota: nota ? String(nota).trim() : null,
               imagenUrl: imagenUrl || null,
@@ -14810,10 +14884,10 @@ export function registerRoutes(app: Express): Server {
         action: visitado ? 'completed' : 'reopened',
         entityType: 'ruta',
         entityId: req.params.id,
-        title: `Visita a ${rc.clienteNombre ?? req.params.koen} ${visitado ? 'realizada' : 'marcada pendiente'} en ruta "${(ruta as any).nombre}"`,
+        title: `Visita a ${rc?.clienteNombre ?? req.params.koen} ${visitado ? 'realizada' : 'marcada pendiente'} en ruta "${(ruta as any).nombre}"`,
         segmento: normalizePanelSegmento((ruta as any).segmento),
       });
-      res.json(rc);
+      res.json(rc ?? { rutaId: req.params.id, clienteId: req.params.koen, visitado });
     } catch (e) { console.error("Error marcando visita de ruta:", e); res.status(500).json({ message: "Failed" }); }
   });
 
