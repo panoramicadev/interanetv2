@@ -5846,6 +5846,9 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
 
 function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { clienteId: string; clienteNombre: string; canManage: boolean; taskId?: string }) {
   const { toast } = useToast();
+  // Borrar rutas es exclusivo del admin; canManage sigue controlando asignar/marcar visitas.
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.role === "admin";
   const [selRuta, setSelRuta] = useState("");
   const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
   const [visitaRuta, setVisitaRuta] = useState("");
@@ -5956,7 +5959,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                     {r.visitado ? `Realizada${r.fechaVisita ? ` · ${format(new Date(r.fechaVisita), "dd MMM", { locale: es })}` : ""}` : "Pendiente"}
                   </Badge>
                 )}
-                {canManage && (
+                {isAdmin && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Eliminar ruta">

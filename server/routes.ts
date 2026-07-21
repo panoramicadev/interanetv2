@@ -14592,14 +14592,13 @@ export function registerRoutes(app: Express): Server {
     } catch (e) { console.error("Error updating ruta:", e); res.status(500).json({ message: "Failed to update ruta" }); }
   });
 
-  // Elimina la ruta completa (clientes + histórico de visitas). Además de admin/supervisor/
-  // encargado, el dueño de la ruta (quien la creó al vuelo vía /quick) puede borrar la suya.
+  // Elimina la ruta completa (clientes + histórico de visitas). Solo administradores:
+  // supervisores/encargados y dueños de la ruta pueden gestionarla pero no borrarla.
   app.delete('/api/rutas/:id', requireAuth, async (req: any, res) => {
     try {
       const ruta = await storage.getRutaById(req.params.id);
       if (!ruta) return res.status(404).json({ message: "Ruta no encontrada" });
-      const isOwner = ruta.vendedorId === req.user.id || ruta.supervisorId === req.user.id;
-      if (!canManageRutas(req.user.role) && !isOwner) return res.status(403).json({ message: "No autorizado" });
+      if (req.user.role !== 'admin') return res.status(403).json({ message: "Solo los administradores pueden eliminar rutas" });
       await storage.deleteRuta(req.params.id);
       res.json({ message: "Ruta eliminada" });
     } catch (e) { console.error("Error deleting ruta:", e); res.status(500).json({ message: "Failed to delete ruta" }); }
