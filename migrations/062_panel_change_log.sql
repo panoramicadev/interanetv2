@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS panel_change_log (
   title TEXT NOT NULL,
   user_id VARCHAR NOT NULL,
   user_name VARCHAR(200),
-  created_at TIMESTAMP DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS "IDX_panel_change_log_created_at" ON panel_change_log (created_at);
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS panel_change_seen (
   user_id VARCHAR NOT NULL,
   section VARCHAR(30) NOT NULL,
   segmento VARCHAR(30) NOT NULL DEFAULT '__all',
-  last_seen_at TIMESTAMP NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT panel_change_seen_unique UNIQUE (user_id, section, segmento)
 );
 

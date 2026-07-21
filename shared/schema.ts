@@ -7845,7 +7845,9 @@ export const panelChangeLog = pgTable("panel_change_log", {
   title: text("title").notNull(), // descripción humana: «Tarea "X" completada»
   userId: varchar("user_id").notNull(), // FK users.id (autor del cambio)
   userName: varchar("user_name", { length: 200 }),
-  createdAt: timestamp("created_at").defaultNow(),
+  // timestamptz: se compara contra last_seen_at y se muestra como tiempo
+  // relativo en el cliente; sin zona horaria el ISO llega corrido.
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   createdAtIdx: index("IDX_panel_change_log_created_at").on(table.createdAt),
   sectionIdx: index("IDX_panel_change_log_section").on(table.section),
@@ -7856,7 +7858,7 @@ export const panelChangeSeen = pgTable("panel_change_seen", {
   userId: varchar("user_id").notNull(), // FK users.id
   section: varchar("section", { length: 30 }).notNull(),
   segmento: varchar("segmento", { length: 30 }).notNull().default("__all"), // bucket de área; '__all' = cambios sin segmento
-  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   userSectionSegmentoIdx: unique("panel_change_seen_unique").on(table.userId, table.section, table.segmento),
   userIdIdx: index("IDX_panel_change_seen_user_id").on(table.userId),

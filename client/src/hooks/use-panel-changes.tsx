@@ -91,6 +91,9 @@ export function usePanelChangesController(opts: {
     queryKey: ["/api/panel-changes/summary"],
     enabled,
     refetchInterval: 20000,
+    // Seguir sondeando aunque la pestaña no tenga foco: el equipo suele dejar
+    // el panel abierto de fondo y los badges deben reflejar cambios igual.
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     staleTime: 10000,
   });
