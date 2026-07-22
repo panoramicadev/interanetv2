@@ -252,7 +252,7 @@ async function initializeBackgroundServices() {
 
       // Ventas Incremental
       try {
-        log('📊 [ETL-SCHEDULER] (1/3) Starting Ventas Incremental...');
+        log('📊 [ETL-SCHEDULER] (1/5) Starting Ventas Incremental...');
         const ventasResult = await executeIncrementalETL();
         if (ventasResult.success) {
           log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
@@ -266,7 +266,7 @@ async function initializeBackgroundServices() {
       // GDV
       try {
         const { executeGDVETL } = await import('./etl-gdv');
-        log('📊 [ETL-SCHEDULER] (2/3) Starting GDV...');
+        log('📊 [ETL-SCHEDULER] (2/5) Starting GDV...');
         const gdvResult = await executeGDVETL();
         if (gdvResult.success) {
           log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
@@ -279,7 +279,7 @@ async function initializeBackgroundServices() {
 
       // NVV
       try {
-        log('📊 [ETL-SCHEDULER] (3/3) Starting NVV...');
+        log('📊 [ETL-SCHEDULER] (3/5) Starting NVV...');
         const nvvResult = await executeNVVETL();
         if (nvvResult.success) {
           log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
@@ -288,6 +288,33 @@ async function initializeBackgroundServices() {
         }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] NVV ETL failed:', error.message);
+      }
+
+      // Costos GRI → gri_prices_cache (alimenta el costo real de /margenes/productos)
+      try {
+        const { executeCostosETL } = await import('./etl-costos');
+        log('📊 [ETL-SCHEDULER] (4/5) Starting Costos GRI...');
+        const costosResult = await executeCostosETL();
+        if (costosResult.success) {
+          log(`✅ [ETL-SCHEDULER] Costos: ${costosResult.recordsProcessed} registros en ${costosResult.executionTimeMs}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] Costos falló: ${(costosResult as any).error}`);
+        }
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] Costos ETL failed:', error.message);
+      }
+
+      // Stock ERP → inventory_products (alimenta /inventario)
+      try {
+        log('📊 [ETL-SCHEDULER] (5/5) Starting Stock ERP...');
+        const stockResult = await storage.syncProductsFromERP('system-scheduler', 'scheduler@panoramica');
+        if (stockResult.status !== 'error') {
+          log(`✅ [ETL-SCHEDULER] Stock ERP: ${stockResult.totalProcessed} registros en ${stockResult.duration}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] Stock ERP falló: ${stockResult.errorMessage}`);
+        }
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] Stock ERP sync failed:', error.message);
       }
 
       log('✅ [ETL-SCHEDULER] All ETLs completed');
