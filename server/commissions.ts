@@ -164,7 +164,7 @@ function parseDateRange(query: any): { startDate: string; endDate: string } {
  * exclusiones). El déficit de flete se computa documento a documento
  * (piso en 0) antes de sumar por vendedor.
  */
-async function getCommissionSummary(startDate: string, endDate: string) {
+export async function getCommissionSummary(startDate: string, endDate: string) {
   const result = await db.execute(sql`
     WITH flete_doc AS (
       -- Flete cobrado al cliente por documento (líneas "flete", nokofu NULL)
@@ -320,7 +320,7 @@ async function getCommissionSummary(startDate: string, endDate: string) {
  * manualmente (null si hereda); `effectivePct` = el que se aplica de verdad
  * (override si existe, si no el % por defecto del vendedor / del cliente).
  */
-async function getSalespersonDetail(salesperson: string, startDate: string, endDate: string) {
+export async function getSalespersonDetail(salesperson: string, startDate: string, endDate: string) {
   // Base de mercadería del vendedor (sin líneas de flete)
   const commonWhere = sql`
     WHERE fv."tido" = 'FCV'
