@@ -1352,8 +1352,10 @@ export interface IStorage {
 
   // Task comments - sistema de comentarios en hilo
   getTaskComments(assignmentId: string): Promise<TaskComment[]>;
+  getTaskCommentsByTask(taskId: string): Promise<TaskComment[]>;
   addTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
   deleteTaskComment(commentId: string, authorId: string): Promise<void>;
+  deleteTaskCommentById(commentId: string): Promise<void>;
 
   // Personal Task Management - SECURITY: All methods filter by assignedToUserId = userId
   createMyTask(task: InsertTaskInput, userId: string): Promise<Task>;
@@ -13686,6 +13688,25 @@ export class DatabaseStorage implements IStorage {
     return comments;
   }
 
+  // Todos los comentarios de una tarea (de todas sus asignaciones) como un único hilo
+  // cronológico — el chat estilo WhatsApp de la bitácora no separa por miembro.
+  async getTaskCommentsByTask(taskId: string): Promise<TaskComment[]> {
+    const rows = await db
+      .select({
+        id: taskComments.id,
+        assignmentId: taskComments.assignmentId,
+        authorId: taskComments.authorId,
+        authorName: taskComments.authorName,
+        content: taskComments.content,
+        createdAt: taskComments.createdAt,
+      })
+      .from(taskComments)
+      .innerJoin(taskAssignments, eq(taskComments.assignmentId, taskAssignments.id))
+      .where(eq(taskAssignments.taskId, taskId))
+      .orderBy(asc(taskComments.createdAt));
+    return rows;
+  }
+
   async addTaskComment(comment: InsertTaskComment): Promise<TaskComment> {
     const [newComment] = await db
       .insert(taskComments)
@@ -13701,6 +13722,11 @@ export class DatabaseStorage implements IStorage {
         eq(taskComments.id, commentId),
         eq(taskComments.authorId, authorId)
       ));
+  }
+
+  // Borrado sin restricción de autor (para admins).
+  async deleteTaskCommentById(commentId: string): Promise<void> {
+    await db.delete(taskComments).where(eq(taskComments.id, commentId));
   }
 
   // === Task Groups CRUD ===
