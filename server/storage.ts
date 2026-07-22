@@ -14744,7 +14744,17 @@ export class DatabaseStorage implements IStorage {
         unidad: priceList.unidad,
         lista: priceList.lista,
         minimo: priceList.minimo,
-        costoProduccion: priceList.costoProduccion,
+        // Costo real: price_list.costo_produccion casi nunca está poblada (ningún ETL la
+        // escribe). El costo vigente vive en gri_prices_cache (poblada por executeCostosETL).
+        // Mismo patrón que getMarginMetrics: COALESCE con normalización UPPER(TRIM()) porque
+        // gri_prices_cache.sku se guarda en mayúsculas/sin espacios y price_list.codigo no.
+        costoProduccion: sql`COALESCE(
+          NULLIF(${priceList.costoProduccion}, 0),
+          (SELECT gpc.price FROM gri_prices_cache gpc
+            WHERE UPPER(TRIM(gpc.sku)) = UPPER(TRIM(${priceList.codigo}))
+            LIMIT 1),
+          0
+        )`,
         productFamily: ecommerceProducts.productFamily,
         color: ecommerceProducts.color,
         formatUnit: ecommerceProducts.formatUnit,
@@ -21826,21 +21836,25 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     warehouse?: string;
   }): Promise<any[]> {
+    // Stock real por bodega: se lee de inventory_products (sincronizada del ERP vía
+    // syncProductsFromERP, FROM MAEST ... STFI1/STFI2). product_stock quedó obsoleta —
+    // solo se poblaba por CSV manual y estaba vacía → devolvía stock 0. inventory_products
+    // es la misma fuente que usa la app interna (getInventoryWithPrices) y ya trae el
+    // nombre de producto/bodega, así que no hacen falta los joins a products/warehouses.
+    // No hay desglose comprometido/disponible en esta tabla: reserved=0, available=stock1.
     let query = db
       .select({
-        id: productStock.id,
-        productSku: productStock.productSku,
-        productName: products.name,
-        warehouseCode: productStock.warehouseCode,
-        warehouseName: warehouses.name,
-        quantity: productStock.physicalStock1,
-        reservedQuantity: productStock.committedStock1,
-        availableQuantity: productStock.availableStock1,
-        lastUpdated: productStock.lastUpdated,
+        id: sql<string>`${inventoryProducts.sku} || '-' || ${inventoryProducts.sucursal} || '-' || ${inventoryProducts.bodega}`,
+        productSku: inventoryProducts.sku,
+        productName: inventoryProducts.nombre,
+        warehouseCode: inventoryProducts.bodega,
+        warehouseName: inventoryProducts.nombreBodega,
+        quantity: inventoryProducts.stock1,
+        reservedQuantity: sql<string>`'0'`,
+        availableQuantity: inventoryProducts.stock1,
+        lastUpdated: inventoryProducts.ultimaSincronizacion,
       })
-      .from(productStock)
-      .leftJoin(products, eq(productStock.productSku, products.kopr))
-      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.kobo));
+      .from(inventoryProducts);
 
     const conditions = [];
 
@@ -21848,21 +21862,21 @@ export class DatabaseStorage implements IStorage {
       const searchTerm = `%${filters.search.toLowerCase()}%`;
       conditions.push(
         or(
-          ilike(productStock.productSku, searchTerm),
-          ilike(products.nokopr, searchTerm)
+          ilike(inventoryProducts.sku, searchTerm),
+          ilike(inventoryProducts.nombre, searchTerm)
         )
       );
     }
 
     if (filters?.warehouse) {
-      conditions.push(eq(productStock.warehouseCode, filters.warehouse));
+      conditions.push(eq(inventoryProducts.bodega, filters.warehouse));
     }
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
 
-    const results = await query.orderBy(asc(productStock.productSku));
+    const results = await query.orderBy(asc(inventoryProducts.sku));
 
     return results.map(row => ({
       ...row,
