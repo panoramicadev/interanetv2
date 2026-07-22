@@ -14744,7 +14744,11 @@ export class DatabaseStorage implements IStorage {
         unidad: priceList.unidad,
         lista: priceList.lista,
         minimo: priceList.minimo,
-        costoProduccion: priceList.costoProduccion,
+        // El costo real de referencia vive en gri_prices_cache (cargado por el ETL de
+        // costos GRI), keyed por SKU. La columna price_list.costo_produccion está casi
+        // siempre vacía, así que se usa como fallback. Mismo criterio que las vistas de
+        // margen del dashboard (COALESCE(gpc.price, ..., pl.costo_produccion)).
+        costoProduccion: sql<string | null>`COALESCE((SELECT gpc.price FROM gri_prices_cache gpc WHERE UPPER(TRIM(gpc.sku)) = UPPER(TRIM(${priceList.codigo})) LIMIT 1), ${priceList.costoProduccion})`.as('costoProduccion'),
         productFamily: ecommerceProducts.productFamily,
         color: ecommerceProducts.color,
         formatUnit: ecommerceProducts.formatUnit,
