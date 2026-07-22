@@ -1071,12 +1071,19 @@ export default function Dashboard() {
     return options;
   };
 
-  // Auto-configure salesperson view when a salesperson logs in
+  // Auto-configure salesperson view when a salesperson logs in.
+  // Un vendedor SIEMPRE queda bloqueado a su propia vista: mientras globalFilter.type
+  // no sea 'salesperson', el dashboard muestra "Cargando tu panel..." (salespersonLockPending).
+  // globalFilter se persiste en localStorage, así que el tipo inicial puede venir en
+  // cualquier valor previo ('client', etc.). Por eso hay que re-bloquear ante CUALQUIER
+  // tipo distinto de 'salesperson', no solo 'all'; antes, un filtro persistido como
+  // 'client' dejaba el gate colgado para siempre.
   useEffect(() => {
-    if (user && user.role === 'salesperson' && globalFilter.type === 'all') {
-      // Get salesperson name - prefer salespersonName, fallback to firstName+lastName
+    if (user && user.role === 'salesperson' && globalFilter.type !== 'salesperson') {
+      // Nombre del vendedor: preferir salespersonName; si falta, armarlo con lo que
+      // haya de nombre/apellido (uno solo basta) para no dejar el gate colgado.
       const salespersonName = user.salespersonName ||
-        (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : undefined);
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || undefined;
       if (salespersonName) {
         setGlobalFilter({ type: 'salesperson', value: salespersonName });
         setSelectedFilter('salesperson');
