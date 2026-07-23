@@ -51,6 +51,8 @@ interface GenericProduct {
     tags: string[];
     breveResena: string | null;
     colors: { [color: string]: FormatVariant[] };
+    // Agrupación creada de antemano que todavía no tiene ningún SKU.
+    isEmpty?: boolean;
 }
 
 interface CatalogResponse {
@@ -574,6 +576,34 @@ export default function GroupedCatalog() {
     const [debouncedPublishSearch, setDebouncedPublishSearch] = useState("");
     const [publishForms, setPublishForms] = useState<Record<string, PublishForm>>({});
     const [publishingSku, setPublishingSku] = useState<string | null>(null);
+    // Agrupación destino: si tiene valor, todos los SKU publicados van a esa misma
+    // agrupación (en vez de al nombre por defecto de cada producto).
+    const [publishTargetGroup, setPublishTargetGroup] = useState("");
+    const [publishingAll, setPublishingAll] = useState(false);
+
+    // ===== Crear agrupación vacía (para llenarla después con "Agregar SKU") =====
+    const [newGroupOpen, setNewGroupOpen] = useState(false);
+    const [newGroupName, setNewGroupName] = useState("");
+    const createEmptyGroupMutation = useMutation({
+        mutationFn: async (name: string) => {
+            const res = await apiRequest("POST", "/api/products/grouped-catalog/empty-group", { name });
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            const created = String(data?.name || newGroupName).trim().toUpperCase();
+            if (created) setExpandedProducts(prev => new Set(prev).add(created));
+            toast({
+                title: data?.alreadyExists ? "La agrupación ya existía" : "Agrupación creada",
+                description: `${created} — agregale SKU con "Agregar SKU".`,
+            });
+            setNewGroupOpen(false);
+            setNewGroupName("");
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error", description: err?.message || "No se pudo crear la agrupación." });
+        },
+    });
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedPublishSearch(publishSearch), 250);
@@ -640,9 +670,16 @@ export default function GroupedCatalog() {
         },
     });
 
+    // Grupo efectivo de una fila: el destino global si está seteado, si no el nombre por fila.
+    const effectiveGroupFor = (item: UnpublishedItem): string => {
+        const target = publishTargetGroup.trim();
+        if (target) return target;
+        return (publishForms[item.codigo]?.genericName ?? defaultPublishForm(item).genericName).trim();
+    };
+
     const submitPublish = (item: UnpublishedItem) => {
         const form = publishForms[item.codigo] || defaultPublishForm(item);
-        const genericName = form.genericName.trim();
+        const genericName = effectiveGroupFor(item);
         const color = form.color.trim();
         const format = form.format.trim();
         if (!genericName) {
@@ -664,6 +701,56 @@ export default function GroupedCatalog() {
             color,
             formatUnit: format,
             price: item.lista ? Number(item.lista) : null,
+        });
+    };
+
+    // Publica de una todas las filas listadas (útil con una agrupación destino fija).
+    const submitPublishAll = async () => {
+        if (unpublished.length === 0 || publishingAll) return;
+        const jobs = unpublished.map(item => {
+            const form = publishForms[item.codigo] || defaultPublishForm(item);
+            return {
+                item,
+                genericName: effectiveGroupFor(item),
+                color: form.color.trim(),
+                format: form.format.trim(),
+            };
+        });
+        const incomplete = jobs.find(j => !j.genericName || !j.color || !j.format);
+        if (incomplete) {
+            toast({
+                variant: "destructive",
+                title: "Faltan datos",
+                description: `Completá agrupación, color y formato en todas las filas (revisá ${incomplete.item.codigo}).`,
+            });
+            return;
+        }
+        setPublishingAll(true);
+        let ok = 0;
+        let fail = 0;
+        for (const j of jobs) {
+            try {
+                await apiRequest("POST", "/api/products/grouped-catalog/add-sku", {
+                    sku: j.item.codigo,
+                    genericName: j.genericName,
+                    color: j.color,
+                    formatUnit: j.format,
+                    price: j.item.lista ? Number(j.item.lista) : null,
+                });
+                ok++;
+            } catch {
+                fail++;
+            }
+        }
+        setPublishingAll(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog/unpublished"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+        toast({
+            variant: fail > 0 ? "destructive" : undefined,
+            title: fail > 0 ? "Publicación parcial" : "Productos publicados",
+            description: `${ok} publicado${ok === 1 ? "" : "s"}${fail > 0 ? `, ${fail} con error` : ""}.`,
         });
     };
 
@@ -764,6 +851,15 @@ export default function GroupedCatalog() {
                             >
                                 {importMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importMutation.isPending ? "Importando..." : "Importar CSV"}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setNewGroupName(""); setNewGroupOpen(true); }}
+                                className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Nueva agrupación
                             </Button>
                             <Button
                                 size="sm"
@@ -1018,6 +1114,17 @@ export default function GroupedCatalog() {
                                             Agregar SKU
                                         </Button>
                                     </div>
+                                    {colorKeys.length === 0 && (
+                                        <div className="text-center py-6 border-2 border-dashed border-orange-200 rounded-xl bg-orange-50/40">
+                                            <Box className="h-7 w-7 text-orange-300 mx-auto mb-2" />
+                                            <p className="text-sm text-muted-foreground">
+                                                Esta agrupación todavía no tiene ningún SKU.
+                                            </p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                Agregá el primero con el botón "Agregar SKU".
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-x-3 gap-y-1">
                                         {colorKeys.map(color => {
                                             const isActive = activeColor === color;
@@ -1407,7 +1514,7 @@ export default function GroupedCatalog() {
             </Dialog>
 
             {/* ===== Publish New Products Dialog ===== */}
-            <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+            <Dialog open={publishOpen} onOpenChange={(open) => { setPublishOpen(open); if (!open) setPublishTargetGroup(""); }}>
                 <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -1428,6 +1535,40 @@ export default function GroupedCatalog() {
                                 onChange={(e) => setPublishSearch(e.target.value)}
                                 className="pl-9 h-9"
                             />
+                        </div>
+
+                        {/* Agrupación destino: junta todos los SKU publicados en un mismo grupo */}
+                        <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-3 space-y-1.5">
+                            <label className="text-xs font-semibold text-orange-800 flex items-center gap-1.5">
+                                <Box className="h-3.5 w-3.5" />
+                                Agrupación destino (opcional)
+                            </label>
+                            <Input
+                                list="publish-generic-names"
+                                value={publishTargetGroup}
+                                onChange={(e) => setPublishTargetGroup(e.target.value)}
+                                placeholder="Ej: ECOVIT PLUS PISOS Y DEMARCACIÓN"
+                                className="h-9 text-sm bg-white"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                {publishTargetGroup.trim()
+                                    ? <>Todos los SKU que publiques abajo se agregarán a <strong className="text-orange-700">{publishTargetGroup.trim().toUpperCase()}</strong>. Solo definí color y formato por SKU.</>
+                                    : "Escribí un nombre para juntar todos los SKU en una sola agrupación. Vacío = cada producto usa su propio nombre."}
+                            </p>
+                            {unpublished.length > 0 && (
+                                <div className="flex justify-end pt-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 gap-1.5 border-orange-400 text-orange-700 hover:bg-orange-100"
+                                        disabled={publishingAll}
+                                        onClick={submitPublishAll}
+                                    >
+                                        {publishingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                        {publishingAll ? "Publicando..." : `Publicar todos (${unpublished.length})`}
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         <datalist id="publish-generic-names">
@@ -1483,9 +1624,11 @@ export default function GroupedCatalog() {
                                             <label className="text-[11px] font-semibold text-muted-foreground">Agrupación *</label>
                                             <Input
                                                 list="publish-generic-names"
-                                                value={form.genericName}
+                                                value={publishTargetGroup.trim() ? publishTargetGroup.trim().toUpperCase() : form.genericName}
                                                 onChange={(e) => updatePublishForm(item.codigo, { genericName: e.target.value })}
-                                                className="h-8 text-sm"
+                                                disabled={!!publishTargetGroup.trim()}
+                                                title={publishTargetGroup.trim() ? "Definido por la agrupación destino de arriba" : undefined}
+                                                className="h-8 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                                             />
                                         </div>
                                         <div className="space-y-1">
@@ -1514,6 +1657,55 @@ export default function GroupedCatalog() {
                 </DialogContent>
             </Dialog>
 
+            {/* ===== New empty grouping Dialog ===== */}
+            <Dialog open={newGroupOpen} onOpenChange={(open) => { setNewGroupOpen(open); if (!open) setNewGroupName(""); }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Plus className="h-5 w-5 text-orange-500" />
+                            Nueva agrupación
+                        </DialogTitle>
+                        <DialogDescription>
+                            Creá una agrupación comercial vacía. Aparecerá en la lista y le vas a poder agregar SKU con "Agregar SKU" cuando quieras.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-1.5 pt-2">
+                        <label className="text-xs font-semibold">Nombre de la agrupación *</label>
+                        <Input
+                            list="publish-generic-names"
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            placeholder="Ej: ECOVIT PLUS PISOS Y DEMARCACIÓN"
+                            className="h-9 uppercase"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newGroupName.trim() && !createEmptyGroupMutation.isPending) {
+                                    createEmptyGroupMutation.mutate(newGroupName.trim());
+                                }
+                            }}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                            El nombre se guarda en mayúsculas. Si ya existe una agrupación con ese nombre, se reutiliza.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => { setNewGroupOpen(false); setNewGroupName(""); }} disabled={createEmptyGroupMutation.isPending}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                            disabled={!newGroupName.trim() || createEmptyGroupMutation.isPending}
+                            onClick={() => createEmptyGroupMutation.mutate(newGroupName.trim())}
+                        >
+                            {createEmptyGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                            {createEmptyGroupMutation.isPending ? "Creando..." : "Crear agrupación"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Delete agrupación confirmation */}
             <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
                 <DialogContent className="max-w-md">
@@ -1528,11 +1720,17 @@ export default function GroupedCatalog() {
                     </DialogHeader>
                     {deleteTarget && (
                         <div className="text-sm text-muted-foreground space-y-2">
-                            <p>
-                                Se despublicarán {Object.values(deleteTarget.colors).reduce((acc, vs) => acc + vs.length, 0)} SKU(s)
-                                en {Object.keys(deleteTarget.colors).length} color(es). Los productos quedarán fuera del e-commerce
-                                pero seguirán disponibles en el catálogo SAP y podrás volver a publicarlos desde "Publicar productos".
-                            </p>
+                            {Object.keys(deleteTarget.colors).length === 0 ? (
+                                <p>
+                                    Esta agrupación está vacía (sin SKU). Se quitará de la lista. No afecta al catálogo SAP.
+                                </p>
+                            ) : (
+                                <p>
+                                    Se despublicarán {Object.values(deleteTarget.colors).reduce((acc, vs) => acc + vs.length, 0)} SKU(s)
+                                    en {Object.keys(deleteTarget.colors).length} color(es). Los productos quedarán fuera del e-commerce
+                                    pero seguirán disponibles en el catálogo SAP y podrás volver a publicarlos desde "Publicar productos".
+                                </p>
+                            )}
                         </div>
                     )}
                     <DialogFooter className="gap-2">

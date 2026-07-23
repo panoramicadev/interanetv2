@@ -7925,6 +7925,42 @@ export function registerRoutes(app: Express): Server {
       colors: Object.fromEntries(p.colors),
     }));
 
+    // Append persisted empty groupings (created ahead of time, still without SKUs)
+    // so they show as cards ready to receive SKUs via "Agregar SKU". Stored in
+    // app_config as a JSON array of uppercased names. Any name that already exists
+    // as a real grouping is skipped (it graduated once it got its first SKU).
+    try {
+      const egResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'ecommerce_empty_groups'
+      `);
+      const egRow = (egResult as any).rows?.[0];
+      const emptyGroups: unknown = egRow?.value;
+      if (Array.isArray(emptyGroups) && emptyGroups.length > 0) {
+        const existing = new Set(catalog.map(p => p.genericName.trim().toUpperCase()));
+        const searchNorm = search ? normalizeText(search as string) : null;
+        for (const rawName of emptyGroups) {
+          const name = String(rawName || '').trim();
+          if (!name || existing.has(name.toUpperCase())) continue;
+          // Empty groups have no category — hide them when a category filter is active.
+          if (groupFilter && groupFilter !== 'all') continue;
+          if (searchNorm && !normalizeText(name).includes(searchNorm)) continue;
+          catalog.push({
+            genericName: name,
+            groupName: null,
+            categories: [],
+            tags: [],
+            breveResena: null,
+            imageUrl: null,
+            colors: {},
+            isEmpty: true,
+          } as any);
+          existing.add(name.toUpperCase());
+        }
+      }
+    } catch (egError) {
+      console.log('[grouped-catalog] empty groups lookup skipped:', egError);
+    }
+
     // Apply manual image overrides set from the admin's "Imagen Destacada" dialog
     // (same source as /api/store/products/grouped — keep both in sync).
     try {
@@ -8074,6 +8110,13 @@ export function registerRoutes(app: Express): Server {
       return res.status(409).json({ message: `Ya existe una agrupación con el nombre "${newName}".` });
     }
 
+    // Also reject if an empty (placeholder) grouping already reserves that name
+    const egCollision = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_empty_groups'`);
+    const egCollisionList: unknown = (egCollision as any).rows?.[0]?.value;
+    if (Array.isArray(egCollisionList) && egCollisionList.some(n => String(n).trim().toUpperCase() === newName)) {
+      return res.status(409).json({ message: `Ya existe una agrupación con el nombre "${newName}".` });
+    }
+
     // Rename in ecommerce_products
     await db.execute(sql`
       UPDATE ecommerce_products
@@ -8116,6 +8159,7 @@ export function registerRoutes(app: Express): Server {
     };
 
     await renameInJsonArray('ecommerce_product_order');
+    await renameInJsonArray('ecommerce_empty_groups');
     await renameJsonKey('ecommerce_product_group_images');
     await renameJsonKey('product_category_assignments');
 
@@ -8173,6 +8217,7 @@ export function registerRoutes(app: Express): Server {
     };
 
     await removeFromJsonArray('ecommerce_product_order');
+    await removeFromJsonArray('ecommerce_empty_groups');
     await removeJsonKey('ecommerce_product_group_images');
     await removeJsonKey('product_category_assignments');
 
@@ -8428,6 +8473,20 @@ export function registerRoutes(app: Express): Server {
     const wasUpdate = prevRows.length > 0;
     console.log(`✅ SKU ${sku} ${wasUpdate ? 'reasignado' : 'agregado'} → ${genericName} / ${color}`);
 
+    // If this grouping existed only as an empty placeholder, it's now real — prune it.
+    try {
+      const egResult = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_empty_groups'`);
+      const egList: unknown = (egResult as any).rows?.[0]?.value;
+      if (Array.isArray(egList) && egList.some(n => String(n).trim().toUpperCase() === genericName)) {
+        const nextEg = egList.filter(n => String(n).trim().toUpperCase() !== genericName);
+        await db.execute(sql`
+          INSERT INTO app_config (key, value, updated_at)
+          VALUES ('ecommerce_empty_groups', ${JSON.stringify(nextEg)}::jsonb, NOW())
+          ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(nextEg)}::jsonb, updated_at = NOW()
+        `);
+      }
+    } catch { /* prune best-effort */ }
+
     res.json({
       ok: true,
       wasUpdate,
@@ -8467,6 +8526,44 @@ export function registerRoutes(app: Express): Server {
       })),
       total: (rows as any[]).length,
     });
+  }));
+
+  // Create an empty commercial grouping (no SKUs yet). Persisted in app_config so
+  // it shows as a card ready to receive SKUs via "Agregar SKU". Once its first SKU
+  // is added it becomes a real grouping and is pruned from this list automatically.
+  app.post('/api/products/grouped-catalog/empty-group', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const name = String(req.body?.name || '').trim().toUpperCase();
+    if (!name) return res.status(400).json({ message: 'Nombre de la agrupación requerido' });
+
+    // Reject if a real grouping already uses this name
+    const collision = await db.execute(
+      sql`SELECT 1 FROM ecommerce_products WHERE UPPER(variant_generic_display_name) = ${name} LIMIT 1`
+    );
+    const collisionRows = Array.isArray(collision) ? collision : (collision as any).rows || [];
+    if (collisionRows.length > 0) {
+      return res.status(409).json({ message: `Ya existe una agrupación con el nombre "${name}".` });
+    }
+
+    const result = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_empty_groups'`);
+    const row = (result as any).rows?.[0];
+    const list: string[] = Array.isArray(row?.value) ? row.value : [];
+    if (list.some(n => String(n).trim().toUpperCase() === name)) {
+      return res.json({ success: true, name, alreadyExists: true });
+    }
+
+    const next = [...list, name];
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_empty_groups', ${JSON.stringify(next)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+    `);
+
+    console.log(`➕ Agrupación vacía creada: "${name}"`);
+    res.json({ success: true, name });
   }));
 
   // Product routes
