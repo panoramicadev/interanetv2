@@ -7751,11 +7751,17 @@ export function registerRoutes(app: Express): Server {
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
       LEFT JOIN price_list_offers po
         ON UPPER(po.codigo) = UPPER(pl.codigo) AND po.offer_type = 'pallet'
+      -- Stock: misma fuente que el Tomador 1 (/api/inventory-with-prices).
+      -- inventory_products.sku ES el KOPR y trae una fila por bodega/sucursal,
+      -- así que sumamos stock2 (STFI2) por SKU y filtramos activos, igual que v1.
+      -- Antes leía de product_stock (otra sincronización), lo que devolvía 0
+      -- aunque hubiera stock real. Join por sku = price_list.codigo.
       LEFT JOIN (
-        SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
-        FROM product_stock
-        GROUP BY kopr
-      ) stk ON stk.kopr = pl.codigo
+        SELECT sku, SUM(COALESCE(stock2, 0)) as total_stock
+        FROM inventory_products
+        WHERE activo = true
+        GROUP BY sku
+      ) stk ON stk.sku = pl.codigo
       LEFT JOIN product_content pc ON pc.codigo = pl.codigo
       ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
     `);
