@@ -864,6 +864,82 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: '{ items[], periodTotalSales, totalCount }' } },
       },
     },
+    '/margenes/ventas': {
+      get: {
+        summary: 'Margen real sobre ventas facturadas del período (revenue, costo, margen $, margen % ponderado y simple, producto de mayor y menor margen)',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' }, description: 'YYYY | YYYY-MM | YYYY-MM-DD | current-month | last-month | last-30-days | last-90-days. Default: mes en curso' },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day', 'range'] }, description: 'Se deduce del formato de period si se omite' },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Rango explícito; junto con endDate tiene prioridad sobre period' },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: '{ period, dateRange, totalRevenue, totalCost, totalMarginAmount, averageMarginPct, highestMargin, lowestMargin, ... }' } },
+      },
+    },
+    '/margenes/ventas/por-producto': {
+      get: {
+        summary: 'Ranking de productos por margen del período (no por venta): revenue, costo, margen $ y % por producto',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day', 'range'] } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'sortBy', in: 'query', schema: { type: 'string', enum: ['highest', 'lowest', 'revenue'] }, description: 'Default highest (mayor margen %)' },
+          { $ref: '#/components/parameters/limit' },
+        ],
+        responses: { '200': { description: '{ period, dateRange, sortBy, items[] }' } },
+      },
+    },
+    '/margenes/ventas/por-vendedor': {
+      get: {
+        summary: 'Margen del período agrupado por vendedor',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day', 'range'] } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: '{ period, dateRange, items[] }' } },
+      },
+    },
+    '/margenes/ventas/por-segmento': {
+      get: {
+        summary: 'Margen del período agrupado por segmento',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day', 'range'] } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: '{ period, dateRange, items[] }' } },
+      },
+    },
+    '/ventas/comparar': {
+      get: {
+        summary: 'Compara dos períodos lado a lado: ventas, unidades, transacciones, clientes activos, ticket promedio y margen, con delta absoluto y porcentual',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' }, description: 'Período actual. Default: mes en curso' },
+          { name: 'filterType', in: 'query', schema: { type: 'string', enum: ['year', 'month', 'day', 'range'] } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'comparePeriod', in: 'query', schema: { type: 'string' }, description: 'Período contra el cual comparar. Si se omite, el anterior equivalente (mes anterior, mismo mes del año pasado, etc.)' },
+          { name: 'compareStartDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'compareEndDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'includeBreakdown', in: 'query', schema: { type: 'boolean', default: true }, description: 'Incluir apertura comparada por segmento y por vendedor' },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: '{ current, previous, delta, bySegment[], bySalesperson[] }' } },
+      },
+    },
     '/margenes/etl-costos': {
       post: {
         summary: 'Dispara el ETL de costos (recalcula costos GRI desde SQL Server) — admin. Corre en segundo plano',
@@ -1959,6 +2035,11 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /margenes/top-productos': { filters: ['period (YYYY | YYYY-MM | YYYY-MM-DD | current-month | last-month | last-30-days | last-90-days)', 'filterType (year|month|day|range)', 'segment', 'salesperson', 'client', 'limit'], note: 'ranking por ventas facturadas (excluye GDV)' },
       'POST /margenes/etl-costos': { note: 'admin — dispara ETL de costos (recarga costos GRI desde SQL Server) en segundo plano' },
       'GET /margenes/etl-costos/estado': { filters: ['startDate', 'endDate'], note: 'estado/última ejecución del ETL costos' },
+      'GET /margenes/ventas': { filters: ['period', 'filterType', 'startDate', 'endDate', 'salesperson', 'segment', 'client'], note: 'MARGEN REAL sobre lo facturado (no el catálogo): revenue, costo, margen $, margen % ponderado, producto de mayor y menor margen' },
+      'GET /margenes/ventas/por-producto': { filters: ['period', 'filterType', 'startDate', 'endDate', 'salesperson', 'segment', 'sortBy (highest|lowest|revenue)', 'limit (max 100)'], note: 'ranking de productos por margen del período' },
+      'GET /margenes/ventas/por-vendedor': { filters: ['period', 'filterType', 'startDate', 'endDate', 'segment'], note: 'margen del período agrupado por vendedor' },
+      'GET /margenes/ventas/por-segmento': { filters: ['period', 'filterType', 'startDate', 'endDate', 'salesperson'], note: 'margen del período agrupado por segmento' },
+      'GET /ventas/comparar': { filters: ['period', 'filterType', 'startDate', 'endDate', 'comparePeriod', 'compareStartDate', 'compareEndDate', 'includeBreakdown', 'salesperson', 'segment', 'client'], note: 'COMPARATIVA de dos períodos: ventas, unidades, transacciones, clientes activos, ticket y margen, con delta abs y %. Sin comparePeriod usa el período anterior equivalente' },
 // Logística — despacho / TMS / rutas de despacho (mirror del TMS)
       'GET /logistica/envios': { filters: ['days (default 90, 0=sin límite)', 'estado (ingresado|preparacion|curso|entregado)'], note: 'Tablero de despacho: { tmsEnabled, days, resumen, envios[] } enriquecido con el TMS; sincroniza erpIdmaeedo' },
       'POST /logistica/sync-erp': { note: 'Vincula pedidos ingresados sin erpIdmaeedo con su NVV del ERP; devuelve { evaluados, vinculados, tmsEnabled }' },
@@ -6149,6 +6230,339 @@ router.get('/margenes/etl-costos/estado', async (req: ApiAuthRequest, res) => {
     res.json(status);
   } catch (error: any) {
     console.error('Error fetching ETL costos status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Márgenes sobre ventas facturadas
+// ============================================
+// Espejo de las rutas internas /api/sales/margins* (server/routes.ts): margen real
+// calculado sobre fact_ventas (excluye GDV), con revenue = monto y costo unitario =
+// COALESCE(costo GRI, ppprpm, listacost, price_list.costo_produccion).
+//
+// OJO — no confundir con /margenes/productos: esa es la tabla de catálogo (precio de
+// lista vs costo) y no sabe nada de lo efectivamente vendido. Estas rutas responden
+// "cuánto margen dejó lo que se vendió", que es lo que se pregunta comercialmente.
+
+// Resuelve la ventana de fechas de un endpoint de margen/comparativa.
+// Prioridad: startDate/endDate explícitos > period (+filterType) > mes en curso.
+// Si no se pasa filterType se deduce del formato de period, igual que /dashboard.
+function ventasFilterType(period: string, explicit?: string): string {
+  if (explicit) return explicit;
+  if (/^\d{4}$/.test(period)) return 'year';
+  if (/^\d{4}-\d{2}$/.test(period)) return 'month';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return 'day';
+  if (period === 'current-month' || period === 'last-month') return 'month';
+  return 'range';
+}
+
+function ventasWindow(query: Record<string, unknown>): {
+  startDate: string;
+  endDate: string;
+  period: string;
+  filterType: string;
+} {
+  const rawStart = typeof query.startDate === 'string' ? query.startDate.trim() : '';
+  const rawEnd = typeof query.endDate === 'string' ? query.endDate.trim() : '';
+  const rawPeriod = typeof query.period === 'string' && query.period.trim() ? query.period.trim() : '';
+  const rawFilterType = typeof query.filterType === 'string' && query.filterType.trim() ? query.filterType.trim() : undefined;
+
+  // Rango explícito: gana sobre todo lo demás.
+  if (rawStart && rawEnd) {
+    return { startDate: rawStart, endDate: rawEnd, period: `${rawStart}_${rawEnd}`, filterType: 'range' };
+  }
+
+  const now = new Date();
+  const period = rawPeriod || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const filterType = ventasFilterType(period, rawFilterType);
+  const range = marginDateRange(period, filterType);
+
+  // marginDateRange devuelve {} ante un period que no sabe interpretar; caemos al mes en curso.
+  if (!range.startDate || !range.endDate) {
+    const fallback = marginDateRange(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'month');
+    return {
+      startDate: fallback.startDate!,
+      endDate: fallback.endDate!,
+      period: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+      filterType: 'month',
+    };
+  }
+
+  return { startDate: range.startDate, endDate: range.endDate, period, filterType };
+}
+
+// GET /margenes/ventas — métricas de margen del período: revenue, costo, margen $,
+// margen % ponderado y simple, y los productos de mayor y menor margen.
+router.get('/margenes/ventas', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, client } = req.query;
+
+    const metrics = await storage.getMarginMetrics({
+      startDate,
+      endDate,
+      salesperson: salesperson as string | undefined,
+      segment: segment as string | undefined,
+      client: client as string | undefined,
+    });
+
+    res.json({ period, filterType, dateRange: { startDate, endDate }, ...metrics });
+  } catch (error) {
+    console.error('Error fetching margen de ventas:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /margenes/ventas/por-producto — ranking de productos por margen del período.
+router.get('/margenes/ventas/por-producto', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, sortBy } = req.query;
+    const sortByValid = ['highest', 'lowest', 'revenue'].includes(sortBy as string)
+      ? (sortBy as 'highest' | 'lowest' | 'revenue')
+      : 'highest';
+
+    const items = await storage.getMarginByProduct({
+      startDate,
+      endDate,
+      salesperson: salesperson as string | undefined,
+      segment: segment as string | undefined,
+      sortBy: sortByValid,
+      limit: parseLimit(req.query.limit, 20, 100),
+    });
+
+    res.json({ period, filterType, dateRange: { startDate, endDate }, sortBy: sortByValid, items });
+  } catch (error) {
+    console.error('Error fetching margen por producto:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /margenes/ventas/por-vendedor — margen del período agrupado por vendedor.
+router.get('/margenes/ventas/por-vendedor', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { segment } = req.query;
+
+    const items = await storage.getMarginBySalesperson({
+      startDate,
+      endDate,
+      segment: segment as string | undefined,
+    });
+
+    res.json({ period, filterType, dateRange: { startDate, endDate }, items });
+  } catch (error) {
+    console.error('Error fetching margen por vendedor:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /margenes/ventas/por-segmento — margen del período agrupado por segmento.
+router.get('/margenes/ventas/por-segmento', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson } = req.query;
+
+    const items = await storage.getMarginBySegment({
+      startDate,
+      endDate,
+      salesperson: salesperson as string | undefined,
+    });
+
+    res.json({ period, filterType, dateRange: { startDate, endDate }, items });
+  } catch (error) {
+    console.error('Error fetching margen por segmento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Comparativa de períodos
+// ============================================
+// No existe equivalente interno: la intranet muestra un período a la vez. Este
+// endpoint resuelve en una sola llamada la pregunta comercial más frecuente
+// ("¿cómo venimos contra el mes pasado / el año pasado?") devolviendo ambos
+// períodos ya calculados más el delta, en vez de obligar a dos consultas y la
+// aritmética a mano.
+
+// Parseo/formateo de YYYY-MM-DD en hora local. `new Date('2026-07-01')` se
+// interpreta como UTC y en Chile (UTC-4/-3) retrocede un día; construir con
+// componentes evita ese corrimiento.
+function ventasParseLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+// Ventana anterior equivalente. Para año/mes/día se desplaza por calendario
+// (julio 1-26 contra junio 1-26, no contra "los 26 días previos"), que es la
+// comparación que espera un vendedor. Para rangos libres se usa la ventana
+// contigua de la misma cantidad de días.
+function ventasPreviousWindow(
+  startDate: string,
+  endDate: string,
+  filterType: string,
+): { startDate: string; endDate: string } {
+  const start = ventasParseLocal(startDate);
+  const end = ventasParseLocal(endDate);
+
+  if (filterType === 'year') {
+    return {
+      startDate: marginFmtDateLocal(new Date(start.getFullYear() - 1, start.getMonth(), start.getDate())),
+      endDate: marginFmtDateLocal(new Date(end.getFullYear() - 1, end.getMonth(), end.getDate())),
+    };
+  }
+
+  if (filterType === 'month') {
+    const prevStart = new Date(start.getFullYear(), start.getMonth() - 1, 1);
+    // Último día del mes anterior: día 0 del mes siguiente.
+    const prevMonthLastDay = new Date(prevStart.getFullYear(), prevStart.getMonth() + 1, 0).getDate();
+    const prevEnd = new Date(
+      prevStart.getFullYear(),
+      prevStart.getMonth(),
+      Math.min(end.getDate(), prevMonthLastDay),
+    );
+    return { startDate: marginFmtDateLocal(prevStart), endDate: marginFmtDateLocal(prevEnd) };
+  }
+
+  if (filterType === 'day') {
+    const prev = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+    return { startDate: marginFmtDateLocal(prev), endDate: marginFmtDateLocal(prev) };
+  }
+
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000);
+  const prevEnd = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+  const prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() - days);
+  return { startDate: marginFmtDateLocal(prevStart), endDate: marginFmtDateLocal(prevEnd) };
+}
+
+function ventasDelta(current: number, previous: number): { abs: number; pct: number | null } {
+  const abs = Math.round((current - previous) * 100) / 100;
+  // Sin base previa el porcentaje no significa nada: null en vez de un 100% falso.
+  const pct = previous === 0 ? null : Math.round(((current - previous) / Math.abs(previous)) * 10000) / 100;
+  return { abs, pct };
+}
+
+// GET /ventas/comparar — dos períodos lado a lado con delta absoluto y porcentual.
+// Por defecto compara contra el período anterior equivalente; se puede fijar otro
+// con comparePeriod (o compareStartDate/compareEndDate).
+router.get('/ventas/comparar', async (req: ApiAuthRequest, res) => {
+  try {
+    const query = req.query as Record<string, unknown>;
+    const current = ventasWindow(query);
+    const { salesperson, segment, client } = req.query;
+
+    // Período de comparación: explícito o el anterior equivalente.
+    const hasExplicitCompare =
+      (typeof query.comparePeriod === 'string' && query.comparePeriod.trim()) ||
+      (typeof query.compareStartDate === 'string' && typeof query.compareEndDate === 'string');
+
+    const previous = hasExplicitCompare
+      ? ventasWindow({
+          period: query.comparePeriod,
+          filterType: query.compareFilterType ?? current.filterType,
+          startDate: query.compareStartDate,
+          endDate: query.compareEndDate,
+        })
+      : { ...ventasPreviousWindow(current.startDate, current.endDate, current.filterType), period: '', filterType: current.filterType };
+
+    const includeBreakdown = String(query.includeBreakdown ?? 'true') !== 'false';
+    const salesFilters = {
+      salesperson: salesperson as string | undefined,
+      segment: segment as string | undefined,
+      client: client as string | undefined,
+    };
+
+    const [curSales, prevSales, curMargin, prevMargin] = await Promise.all([
+      storage.getSalesMetrics({ startDate: current.startDate, endDate: current.endDate, ...salesFilters }),
+      storage.getSalesMetrics({ startDate: previous.startDate, endDate: previous.endDate, ...salesFilters }),
+      storage.getMarginMetrics({ startDate: current.startDate, endDate: current.endDate, ...salesFilters }),
+      storage.getMarginMetrics({ startDate: previous.startDate, endDate: previous.endDate, ...salesFilters }),
+    ]);
+
+    const shape = (
+      window: { startDate: string; endDate: string },
+      sales: Awaited<ReturnType<typeof storage.getSalesMetrics>>,
+      margin: Awaited<ReturnType<typeof storage.getMarginMetrics>>,
+    ) => ({
+      dateRange: { startDate: window.startDate, endDate: window.endDate },
+      sales: sales.totalSales,
+      units: sales.totalUnits,
+      transactions: sales.salesTransactionCount,
+      activeCustomers: sales.activeCustomers,
+      averageTicket:
+        sales.salesTransactionCount > 0 ? Math.round(sales.totalSales / sales.salesTransactionCount) : 0,
+      marginAmount: margin.totalMarginAmount,
+      marginPct: margin.averageMarginPct,
+    });
+
+    const cur = shape(current, curSales, curMargin);
+    const prev = shape(previous, prevSales, prevMargin);
+
+    const response: Record<string, unknown> = {
+      filterType: current.filterType,
+      current: { period: current.period, ...cur },
+      previous: { period: previous.period || null, ...prev },
+      delta: {
+        sales: ventasDelta(cur.sales, prev.sales),
+        units: ventasDelta(cur.units, prev.units),
+        transactions: ventasDelta(cur.transactions, prev.transactions),
+        activeCustomers: ventasDelta(cur.activeCustomers, prev.activeCustomers),
+        averageTicket: ventasDelta(cur.averageTicket, prev.averageTicket),
+        marginAmount: ventasDelta(cur.marginAmount, prev.marginAmount),
+        // El margen % es una tasa: la variación se informa en puntos porcentuales.
+        marginPct: { abs: Math.round((cur.marginPct - prev.marginPct) * 100) / 100, unit: 'puntos porcentuales' },
+      },
+      filters: {
+        salesperson: (salesperson as string) || null,
+        segment: (segment as string) || null,
+        client: (client as string) || null,
+      },
+    };
+
+    // Apertura por segmento y por vendedor, con las mismas dos ventanas.
+    if (includeBreakdown) {
+      const [curSeg, prevSeg, curVend, prevVend] = await Promise.all([
+        storage.getMarginBySegment({ startDate: current.startDate, endDate: current.endDate, salesperson: salesperson as string | undefined }),
+        storage.getMarginBySegment({ startDate: previous.startDate, endDate: previous.endDate, salesperson: salesperson as string | undefined }),
+        storage.getMarginBySalesperson({ startDate: current.startDate, endDate: current.endDate, segment: segment as string | undefined }),
+        storage.getMarginBySalesperson({ startDate: previous.startDate, endDate: previous.endDate, segment: segment as string | undefined }),
+      ]);
+
+      const merge = <T extends { revenue: number; marginAmount: number; marginPct: number }>(
+        key: string,
+        currentRows: T[],
+        previousRows: T[],
+      ) => {
+        const prevByKey = new Map(previousRows.map((r) => [String((r as any)[key]), r]));
+        const keys = new Set([
+          ...currentRows.map((r) => String((r as any)[key])),
+          ...previousRows.map((r) => String((r as any)[key])),
+        ]);
+        return Array.from(keys)
+          .map((k) => {
+            const c = currentRows.find((r) => String((r as any)[key]) === k);
+            const p = prevByKey.get(k);
+            return {
+              [key]: k,
+              current: { revenue: c?.revenue ?? 0, marginAmount: c?.marginAmount ?? 0, marginPct: c?.marginPct ?? 0 },
+              previous: { revenue: p?.revenue ?? 0, marginAmount: p?.marginAmount ?? 0, marginPct: p?.marginPct ?? 0 },
+              delta: {
+                revenue: ventasDelta(c?.revenue ?? 0, p?.revenue ?? 0),
+                marginAmount: ventasDelta(c?.marginAmount ?? 0, p?.marginAmount ?? 0),
+              },
+            };
+          })
+          .sort((a, b) => b.current.revenue - a.current.revenue);
+      };
+
+      response.bySegment = merge('segment', curSeg, prevSeg);
+      response.bySalesperson = merge('salesperson', curVend, prevVend);
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching comparativa de ventas:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
