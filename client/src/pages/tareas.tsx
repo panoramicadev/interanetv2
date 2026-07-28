@@ -73,6 +73,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
+import { ControlObrasContent } from "@/pages/control-obras";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
@@ -1809,7 +1810,6 @@ export default function TareasPage() {
               <TabsTrigger value="obras" data-testid="tab-obras" className={tabTriggerClass}>
                 <HardHat className={tabIconClass} />
                 Obras
-                <span className="ml-1 hidden sm:inline text-[9px] font-bold uppercase tracking-wide text-orange-500 bg-orange-100 dark:bg-orange-900/40 rounded px-1 py-px">Pronto</span>
               </TabsTrigger>
             )}
             {user?.role !== 'tecnico_obra' && !isMarketing && (
@@ -3185,21 +3185,11 @@ export default function TareasPage() {
           </TabsContent>
         )}
 
-        {/* Obras — módulo propio de Construcción (reemplaza Estimación de ventas). Próximamente. */}
+        {/* Obras — módulo propio de Construcción (reemplaza Estimación de ventas):
+            control de avance por obra de cada constructora (ex planilla Excel). */}
         {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
           <TabsContent value="obras" className="space-y-6">
-            <div className="flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-16">
-              <span className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
-                <HardHat className="h-8 w-8" />
-              </span>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Obras</h3>
-              <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
-                El seguimiento de obras para el área de Construcción estará disponible próximamente.
-              </p>
-              <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-orange-100 dark:bg-orange-900/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400">
-                Próximamente
-              </span>
-            </div>
+            <ControlObrasContent />
           </TabsContent>
         )}
 

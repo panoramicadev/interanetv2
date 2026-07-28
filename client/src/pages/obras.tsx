@@ -205,7 +205,7 @@ export default function ObrasPage() {
     const matchesSearch = 
       searchTerm === "" ||
       obra.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      obra.direccion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (obra.direccion ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (obra.clienteNombre && obra.clienteNombre.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesCliente = 
@@ -462,7 +462,7 @@ export default function ObrasPage() {
               </Label>
               <Input
                 id="direccion"
-                value={formData.direccion}
+                value={formData.direccion ?? ""}
                 onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
                 placeholder="Ej: Av. Providencia 123, Santiago"
                 required

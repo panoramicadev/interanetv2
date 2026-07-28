@@ -404,7 +404,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -24300,7 +24300,13 @@ export function registerRoutes(app: Express): Server {
   // Create new obra
   app.post('/api/obras', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const nuevaObra = await storage.createObra(req.body);
+      // El body se valida contra el schema para descartar campos que no son
+      // columnas (p. ej. clienteNombre, que el dashboard de obras usa solo en UI).
+      const parsed = insertObraSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos de obra inválidos', errors: parsed.error.errors });
+      }
+      const nuevaObra = await storage.createObra(parsed.data);
       res.status(201).json(nuevaObra);
     } catch (error: any) {
       console.error('❌ Error al crear obra:', error);
@@ -24315,7 +24321,11 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const obraActualizada = await storage.updateObra(id, req.body);
+      const parsed = insertObraSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos de obra inválidos', errors: parsed.error.errors });
+      }
+      const obraActualizada = await storage.updateObra(id, parsed.data);
       res.json(obraActualizada);
     } catch (error: any) {
       console.error('❌ Error al actualizar obra:', error);

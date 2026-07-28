@@ -3323,13 +3323,30 @@ export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
 // ==============================================
 
 // Obras table - Projects/Works assigned to clients
+// Un cliente (constructora) puede tener VARIAS obras; los campos de control de
+// avance replican la planilla de temporada que llevaba Construcción en Excel
+// (viviendas, tinetas proyectadas/pedidas/entregadas). Ver pestaña "Obras" del
+// Panel de Trabajo (client/src/pages/control-obras.tsx).
 export const obras = pgTable("obras", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clienteId: varchar("cliente_id").notNull(), // FK to clients.id
-  nombre: text("nombre").notNull(), // Nombre de la obra
-  direccion: text("direccion").notNull(), // Dirección de la obra
+  nombre: text("nombre").notNull(), // Proyecto / comité (columna "Proyecto" de la planilla)
+  direccion: text("direccion"), // Dirección de la obra (opcional)
+  ciudad: text("ciudad"), // Ciudad/localidad de la obra (columna "Ciudad" de la planilla)
+  programa: varchar("programa", { length: 30 }), // Programa habitacional: DS-19, DS-49…
+  temporada: varchar("temporada", { length: 20 }), // Ej: "2026-2027"
   descripcion: text("descripcion"), // Descripción opcional
   estado: varchar("estado").notNull().default("activa"), // 'activa', 'completada', 'cancelada'
+  // --- Control de avance (todo se ingresa a mano) ---
+  viviendas: integer("viviendas").notNull().default(0), // Total de viviendas del proyecto
+  tinetasPorVivienda: numeric("tinetas_por_vivienda", { precision: 5, scale: 2 }).notNull().default("1.5"),
+  tinetasProyectadas: integer("tinetas_proyectadas").notNull().default(0), // Sugerida = viviendas × ratio, editable
+  viviendasPintadas: integer("viviendas_pintadas").notNull().default(0),
+  // Consumo REAL informado por la obra. El teórico (pintadas × tinetas por vivienda)
+  // se calcula; la diferencia entre ambos es el "Teórico vs Real" de la planilla.
+  tinetasUtilizadasReal: numeric("tinetas_utilizadas_real", { precision: 10, scale: 2 }).notNull().default("0"),
+  tinetasPedidas: integer("tinetas_pedidas").notNull().default(0),
+  tinetasEntregadas: integer("tinetas_entregadas").notNull().default(0),
   fechaInicio: date("fecha_inicio"), // Fecha de inicio opcional
   fechaEstimadaFin: date("fecha_estimada_fin"), // Fecha estimada de fin
   createdAt: timestamp("created_at").defaultNow(),
