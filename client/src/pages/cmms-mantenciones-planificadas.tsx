@@ -335,7 +335,7 @@ export default function CmmsMantencionesPlanificadas() {
   const totalCostoEstimado = mantenciones?.reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-white dark:bg-slate-900 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

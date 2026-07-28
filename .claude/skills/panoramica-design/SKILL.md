@@ -145,9 +145,30 @@ la fila de filtros en Tareas/Marketing y parecía "desaparecer" en otras pestañ
 
 ## Layout y tono general
 
-- Fondos de página: `bg-gradient-to-br from-slate-50 via-white to-orange-50/30`
-  (light) / `dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/20` (dark).
-- Radios grandes: `rounded-xl` / `rounded-2xl` para cards y contenedores.
+### Shell de tarjetas (jul-2026) — sidebar y módulo son dos tarjetas
+
+`client/src/components/layout/dashboard-layout.tsx` monta un shell de dos
+tarjetas flotando sobre un canvas gris:
+
+- Canvas de la app: `bg-slate-100 dark:bg-slate-950` (el gris SOLO vive acá).
+- Sidebar: `fixed inset-y-0 left-0 p-3` + tarjeta interna
+  `bg-[#0a0a0a] rounded-3xl shadow-xl shadow-slate-900/10 overflow-hidden`.
+  Anchos del contenedor: `w-[17.5rem]` expandido / `w-[5.75rem]` colapsado
+  (el `p-3` deja la tarjeta en 256px / 68px).
+- Módulo: `<main className="p-3 lg:pl-0">` con tarjeta
+  `bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 shadow-sm
+  min-h-[calc(100vh-1.5rem)] overflow-clip`.
+  ⚠️ `overflow-clip`, **no** `overflow-hidden`: hidden convierte la tarjeta en
+  scroll container y rompe los `sticky top-0` de las páginas.
+
+- **Fondo de página: BLANCO.** `--background` es `hsl(0,0%,100%)` y el root de
+  cada página va `bg-white dark:bg-slate-900` (o sin bg, heredando la tarjeta).
+  ❌ Nada de `bg-gray-50`, `bg-slate-50/50` ni el gradiente
+  `from-slate-50 via-white to-orange-50/30` como fondo de módulo — el usuario lo
+  corrigió explícitamente: el módulo se ve blanco, el gris es solo el canvas.
+- El sidebar **no** tiene buscador de módulos (se eliminó en jul-2026).
+- Radios grandes: `rounded-xl` / `rounded-2xl` para cards y contenedores;
+  `rounded-3xl` para las dos tarjetas del shell.
 - Tipografía de títulos: `font-bold text-slate-800 dark:text-slate-100`.
 - Soportar dark mode siempre con los prefijos `dark:`.
 
