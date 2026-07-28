@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmojiInput } from "@/components/ui/emoji-picker";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -281,7 +282,7 @@ function CreateCampaignDialog({ open, onClose, onCreated }: { open: boolean; onC
           </div>
           <div>
             <Label>Asunto del correo</Label>
-            <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Nuevas ofertas de invierno 🎨" />
+            <EmojiInput className="mt-1.5" value={subject} onValueChange={setSubject} placeholder="Ej: Nuevas ofertas de invierno 🎨" />
           </div>
         </div>
         <DialogFooter>
@@ -382,7 +383,7 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
                     </div>
                     <div>
                       <Label>Asunto <span className="text-red-500">*</span></Label>
-                      <Input className="mt-1.5" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Podés usar {{nombre}}" />
+                      <EmojiInput className="mt-1.5" value={form.subject} onValueChange={(v) => setForm({ ...form, subject: v })} placeholder="Podés usar {{nombre}}" />
                     </div>
                     <div className="md:col-span-2">
                       <Label>Preheader <span className="text-xs text-muted-foreground">(texto de vista previa en la bandeja)</span></Label>
