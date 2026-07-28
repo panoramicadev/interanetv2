@@ -21107,6 +21107,10 @@ export class DatabaseStorage implements IStorage {
 
     if (nuevoEstado === 'completado') {
       updateData.fechaCompletado = new Date();
+    } else {
+      // Reabrir una solicitud (completado -> en_proceso) debe borrar la fecha de
+      // entrega real: si queda, la solicitud sigue figurando como entregada.
+      updateData.fechaCompletado = null;
     }
 
     if (nuevoEstado === 'rechazado' && motivoRechazo) {
