@@ -2204,7 +2204,10 @@ export default function TareasPage() {
               encima de las tareas. Admin ve todas y puede aceptar/rechazar; supervisor,
               encargado y vendedor ven solo las que enviaron, en modo lectura. */}
           {activeTab === 'marketing' && taskView !== 'terminadas' && (
-            <MarketingSolicitudesInbox viewer={user.role === 'admin' ? 'admin' : 'solicitante'} />
+            <MarketingSolicitudesInbox
+              viewer={user.role === 'admin' ? 'admin' : 'solicitante'}
+              segmento={segmentoFilter}
+            />
           )}
 
           {/* Tasks List - Modern Grouped Layout */}
@@ -6534,6 +6537,10 @@ function MarketingSolicitudDialog({ open, onOpenChange, segmento }: { open: bool
         fechaEntrega: fechaSugerida || undefined,
         clienteId: clienteSel?.koen || undefined,
         clienteNombre: clienteSel?.nokoen || undefined,
+        // Área desde la que se pide: con esto la bandeja de Marketing se acota al área
+        // seleccionada en el Panel. Si no hay área elegida (vendedor, que ve "todas"),
+        // el backend cae al segmento asignado del usuario.
+        segmento: segmento || undefined,
         mes: base.getMonth() + 1,
         anio: base.getFullYear(),
       });
@@ -6637,6 +6644,7 @@ interface SolicitudMarketingItem {
   estado: string;
   supervisorName?: string | null;
   solicitanteRol?: string | null;
+  segmento?: string | null;
   clienteNombre?: string | null;
   fechaSolicitud?: string | null;
   fechaEntrega?: string | null;
@@ -6668,7 +6676,10 @@ function formatFechaCorta(v?: string | null): string {
 // 'admin' = ve todas las solicitudes y también puede gestionarlas (el backend se lo
 // permite); 'solicitante' = supervisor/encargado/vendedor solo ve el estado de las
 // solicitudes que él mismo envió (el GET ya viene scopeado por rol desde el server).
-function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketing' | 'admin' | 'solicitante' }) {
+// segmento: área seleccionada en el Panel de Trabajo. El panel se navega por área, así
+// que la bandeja se acota a los pedidos originados en esa área (en Construcción no se
+// revisan los de Ferreterías). null/'all'/'marketing' = sin acotar.
+function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = null }: { viewer?: 'marketing' | 'admin' | 'solicitante'; segmento?: string | null }) {
   const { toast } = useToast();
   const canManage = viewer !== 'solicitante';
   // Solicitudes con cambios recientes no vistos: quedan destacadas al entrar.
@@ -6684,9 +6695,29 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
   const [plazo, setPlazo] = useState("");
   const [motivo, setMotivo] = useState("");
 
-  const { data: solicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
+  const { data: todasLasSolicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
     queryKey: ["/api/marketing/solicitudes"],
   });
+
+  // Acotar al área seleccionada. Las solicitudes sin `segmento` (las previas a la columna
+  // que no se pudieron atribuir, o las de un admin sin área) no pertenecen a ninguna en
+  // particular: se muestran en todas marcadas como "Sin área" para que no queden
+  // invisibles en el panel.
+  const areaActiva = segmento && segmento !== 'all' && segmento !== 'marketing' ? segmento : null;
+  const solicitudes = useMemo(
+    () =>
+      areaActiva
+        ? todasLasSolicitudes.filter((s) => !s.segmento || s.segmento === areaActiva)
+        : todasLasSolicitudes,
+    [todasLasSolicitudes, areaActiva],
+  );
+  // Badge para las que no tienen área atribuida (solo aporta cuando hay área activa).
+  const sinAreaBadge = (s: SolicitudMarketingItem) =>
+    areaActiva && !s.segmento ? (
+      <Badge variant="outline" className="text-[10px] font-semibold border bg-slate-100 text-slate-600 border-slate-200">
+        SIN ÁREA
+      </Badge>
+    ) : null;
 
   const estadoMutation = useMutation({
     mutationFn: async ({ id, body }: { id: string; body: Record<string, any> }) =>
@@ -6771,6 +6802,7 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
                           {s.urgencia.toUpperCase()}
                         </Badge>
                       )}
+                      {sinAreaBadge(s)}
                     </div>
                     {s.descripcion && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{s.descripcion}</p>}
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 flex-wrap">
@@ -6831,7 +6863,10 @@ function MarketingSolicitudesInbox({ viewer = 'marketing' }: { viewer?: 'marketi
               <div key={s.id} className={solicitudCardClass(s.id)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
+                      {sinAreaBadge(s)}
+                    </div>
                     <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-400 flex-wrap">
                       <span className="inline-flex items-center gap-1"><User className="h-3 w-3" /> {s.supervisorName || "—"}</span>
                       {s.clienteNombre && <span className="inline-flex items-center gap-1 text-slate-500"><Building2 className="h-3 w-3" /> {s.clienteNombre}</span>}
