@@ -48,7 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send, LayoutDashboard } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -59,6 +59,8 @@ import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
 import SolicitudesTabMarketing from "./marketing/solicitudes-tab-marketing";
+import DashboardMarketing from "./marketing/dashboard-marketing";
+import MisTareasMarketing from "./marketing/mis-tareas-marketing";
 import CampanasPage from "./campanas";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -130,9 +132,19 @@ interface TareaMarketing {
   updatedAt: string;
 }
 
+// Ítem del menú lateral del módulo. En móvil el menú es una fila desplazable, por eso
+// el ítem no se estira; en desktop ocupa todo el ancho de la columna y alinea a la
+// izquierda como cualquier menú.
+const menuItemClass =
+  "flex shrink-0 lg:w-full items-center justify-center lg:justify-start gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl whitespace-nowrap data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all";
+
 export default function Marketing() {
   const { user } = useAuth();
   const { can } = usePermissions();
+
+  // Sección activa del menú lateral. Aterriza en el dashboard: es el resumen de todo
+  // el área (tareas + solicitudes) y desde ahí se baja al detalle.
+  const [vista, setVista] = useState("dashboard");
 
   // Filtro de período compartido entre las pestañas Gastos y Presupuesto,
   // para que al cambiar de pestaña se mantenga el mismo mes/año y cruzar datos rápido.
@@ -182,128 +194,138 @@ export default function Marketing() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white" data-testid="text-page-title">
                 Marketing
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Gestión de presupuesto, solicitudes e inventario de marketing</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Tareas del equipo, solicitudes, presupuesto e inventario del área</p>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="solicitudes" className="w-full">
-          <div>
-            <TabsList className="flex w-full gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-              <TabsTrigger
-                value="solicitudes"
-                data-testid="tab-solicitudes"
-                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-              >
-                <ClipboardList className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Solicitudes</span>
+        {/* Menú lateral + contenido.
+            En este módulo las secciones no van como pestañas arriba sino como un menú
+            al costado: son muchas y de naturalezas distintas (trabajo del día vs.
+            gestión administrativa), así que se agrupan y se leen en vertical. En móvil
+            el mismo menú colapsa a una fila desplazable. */}
+        <Tabs
+          value={vista}
+          onValueChange={setVista}
+          orientation="vertical"
+          className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start w-full"
+        >
+          <TabsList className="w-full lg:w-60 shrink-0 flex lg:flex-col lg:items-stretch justify-start gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto lg:overflow-visible">
+            <span role="presentation" className="hidden lg:block px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Trabajo
+            </span>
+
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className={menuItemClass}>
+              <LayoutDashboard className="h-4 w-4 shrink-0" />
+              <span>Dashboard</span>
+            </TabsTrigger>
+
+            <TabsTrigger value="mis-tareas" data-testid="tab-mis-tareas" className={menuItemClass}>
+              <CheckSquare className="h-4 w-4 shrink-0" />
+              <span>Mis tareas</span>
+            </TabsTrigger>
+
+            <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className={menuItemClass}>
+              <ClipboardList className="h-4 w-4 shrink-0" />
+              <span>Solicitudes</span>
+            </TabsTrigger>
+
+            <span role="presentation" className="hidden lg:block px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Gestión
+            </span>
+
+            {canCampanas && (
+              <TabsTrigger value="email-marketing" data-testid="tab-email-marketing" className={menuItemClass}>
+                <Send className="h-4 w-4 shrink-0" />
+                <span>Email Marketing</span>
               </TabsTrigger>
+            )}
 
-              {canCampanas && (
-                <TabsTrigger
-                  value="email-marketing"
-                  data-testid="tab-email-marketing"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <Send className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Email Marketing</span>
-                </TabsTrigger>
-              )}
+            <TabsTrigger value="inventario" data-testid="tab-inventario" className={menuItemClass}>
+              <Package className="h-4 w-4 shrink-0" />
+              <span>Inventario</span>
+            </TabsTrigger>
 
-              <TabsTrigger
-                value="inventario"
-                data-testid="tab-inventario"
-                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-              >
-                <Package className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Inventario</span>
+            {isAdmin && (
+              <TabsTrigger value="gastos" data-testid="tab-gastos" className={menuItemClass}>
+                <Receipt className="h-4 w-4 shrink-0" />
+                <span>Gastos</span>
               </TabsTrigger>
+            )}
 
-              {isAdmin && (
-                <TabsTrigger
-                  value="gastos"
-                  data-testid="tab-gastos"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <Receipt className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Gastos</span>
-                </TabsTrigger>
-              )}
+            {isAdmin && (
+              <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className={menuItemClass}>
+                <DollarSign className="h-4 w-4 shrink-0" />
+                <span>Presupuesto</span>
+              </TabsTrigger>
+            )}
 
-              {isAdmin && (
-                <TabsTrigger
-                  value="presupuesto"
-                  data-testid="tab-presupuesto"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <DollarSign className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Presupuesto</span>
-                </TabsTrigger>
-              )}
+            {isAdmin && (
+              <TabsTrigger value="proveedores" data-testid="tab-proveedores" className={menuItemClass}>
+                <Users className="h-4 w-4 shrink-0" />
+                <span>Proveedores</span>
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-              {isAdmin && (
-                <TabsTrigger
-                  value="proveedores"
-                  data-testid="tab-proveedores"
-                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
-                >
-                  <Users className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Proveedores</span>
-                </TabsTrigger>
-              )}
-            </TabsList>
+          <div className="flex-1 min-w-0 w-full">
+            {/* Dashboard — todo el área de un vistazo (tareas + solicitudes) */}
+            <TabsContent value="dashboard" className="mt-0 space-y-6">
+              <DashboardMarketing onIrA={setVista} />
+            </TabsContent>
+
+            {/* Mis tareas — solo lo que me toca a mí */}
+            <TabsContent value="mis-tareas" className="mt-0 space-y-6">
+              <MisTareasMarketing />
+            </TabsContent>
+
+            {/* Solicitudes — los pedidos que llegan al área */}
+            <TabsContent value="solicitudes" className="mt-0 space-y-6">
+              <SolicitudesTabMarketing userRole={user.role} />
+            </TabsContent>
+
+            {/* Email Marketing — campañas de mailing (antes vivía en /campanas) */}
+            {canCampanas && (
+              <TabsContent value="email-marketing" className="mt-0 space-y-6">
+                <CampanasPage embedded />
+              </TabsContent>
+            )}
+
+            <TabsContent value="inventario" className="mt-0 space-y-6">
+              <InventarioMarketing userRole={user.role} />
+            </TabsContent>
+
+            {isAdmin && (
+              <TabsContent value="gastos" className="mt-0 space-y-6">
+                <GastosTabMarketing
+                  userRole={user.role}
+                  selectedMes={selectedMes}
+                  setSelectedMes={setSelectedMes}
+                  selectedAnio={selectedAnio}
+                  setSelectedAnio={setSelectedAnio}
+                />
+              </TabsContent>
+            )}
+
+            {/* Presupuesto (tabla Excel) */}
+            {isAdmin && (
+              <TabsContent value="presupuesto" className="mt-0 space-y-6">
+                <PresupuestoTabMarketing
+                  userRole={user.role}
+                  selectedMes={selectedMes}
+                  setSelectedMes={setSelectedMes}
+                  selectedAnio={selectedAnio}
+                  setSelectedAnio={setSelectedAnio}
+                />
+              </TabsContent>
+            )}
+
+            {isAdmin && (
+              <TabsContent value="proveedores" className="mt-0 space-y-6">
+                <ProveedoresTabMarketing userRole={user.role} />
+              </TabsContent>
+            )}
           </div>
-
-          {/* Tab: Solicitudes — dashboard general de tareas del área */}
-          <TabsContent value="solicitudes" className="space-y-6">
-            <SolicitudesTabMarketing userRole={user.role} />
-          </TabsContent>
-
-          {/* Tab: Email Marketing — campañas de mailing (antes vivía en /campanas) */}
-          {canCampanas && (
-            <TabsContent value="email-marketing" className="space-y-6">
-              <CampanasPage embedded />
-            </TabsContent>
-          )}
-
-          {/* Tab: Inventario */}
-          <TabsContent value="inventario" className="space-y-6">
-            <InventarioMarketing userRole={user.role} />
-          </TabsContent>
-
-          {/* Tab: Gastos */}
-          {isAdmin && (
-            <TabsContent value="gastos" className="space-y-6">
-              <GastosTabMarketing
-                userRole={user.role}
-                selectedMes={selectedMes}
-                setSelectedMes={setSelectedMes}
-                selectedAnio={selectedAnio}
-                setSelectedAnio={setSelectedAnio}
-              />
-            </TabsContent>
-          )}
-
-          {/* Tab: Presupuesto (tabla Excel) */}
-          {isAdmin && (
-            <TabsContent value="presupuesto" className="space-y-6">
-              <PresupuestoTabMarketing
-                userRole={user.role}
-                selectedMes={selectedMes}
-                setSelectedMes={setSelectedMes}
-                selectedAnio={selectedAnio}
-                setSelectedAnio={setSelectedAnio}
-              />
-            </TabsContent>
-          )}
-
-          {/* Tab: Proveedores */}
-          {isAdmin && (
-            <TabsContent value="proveedores" className="space-y-6">
-              <ProveedoresTabMarketing userRole={user.role} />
-            </TabsContent>
-          )}
         </Tabs>
       </div>
     </div>
