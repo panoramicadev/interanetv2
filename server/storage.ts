@@ -50,7 +50,11 @@ import {
   type CsvProductStockImport,
   obras,
   type Obra,
+  type ObraConCliente,
   type InsertObra,
+  obraProductos,
+  type ObraProducto,
+  type InsertObraProducto,
   type Task,
   type InsertTask,
   type InsertTaskInput,
@@ -1230,11 +1234,17 @@ export interface IStorage {
   deleteClient(koen: string): Promise<void>;
 
   // Obras operations
-  getObras(clienteId?: string): Promise<Obra[]>;
+  getObras(clienteId?: string): Promise<ObraConCliente[]>;
   getObra(id: string): Promise<Obra | undefined>;
   createObra(obra: InsertObra): Promise<Obra>;
   updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra>;
   deleteObra(id: string): Promise<void>;
+
+  // Productos por obra (desglose del despacho por SKU)
+  getObraProductos(filtro: { obraId?: string; clienteId?: string }): Promise<ObraProducto[]>;
+  createObraProducto(producto: InsertObraProducto): Promise<ObraProducto>;
+  updateObraProducto(id: string, producto: Partial<InsertObraProducto>): Promise<ObraProducto>;
+  deleteObraProducto(id: string): Promise<void>;
 
   // CSV import for new KOPR-based format
   importProductStockFromKOPRCSV(csvData: Array<{
@@ -13275,18 +13285,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Obras operations implementation
-  async getObras(clienteId?: string): Promise<Obra[]> {
-    if (clienteId) {
-      return await db
-        .select()
-        .from(obras)
-        .where(eq(obras.clienteId, clienteId))
-        .orderBy(desc(obras.createdAt));
-    }
-    return await db
-      .select()
+  // El nombre de la constructora vive en `clients`; la cartera de obras lo
+  // necesita siempre (agrupa las obras por cliente), así que se resuelve acá con
+  // un left join en vez de pedirlo aparte por cada obra.
+  async getObras(clienteId?: string): Promise<ObraConCliente[]> {
+    const query = db
+      .select({
+        obra: obras,
+        clienteNombre: clients.nokoen,
+        clienteComuna: clients.comuna,
+      })
       .from(obras)
-      .orderBy(desc(obras.createdAt));
+      .leftJoin(clients, eq(clients.id, obras.clienteId));
+
+    const rows = clienteId
+      ? await query.where(eq(obras.clienteId, clienteId)).orderBy(desc(obras.createdAt))
+      : await query.orderBy(desc(obras.createdAt));
+
+    return rows.map((r) => ({
+      ...r.obra,
+      clienteNombre: r.clienteNombre ?? null,
+      clienteComuna: r.clienteComuna ?? null,
+    }));
   }
 
   async getObra(id: string): Promise<Obra | undefined> {
@@ -13316,9 +13336,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteObra(id: string): Promise<void> {
+    // Los productos de la obra caen por el ON DELETE CASCADE de obra_productos.
     await db
       .delete(obras)
       .where(eq(obras.id, id));
+  }
+
+  // --- Productos por obra ---
+  // Se puede pedir por obra o por constructora: el detalle de la constructora
+  // carga de una sola vez los productos de todas sus obras.
+  async getObraProductos(filtro: { obraId?: string; clienteId?: string }): Promise<ObraProducto[]> {
+    if (filtro.obraId) {
+      return await db
+        .select()
+        .from(obraProductos)
+        .where(eq(obraProductos.obraId, filtro.obraId))
+        .orderBy(obraProductos.createdAt);
+    }
+
+    if (filtro.clienteId) {
+      const rows = await db
+        .select({ producto: obraProductos })
+        .from(obraProductos)
+        .innerJoin(obras, eq(obras.id, obraProductos.obraId))
+        .where(eq(obras.clienteId, filtro.clienteId))
+        .orderBy(obraProductos.createdAt);
+      return rows.map((r) => r.producto);
+    }
+
+    return await db.select().from(obraProductos).orderBy(obraProductos.createdAt);
+  }
+
+  async createObraProducto(producto: InsertObraProducto): Promise<ObraProducto> {
+    const [nuevo] = await db
+      .insert(obraProductos)
+      .values(producto)
+      .returning();
+    return nuevo;
+  }
+
+  async updateObraProducto(id: string, producto: Partial<InsertObraProducto>): Promise<ObraProducto> {
+    const [actualizado] = await db
+      .update(obraProductos)
+      .set({ ...producto, updatedAt: sql`now()` })
+      .where(eq(obraProductos.id, id))
+      .returning();
+    return actualizado;
+  }
+
+  async deleteObraProducto(id: string): Promise<void> {
+    await db
+      .delete(obraProductos)
+      .where(eq(obraProductos.id, id));
   }
 
   // Task management operations implementation
