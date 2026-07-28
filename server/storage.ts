@@ -17170,6 +17170,12 @@ export class DatabaseStorage implements IStorage {
             name,
             productoManual: prod.productoManual,
             formato: prod.formato,
+            // Datos que viven en productos_evaluados y el detalle necesita mostrar
+            color: prod.color,
+            lote: prod.lote,
+            fechaLlegada: prod.fechaLlegada,
+            m2Aplicados: prod.metrosCuadradosAplicados,
+            avance: prod.porcentajeAvance,
             isCustomProduct: isCustom,
             evaluacion: evaluacion || {}
           };
