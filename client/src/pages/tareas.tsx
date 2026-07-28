@@ -208,7 +208,8 @@ export default function TareasPage() {
   // Pestañas siempre presentes: Tareas, Seguimiento, Calendario (3).
   // Rutas Comerciales se muestra en todas las áreas salvo Construcción, que en su
   // lugar tiene Visitas Técnicas (ver showVisitasTab más abajo, junto a esConstruccion).
-  // Estimación (u Obras en Construcción) solo para no-técnico y no-marketing; CRM según permiso.
+  // Estimación (solo Ferreterías) y Obras (solo Construcción) requieren además no ser
+  // técnico ni marketing; CRM según permiso.
   // Marketing ya no es pestaña acá: el área completa vive en el módulo Marketing.
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
   // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
@@ -718,26 +719,59 @@ export default function TareasPage() {
     return false;
   })();
 
+  // Estimación de ventas (promesas de compra) es exclusiva de Ferreterías: es la única
+  // área que compromete compras semanales. Industrial y Construcción no la ven —
+  // Construcción tiene "Obras" en su lugar e Industrial simplemente no tiene la pestaña.
+  const esFerreterias = (() => {
+    // Admin (u otro rol con selector de Área): el área elegida es la fuente de verdad.
+    if (segmentoFilter === 'ferreterias') {
+      return true;
+    }
+    // Con un área concreta seleccionada distinta de Ferreterías, no aplica.
+    if (segmentoFilter !== 'all') {
+      return false;
+    }
+    // Sin selector de área (vendedor, que ve "all"): su segmento asignado.
+    if ((user as any)?.assignedSegment?.toLowerCase()?.includes('ferreter')) {
+      return true;
+    }
+    if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
+      return supervisorSalespeople.some(sp =>
+        sp.assignedSegment?.toLowerCase()?.includes('ferreter')
+      );
+    }
+    return false;
+  })();
+
   // Construcción cambia dos pestañas: "Estimación de ventas" → "Obras" y
   // "Rutas Comerciales" → "Visitas Técnicas" (que salió del sidebar).
+  const showEstimacionTab = showExtraSegmentTabs && esFerreterias;
+  const showObrasTab = showExtraSegmentTabs && esConstruccion;
   const showRutasTab = !esConstruccion;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showExtraSegmentTabs ? 1 : 0) + (showCrmTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
   const tabsGridClass =
     ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
   // Si el usuario venía parado en una pestaña que el área actual no ofrece
-  // (Estimación y Rutas Comerciales no existen en Construcción; Visitas Técnicas
-  // solo existe ahí), regresa a Tareas para no quedar en una pestaña sin trigger.
+  // (Estimación solo existe en Ferreterías; Rutas Comerciales no existe en
+  // Construcción; Visitas Técnicas y Obras solo existen ahí), regresa a Tareas
+  // para no quedar en una pestaña sin trigger.
   useEffect(() => {
-    if (esConstruccion && (activeTab === "estimacion" || activeTab === "rutas-comerciales")) {
+    if (!showEstimacionTab && activeTab === "estimacion") {
+      setActiveTab("tareas");
+    }
+    if (esConstruccion && activeTab === "rutas-comerciales") {
+      setActiveTab("tareas");
+    }
+    if (!showObrasTab && activeTab === "obras") {
       setActiveTab("tareas");
     }
     if (!showVisitasTab && activeTab === "visitas-tecnicas") {
       setActiveTab("tareas");
     }
-  }, [esConstruccion, showVisitasTab, activeTab]);
+  }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -762,7 +796,8 @@ export default function TareasPage() {
       const response = await apiRequest(`/api/promesas-compra/cumplimiento/reporte?anio=${currentYear}&semana=${currentPeriod}`);
       return response.json();
     },
-    enabled: !!user,
+    // Solo Ferreterías tiene la pestaña: no gastar el request en las demás áreas.
+    enabled: !!user && showEstimacionTab,
   });
 
   // Navegación de período: meses para Construcción, semanas para otros
@@ -1796,15 +1831,15 @@ export default function TareasPage() {
               Seguimiento
               {tabChangeBadge("seguimiento")}
             </TabsTrigger>
-            {/* Construcción reemplaza "Estimación de ventas" por "Obras" (próximamente). */}
-            {user?.role !== 'tecnico_obra' && !isMarketing && !esConstruccion && (
+            {/* Estimación de ventas solo aplica a Ferreterías (ver showEstimacionTab). */}
+            {showEstimacionTab && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className={tabTriggerClass} onClick={() => handleTabTriggerClick("estimacion")}>
                 <TrendingUp className={tabIconClass} />
                 Estimación de ventas
                 {tabChangeBadge("estimacion")}
               </TabsTrigger>
             )}
-            {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
+            {showObrasTab && (
               <TabsTrigger value="obras" data-testid="tab-obras" className={tabTriggerClass}>
                 <HardHat className={tabIconClass} />
                 Obras
@@ -3149,9 +3184,9 @@ export default function TareasPage() {
           />
         </TabsContent>
 
-        {/* Técnico de Obra no tiene acceso a promesas de compra.
-            Construcción tampoco: su pestaña de Estimación se reemplaza por "Obras". */}
-        {user?.role !== 'tecnico_obra' && !esConstruccion && (
+        {/* Promesas de compra: solo Ferreterías (Construcción tiene "Obras" en su lugar,
+            Industrial no las usa) y nunca para Técnico de Obra ni Marketing. */}
+        {showEstimacionTab && (
           <TabsContent value="estimacion" className="space-y-6">
             <EstimacionSemanalTab
               selectedWeek={selectedWeek}
@@ -3173,7 +3208,7 @@ export default function TareasPage() {
 
         {/* Obras — módulo propio de Construcción (reemplaza Estimación de ventas):
             control de avance por obra de cada constructora (ex planilla Excel). */}
-        {user?.role !== 'tecnico_obra' && !isMarketing && esConstruccion && (
+        {showObrasTab && (
           <TabsContent value="obras" className="space-y-6">
             <ControlObrasContent />
           </TabsContent>
