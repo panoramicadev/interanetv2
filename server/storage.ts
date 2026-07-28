@@ -55,6 +55,10 @@ import {
   obraProductos,
   type ObraProducto,
   type InsertObraProducto,
+  obraProductoMovimientos,
+  type ObraProductoMovimiento,
+  type InsertObraProductoMovimiento,
+  type CatalogoObraItem,
   type Task,
   type InsertTask,
   type InsertTaskInput,
@@ -1245,6 +1249,10 @@ export interface IStorage {
   createObraProducto(producto: InsertObraProducto): Promise<ObraProducto>;
   updateObraProducto(id: string, producto: Partial<InsertObraProducto>): Promise<ObraProducto>;
   deleteObraProducto(id: string): Promise<void>;
+  buscarCatalogoObra(termino: string, limite?: number): Promise<CatalogoObraItem[]>;
+  getObraProductoMovimientos(filtro: { obraProductoId?: string; clienteId?: string }): Promise<ObraProductoMovimiento[]>;
+  createObraProductoMovimiento(mov: InsertObraProductoMovimiento & { creadoPor?: string }): Promise<ObraProductoMovimiento>;
+  deleteObraProductoMovimiento(id: string): Promise<void>;
 
   // CSV import for new KOPR-based format
   importProductStockFromKOPRCSV(csvData: Array<{
@@ -2374,6 +2382,13 @@ export interface IStorage {
   saveWhatsAppConfig(config: { phoneNumberId: string; businessAccountId: string; accessToken: string; webhookVerifyToken: string }): Promise<void>;
   updateWhatsAppConnectionStatus(status: string): Promise<void>;
 }
+
+// Obras: en qué acumulado de `obra_productos` suma cada tipo de movimiento.
+const CAMPO_POR_TIPO_MOVIMIENTO = {
+  pedido: 'cantidadPedida',
+  entrega: 'cantidadEntregada',
+  consumo: 'cantidadUtilizada',
+} as const;
 
 export class DatabaseStorage implements IStorage {
   // Inventory cache system with TTL and mutex per filter key
@@ -13388,6 +13403,227 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(obraProductos)
       .where(eq(obraProductos.id, id));
+  }
+
+  /**
+   * Buscador de catálogo del panel de productos de una obra.
+   *
+   * El maestro que se lee es `price_list` (el mismo del tomador de pedidos y el
+   * catálogo agrupado), NO la tabla `products`: en producción esa última puede
+   * venir vacía según cómo haya corrido la sincronización, y por eso el buscador
+   * de la obra no devolvía nada. El color sale de `ecommerce_products` (que es
+   * donde el SKU queda desagregado en familia + color) y el hex de
+   * `color_palette` para pintar la muestra.
+   *
+   * Se busca por partes: cada palabra tiene que aparecer en código, nombre,
+   * color o familia, así "latex blanco" encuentra el SKU aunque el color vaya
+   * al final del nombre. `products` e `inventory_products` completan la lista
+   * con los SKU que todavía no están en la lista de precios.
+   */
+  async buscarCatalogoObra(termino: string, limite = 20): Promise<CatalogoObraItem[]> {
+    const tokens = String(termino || '')
+      .trim()
+      .split(/\s+/)
+      .filter((t) => t.length > 0)
+      .slice(0, 6);
+    if (tokens.length === 0) return [];
+
+    // Cada palabra tiene que estar en el texto buscable (AND, no OR).
+    const filtro = (texto: any) =>
+      sql.join(tokens.map((t) => sql`${texto} ILIKE ${`%${t}%`}`), sql` AND `);
+    const primerToken = tokens[0].toUpperCase();
+
+    const items: CatalogoObraItem[] = [];
+    const vistos = new Set<string>();
+    const sumar = (fila: CatalogoObraItem) => {
+      const clave = fila.sku.trim().toUpperCase();
+      if (!clave || vistos.has(clave)) return;
+      vistos.add(clave);
+      items.push(fila);
+    };
+
+    // 1. Lista de precios + color del catálogo de ecommerce.
+    try {
+      const res = await db.execute(sql`
+        SELECT pl.codigo AS sku,
+               pl.producto AS nombre,
+               pl.unidad AS unidad,
+               ep.color AS color,
+               ep.product_family AS familia
+        FROM price_list pl
+        LEFT JOIN ecommerce_products ep ON ep.price_list_id = pl.id
+        WHERE ${filtro(sql`(pl.codigo || ' ' || pl.producto || ' ' || COALESCE(ep.color, '') || ' ' || COALESCE(ep.product_family, ''))`)}
+        ORDER BY (UPPER(pl.codigo) = ${primerToken}) DESC, pl.producto
+        LIMIT ${limite}
+      `);
+      for (const r of ((res as any).rows || []) as any[]) {
+        sumar({
+          sku: String(r.sku ?? ''),
+          nombre: String(r.nombre ?? ''),
+          color: r.color ?? null,
+          hex: null,
+          familia: r.familia ?? null,
+          unidad: r.unidad ?? null,
+        });
+      }
+    } catch (error: any) {
+      console.error('⚠️ Catálogo de obra: falló la búsqueda en price_list:', error.message);
+    }
+
+    // 2. Maestro de productos del ERP, por si el SKU no está en la lista de precios.
+    if (items.length < limite) {
+      try {
+        const res = await db.execute(sql`
+          SELECT kopr AS sku, name AS nombre, ud02pr AS unidad
+          FROM products
+          WHERE ${filtro(sql`(kopr || ' ' || name)`)}
+          ORDER BY (UPPER(kopr) = ${primerToken}) DESC, name
+          LIMIT ${limite}
+        `);
+        for (const r of ((res as any).rows || []) as any[]) {
+          sumar({
+            sku: String(r.sku ?? ''),
+            nombre: String(r.nombre ?? ''),
+            color: null,
+            hex: null,
+            familia: null,
+            unidad: r.unidad ?? null,
+          });
+        }
+      } catch (error: any) {
+        console.error('⚠️ Catálogo de obra: falló la búsqueda en products:', error.message);
+      }
+    }
+
+    // 3. Inventario: última red para SKU que solo existen en bodega.
+    if (items.length < limite) {
+      try {
+        const res = await db.execute(sql`
+          SELECT sku, MAX(nombre) AS nombre, MAX(unidad2) AS unidad
+          FROM inventory_products
+          WHERE ${filtro(sql`(sku || ' ' || nombre)`)}
+          GROUP BY sku
+          ORDER BY MAX(nombre)
+          LIMIT ${limite}
+        `);
+        for (const r of ((res as any).rows || []) as any[]) {
+          sumar({
+            sku: String(r.sku ?? ''),
+            nombre: String(r.nombre ?? ''),
+            color: null,
+            hex: null,
+            familia: null,
+            unidad: r.unidad ?? null,
+          });
+        }
+      } catch (error: any) {
+        console.error('⚠️ Catálogo de obra: falló la búsqueda en inventory_products:', error.message);
+      }
+    }
+
+    // Hex de la muestra de color. Si la tabla todavía no existe, la lista sale
+    // igual y el buscador muestra el color sin punto de color.
+    const conColor = items.filter((i) => i.color);
+    if (conColor.length > 0) {
+      try {
+        const pal = await db.execute(sql`SELECT nombre_color, hex FROM color_palette`);
+        const mapa = new Map<string, string>();
+        for (const r of ((pal as any).rows || []) as any[]) {
+          mapa.set(String(r.nombre_color).trim().toUpperCase(), r.hex);
+        }
+        for (const item of conColor) {
+          item.hex = mapa.get(String(item.color).trim().toUpperCase()) ?? null;
+        }
+      } catch { /* color_palette no disponible */ }
+    }
+
+    return items.slice(0, limite);
+  }
+
+  // Movimientos de un producto de obra — el historial detrás del acumulado.
+  // Cada tipo de movimiento suma en su propia columna del producto.
+  async getObraProductoMovimientos(filtro: { obraProductoId?: string; clienteId?: string }): Promise<ObraProductoMovimiento[]> {
+    if (filtro.obraProductoId) {
+      return await db
+        .select()
+        .from(obraProductoMovimientos)
+        .where(eq(obraProductoMovimientos.obraProductoId, filtro.obraProductoId))
+        .orderBy(desc(obraProductoMovimientos.createdAt));
+    }
+
+    if (filtro.clienteId) {
+      const rows = await db
+        .select({ mov: obraProductoMovimientos })
+        .from(obraProductoMovimientos)
+        .innerJoin(obraProductos, eq(obraProductos.id, obraProductoMovimientos.obraProductoId))
+        .innerJoin(obras, eq(obras.id, obraProductos.obraId))
+        .where(eq(obras.clienteId, filtro.clienteId))
+        .orderBy(desc(obraProductoMovimientos.createdAt));
+      return rows.map((r) => r.mov);
+    }
+
+    return await db
+      .select()
+      .from(obraProductoMovimientos)
+      .orderBy(desc(obraProductoMovimientos.createdAt));
+  }
+
+  /**
+   * Registra un movimiento y suma su cantidad en la columna que corresponde del
+   * producto. Las dos escrituras van en una transacción: un movimiento que no
+   * quedó sumado (o al revés) dejaría el acumulado mintiendo.
+   */
+  async createObraProductoMovimiento(
+    mov: InsertObraProductoMovimiento & { creadoPor?: string },
+  ): Promise<ObraProductoMovimiento> {
+    const campo = CAMPO_POR_TIPO_MOVIMIENTO[mov.tipo as keyof typeof CAMPO_POR_TIPO_MOVIMIENTO];
+    if (!campo) {
+      throw new Error(`Tipo de movimiento desconocido: ${mov.tipo}`);
+    }
+    const cantidad = String(mov.cantidad);
+
+    return await db.transaction(async (tx) => {
+      const [nuevo] = await tx
+        .insert(obraProductoMovimientos)
+        .values({
+          obraProductoId: mov.obraProductoId,
+          tipo: mov.tipo,
+          cantidad,
+          fecha: mov.fecha ?? null,
+          nota: mov.nota ?? null,
+          creadoPor: mov.creadoPor ?? null,
+        })
+        .returning();
+
+      await tx
+        .update(obraProductos)
+        .set({ [campo]: sql`${obraProductos[campo]} + ${cantidad}::numeric`, updatedAt: sql`now()` } as any)
+        .where(eq(obraProductos.id, mov.obraProductoId));
+
+      return nuevo;
+    });
+  }
+
+  /** Deshace un movimiento: lo borra y descuenta su cantidad del acumulado. */
+  async deleteObraProductoMovimiento(id: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [mov] = await tx
+        .select()
+        .from(obraProductoMovimientos)
+        .where(eq(obraProductoMovimientos.id, id));
+      if (!mov) return;
+
+      const campo = CAMPO_POR_TIPO_MOVIMIENTO[mov.tipo as keyof typeof CAMPO_POR_TIPO_MOVIMIENTO];
+
+      await tx.delete(obraProductoMovimientos).where(eq(obraProductoMovimientos.id, id));
+
+      if (campo) {
+        await tx
+          .update(obraProductos)
+          .set({ [campo]: sql`${obraProductos[campo]} - ${mov.cantidad}::numeric`, updatedAt: sql`now()` } as any)
+          .where(eq(obraProductos.id, mov.obraProductoId));
+      }
+    });
   }
 
   // Task management operations implementation

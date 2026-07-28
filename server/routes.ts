@@ -404,7 +404,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema, insertObraProductoMovimientoSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -24356,6 +24356,64 @@ export function registerRoutes(app: Express): Server {
   // ----------------------------------------------
   // Ruta propia (no anidada bajo /api/obras/:id) para no competir con
   // /api/obras/:id en el matcher de Express.
+
+  // Buscador de catálogo del panel de productos: SKU + color, contra la lista de
+  // precios (y el maestro/inventario como respaldo). Va ANTES de las rutas con
+  // parámetro para que 'catalogo' no se coma como un :id.
+  app.get('/api/obra-productos/catalogo', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const q = String(req.query.q ?? '').trim();
+      if (q.length < 2) return res.json([]);
+      const limite = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
+      res.json(await storage.buscarCatalogoObra(q, limite));
+    } catch (error: any) {
+      console.error('❌ Error al buscar en el catálogo de obra:', error);
+      res.status(500).json({ message: 'Error al buscar productos', error: error.message });
+    }
+  }));
+
+  // ?obraProductoId= movimientos de un producto · ?clienteId= los de toda la constructora
+  app.get('/api/obra-productos/movimientos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { obraProductoId, clienteId } = req.query;
+      res.json(await storage.getObraProductoMovimientos({ obraProductoId, clienteId }));
+    } catch (error: any) {
+      console.error('❌ Error al obtener movimientos de producto de obra:', error);
+      res.status(500).json({ message: 'Error al obtener los movimientos', error: error.message });
+    }
+  }));
+
+  // Un pedido / una entrega / un consumo: queda en el historial y suma en el
+  // acumulado del producto (las dos escrituras van en la misma transacción).
+  app.post('/api/obra-productos/:id/movimientos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = insertObraProductoMovimientoSchema.safeParse({
+        ...req.body,
+        obraProductoId: req.params.id,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Movimiento inválido', errors: parsed.error.errors });
+      }
+      const nuevo = await storage.createObraProductoMovimiento({
+        ...parsed.data,
+        creadoPor: req.user?.claims?.sub ?? req.user?.id ?? undefined,
+      });
+      res.status(201).json(nuevo);
+    } catch (error: any) {
+      console.error('❌ Error al registrar movimiento de producto de obra:', error);
+      res.status(500).json({ message: 'Error al registrar el movimiento', error: error.message });
+    }
+  }));
+
+  app.delete('/api/obra-productos/movimientos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteObraProductoMovimiento(req.params.id);
+      res.json({ message: 'Movimiento eliminado' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar movimiento de producto de obra:', error);
+      res.status(500).json({ message: 'Error al eliminar el movimiento', error: error.message });
+    }
+  }));
 
   // ?obraId= productos de una obra · ?clienteId= productos de todas sus obras
   app.get('/api/obra-productos', requireAuth, asyncHandler(async (req: any, res: any) => {

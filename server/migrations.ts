@@ -1230,6 +1230,22 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_productos_obra_id" ON obra_productos (obra_id)`);
 
+    // Historial de movimientos de cada producto de obra (migración 070): el
+    // detalle de pedidos, entregas y consumos detrás del acumulado de arriba.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_producto_movimientos (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        obra_producto_id VARCHAR NOT NULL REFERENCES obra_productos(id) ON DELETE CASCADE,
+        tipo VARCHAR(20) NOT NULL,
+        cantidad NUMERIC(12, 2) NOT NULL,
+        fecha DATE,
+        nota TEXT,
+        creado_por VARCHAR,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_prod_mov_producto" ON obra_producto_movimientos (obra_producto_id)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

@@ -5,11 +5,17 @@
  * constructora ("Planilla Control <cliente> Temporada 2026-2027").
  *
  * La pantalla tiene DOS niveles:
- *  1. Cartera — todas las constructoras con obras, una tarjeta cada una con su
- *     avance y su próximo pedido. Es la portada: de acá se entra a una y se
- *     agregan nuevas (el buscador contra la base de clientes).
+ *  1. Portada — listado de la cartera, en dos vistas: por constructora (una fila
+ *     cada una con su avance y su próximo pedido) o todas las obras juntas,
+ *     filtrables por estado, para cuando lo que se busca es una obra puntual.
+ *     De acá se entra a una constructora y se agregan nuevas (el buscador contra
+ *     la base de clientes).
  *  2. Detalle — la planilla de esa constructora: resumen arriba y una fila por
- *     obra. Cada fila se despliega para ver el detalle POR PRODUCTO del despacho.
+ *     obra.
+ *
+ * En los dos listados, cada obra se despliega y muestra su detalle POR PRODUCTO
+ * (components/obras/panel-productos.tsx), que es donde se cargan los SKU y se
+ * lleva el día a día de pedidos, entregas y consumo.
  *
  * Lo ÚNICO que se elige desde el sistema es el cliente y los productos (ambos
  * contra sus maestros); el resto se ingresa a mano. Todo lo derivado (% avance,
@@ -27,6 +33,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { PanelProductos } from "@/components/obras/panel-productos";
+import { fmt, fmtDec, fmtPct, normalizar, toInt, toNum } from "@/components/obras/formato";
 import type { Obra, ObraConCliente, ObraProducto } from "@shared/schema";
 import {
   AlertTriangle,
@@ -62,12 +70,6 @@ interface ClienteBusqueda {
   comuna?: string;
 }
 
-interface ProductoCatalogo {
-  kopr: string;
-  name: string;
-  ud02pr?: string | null;
-}
-
 type EstadoObra = "critico" | "pedir" | "ok" | "terminado" | "revisar";
 
 // Orden fijo del resumen por estado (mismo orden que traía la planilla).
@@ -85,30 +87,6 @@ const ESTADOS: Array<{
 ];
 
 const ESTADO_MAP = Object.fromEntries(ESTADOS.map((e) => [e.key, e])) as Record<EstadoObra, (typeof ESTADOS)[number]>;
-
-// Unidades de despacho que se usan en obra. La tineta (5 gl) es la unidad de la
-// planilla; el resto aparece cuando la obra lleva sellador, esmalte, diluyente…
-const UNIDADES = ["tineta", "galón", "litro", "kilo", "unidad"];
-
-const nf = new Intl.NumberFormat("es-CL");
-const nfDec = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const fmt = (n: number) => nf.format(Math.round(n));
-// Las tinetas utilizadas/saldo van con un decimal, igual que en la planilla.
-const fmtDec = (n: number) => nfDec.format(n);
-const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
-
-const toInt = (v: string | number | null | undefined) => {
-  const n = typeof v === "number" ? v : parseInt(String(v ?? "").replace(/\./g, ""), 10);
-  return Number.isFinite(n) ? n : 0;
-};
-const toNum = (v: string | number | null | undefined) => {
-  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-};
-
-// El buscador de la cartera ignora tildes: "concepcion" encuentra "CONCEPCIÓN".
-const normalizar = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 interface ObraCalculada {
   obra: ObraConCliente;
@@ -287,20 +265,6 @@ const emptyForm = {
 
 type ObraForm = typeof emptyForm;
 
-const emptyProductoForm = {
-  kopr: "",
-  nombre: "",
-  color: "",
-  unidad: "tineta",
-  cantidadProyectada: "",
-  cantidadPedida: "",
-  cantidadEntregada: "",
-  cantidadUtilizada: "",
-  notas: "",
-};
-
-type ProductoForm = typeof emptyProductoForm;
-
 // ---------------------------------------------------------------------------
 // Columnas de la tabla de obras
 // ---------------------------------------------------------------------------
@@ -416,6 +380,9 @@ export function ControlObrasContent() {
   // Constructora abierta. null = portada (cartera).
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
   const [filtroCartera, setFiltroCartera] = useState("");
+  // Portada: agrupada por constructora o el listado plano de todas las obras.
+  const [vistaCartera, setVistaCartera] = useState<"constructoras" | "obras">("constructoras");
+  const [filtroEstado, setFiltroEstado] = useState<EstadoObra | "todos">("todos");
   const [dialogAgregarCliente, setDialogAgregarCliente] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
@@ -429,14 +396,6 @@ export function ControlObrasContent() {
   const [form, setForm] = useState<ObraForm>(emptyForm);
   // Si el usuario escribe las proyectadas a mano dejamos de auto-calcularlas.
   const proyectadasTocadas = useRef(false);
-
-  // Productos: la obra sobre la que se está agregando/editando un producto.
-  const [productoObraId, setProductoObraId] = useState<string | null>(null);
-  const [productoEditando, setProductoEditando] = useState<ObraProducto | null>(null);
-  const [productoForm, setProductoForm] = useState<ProductoForm>(emptyProductoForm);
-  const [productoAEliminar, setProductoAEliminar] = useState<ObraProducto | null>(null);
-  const [busquedaProducto, setBusquedaProducto] = useState("");
-  const [mostrarSugerenciasProducto, setMostrarSugerenciasProducto] = useState(false);
 
   // --- Todas las obras: alimenta la cartera y el detalle con un solo fetch ---
   const { data: todasLasObras = [], isLoading: cargandoObras } = useQuery<ObraConCliente[]>({
@@ -458,24 +417,16 @@ export function ControlObrasContent() {
     enabled: busqueda.trim().length >= 2,
   });
 
-  // --- Productos de todas las obras de la constructora abierta ---
+  // --- Productos de todas las obras ---
+  // Sin filtrar por constructora: el mismo fetch alimenta el detalle de una y el
+  // listado de todas las obras de la cartera, donde también se despliega el
+  // panel de productos.
   const { data: productos = [] } = useQuery<ObraProducto[]>({
-    queryKey: ["/api/obra-productos", cliente?.id],
+    queryKey: ["/api/obra-productos"],
     queryFn: async () => {
-      const res = await apiRequest(`/api/obra-productos?clienteId=${encodeURIComponent(cliente!.id)}`);
+      const res = await apiRequest("/api/obra-productos");
       return res.json();
     },
-    enabled: !!cliente?.id,
-  });
-
-  // --- Catálogo de productos (buscador del diálogo) ---
-  const { data: catalogo = [], isFetching: buscandoProductos } = useQuery<ProductoCatalogo[]>({
-    queryKey: ["/api/products", "obra-producto", busquedaProducto],
-    queryFn: async () => {
-      const res = await apiRequest(`/api/products?search=${encodeURIComponent(busquedaProducto.trim())}&limit=15`);
-      return res.json();
-    },
-    enabled: busquedaProducto.trim().length >= 2,
   });
 
   const guardar = useMutation({
@@ -512,38 +463,6 @@ export function ControlObrasContent() {
     },
   });
 
-  const guardarProducto = useMutation({
-    mutationFn: async ({ id, data }: { id?: string; data: Record<string, unknown> }) => {
-      const res = await apiRequest(id ? `/api/obra-productos/${id}` : "/api/obra-productos", {
-        method: id ? "PUT" : "POST",
-        data,
-      });
-      return res.json();
-    },
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
-      cerrarDialogProducto();
-      toast({ title: vars.id ? "Producto actualizado" : "Producto agregado a la obra" });
-    },
-    onError: (error: any) => {
-      toast({ title: "No se pudo guardar el producto", description: error?.message, variant: "destructive" });
-    },
-  });
-
-  const eliminarProducto = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest(`/api/obra-productos/${id}`, { method: "DELETE" });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
-      setProductoAEliminar(null);
-      toast({ title: "Producto quitado de la obra" });
-    },
-    onError: (error: any) => {
-      toast({ title: "No se pudo quitar el producto", description: error?.message, variant: "destructive" });
-    },
-  });
-
   // --- Derivados ---
   const cartera = useMemo(() => armarCartera(todasLasObras), [todasLasObras]);
 
@@ -562,6 +481,35 @@ export function ControlObrasContent() {
     () => calcularTotales(cartera.flatMap((c) => c.filas)),
     [cartera],
   );
+
+  // Todas las obras de la cartera, cada una con su constructora al lado: es el
+  // listado plano de la portada. Primero lo que hay que comprar.
+  const obrasDeLaCartera = useMemo(
+    () =>
+      cartera
+        .flatMap((c) => c.filas.map((fila) => ({ fila, constructora: c })))
+        .sort(
+          (a, b) =>
+            b.fila.sugerido - a.fila.sugerido ||
+            a.constructora.nombre.localeCompare(b.constructora.nombre) ||
+            a.fila.obra.nombre.localeCompare(b.fila.obra.nombre),
+        ),
+    [cartera],
+  );
+
+  const obrasFiltradas = useMemo(() => {
+    const q = normalizar(filtroCartera.trim());
+    return obrasDeLaCartera.filter(({ fila, constructora }) => {
+      if (filtroEstado !== "todos" && fila.estado !== filtroEstado) return false;
+      if (!q) return true;
+      return (
+        normalizar(fila.obra.nombre).includes(q) ||
+        normalizar(fila.obra.ciudad ?? "").includes(q) ||
+        normalizar(fila.obra.programa ?? "").includes(q) ||
+        normalizar(constructora.nombre).includes(q)
+      );
+    });
+  }, [obrasDeLaCartera, filtroCartera, filtroEstado]);
 
   const obras = useMemo(
     () => todasLasObras.filter((o) => o.clienteId === cliente?.id),
@@ -693,62 +641,6 @@ export function ControlObrasContent() {
     ? Math.ceil(toInt(form.viviendas) * toNum(form.tinetasPorVivienda))
     : 0;
 
-  // --- Formulario de productos ---
-  const abrirNuevoProducto = (obraId: string) => {
-    setProductoObraId(obraId);
-    setProductoEditando(null);
-    setProductoForm(emptyProductoForm);
-    setBusquedaProducto("");
-  };
-
-  const abrirEdicionProducto = (producto: ObraProducto) => {
-    setProductoObraId(producto.obraId);
-    setProductoEditando(producto);
-    setProductoForm({
-      kopr: producto.kopr ?? "",
-      nombre: producto.nombre ?? "",
-      color: producto.color ?? "",
-      unidad: producto.unidad ?? "tineta",
-      cantidadProyectada: String(producto.cantidadProyectada ?? 0),
-      cantidadPedida: String(producto.cantidadPedida ?? 0),
-      cantidadEntregada: String(producto.cantidadEntregada ?? 0),
-      cantidadUtilizada: String(producto.cantidadUtilizada ?? 0),
-      notas: producto.notas ?? "",
-    });
-    setBusquedaProducto("");
-  };
-
-  const cerrarDialogProducto = () => {
-    setProductoObraId(null);
-    setProductoEditando(null);
-    setBusquedaProducto("");
-    setMostrarSugerenciasProducto(false);
-  };
-
-  const enviarProducto = () => {
-    if (!productoObraId) return;
-    const nombre = productoForm.nombre.trim();
-    if (!nombre) {
-      toast({ title: "Elige un producto o escribe su nombre", variant: "destructive" });
-      return;
-    }
-    guardarProducto.mutate({
-      id: productoEditando?.id,
-      data: {
-        obraId: productoObraId,
-        kopr: productoForm.kopr.trim() || null,
-        nombre,
-        color: productoForm.color.trim() || null,
-        unidad: productoForm.unidad,
-        cantidadProyectada: String(toNum(productoForm.cantidadProyectada)),
-        cantidadPedida: String(toNum(productoForm.cantidadPedida)),
-        cantidadEntregada: String(toNum(productoForm.cantidadEntregada)),
-        cantidadUtilizada: String(toNum(productoForm.cantidadUtilizada)),
-        notas: productoForm.notas.trim() || null,
-      },
-    });
-  };
-
   const seleccionarConstructora = (c: Constructora) => {
     setCliente({ id: c.id, nokoen: c.nombre, comuna: c.comuna ?? undefined });
   };
@@ -772,25 +664,50 @@ export function ControlObrasContent() {
         <>
           <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
             <div className="min-w-0">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Cartera de constructoras</h2>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                {vistaCartera === "obras" ? "Todas las obras" : "Cartera de constructoras"}
+              </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {cartera.length === 0
                   ? "Agrega la primera constructora para empezar a controlar sus obras"
                   : `${cartera.length} ${cartera.length === 1 ? "constructora" : "constructoras"} · ${totalesCartera.conteoEstados.reduce((a, e) => a + e.cantidad, 0)} obras en control`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {cartera.length > 0 && (
-                <div className="relative flex-1 sm:min-w-[240px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                  <Input
-                    value={filtroCartera}
-                    onChange={(e) => setFiltroCartera(e.target.value)}
-                    placeholder="Buscar constructora, obra o ciudad…"
-                    className="pl-9 rounded-2xl bg-white dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60"
-                    data-testid="input-obras-filtrar-cartera"
-                  />
-                </div>
+                <>
+                  {/* Las mismas obras en dos listados: agrupadas por constructora
+                      o todas juntas cuando lo que se busca es una obra puntual. */}
+                  <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 flex-shrink-0">
+                    {([
+                      { key: "constructoras", label: "Constructoras" },
+                      { key: "obras", label: "Todas las obras" },
+                    ] as const).map((v) => (
+                      <button
+                        key={v.key}
+                        onClick={() => setVistaCartera(v.key)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+                          vistaCartera === v.key
+                            ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                        data-testid={`button-vista-${v.key}`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1 sm:min-w-[240px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+                    <Input
+                      value={filtroCartera}
+                      onChange={(e) => setFiltroCartera(e.target.value)}
+                      placeholder={vistaCartera === "obras" ? "Buscar obra, ciudad o constructora…" : "Buscar constructora, obra o ciudad…"}
+                      className="pl-9 rounded-2xl bg-white dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60"
+                      data-testid="input-obras-filtrar-cartera"
+                    />
+                  </div>
+                </>
               )}
               <Button
                 onClick={() => {
@@ -840,16 +757,113 @@ export function ControlObrasContent() {
                 <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="amber" label="Próximo pedido total" valor={fmt(totalesCartera.sugerido)} />
               </div>
 
-              {carteraFiltrada.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-12 text-center text-sm text-slate-500">
-                  Ninguna constructora coincide con «{filtroCartera}».
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {carteraFiltrada.map((c) => (
-                    <TarjetaConstructora key={c.id} constructora={c} onAbrir={() => seleccionarConstructora(c)} />
-                  ))}
-                </div>
+              {/* ---------- Listado de constructoras ---------- */}
+              {vistaCartera === "constructoras" && (
+                carteraFiltrada.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-12 text-center text-sm text-slate-500">
+                    Ninguna constructora coincide con «{filtroCartera}».
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
+                    <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <span className="flex-1 min-w-0">Constructora</span>
+                      <span className="w-[150px] text-center">Avance</span>
+                      <span className="w-20 text-right">Saldo obra</span>
+                      <span className="w-24 text-right">Próx. pedido</span>
+                      <span className="w-[180px]">Alertas</span>
+                      <span className="w-4" />
+                    </div>
+                    {carteraFiltrada.map((c) => (
+                      <FilaConstructora key={c.id} constructora={c} onAbrir={() => seleccionarConstructora(c)} />
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* ---------- Listado de todas las obras de la cartera ---------- */}
+              {vistaCartera === "obras" && (
+                <>
+                  {/* Filtro por estado: la lista larga se usa para ir a lo que hay que pedir. */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      onClick={() => setFiltroEstado("todos")}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        filtroEstado === "todos"
+                          ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                      }`}
+                      data-testid="button-filtro-estado-todos"
+                    >
+                      Todas
+                      <span className="tabular-nums opacity-70">{obrasDeLaCartera.length}</span>
+                    </button>
+                    {totalesCartera.conteoEstados
+                      .filter((e) => e.cantidad > 0)
+                      .map((e) => (
+                        <button
+                          key={e.key}
+                          onClick={() => setFiltroEstado(filtroEstado === e.key ? "todos" : e.key)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all ${e.badge} ${
+                            filtroEstado === e.key ? "ring-2 ring-offset-1 ring-slate-400 dark:ring-offset-slate-900" : "opacity-80 hover:opacity-100"
+                          }`}
+                          data-testid={`button-filtro-estado-${e.key}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${e.dot}`} />
+                          {e.label}
+                          <span className="tabular-nums">{e.cantidad}</span>
+                        </button>
+                      ))}
+                  </div>
+
+                  {obrasFiltradas.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-12 text-center text-sm text-slate-500">
+                      Ninguna obra coincide con la búsqueda.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/70 dark:border-slate-700/60">
+                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          {obrasFiltradas.length} {obrasFiltradas.length === 1 ? "obra" : "obras"}
+                          <span className="ml-2 text-xs font-normal text-slate-400">
+                            Toca una obra para cargar sus productos
+                          </span>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[860px]">
+                          <thead>
+                            <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60">
+                              <Th className="text-left pl-4 min-w-[260px]">Obra</Th>
+                              <Th className="text-left min-w-[180px]">Constructora</Th>
+                              <Th>VIV</Th>
+                              <Th className="min-w-[120px]">% avance</Th>
+                              <Th title="Saldo de tinetas en obra">Saldo</Th>
+                              <Th title="Próximo pedido sugerido">Próx. pedido</Th>
+                              <Th>Estado</Th>
+                              <Th className="pr-4"> </Th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {obrasFiltradas.map(({ fila, constructora }) => {
+                              const expandida = obraExpandida === fila.obra.id;
+                              return (
+                                <FilaObraGlobal
+                                  key={fila.obra.id}
+                                  fila={fila}
+                                  constructora={constructora}
+                                  productos={productosPorObra.get(fila.obra.id) ?? []}
+                                  expandida={expandida}
+                                  onToggle={() => setObraExpandida(expandida ? null : fila.obra.id)}
+                                  onAbrirConstructora={() => seleccionarConstructora(constructora)}
+                                />
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1128,9 +1142,6 @@ export function ControlObrasContent() {
                             onToggle={() => setObraExpandida(expandida ? null : f.obra.id)}
                             onEditar={() => abrirEdicion(f.obra)}
                             onEliminar={() => setObraAEliminar(f.obra)}
-                            onAgregarProducto={() => abrirNuevoProducto(f.obra.id)}
-                            onEditarProducto={abrirEdicionProducto}
-                            onEliminarProducto={setProductoAEliminar}
                           />
                         );
                       })}
@@ -1454,208 +1465,6 @@ export function ControlObrasContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Alta/edición de producto de una obra */}
-      <Dialog open={!!productoObraId} onOpenChange={(open) => !open && cerrarDialogProducto()}>
-        <DialogContent
-          className="sm:max-w-[620px] max-h-[90vh] flex flex-col p-0 overflow-hidden z-[70]"
-          overlayClassName="z-[70]"
-        >
-          <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25">
-                <Layers className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <DialogTitle className="text-lg font-bold text-foreground">
-                  {productoEditando ? "Editar producto" : "Agregar producto a la obra"}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground truncate">
-                  {obras.find((o) => o.id === productoObraId)?.nombre ?? ""}
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-5 overflow-y-auto flex-1 px-6 py-5">
-            <Seccion icono={<Package className="w-3.5 h-3.5" />} titulo="Producto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Buscador del catálogo. El nombre queda editable por si el
-                    producto todavía no está en el maestro. */}
-                <Campo label="Buscar en el catálogo" className="sm:col-span-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                    <Input
-                      value={busquedaProducto}
-                      onChange={(e) => {
-                        setBusquedaProducto(e.target.value);
-                        setMostrarSugerenciasProducto(true);
-                      }}
-                      onFocus={() => setMostrarSugerenciasProducto(true)}
-                      onBlur={() => setTimeout(() => setMostrarSugerenciasProducto(false), 150)}
-                      placeholder="Código o nombre del producto…"
-                      className="pl-9 bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                      data-testid="input-obra-producto-buscar"
-                    />
-                    {buscandoProductos && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
-                    )}
-                    {mostrarSugerenciasProducto && busquedaProducto.trim().length >= 2 && (
-                      <div className="absolute z-30 left-0 right-0 top-full mt-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden max-h-64 overflow-y-auto">
-                        {catalogo.length === 0 && !buscandoProductos && (
-                          <div className="px-3 py-3 text-sm text-slate-400">Sin resultados — puedes escribir el nombre a mano abajo</div>
-                        )}
-                        {catalogo.map((p) => (
-                          <button
-                            key={p.kopr}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              setProductoForm((prev) => ({
-                                ...prev,
-                                kopr: p.kopr,
-                                nombre: p.name,
-                                unidad: prev.unidad,
-                              }));
-                              setBusquedaProducto("");
-                              setMostrarSugerenciasProducto(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors"
-                            data-testid={`option-obra-producto-${p.kopr}`}
-                          >
-                            <span className="text-[10px] font-bold tabular-nums text-slate-400 flex-shrink-0">{p.kopr}</span>
-                            <span className="truncate font-medium">{p.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Campo>
-                <Campo label="Producto *" className="sm:col-span-2">
-                  <Input
-                    value={productoForm.nombre}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, nombre: e.target.value }))}
-                    placeholder="Nombre del producto"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-nombre"
-                  />
-                  {productoForm.kopr && (
-                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400">
-                      <span className="font-bold">SKU {productoForm.kopr}</span>
-                      <button
-                        onClick={() => setProductoForm((p) => ({ ...p, kopr: "" }))}
-                        className="hover:text-slate-600 transition-colors"
-                      >
-                        quitar
-                      </button>
-                    </div>
-                  )}
-                </Campo>
-                <Campo label="Color / tono">
-                  <Input
-                    value={productoForm.color}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, color: e.target.value }))}
-                    placeholder="Ej: BLANCO"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-color"
-                  />
-                </Campo>
-                <Campo label="Unidad">
-                  <Select
-                    value={productoForm.unidad}
-                    onValueChange={(v) => setProductoForm((p) => ({ ...p, unidad: v }))}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200" data-testid="select-obra-producto-unidad">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[80]">
-                      {UNIDADES.map((u) => (
-                        <SelectItem key={u} value={u}>{u}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Campo>
-              </div>
-            </Seccion>
-
-            <Seccion icono={<Truck className="w-3.5 h-3.5" />} titulo="Seguimiento">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Campo label="Proyectado">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={productoForm.cantidadProyectada}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, cantidadProyectada: e.target.value }))}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-proyectada"
-                  />
-                </Campo>
-                <Campo label="Pedido">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={productoForm.cantidadPedida}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, cantidadPedida: e.target.value }))}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-pedida"
-                  />
-                </Campo>
-                <Campo label="Entregado">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={productoForm.cantidadEntregada}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, cantidadEntregada: e.target.value }))}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-entregada"
-                  />
-                </Campo>
-                <Campo label="Utilizado">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={productoForm.cantidadUtilizada}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, cantidadUtilizada: e.target.value }))}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-utilizada"
-                  />
-                </Campo>
-                <Campo label="Notas" className="col-span-2 sm:col-span-4">
-                  <Input
-                    value={productoForm.notas}
-                    onChange={(e) => setProductoForm((p) => ({ ...p, notas: e.target.value }))}
-                    placeholder="Opcional"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-producto-notas"
-                  />
-                </Campo>
-              </div>
-            </Seccion>
-          </div>
-
-          <div className="px-6 py-4 border-t border-slate-200/70 dark:border-slate-700/60 flex justify-end gap-2">
-            <Button variant="outline" className="rounded-2xl" onClick={cerrarDialogProducto}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={enviarProducto}
-              disabled={guardarProducto.isPending}
-              className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
-              data-testid="button-guardar-obra-producto"
-            >
-              {guardarProducto.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {productoEditando ? "Guardar cambios" : "Agregar producto"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Confirmación de borrado de obra */}
       <Dialog open={!!obraAEliminar} onOpenChange={(open) => !open && setObraAEliminar(null)}>
         <DialogContent className="sm:max-w-[420px] z-[70]" overlayClassName="z-[70]">
@@ -1681,29 +1490,6 @@ export function ControlObrasContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmación de borrado de producto */}
-      <Dialog open={!!productoAEliminar} onOpenChange={(open) => !open && setProductoAEliminar(null)}>
-        <DialogContent className="sm:max-w-[420px] z-[70]" overlayClassName="z-[70]">
-          <DialogTitle className="text-base font-bold">Quitar producto</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            «{productoAEliminar?.nombre}» dejará de seguirse en esta obra.
-          </DialogDescription>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" className="rounded-2xl" onClick={() => setProductoAEliminar(null)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => productoAEliminar && eliminarProducto.mutate(productoAEliminar.id)}
-              disabled={eliminarProducto.isPending}
-              className="rounded-2xl bg-red-600 hover:bg-red-700 text-white"
-              data-testid="button-confirmar-eliminar-obra-producto"
-            >
-              {eliminarProducto.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Quitar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -1721,75 +1507,79 @@ const TONOS: Record<string, string> = {
   red: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
 };
 
-/** Tarjeta de la portada: una constructora con su avance y lo que hay que pedir. */
-function TarjetaConstructora({ constructora, onAbrir }: { constructora: Constructora; onAbrir: () => void }) {
+/** Una constructora en el listado de la portada, con su avance y lo que hay que pedir. */
+function FilaConstructora({ constructora, onAbrir }: { constructora: Constructora; onAbrir: () => void }) {
   const { totales, filas } = constructora;
-  // En la tarjeta solo interesan los estados que piden acción.
-  const alertas = totales.conteoEstados.filter((e) => e.cantidad > 0 && (e.key === "critico" || e.key === "pedir" || e.key === "revisar"));
+  // En el listado solo interesan los estados que piden acción.
+  const alertas = totales.conteoEstados.filter(
+    (e) => e.cantidad > 0 && (e.key === "critico" || e.key === "pedir" || e.key === "revisar"),
+  );
 
   return (
     <button
       onClick={onAbrir}
-      className="text-left rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group"
-      data-testid={`card-constructora-${constructora.id}`}
+      className="w-full text-left flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group"
+      data-testid={`row-constructora-${constructora.id}`}
     >
-      <div className="flex items-start gap-3">
-        <span className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center flex-shrink-0">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center flex-shrink-0">
           <Building2 className="h-4 w-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="font-bold text-sm text-slate-800 dark:text-slate-100 leading-tight line-clamp-2 group-hover:text-orange-600 transition-colors">
+        <div className="min-w-0">
+          <div className="font-bold text-sm text-slate-800 dark:text-slate-100 leading-tight truncate group-hover:text-orange-600 transition-colors">
             {constructora.nombre}
           </div>
-          <div className="mt-0.5 text-[11px] text-slate-400 truncate">
+          <div className="text-[11px] text-slate-400 truncate">
             {filas.length} {filas.length === 1 ? "obra" : "obras"}
-            {constructora.ciudades.length > 0 && ` · ${constructora.ciudades.slice(0, 2).join(", ")}`}
-            {constructora.ciudades.length > 2 && ` +${constructora.ciudades.length - 2}`}
+            {constructora.ciudades.length > 0 && ` · ${constructora.ciudades.slice(0, 3).join(", ")}`}
+            {constructora.ciudades.length > 3 && ` +${constructora.ciudades.length - 3}`}
+            {` · ${fmt(totales.pintadas)} de ${fmt(totales.viviendas)} viviendas pintadas`}
           </div>
         </div>
-        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors flex-shrink-0" />
       </div>
 
-      <div className="mt-3.5 flex items-center gap-2">
-        <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
-            style={{ width: `${Math.round(totales.avance * 100)}%` }}
-          />
+      <div className="flex items-center gap-3 flex-shrink-0 pl-12 lg:pl-0">
+        <div className="w-[150px] flex items-center gap-2">
+          <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
+              style={{ width: `${Math.round(totales.avance * 100)}%` }}
+            />
+          </div>
+          <span className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 w-9 text-right">
+            {fmtPct(totales.avance)}
+          </span>
         </div>
-        <span className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300">{fmtPct(totales.avance)}</span>
-      </div>
-      <div className="mt-1 text-[11px] text-slate-400">
-        {fmt(totales.pintadas)} de {fmt(totales.viviendas)} viviendas pintadas
-      </div>
 
-      <div className="mt-3.5 grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Saldo en obra</div>
-          <div className={`text-base font-bold tabular-nums ${totales.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-100"}`}>
+        <div className="w-20 text-right">
+          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Saldo</div>
+          <div className={`text-sm font-bold tabular-nums ${totales.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"}`}>
             {fmtDec(totales.saldo)}
           </div>
         </div>
-        <div className={`rounded-xl px-3 py-2 ${totales.sugerido > 0 ? "bg-orange-50 dark:bg-orange-950/30" : "bg-slate-50 dark:bg-slate-800/60"}`}>
-          <div className={`text-[10px] uppercase tracking-wider font-bold ${totales.sugerido > 0 ? "text-orange-500" : "text-slate-400"}`}>
-            Próx. pedido
-          </div>
-          <div className={`text-base font-bold tabular-nums ${totales.sugerido > 0 ? "text-orange-600 dark:text-orange-400" : "text-slate-700 dark:text-slate-100"}`}>
+
+        <div className="w-24 text-right">
+          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
+          <div className={`text-sm font-bold tabular-nums ${totales.sugerido > 0 ? "text-orange-600 dark:text-orange-400" : "text-slate-400"}`}>
             {fmt(totales.sugerido)}
           </div>
         </div>
-      </div>
 
-      {alertas.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {alertas.map((e) => (
-            <span key={e.key} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${e.badge}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${e.dot}`} />
-              {e.cantidad} {e.label}
-            </span>
-          ))}
+        <div className="w-[180px] flex flex-wrap gap-1">
+          {alertas.length === 0 ? (
+            <span className="text-[11px] text-slate-300 dark:text-slate-600">Sin alertas</span>
+          ) : (
+            alertas.map((e) => (
+              <span key={e.key} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${e.badge}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${e.dot}`} />
+                {e.cantidad} {e.label}
+              </span>
+            ))
+          )}
         </div>
-      )}
+
+        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors flex-shrink-0" />
+      </div>
     </button>
   );
 }
@@ -1804,9 +1594,6 @@ function FilaObra({
   onToggle,
   onEditar,
   onEliminar,
-  onAgregarProducto,
-  onEditarProducto,
-  onEliminarProducto,
 }: {
   fila: ObraCalculada;
   indice: number;
@@ -1816,9 +1603,6 @@ function FilaObra({
   onToggle: () => void;
   onEditar: () => void;
   onEliminar: () => void;
-  onAgregarProducto: () => void;
-  onEditarProducto: (p: ObraProducto) => void;
-  onEliminarProducto: (p: ObraProducto) => void;
 }) {
   return (
     <>
@@ -1890,11 +1674,9 @@ function FilaObra({
         <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/60 dark:bg-slate-900/40">
           <td colSpan={columnas.length + 2} className="px-4 py-4">
             <PanelProductos
+              obraId={fila.obra.id}
               obraNombre={fila.obra.nombre}
               productos={productos}
-              onAgregar={onAgregarProducto}
-              onEditar={onEditarProducto}
-              onEliminar={onEliminarProducto}
             />
           </td>
         </tr>
@@ -1903,119 +1685,122 @@ function FilaObra({
   );
 }
 
-/** Detalle por producto de una obra: proyectado / pedido / entregado / usado. */
-function PanelProductos({
-  obraNombre,
+/**
+ * Fila del listado de TODAS las obras de la cartera. Muestra las columnas de
+ * decisión (avance, saldo, próximo pedido) más la constructora, porque acá las
+ * obras vienen mezcladas; el detalle completo de la planilla sigue estando al
+ * entrar a la constructora.
+ */
+function FilaObraGlobal({
+  fila,
+  constructora,
   productos,
-  onAgregar,
-  onEditar,
-  onEliminar,
+  expandida,
+  onToggle,
+  onAbrirConstructora,
 }: {
-  obraNombre: string;
+  fila: ObraCalculada;
+  constructora: Constructora;
   productos: ObraProducto[];
-  onAgregar: () => void;
-  onEditar: (p: ObraProducto) => void;
-  onEliminar: (p: ObraProducto) => void;
+  expandida: boolean;
+  onToggle: () => void;
+  onAbrirConstructora: () => void;
 }) {
-  return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-slate-200/70 dark:border-slate-700/60">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-          <Layers className="h-3.5 w-3.5 text-orange-500" />
-          Productos de {obraNombre}
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onAgregar}
-          className="h-8 rounded-xl text-xs border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-900 dark:hover:bg-orange-950/30"
-          data-testid="button-agregar-obra-producto"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Agregar producto
-        </Button>
-      </div>
+  const est = ESTADO_MAP[fila.estado];
 
-      {productos.length === 0 ? (
-        <div className="px-4 py-6 text-center text-sm text-slate-400">
-          Sin productos cargados. Agrégalos para seguir el despacho por SKU (tinetas de fachada, sellador, esmalte…).
-        </div>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-700/60">
-              <Th className="text-left pl-4 min-w-[220px]">Producto</Th>
-              <Th>Color</Th>
-              <Th>Unidad</Th>
-              <Th>Proyectado</Th>
-              <Th>Pedido</Th>
-              <Th title="Proyectado − pedido">Por pedir</Th>
-              <Th>Entregado</Th>
-              <Th>Utilizado</Th>
-              <Th title="Entregado − utilizado">Saldo</Th>
-              <Th className="pr-4"> </Th>
-            </tr>
-          </thead>
-          <tbody>
-            {productos.map((p) => {
-              const proyectada = toNum(p.cantidadProyectada);
-              const pedida = toNum(p.cantidadPedida);
-              const entregada = toNum(p.cantidadEntregada);
-              const utilizada = toNum(p.cantidadUtilizada);
-              const porPedir = Math.max(0, proyectada - pedida);
-              const saldo = entregada - utilizada;
-              return (
-                <tr
-                  key={p.id}
-                  className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/30 dark:hover:bg-orange-950/10 transition-colors group/prod"
-                  data-testid={`row-obra-producto-${p.id}`}
-                >
-                  <td className="pl-4 py-2.5">
-                    <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[260px]">{p.nombre}</div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                      {p.kopr && <span className="font-bold tabular-nums">{p.kopr}</span>}
-                      {p.notas && <span className="truncate max-w-[200px]">{p.notas}</span>}
-                    </div>
-                  </td>
-                  <Td>{p.color || "—"}</Td>
-                  <Td>{p.unidad}</Td>
-                  <Td>{fmtDec(proyectada)}</Td>
-                  <Td>{fmtDec(pedida)}</Td>
-                  <Td className={porPedir > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmtDec(porPedir)}</Td>
-                  <Td>{fmtDec(entregada)}</Td>
-                  <Td>{fmtDec(utilizada)}</Td>
-                  <Td className={saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(saldo)}</Td>
-                  <td className="pr-4 py-2.5">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover/prod:opacity-100 focus-within:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-                        onClick={() => onEditar(p)}
-                        aria-label="Editar producto"
-                        data-testid={`button-editar-obra-producto-${p.id}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                        onClick={() => onEliminar(p)}
-                        aria-label="Quitar producto"
-                        data-testid={`button-eliminar-obra-producto-${p.id}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+  return (
+    <>
+      <tr
+        className={`border-b border-slate-100 dark:border-slate-700/40 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group cursor-pointer ${expandida ? "bg-orange-50/40 dark:bg-orange-950/10" : ""}`}
+        onClick={onToggle}
+        data-testid={`row-obra-global-${fila.obra.id}`}
+      >
+        <td className="pl-4 py-3">
+          <div className="flex items-start gap-2">
+            <span className="text-slate-300 dark:text-slate-600 pt-0.5 flex-shrink-0">
+              {expandida ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </span>
+            <div className="min-w-0">
+              <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[240px]">
+                {fila.obra.nombre}
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                {fila.obra.ciudad && <span className="truncate">{fila.obra.ciudad}</span>}
+                {fila.obra.programa && <span className="font-bold">{fila.obra.programa}</span>}
+                {productos.length > 0 && (
+                  <span className="inline-flex items-center gap-1 font-bold">
+                    <Layers className="h-3 w-3" />
+                    {productos.length}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </td>
+
+        <td className="px-3 py-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAbrirConstructora();
+            }}
+            className="text-left text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-orange-600 transition-colors truncate max-w-[170px] block"
+            data-testid={`button-abrir-constructora-${constructora.id}`}
+          >
+            {constructora.nombre}
+          </button>
+        </td>
+
+        <Td>{fmt(fila.viviendas)}</Td>
+
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden min-w-[52px]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
+                style={{ width: `${Math.round(fila.avance * 100)}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-300 w-9 text-right">
+              {fmtPct(fila.avance)}
+            </span>
+          </div>
+        </td>
+
+        <Td className={fila.saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(fila.saldo)}</Td>
+        <Td className={fila.sugerido > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmt(fila.sugerido)}</Td>
+
+        <Td>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${est.badge}`}>
+            {fila.estado === "terminado" ? <CheckCircle2 className="h-3 w-3" /> : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />}
+            {est.label}
+          </span>
+        </Td>
+
+        <td className="pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAbrirConstructora}
+              className="h-8 rounded-lg text-xs text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+              data-testid={`button-ver-planilla-${fila.obra.id}`}
+            >
+              Ver planilla
+              <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </div>
+        </td>
+      </tr>
+
+      {expandida && (
+        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/60 dark:bg-slate-900/40">
+          <td colSpan={8} className="px-4 py-4">
+            <PanelProductos obraId={fila.obra.id} obraNombre={fila.obra.nombre} productos={productos} />
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
