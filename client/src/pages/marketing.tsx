@@ -58,8 +58,8 @@ import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
+import SolicitudesTabMarketing from "./marketing/solicitudes-tab-marketing";
 import CampanasPage from "./campanas";
-import { MarketingSolicitudesInbox } from "./tareas";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -255,16 +255,9 @@ export default function Marketing() {
             </TabsList>
           </div>
 
-          {/* Tab: Solicitudes — bandeja de pedidos del equipo al área (antes vivía
-              como pestaña Marketing del Panel de Trabajo). */}
+          {/* Tab: Solicitudes — dashboard general de tareas del área */}
           <TabsContent value="solicitudes" className="space-y-6">
-            <MarketingSolicitudesInbox
-              viewer={
-                user.role === 'marketing' ? 'marketing'
-                  : user.role === 'admin' ? 'admin'
-                  : 'solicitante'
-              }
-            />
+            <SolicitudesTabMarketing userRole={user.role} />
           </TabsContent>
 
           {/* Tab: Email Marketing — campañas de mailing (antes vivía en /campanas) */}

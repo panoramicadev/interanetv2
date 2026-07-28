@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SolicitudDetalleDialog } from "@/components/marketing/solicitud-detalle-dialog";
 import {
   CheckSquare,
   Camera,
@@ -6688,13 +6689,13 @@ function formatFechaCorta(v?: string | null): string {
 // segmento: área seleccionada en el Panel de Trabajo. El panel se navega por área, así
 // que la bandeja se acota a los pedidos originados en esa área (en Construcción no se
 // revisan los de Ferreterías). null/'all'/'marketing' = sin acotar.
-export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = null }: { viewer?: 'marketing' | 'admin' | 'solicitante'; segmento?: string | null }) {
+function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = null }: { viewer?: 'marketing' | 'admin' | 'solicitante'; segmento?: string | null }) {
   const { toast } = useToast();
   const canManage = viewer !== 'solicitante';
   // Solicitudes con cambios recientes no vistos: quedan destacadas al entrar.
   const marketingHighlights = usePanelHighlights('marketing');
   const solicitudCardClass = (id: string, extra = "") =>
-    `rounded-xl border p-3.5 shadow-sm ${extra} ${
+    `rounded-xl border p-3.5 shadow-sm cursor-pointer hover:shadow-md hover:border-orange-200 transition-all ${extra} ${
       marketingHighlights.has(id)
         ? 'border-orange-300 ring-2 ring-[#fd6301]/25 bg-orange-50/60 dark:bg-orange-950/20 dark:border-orange-800'
         : 'border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700'
@@ -6703,6 +6704,9 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
   const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
   const [plazo, setPlazo] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Ficha con el chat hacia la otra parte: se guarda el id para que refleje siempre
+  // el último estado de la solicitud y no un snapshot.
+  const [detalleId, setDetalleId] = useState<string | null>(null);
 
   const { data: todasLasSolicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
     queryKey: ["/api/marketing/solicitudes"],
@@ -6801,7 +6805,7 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
           </div>
           <div className="space-y-2.5">
             {pendientes.map((s) => (
-              <div key={s.id} className={solicitudCardClass(s.id)}>
+              <div key={s.id} className={solicitudCardClass(s.id)} onClick={() => setDetalleId(s.id)} data-testid={`card-solicitud-${s.id}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -6826,7 +6830,7 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
                     <Button
                       size="sm"
                       className="h-8 text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
-                      onClick={() => { setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
+                      onClick={(e) => { e.stopPropagation(); setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
                     >
                       <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
                     </Button>
@@ -6834,14 +6838,19 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
                       size="sm"
                       variant="outline"
                       className="h-8 text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
-                      onClick={() => { setRechazar(s); setMotivo(""); }}
+                      onClick={(e) => { e.stopPropagation(); setRechazar(s); setMotivo(""); }}
                     >
                       <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-1">
-                    <Clock className="h-3 w-3" /> Esperando aceptación
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-1">
+                      <Clock className="h-3 w-3" /> Esperando aceptación
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#fd6301]">
+                      <MessageSquare className="h-3 w-3" /> Toca para conversar con Marketing
+                    </span>
                   </div>
                 )}
               </div>
@@ -6869,7 +6878,7 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
           </div>
           <div className="space-y-2.5">
             {enFlujo.map((s) => (
-              <div key={s.id} className={solicitudCardClass(s.id)}>
+              <div key={s.id} className={solicitudCardClass(s.id)} onClick={() => setDetalleId(s.id)} data-testid={`card-solicitud-${s.id}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -6889,7 +6898,7 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
                       size="sm"
                       className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
                       disabled={estadoMutation.isPending}
-                      onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada" }) })}
+                      onClick={(e) => { e.stopPropagation(); estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada" }) }); }}
                     >
                       <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
                     </Button>
@@ -6916,7 +6925,7 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
           </div>
           <div className="space-y-2.5">
             {resueltas.map((s) => (
-              <div key={s.id} className={solicitudCardClass(s.id, "opacity-90")}>
+              <div key={s.id} className={solicitudCardClass(s.id, "opacity-90")} onClick={() => setDetalleId(s.id)} data-testid={`card-solicitud-${s.id}`}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
                   {s.estado === "rechazado" ? (
@@ -6943,6 +6952,14 @@ export function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = nul
           </div>
         </div>
       )}
+
+      {/* Ficha de la solicitud + chat con la otra parte */}
+      <SolicitudDetalleDialog
+        solicitud={solicitudes.find((s) => s.id === detalleId) ?? null}
+        open={!!detalleId}
+        onOpenChange={(o) => { if (!o) setDetalleId(null); }}
+        canManage={canManage}
+      />
 
       {/* Dialog: aceptar + fijar plazo */}
       <Dialog open={!!aceptar} onOpenChange={(o) => { if (!o) { setAceptar(null); setPlazo(""); } }}>
@@ -7005,6 +7022,8 @@ function MarketingManagerPanel() {
   const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
   const [plazo, setPlazo] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Ficha con el chat hacia el solicitante (por id, para que siga al estado real).
+  const [detalleId, setDetalleId] = useState<string | null>(null);
 
   const { data: solicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
     queryKey: ["/api/marketing/solicitudes"],
@@ -7138,7 +7157,12 @@ function MarketingManagerPanel() {
         ) : (
           <div className="space-y-2.5">
             {activa.items.map((s) => (
-              <div key={s.id} className={`rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm ${seccion === "completadas" || seccion === "rechazadas" ? "opacity-90" : ""}`}>
+              <div
+                key={s.id}
+                onClick={() => setDetalleId(s.id)}
+                data-testid={`card-solicitud-${s.id}`}
+                className={`rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm cursor-pointer hover:shadow-md hover:border-orange-200 transition-all ${seccion === "completadas" || seccion === "rechazadas" ? "opacity-90" : ""}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -7188,7 +7212,7 @@ function MarketingManagerPanel() {
                       size="sm"
                       className="h-8 rounded-2xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
                       disabled={estadoMutation.isPending}
-                      onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada", description: "Quedó registrada como entregada." }) })}
+                      onClick={(e) => { e.stopPropagation(); estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada", description: "Quedó registrada como entregada." }) }); }}
                     >
                       <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
                     </Button>
@@ -7200,7 +7224,7 @@ function MarketingManagerPanel() {
                       variant="outline"
                       className="h-8 rounded-2xl text-xs font-semibold border-slate-200 text-slate-600 hover:border-orange-300 hover:text-[#fd6301] hover:bg-orange-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-orange-950/30 shrink-0"
                       disabled={estadoMutation.isPending}
-                      onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "en_proceso" } }, { onSuccess: () => toast({ title: "Solicitud reabierta", description: "Volvió a tus solicitudes en curso." }) })}
+                      onClick={(e) => { e.stopPropagation(); estadoMutation.mutate({ id: s.id, body: { estado: "en_proceso" } }, { onSuccess: () => toast({ title: "Solicitud reabierta", description: "Volvió a tus solicitudes en curso." }) }); }}
                     >
                       <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reabrir
                     </Button>
@@ -7211,7 +7235,7 @@ function MarketingManagerPanel() {
                     <Button
                       size="sm"
                       className="h-8 rounded-2xl text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
-                      onClick={() => { setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
+                      onClick={(e) => { e.stopPropagation(); setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
                     >
                       <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
                     </Button>
@@ -7219,7 +7243,7 @@ function MarketingManagerPanel() {
                       size="sm"
                       variant="outline"
                       className="h-8 rounded-2xl text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
-                      onClick={() => { setRechazar(s); setMotivo(""); }}
+                      onClick={(e) => { e.stopPropagation(); setRechazar(s); setMotivo(""); }}
                     >
                       <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
                     </Button>
@@ -7230,6 +7254,14 @@ function MarketingManagerPanel() {
           </div>
         )}
       </div>
+
+      {/* Ficha de la solicitud + chat con el solicitante */}
+      <SolicitudDetalleDialog
+        solicitud={solicitudes.find((s) => s.id === detalleId) ?? null}
+        open={!!detalleId}
+        onOpenChange={(o) => { if (!o) setDetalleId(null); }}
+        canManage
+      />
 
       {/* Dialog: aceptar + fijar plazo */}
       <Dialog open={!!aceptar} onOpenChange={(o) => { if (!o) { setAceptar(null); setPlazo(""); } }}>
