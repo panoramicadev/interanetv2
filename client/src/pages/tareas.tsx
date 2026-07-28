@@ -208,7 +208,8 @@ export default function TareasPage() {
   // Pestañas siempre presentes: Tareas, Seguimiento, Calendario (3).
   // Rutas Comerciales se muestra en todas las áreas salvo Construcción, que en su
   // lugar tiene Visitas Técnicas (ver showVisitasTab más abajo, junto a esConstruccion).
-  // Estimación y Marketing solo para no-técnico y no-marketing; CRM según permiso.
+  // Estimación (u Obras en Construcción) solo para no-técnico y no-marketing; CRM según permiso.
+  // Marketing ya no es pestaña acá: el área completa vive en el módulo Marketing.
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
   // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
   const canVerVisitas = can("postventa.visitas");
@@ -273,12 +274,15 @@ export default function TareasPage() {
     if (isMarketing) {
       return SEGMENTOS.filter((seg) => seg.value === 'marketing');
     }
+    // Para el resto, el área Marketing salió del Panel de Trabajo: se gestiona
+    // completa en el módulo Marketing (/marketing).
+    const comerciales = SEGMENTOS.filter((seg) => seg.value !== 'marketing');
     // Admin ve/asigna TODOS los segmentos; los demás roles solo el suyo (effectiveSegment).
     if (user?.role !== 'admin' && effectiveSegment) {
-      const scoped = SEGMENTOS.filter((seg) => effectiveSegment.includes(seg.value));
+      const scoped = comerciales.filter((seg) => effectiveSegment.includes(seg.value));
       if (scoped.length > 0) return scoped;
     }
-    return SEGMENTOS;
+    return comerciales;
   }, [user?.role, effectiveSegment, isMarketing]);
 
   // Si el segmento activo no está entre los visibles (ej: supervisor con el default "ferreterias"),
@@ -331,7 +335,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "marketing", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -719,7 +723,7 @@ export default function TareasPage() {
   const showRutasTab = !esConstruccion;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showExtraSegmentTabs ? 2 : 0) + (showCrmTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showExtraSegmentTabs ? 1 : 0) + (showCrmTab ? 1 : 0);
   const tabsGridClass =
     ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
@@ -951,9 +955,9 @@ export default function TareasPage() {
     if (activeTab === 'tareas' && isSeguimientoTask) return false;
 
     // Buscador: cada término debe calzar en título, descripción, cliente o
-    // asignado (sin tildes ni mayúsculas). Aplica en Tareas y Marketing;
+    // asignado (sin tildes ni mayúsculas). Aplica en Tareas;
     // Seguimiento tiene su propio buscador de equipo.
-    if ((activeTab === 'tareas' || activeTab === 'marketing') && taskSearchDebounced.trim()) {
+    if (activeTab === 'tareas' && taskSearchDebounced.trim()) {
       const terms = normalizeSearchText(taskSearchDebounced).split(/\s+/).filter(Boolean);
       const assigneeNames = task.assignments
         .map((a) =>
@@ -965,15 +969,6 @@ export default function TareasPage() {
         `${task.title} ${task.description ?? ""} ${(task as any).clienteNombre ?? ""} ${assigneeNames}`,
       );
       if (!terms.every((t) => haystack.includes(t))) return false;
-    }
-
-    // Pestaña Marketing: solo tareas del área marketing SIN cliente asociado.
-    // Las que tienen cliente se ven en la pestaña Marketing de la ficha del cliente.
-    if (activeTab === 'marketing') {
-      if (isSeguimientoTask) return false;
-      if ((task as any).segmento !== 'marketing') return false;
-      if ((task as any).clienteId || (task as any).clienteNombre) return false;
-      return true;
     }
 
     // Cliente filter
@@ -1337,8 +1332,8 @@ export default function TareasPage() {
                   setSearchClienteTask("");
                   form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
                   setShowCreateDialog(true);
-                } else if (isMarketing || activeTab === 'marketing') {
-                  // Desde el área/pestaña Marketing se crea directo una tarea del área:
+                } else if (isMarketing) {
+                  // La encargada de Marketing crea directo una tarea de su área:
                   // saltar el selector y abrir el formulario estándar con segmento = marketing.
                   setTaskFlow('otras');
                   setSelectedClienteTask(null);
@@ -1355,8 +1350,8 @@ export default function TareasPage() {
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
-                if (open && activeTab === 'marketing') {
-                  // En la pestaña Marketing la tarea siempre es del área marketing.
+                if (open && isMarketing) {
+                  // La encargada de Marketing siempre crea tareas de su área.
                   form.setValue('segmento', 'marketing');
                 } else if (open && segmentoFilter && segmentoFilter !== 'all') {
                   form.setValue('segmento', segmentoFilter);
@@ -1449,7 +1444,9 @@ export default function TareasPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {(user.role === 'admin' ? SEGMENTOS : visibleSegmentos).map((seg) => (
+                                      {/* Mismas áreas que el selector del panel: Marketing ya no
+                                          se asigna desde acá (va por Solicitud de Marketing). */}
+                                      {visibleSegmentos.map((seg) => (
                                         <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1813,13 +1810,8 @@ export default function TareasPage() {
                 Obras
               </TabsTrigger>
             )}
-            {user?.role !== 'tecnico_obra' && !isMarketing && (
-              <TabsTrigger value="marketing" data-testid="tab-marketing" className={tabTriggerClass} onClick={() => handleTabTriggerClick("marketing")}>
-                <Palette className={tabIconClass} />
-                Marketing
-                {tabChangeBadge("marketing")}
-              </TabsTrigger>
-            )}
+            {/* La pestaña Marketing salió del Panel de Trabajo: el área vive completa
+                en el módulo Marketing (/marketing). */}
             {showCrmTab && (
               <TabsTrigger value="crm" data-testid="tab-crm" className={tabTriggerClass} onClick={() => handleTabTriggerClick("crm")}>
                 <Users className={tabIconClass} />
@@ -1848,7 +1840,7 @@ export default function TareasPage() {
           </TabsList>
         </div>
 
-        {(activeTab === 'tareas' || activeTab === 'seguimiento' || activeTab === 'marketing') && (
+        {(activeTab === 'tareas' || activeTab === 'seguimiento') && (
         <div className="space-y-6">
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
@@ -2226,15 +2218,8 @@ export default function TareasPage() {
             </div>
           )}
 
-          {/* Pestaña Marketing: solicitudes al área (pendientes de aceptación / en proceso),
-              encima de las tareas. Admin ve todas y puede aceptar/rechazar; supervisor,
-              encargado y vendedor ven solo las que enviaron, en modo lectura. */}
-          {activeTab === 'marketing' && taskView !== 'terminadas' && (
-            <MarketingSolicitudesInbox
-              viewer={user.role === 'admin' ? 'admin' : 'solicitante'}
-              segmento={segmentoFilter}
-            />
-          )}
+          {/* La bandeja de Solicitudes de Marketing dejó de vivir acá: ahora está
+              en el módulo Marketing. */}
 
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">

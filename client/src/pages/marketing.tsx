@@ -48,7 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -59,6 +59,7 @@ import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
 import SolicitudesTabMarketing from "./marketing/solicitudes-tab-marketing";
+import CampanasPage from "./campanas";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -163,6 +164,10 @@ export default function Marketing() {
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
 
+  // Email Marketing vive acá como pestaña (salió del sidebar); usa el mismo
+  // permiso que gobierna la API de campañas.
+  const canCampanas = can('market.campanas');
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8 space-y-6">
@@ -194,6 +199,17 @@ export default function Marketing() {
                 <ClipboardList className="h-4 w-4 shrink-0" />
                 <span className="hidden sm:inline">Solicitudes</span>
               </TabsTrigger>
+
+              {canCampanas && (
+                <TabsTrigger
+                  value="email-marketing"
+                  data-testid="tab-email-marketing"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <Send className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Email Marketing</span>
+                </TabsTrigger>
+              )}
 
               <TabsTrigger
                 value="inventario"
@@ -243,6 +259,13 @@ export default function Marketing() {
           <TabsContent value="solicitudes" className="space-y-6">
             <SolicitudesTabMarketing userRole={user.role} />
           </TabsContent>
+
+          {/* Tab: Email Marketing — campañas de mailing (antes vivía en /campanas) */}
+          {canCampanas && (
+            <TabsContent value="email-marketing" className="space-y-6">
+              <CampanasPage embedded />
+            </TabsContent>
+          )}
 
           {/* Tab: Inventario */}
           <TabsContent value="inventario" className="space-y-6">

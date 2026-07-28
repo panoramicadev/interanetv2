@@ -46,7 +46,9 @@ export const PANEL_SECTION_TO_TAB: Record<PanelSection, string> = {
   tareas: "tareas",
   seguimiento: "seguimiento",
   estimacion: "estimacion",
-  marketing: "marketing",
+  // Marketing dejó de ser pestaña del panel (vive en el módulo Marketing): sus
+  // cambios aterrizan en Tareas, que es donde la encargada ve sus tareas.
+  marketing: "tareas",
   crm: "crm",
   rutas: "rutas-comerciales",
 };

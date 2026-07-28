@@ -160,15 +160,12 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       separator: true,
     },
     // ── Marketing ──
+    // Email Marketing salió del sidebar: vive como pestaña del módulo Marketing
+    // (la ruta /campanas sigue activa y el permiso market.campanas la gobierna).
     {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
-    },
-    {
-      href: "/campanas",
-      label: "Email Marketing",
-      icon: Send,
       separator: true,
     },
     // ── Finanzas ──

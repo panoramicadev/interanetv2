@@ -140,7 +140,9 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "seguimiento_pedidos", item: { href: "/seguimiento-pedidos", label: "Pedidos", icon: PackageSearch } },
   { key: "mis_pedidos", item: { href: "/mis-pedidos", label: "Mis Pedidos", icon: ShoppingCart } },
   { key: "marketing", item: { href: "/marketing", label: "Marketing", icon: TrendingUp } },
-  { key: "market.campanas", item: { href: "/campanas", label: "Campañas Mailing", icon: Send } },
+  // Email Marketing salió del sidebar: vive como pestaña del módulo Marketing
+  // (la ruta /campanas sigue activa y el permiso market.campanas la gobierna).
+  // { key: "market.campanas", item: { href: "/campanas", label: "Campañas Mailing", icon: Send } },
   { key: "finanzas", item: { href: "/facturas", label: "Finanzas", icon: Receipt } },
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
