@@ -118,11 +118,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Mail,
         },
         {
-          href: "/campanas",
-          label: "Campañas",
-          icon: Send,
-        },
-        {
           href: "/ecommerce",
           label: "Configuración",
           icon: ShoppingCart,
@@ -134,6 +129,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
+    },
+    // Campañas vive fuera del desplegable de Market para el admin: es un
+    // módulo que se usa a diario y quedaba escondido dentro del grupo.
+    {
+      href: "/campanas",
+      label: "Campañas Mailing",
+      icon: Send,
     },
     {
       href: "/gastos-empresariales",
@@ -452,7 +454,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/campanas",
-          label: "Campañas",
+          label: "Campañas Mailing",
           icon: Send,
         },
         {
@@ -636,7 +638,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/campanas",
-          label: "Campañas",
+          label: "Campañas Mailing",
           icon: Send,
         },
         {
@@ -848,7 +850,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
         {
           href: "/campanas",
-          label: "Campañas",
+          label: "Campañas Mailing",
           icon: Send,
         },
         {

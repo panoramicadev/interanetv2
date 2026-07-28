@@ -740,6 +740,11 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaign_recipients_campaign" ON email_campaign_recipients (campaign_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaign_recipients_status" ON email_campaign_recipients (status)`);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "email_campaign_recipients_campaign_email_unique" ON email_campaign_recipients (campaign_id, email)`);
+    // Ver migrations/065_campaign_recipient_source_detail.sql — evidencia del
+    // origen de cada destinatario. Drizzle enumera todas las columnas en cada
+    // SELECT, así que debe existir antes de servir tráfico de campañas.
+    await db.execute(sql`ALTER TABLE email_campaign_recipients ADD COLUMN IF NOT EXISTS source_detail VARCHAR`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaign_recipients_source" ON email_campaign_recipients (source)`);
 
     // 15.1. Etiquetas libres del cliente en seguimiento (JSON array en texto).
     // Drizzle enumera todas las columnas del schema en cada SELECT, así que

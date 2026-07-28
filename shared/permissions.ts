@@ -88,8 +88,8 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   {
     key: "market.campanas",
-    label: "Campañas de Marketing",
-    description: "Armar y enviar campañas de correo masivo (newsletters) a clientes, CRM y listas",
+    label: "Campañas Mailing",
+    description: "Armar y enviar campañas de correo masivo (newsletters) a clientes, CRM, cotizador web, obras y listas propias",
     group: "market",
     href: "/campanas",
   },
