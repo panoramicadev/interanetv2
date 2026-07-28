@@ -88,10 +88,13 @@ const fmtFecha = (valor: string | Date | null | undefined) => {
 export function PanelProductos({
   obraId,
   obraNombre,
+  obraCiudad,
   productos,
 }: {
   obraId: string;
   obraNombre: string;
+  /** Se muestra en el encabezado para amarrar el panel a su obra. */
+  obraCiudad?: string | null;
   productos: ObraProducto[];
 }) {
   const { toast } = useToast();
@@ -185,11 +188,20 @@ export function PanelProductos({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 border-b border-slate-200/70 dark:border-slate-700/60">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 flex-shrink-0">
-          <Layers className="h-3.5 w-3.5 text-orange-500" />
-          Productos de {obraNombre}
+    <div className="rounded-2xl border border-orange-200/70 dark:border-orange-900/40 border-l-4 border-l-[#fd6301] bg-white dark:bg-slate-800/60 overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 bg-orange-50/70 dark:bg-orange-950/20 border-b border-orange-100 dark:border-slate-700/60">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white flex items-center justify-center flex-shrink-0">
+            <Layers className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-100 truncate">{obraNombre}</div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-orange-600/80 dark:text-orange-400/80 truncate">
+              Detalle por producto
+              {obraCiudad ? ` · ${obraCiudad}` : ""}
+              {productos.length > 0 ? ` · ${productos.length} ${productos.length === 1 ? "producto" : "productos"}` : ""}
+            </div>
+          </div>
         </div>
         <div className="sm:ml-auto w-full sm:w-[340px]">
           <BuscadorCatalogo
