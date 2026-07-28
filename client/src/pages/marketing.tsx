@@ -58,6 +58,7 @@ import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
+import SolicitudesTabMarketing from "./marketing/solicitudes-tab-marketing";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -182,9 +183,18 @@ export default function Marketing() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="inventario" className="w-full">
+        <Tabs defaultValue="solicitudes" className="w-full">
           <div>
             <TabsList className="flex w-full gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              <TabsTrigger
+                value="solicitudes"
+                data-testid="tab-solicitudes"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+              >
+                <ClipboardList className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Solicitudes</span>
+              </TabsTrigger>
+
               <TabsTrigger
                 value="inventario"
                 data-testid="tab-inventario"
@@ -228,6 +238,11 @@ export default function Marketing() {
               )}
             </TabsList>
           </div>
+
+          {/* Tab: Solicitudes — dashboard general de tareas del área */}
+          <TabsContent value="solicitudes" className="space-y-6">
+            <SolicitudesTabMarketing userRole={user.role} />
+          </TabsContent>
 
           {/* Tab: Inventario */}
           <TabsContent value="inventario" className="space-y-6">
