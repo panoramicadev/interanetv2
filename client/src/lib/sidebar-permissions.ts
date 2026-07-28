@@ -145,7 +145,10 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
-  { key: "postventa.visitas", item: { href: "/visitas-tecnicas", label: "Visita Técnica", icon: FileCheck } },
+  // Visitas Técnicas oculto del sidebar para todos los roles: su acceso vive como
+  // pestaña del Panel de Trabajo en el área Construcción (la ruta /visitas-tecnicas
+  // sigue activa y el permiso postventa.visitas sigue gobernando el acceso).
+  // { key: "postventa.visitas", item: { href: "/visitas-tecnicas", label: "Visita Técnica", icon: FileCheck } },
   { key: "postventa.reclamos", item: { href: "/reclamos-generales", label: "Reclamos", icon: AlertTriangle } },
   // etl_monitor no genera ítem extra: se accede por la pestaña de Configuración
   { key: "configuracion", item: { href: "/configuracion", label: "Configuración", icon: Settings } },

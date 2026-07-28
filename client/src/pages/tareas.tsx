@@ -62,7 +62,8 @@ import {
   Package,
   MapPin,
   Palette,
-  HardHat
+  HardHat,
+  FileCheck
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -70,6 +71,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
+import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
@@ -200,12 +202,13 @@ export default function TareasPage() {
   // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
   const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
-  // Pestañas siempre presentes: Tareas, Seguimiento, Rutas Comerciales, Calendario (4).
+  // Pestañas siempre presentes: Tareas, Seguimiento, Calendario (3).
+  // Rutas Comerciales se muestra en todas las áreas salvo Construcción, que en su
+  // lugar tiene Visitas Técnicas (ver showVisitasTab más abajo, junto a esConstruccion).
   // Estimación y Marketing solo para no-técnico y no-marketing; CRM según permiso.
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
-  const visibleTabCount = 4 + (showExtraSegmentTabs ? 2 : 0) + (showCrmTab ? 1 : 0);
-  const tabsGridClass =
-    ({ 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
+  // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
+  const canVerVisitas = can("postventa.visitas");
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
@@ -325,7 +328,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "marketing", "crm", "rutas-comerciales", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "marketing", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -708,14 +711,26 @@ export default function TareasPage() {
     return false;
   })();
 
-  // Construcción no tiene "Estimación de ventas" (la reemplaza "Obras"). Si el
-  // usuario venía parado en esa pestaña y cambia a un área de Construcción,
-  // regresa a Tareas para no quedar en una pestaña sin trigger visible.
+  // Construcción cambia dos pestañas: "Estimación de ventas" → "Obras" y
+  // "Rutas Comerciales" → "Visitas Técnicas" (que salió del sidebar).
+  const showRutasTab = !esConstruccion;
+  const showVisitasTab = esConstruccion && canVerVisitas;
+  const visibleTabCount =
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showExtraSegmentTabs ? 2 : 0) + (showCrmTab ? 1 : 0);
+  const tabsGridClass =
+    ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
+
+  // Si el usuario venía parado en una pestaña que el área actual no ofrece
+  // (Estimación y Rutas Comerciales no existen en Construcción; Visitas Técnicas
+  // solo existe ahí), regresa a Tareas para no quedar en una pestaña sin trigger.
   useEffect(() => {
-    if (esConstruccion && activeTab === "estimacion") {
+    if (esConstruccion && (activeTab === "estimacion" || activeTab === "rutas-comerciales")) {
       setActiveTab("tareas");
     }
-  }, [esConstruccion, activeTab]);
+    if (!showVisitasTab && activeTab === "visitas-tecnicas") {
+      setActiveTab("tareas");
+    }
+  }, [esConstruccion, showVisitasTab, activeTab]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -1810,11 +1825,20 @@ export default function TareasPage() {
                 {tabChangeBadge("crm")}
               </TabsTrigger>
             )}
-            <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass} onClick={() => handleTabTriggerClick("rutas-comerciales")}>
-              <MapPin className={tabIconClass} />
-              Rutas Comerciales
-              {tabChangeBadge("rutas-comerciales")}
-            </TabsTrigger>
+            {/* Rutas Comerciales no aplica a Construcción: ahí su lugar lo toma Visitas Técnicas. */}
+            {showRutasTab && (
+              <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass} onClick={() => handleTabTriggerClick("rutas-comerciales")}>
+                <MapPin className={tabIconClass} />
+                Rutas Comerciales
+                {tabChangeBadge("rutas-comerciales")}
+              </TabsTrigger>
+            )}
+            {showVisitasTab && (
+              <TabsTrigger value="visitas-tecnicas" data-testid="tab-visitas-tecnicas" className={tabTriggerClass}>
+                <FileCheck className={tabIconClass} />
+                Visitas Técnicas
+              </TabsTrigger>
+            )}
             <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
               <CalendarIcon className={tabIconClass} />
               Calendario
@@ -3179,9 +3203,18 @@ export default function TareasPage() {
         )}
 
         {/* Rutas Comerciales — el supervisor crea rutas y asigna clientes; el vendedor ve las suyas */}
-        <TabsContent value="rutas-comerciales" className="space-y-6">
-          <RutasComercialesContent />
-        </TabsContent>
+        {showRutasTab && (
+          <TabsContent value="rutas-comerciales" className="space-y-6">
+            <RutasComercialesContent />
+          </TabsContent>
+        )}
+
+        {/* Visitas Técnicas — módulo propio de Construcción (salió del sidebar y vive acá) */}
+        {showVisitasTab && (
+          <TabsContent value="visitas-tecnicas" className="space-y-6">
+            <VisitasTecnicasContent embedded />
+          </TabsContent>
+        )}
 
         {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
         {showCrmTab && (
