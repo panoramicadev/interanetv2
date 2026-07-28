@@ -48,7 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -58,6 +58,8 @@ import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
+import CampanasPage from "./campanas";
+import { MarketingSolicitudesInbox } from "./tareas";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -162,6 +164,10 @@ export default function Marketing() {
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
 
+  // Email Marketing vive acá como pestaña (salió del sidebar); usa el mismo
+  // permiso que gobierna la API de campañas.
+  const canCampanas = can('market.campanas');
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8 space-y-6">
@@ -182,9 +188,29 @@ export default function Marketing() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="inventario" className="w-full">
+        <Tabs defaultValue="solicitudes" className="w-full">
           <div>
             <TabsList className="flex w-full gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              <TabsTrigger
+                value="solicitudes"
+                data-testid="tab-solicitudes"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+              >
+                <ClipboardList className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Solicitudes</span>
+              </TabsTrigger>
+
+              {canCampanas && (
+                <TabsTrigger
+                  value="email-marketing"
+                  data-testid="tab-email-marketing"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <Send className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Email Marketing</span>
+                </TabsTrigger>
+              )}
+
               <TabsTrigger
                 value="inventario"
                 data-testid="tab-inventario"
@@ -228,6 +254,25 @@ export default function Marketing() {
               )}
             </TabsList>
           </div>
+
+          {/* Tab: Solicitudes — bandeja de pedidos del equipo al área (antes vivía
+              como pestaña Marketing del Panel de Trabajo). */}
+          <TabsContent value="solicitudes" className="space-y-6">
+            <MarketingSolicitudesInbox
+              viewer={
+                user.role === 'marketing' ? 'marketing'
+                  : user.role === 'admin' ? 'admin'
+                  : 'solicitante'
+              }
+            />
+          </TabsContent>
+
+          {/* Tab: Email Marketing — campañas de mailing (antes vivía en /campanas) */}
+          {canCampanas && (
+            <TabsContent value="email-marketing" className="space-y-6">
+              <CampanasPage embedded />
+            </TabsContent>
+          )}
 
           {/* Tab: Inventario */}
           <TabsContent value="inventario" className="space-y-6">

@@ -124,7 +124,10 @@ function SourceBadge({ source, className = "" }: { source: string; className?: s
 // ================================================================
 // PÁGINA PRINCIPAL
 // ================================================================
-export default function CampanasPage() {
+/** `embedded` = renderizado como pestaña dentro de otro módulo (Marketing):
+ *  se omite el chrome de página (alto completo, padding y hero oscuro) para no
+ *  duplicar el header del módulo anfitrión. */
+export default function CampanasPage({ embedded = false }: { embedded?: boolean }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -174,33 +177,53 @@ export default function CampanasPage() {
   }, [allCampaigns]);
 
   if (editingId) {
-    return <CampaignEditor campaignId={editingId} onBack={() => { setEditingId(null); qc.invalidateQueries({ queryKey: ["/api/campanas"] }); }} />;
+    return <CampaignEditor campaignId={editingId} embedded={embedded} onBack={() => { setEditingId(null); qc.invalidateQueries({ queryKey: ["/api/campanas"] }); }} />;
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900">
-      <div className="w-full px-6 py-8 space-y-6">
-        {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-          <div className="relative flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-orange-500/20 backdrop-blur-sm border border-orange-400/30">
-              <Megaphone className="h-6 w-6 text-orange-300" />
-            </div>
-            <div className="flex-1">
+    <div className={embedded ? "" : "min-h-screen bg-white dark:bg-slate-900"}>
+      <div className={embedded ? "space-y-6" : "w-full px-6 py-8 space-y-6"}>
+        {/* Header — como pestaña va una barra liviana; como página, el hero oscuro */}
+        {embedded ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-white tracking-tight">Campañas Mailing</h1>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-400/30 px-2 py-0.5 rounded-full">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Email Marketing</h2>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-400/30 px-2 py-0.5 rounded-full">
                   <Sparkles className="h-3 w-3" /> Resend
                 </span>
               </div>
-              <p className="text-sm text-slate-300 mt-1">Creá newsletters y envíos masivos a clientes, CRM, cotizador web, obras, distribuidores o listas propias.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Creá newsletters y envíos masivos a clientes, CRM, cotizador web, obras, distribuidores o listas propias.</p>
             </div>
-            <Button onClick={() => setCreating(true)} className="bg-orange-500 hover:bg-orange-600">
+            <Button
+              onClick={() => setCreating(true)}
+              className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
+            >
               <Plus className="h-4 w-4 mr-2" /> Nueva campaña
             </Button>
           </div>
-        </div>
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+            <div className="relative flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-orange-500/20 backdrop-blur-sm border border-orange-400/30">
+                <Megaphone className="h-6 w-6 text-orange-300" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Campañas Mailing</h1>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-400/30 px-2 py-0.5 rounded-full">
+                    <Sparkles className="h-3 w-3" /> Resend
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 mt-1">Creá newsletters y envíos masivos a clientes, CRM, cotizador web, obras, distribuidores o listas propias.</p>
+              </div>
+              <Button onClick={() => setCreating(true)} className="bg-orange-500 hover:bg-orange-600">
+                <Plus className="h-4 w-4 mr-2" /> Nueva campaña
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -413,7 +436,7 @@ function CreateCampaignDialog({ open, onClose, onCreated }: { open: boolean; onC
 // ================================================================
 // EDITOR DE CAMPAÑA
 // ================================================================
-function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: () => void }) {
+function CampaignEditor({ campaignId, onBack, embedded = false }: { campaignId: string; onBack: () => void; embedded?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -447,15 +470,15 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
 
   if (isLoading || !campaign) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground gap-2">
+      <div className={`flex items-center justify-center text-muted-foreground gap-2 ${embedded ? "py-16" : "min-h-screen"}`}>
         <Loader2 className="h-5 w-5 animate-spin" /> Cargando campaña...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900">
-      <div className="w-full px-6 py-6 space-y-5">
+    <div className={embedded ? "" : "min-h-screen bg-white dark:bg-slate-900"}>
+      <div className={embedded ? "space-y-5" : "w-full px-6 py-6 space-y-5"}>
         {/* Barra superior */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" /> Volver</Button>
