@@ -7,10 +7,11 @@ import {
   Image as ImageIcon, Upload, Minus, Quote, MousePointerClick, MoveVertical,
   Search, Building2, Target, ClipboardList, Download, Monitor, Smartphone,
   UserPlus, CheckCheck, Square, X, ShoppingCart, BookOpen, HardHat, MapPin,
-  Info,
+  MoreVertical, Archive, ArchiveRestore,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmojiInput } from "@/components/ui/emoji-picker";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -19,6 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +46,7 @@ type Campaign = {
   sentCount: number;
   failedCount: number;
   registerInCrm: boolean;
+  archived?: boolean;
   sentAt?: string | null;
   createdAt: string;
 };
@@ -120,29 +127,59 @@ function SourceBadge({ source, className = "" }: { source: string; className?: s
 export default function CampanasPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [toDelete, setToDelete] = useState<Campaign | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
+  const { data: allCampaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campanas"],
     refetchInterval: (q) => ((q.state.data as Campaign[] | undefined)?.some((c) => c.status === "sending") ? 4000 : false),
   });
 
+  const archivedCount = allCampaigns.filter((c) => c.archived).length;
+  const campaigns = useMemo(
+    () => allCampaigns.filter((c) => (showArchived ? c.archived : !c.archived)),
+    [allCampaigns, showArchived],
+  );
+
+  const archiveMut = useMutation({
+    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) =>
+      (await apiRequest(`/api/campanas/${id}/archive`, { method: "POST", data: { archived } })).json(),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["/api/campanas"] });
+      toast({ title: v.archived ? "Campaña archivada" : "Campaña restaurada" });
+    },
+    onError: (e: any) => toast({ title: "No se pudo archivar", description: e?.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => (await apiRequest(`/api/campanas/${id}`, { method: "DELETE" })).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/campanas"] });
+      setToDelete(null);
+      toast({ title: "Campaña eliminada" });
+    },
+    onError: (e: any) => toast({ title: "No se pudo eliminar", description: e?.message, variant: "destructive" }),
+  });
+
+  // Las métricas miran SIEMPRE el total real (incluidas las archivadas): archivar
+  // ordena la lista, no reescribe el historial de envíos.
   const stats = useMemo(() => {
-    const total = campaigns.length;
-    const sent = campaigns.filter((c) => ["sent", "partial"].includes(c.status)).length;
-    const recipients = campaigns.reduce((a, c) => a + (c.sentCount || 0), 0);
-    const scheduled = campaigns.filter((c) => c.status === "scheduled").length;
+    const total = allCampaigns.length;
+    const sent = allCampaigns.filter((c) => ["sent", "partial"].includes(c.status)).length;
+    const recipients = allCampaigns.reduce((a, c) => a + (c.sentCount || 0), 0);
+    const scheduled = allCampaigns.filter((c) => c.status === "scheduled").length;
     return { total, sent, recipients, scheduled };
-  }, [campaigns]);
+  }, [allCampaigns]);
 
   if (editingId) {
     return <CampaignEditor campaignId={editingId} onBack={() => { setEditingId(null); qc.invalidateQueries({ queryKey: ["/api/campanas"] }); }} />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
-      <div className="container mx-auto px-6 py-8 space-y-6 max-w-7xl">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
+      <div className="w-full px-6 py-8 space-y-6">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
@@ -176,8 +213,25 @@ export default function CampanasPage() {
         {/* Lista */}
         <Card>
           <CardHeader>
-            <CardTitle>Tus campañas</CardTitle>
-            <CardDescription>Historial de campañas creadas. Hacé clic para editar, revisar o enviar.</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>{showArchived ? "Campañas archivadas" : "Tus campañas"}</CardTitle>
+                <CardDescription>
+                  {showArchived
+                    ? "Campañas guardadas fuera de la lista principal. Podés restaurarlas cuando quieras."
+                    : "Historial de campañas creadas. Hacé clic para editar, revisar o enviar."}
+                </CardDescription>
+              </div>
+              {(archivedCount > 0 || showArchived) && (
+                <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
+                  {showArchived ? (
+                    <><ArrowLeft className="h-4 w-4 mr-1.5" /> Volver a activas</>
+                  ) : (
+                    <><Archive className="h-4 w-4 mr-1.5" /> Archivadas ({archivedCount})</>
+                  )}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -187,10 +241,14 @@ export default function CampanasPage() {
             ) : campaigns.length === 0 ? (
               <div className="text-center py-12">
                 <Megaphone className="h-10 w-10 mx-auto text-slate-300 mb-3" />
-                <p className="text-sm text-muted-foreground">Todavía no creaste campañas.</p>
-                <Button variant="outline" className="mt-4" onClick={() => setCreating(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> Crear la primera
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {showArchived ? "No hay campañas archivadas." : "Todavía no creaste campañas."}
+                </p>
+                {!showArchived && (
+                  <Button variant="outline" className="mt-4" onClick={() => setCreating(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Crear la primera
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="rounded-lg border overflow-hidden">
@@ -202,6 +260,7 @@ export default function CampanasPage() {
                       <TableHead className="text-right">Destinatarios</TableHead>
                       <TableHead className="text-right">Enviados</TableHead>
                       <TableHead>Fecha</TableHead>
+                      <TableHead className="w-12" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -220,6 +279,38 @@ export default function CampanasPage() {
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {c.status === "scheduled" ? `⏰ ${fmtDate(c.scheduledAt)}` : fmtDate(c.sentAt || c.createdAt)}
                         </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Acciones">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditingId(c.id)}>
+                                <FileText className="h-4 w-4 mr-2" /> Abrir
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={c.status === "sending" || archiveMut.isPending}
+                                onClick={() => archiveMut.mutate({ id: c.id, archived: !c.archived })}
+                              >
+                                {c.archived ? (
+                                  <><ArchiveRestore className="h-4 w-4 mr-2" /> Restaurar</>
+                                ) : (
+                                  <><Archive className="h-4 w-4 mr-2" /> Archivar</>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                disabled={c.status === "sending"}
+                                onClick={() => setToDelete(c)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -235,6 +326,29 @@ export default function CampanasPage() {
         onClose={() => setCreating(false)}
         onCreated={(id) => { setCreating(false); setEditingId(id); }}
       />
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar "{toDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra la campaña y sus {fmtNum(toDelete?.totalRecipients || 0)} destinatarios, junto con el
+              historial de envíos. Esta acción no se puede deshacer: si solo querés sacarla de la lista, archivala.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMut.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMut.isPending}
+              onClick={(e) => { e.preventDefault(); if (toDelete) deleteMut.mutate(toDelete.id); }}
+            >
+              {deleteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Eliminar definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -281,7 +395,7 @@ function CreateCampaignDialog({ open, onClose, onCreated }: { open: boolean; onC
           </div>
           <div>
             <Label>Asunto del correo</Label>
-            <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Nuevas ofertas de invierno 🎨" />
+            <EmojiInput className="mt-1.5" value={subject} onValueChange={setSubject} placeholder="Ej: Nuevas ofertas de invierno 🎨" />
           </div>
         </div>
         <DialogFooter>
@@ -340,8 +454,8 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
-      <div className="container mx-auto px-6 py-6 space-y-5 max-w-6xl">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
+      <div className="w-full px-6 py-6 space-y-5">
         {/* Barra superior */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" /> Volver</Button>
@@ -372,7 +486,7 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
 
             {/* DETALLES */}
             <TabsContent value="detalles" className="mt-5">
-              <Card>
+              <Card className="max-w-5xl">
                 <CardHeader><CardTitle className="text-base">Detalles de la campaña</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -382,7 +496,7 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
                     </div>
                     <div>
                       <Label>Asunto <span className="text-red-500">*</span></Label>
-                      <Input className="mt-1.5" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Podés usar {{nombre}}" />
+                      <EmojiInput className="mt-1.5" value={form.subject} onValueChange={(v) => setForm({ ...form, subject: v })} placeholder="Podés usar {{nombre}}" />
                     </div>
                     <div className="md:col-span-2">
                       <Label>Preheader <span className="text-xs text-muted-foreground">(texto de vista previa en la bandeja)</span></Label>
@@ -419,7 +533,7 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
             </TabsContent>
 
             {/* ENVIAR */}
-            <TabsContent value="enviar" className="mt-5">
+            <TabsContent value="enviar" className="mt-5 max-w-6xl">
               <SendPanel campaign={campaign} form={form} onSaveFirst={() => saveMut.mutateAsync()} onBack={onBack} />
             </TabsContent>
           </Tabs>
@@ -544,10 +658,29 @@ function ContentEditor({ value, onChange, subject, preheader }: { value: string;
     return renderCampaignEmail({ body, logoUrl: LOGO_URL, preheader: null });
   }, [value]);
 
+  // La vista previa se renderiza SIEMPRE a 640px (el correo es una tabla fija de
+  // 600px) y después se escala para entrar en la columna: así nunca aparece la
+  // barra horizontal y en "móvil" se ve el mismo achique que hace el teléfono.
+  const previewBox = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = previewBox.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+  const FRAME_W = 640;
+  const targetW = device === "mobile" ? 390 : box.w || FRAME_W;
+  const scale = Math.min(1, Math.max(0.3, targetW / FRAME_W));
+  const frameH = Math.max(400, (box.h || 600) / scale);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card>
-        <CardHeader className="pb-3">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(400px,620px)] xl:h-[calc(100vh-15rem)] xl:min-h-[600px]">
+      <Card className="flex flex-col overflow-hidden">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Contenido del correo</CardTitle>
             <div className="flex gap-1">
@@ -560,10 +693,10 @@ function ContentEditor({ value, onChange, subject, preheader }: { value: string;
             El logo, la cabecera negra y el pie se agregan automáticamente.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 min-h-0 flex flex-col">
           {mode === "visual" ? (
             <>
-              <div className="border rounded-lg bg-slate-50 mb-2 divide-y">
+              <div className="border rounded-lg bg-slate-50 mb-2 divide-y shrink-0">
                 {/* Formato */}
                 <div className="flex flex-wrap items-center gap-1 p-1.5">
                   <ToolbarBtn onClick={() => exec("bold")} icon={Bold} title="Negrita" />
@@ -598,11 +731,11 @@ function ContentEditor({ value, onChange, subject, preheader }: { value: string;
                   const files = Array.from(e.clipboardData?.files || []);
                   if (files.length) { e.preventDefault(); insertFiles(files); }
                 }}
-                className={`min-h-[320px] border rounded-lg p-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 prose prose-sm max-w-none transition-colors ${dragging ? "border-orange-400 bg-orange-50/50 ring-2 ring-orange-300/40" : ""}`}
+                className={`flex-1 min-h-[320px] overflow-y-auto border rounded-lg p-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 prose prose-sm max-w-none transition-colors ${dragging ? "border-orange-400 bg-orange-50/50 ring-2 ring-orange-300/40" : ""}`}
                 style={{ lineHeight: 1.6 }}
                 suppressContentEditableWarning
               />
-              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground shrink-0">
                 {uploading ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" /> Subiendo imagen…</>
                 ) : (
@@ -614,37 +747,46 @@ function ContentEditor({ value, onChange, subject, preheader }: { value: string;
             <Textarea
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              rows={16}
-              className="font-mono text-xs"
+              className="flex-1 min-h-[320px] resize-none font-mono text-xs"
               placeholder="<p>Hola {{nombre}}, ...</p>"
             />
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="flex flex-col overflow-hidden">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base flex items-center gap-2"><Eye className="h-4 w-4" /> Vista previa</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="h-4 w-4" /> Vista previa
+              {scale < 0.99 && <span className="text-[11px] font-normal text-muted-foreground tabular-nums">{Math.round(scale * 100)}%</span>}
+            </CardTitle>
             <div className="flex gap-1">
               <Button size="sm" variant={device === "desktop" ? "default" : "outline"} className="h-8 w-8 p-0" title="Escritorio" onClick={() => setDevice("desktop")}><Monitor className="h-4 w-4" /></Button>
               <Button size="sm" variant={device === "mobile" ? "default" : "outline"} className="h-8 w-8 p-0" title="Móvil" onClick={() => setDevice("mobile")}><Smartphone className="h-4 w-4" /></Button>
             </div>
           </div>
-          <CardDescription className="truncate">Asunto: <strong>{subject || "(sin asunto)"}</strong></CardDescription>
+          <CardDescription className="truncate">
+            Asunto: <strong>{subject || "(sin asunto)"}</strong>
+            {preheader && <span className="text-muted-foreground"> — {preheader}</span>}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex justify-center bg-slate-100 rounded-lg p-2">
-            <iframe
-              title="preview"
-              srcDoc={previewSrc}
-              className="h-[460px] border rounded-lg bg-white transition-all"
-              style={{ width: device === "mobile" ? 380 : "100%" }}
-            />
+        <CardContent className="flex-1 min-h-0 flex flex-col">
+          <div ref={previewBox} className="flex-1 min-h-[520px] xl:min-h-0 overflow-hidden rounded-lg bg-slate-100 flex justify-center">
+            <div style={{ width: FRAME_W * scale, height: "100%" }}>
+              <iframe
+                title="preview"
+                srcDoc={previewSrc}
+                className="border-0 bg-white"
+                style={{
+                  width: FRAME_W,
+                  height: frameH,
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                }}
+              />
+            </div>
           </div>
-          {preheader && (
-            <p className="text-xs text-muted-foreground mt-2 truncate">Preheader: {preheader}</p>
-          )}
         </CardContent>
       </Card>
 
@@ -929,8 +1071,6 @@ function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: C
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
       {/* Fuentes */}
       <div className="lg:col-span-3 space-y-4">
-        <SourcesOverview />
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2"><UserPlus className="h-4 w-4" /> Agregar destinatarios</CardTitle>
@@ -1076,51 +1216,6 @@ function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: C
         <RecipientsPanel detail={detail} onRemove={(id) => removeMut.mutate(id)} onClear={() => clearMut.mutate()} clearing={clearMut.isPending} />
       </div>
     </div>
-  );
-}
-
-/** Cuántos contactos con correo hay disponibles hoy en cada módulo del sistema. */
-function SourcesOverview() {
-  const { data, isLoading } = useQuery<{ sources: { source: string; count: number; error?: boolean }[] }>({
-    queryKey: ["/api/campanas/audience/sources"],
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const rows = data?.sources || [];
-  const total = rows.reduce((a, s) => a + (s.count || 0), 0);
-
-  return (
-    <Card className="border-orange-100 bg-orange-50/40">
-      <CardContent className="py-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Info className="h-4 w-4 text-orange-600" />
-          <p className="text-sm font-medium text-slate-800">
-            Leads disponibles en el sistema{!isLoading && total > 0 ? `: ${fmtNum(total)}` : ""}
-          </p>
-          {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {AUDIENCE_TABS.filter((t) => t.key !== "manual").map((t) => {
-            const row = rows.find((r) => r.source === t.key);
-            const Icon = t.icon;
-            return (
-              <span
-                key={t.key}
-                className={`inline-flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 bg-white ${row?.count ? "border-slate-200 text-slate-700" : "border-slate-100 text-slate-400"}`}
-                title={`Fuente: ${t.label}`}
-              >
-                <Icon className="h-3 w-3" />
-                {t.label}
-                <strong className="tabular-nums">{isLoading ? "…" : fmtNum(row?.count || 0)}</strong>
-              </span>
-            );
-          })}
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          Los totales son contactos únicos con correo válido por fuente; un mismo correo puede aparecer en más de una.
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 

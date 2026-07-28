@@ -561,6 +561,27 @@ export function registerCampaignRoutes(app: Express) {
     }
   });
 
+  // Archivar / desarchivar. Va aparte del PATCH porque el caso típico es guardar
+  // una campaña YA enviada, y el PATCH bloquea justamente ese estado.
+  app.post('/api/campanas/:id/archive', requireAuth, requireCampaigns, async (req, res) => {
+    try {
+      const campaign = await getCampaignOr404(req.params.id, res);
+      if (!campaign) return;
+      if (campaign.status === 'sending') {
+        return res.status(409).json({ message: 'No se puede archivar una campaña en envío.' });
+      }
+      const archived = req.body?.archived !== false;
+      const [row] = await db
+        .update(emailCampaigns)
+        .set({ archived, updatedAt: new Date() })
+        .where(eq(emailCampaigns.id, campaign.id))
+        .returning();
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message });
+    }
+  });
+
   app.delete('/api/campanas/:id', requireAuth, requireCampaigns, async (req, res) => {
     try {
       const campaign = await getCampaignOr404(req.params.id, res);

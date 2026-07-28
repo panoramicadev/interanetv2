@@ -7907,6 +7907,7 @@ export const emailCampaigns = pgTable("email_campaigns", {
   sentCount: integer("sent_count").notNull().default(0),
   failedCount: integer("failed_count").notNull().default(0),
   registerInCrm: boolean("register_in_crm").notNull().default(false), // insertar contactos manuales en CRM/Seguimiento
+  archived: boolean("archived").notNull().default(false), // fuera de la lista principal, sin borrar el historial
   createdBy: varchar("created_by"), // FK users.id
   startedAt: timestamp("started_at"),
   sentAt: timestamp("sent_at"),
@@ -7955,6 +7956,7 @@ export const insertEmailCampaignSchema = createInsertSchema(emailCampaigns, {
   totalRecipients: true,
   sentCount: true,
   failedCount: true,
+  archived: true,
   startedAt: true,
   sentAt: true,
   createdAt: true,

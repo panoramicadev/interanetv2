@@ -723,6 +723,11 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaigns_status" ON email_campaigns (status)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaigns_scheduled_at" ON email_campaigns (scheduled_at)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaigns_created_at" ON email_campaigns (created_at)`);
+    // Ver migrations/066_email_campaigns_archived.sql — archivar saca la campaña
+    // de la lista sin borrar su historial. Mismo motivo que source_detail:
+    // Drizzle la enumera en cada SELECT, tiene que existir sí o sí.
+    await db.execute(sql`ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_email_campaigns_archived" ON email_campaigns (archived)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS email_campaign_recipients (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
