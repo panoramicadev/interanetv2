@@ -1191,6 +1191,23 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_push_subscriptions_user_id" ON push_subscriptions (user_id)`);
 
+    // Obras: control de avance por obra para la pestaña "Obras" del Panel de Trabajo
+    // (migración 068 — runtime bootstrap porque el runner no es confiable en prod).
+    console.log('  🏗️  Verificando columnas de control de obras...');
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS ciudad TEXT`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS programa VARCHAR(30)`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS temporada VARCHAR(20)`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS viviendas INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tinetas_por_vivienda NUMERIC(5, 2) NOT NULL DEFAULT 1.5`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tinetas_proyectadas INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS viviendas_pintadas INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tinetas_utilizadas_real NUMERIC(10, 2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tinetas_pedidas INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tinetas_entregadas INTEGER NOT NULL DEFAULT 0`);
+    // La obra se identifica por ciudad; la dirección postal suele no existir aún.
+    await db.execute(sql`ALTER TABLE obras ALTER COLUMN direccion DROP NOT NULL`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obras_cliente_id" ON obras (cliente_id)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
