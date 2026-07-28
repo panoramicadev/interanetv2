@@ -4,7 +4,9 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(220, 13%, 97%);
+  /* Los módulos viven dentro de una tarjeta blanca (dashboard-layout);
+     el gris del canvas lo pone el layout, no el fondo de la página. */
+  --background: hsl(0, 0%, 100%);
   --foreground: hsl(220, 13%, 9%);
   --card: hsl(0, 0%, 100%);
   --card-foreground: hsl(220, 13%, 9%);
@@ -291,4 +293,11 @@
   .scrollbar-visible::-webkit-scrollbar-thumb:hover {
     background-color: rgba(100, 116, 139, 0.6);
   }
+}
+
+/* El módulo vive dentro de una tarjeta con 12px de margen arriba y abajo
+   (ver dashboard-layout). Las páginas usan min-h-screen (100vh), que dentro
+   de la tarjeta sobra 1.5rem y deja un scroll vertical fantasma en todas. */
+.module-card .min-h-screen {
+  min-height: calc(100vh - 1.5rem);
 }

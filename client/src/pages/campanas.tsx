@@ -141,7 +141,7 @@ export default function CampanasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-6 py-8 space-y-6 max-w-7xl">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl">
@@ -340,7 +340,7 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-6 py-6 space-y-5 max-w-6xl">
         {/* Barra superior */}
         <div className="flex items-center gap-3">
