@@ -1683,9 +1683,9 @@ function FilaObra({
         </td>
       </tr>
 
+      {/* Mismo tinte naranja de la fila abierta e indentado: el panel se lee
+          como hijo de esa obra y no como un bloque suelto de la tabla. */}
       {expandida && (
-        {/* Mismo tinte naranja de la fila abierta e indentado: el panel se lee
-            como hijo de esa obra y no como un bloque suelto de la tabla. */}
         <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-orange-50/40 dark:bg-orange-950/10">
           <td colSpan={columnas.length + 2} className="pl-10 pr-4 pb-4">
             <PanelProductos
