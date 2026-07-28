@@ -8,7 +8,7 @@ export default function MailingPage() {
   const canAccess = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'reception';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-6 py-8 space-y-6 max-w-7xl">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />

@@ -57,23 +57,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
-      separator: true,
-    },
-    {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
-    },
-    // CRM oculto del sidebar (la página sigue accesible por URL /seguimiento-clientes).
-    // {
-    //   href: "/seguimiento-clientes",
-    //   label: "CRM",
-    //   icon: UserCheck,
-    // },
-    {
-      href: "/tomador-pedidos-v2",
-      label: "Tomador de Pedidos",
-      icon: ClipboardCheck,
     },
     {
       href: "/ecommerce",
@@ -96,16 +79,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Clientes",
           icon: Users,
         },
-        {
-          href: "/logistica-rutas",
-          label: "Logística",
-          icon: Truck,
-        },
         // Cotizaciones oculta del sidebar (ruta /cotizaciones-b2c sigue activa)
         // {
         //   href: "/cotizaciones-b2c",
         //   label: "Cotizaciones",
         //   icon: FileText,
+        // },
+        // CRM oculto del sidebar (la página sigue accesible por URL /seguimiento-clientes).
+        // {
+        //   href: "/seguimiento-clientes",
+        //   label: "CRM",
+        //   icon: UserCheck,
         // },
         {
           href: "/donde-comprar-admin",
@@ -125,56 +109,32 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
       separator: true,
     },
+    // ── Operación diaria ──
     {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
+      href: "/tareas",
+      label: "Panel de Trabajo",
+      icon: CheckCircle2,
     },
-    // Campañas vive fuera del desplegable de Market para el admin: es un
-    // módulo que se usa a diario y quedaba escondido dentro del grupo.
     {
-      href: "/campanas",
-      label: "Campañas Mailing",
-      icon: Send,
+      href: "/tomador-pedidos-v2",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    // Logística sube a primer nivel (antes vivía dentro del desplegable de Market)
+    {
+      href: "/logistica-rutas",
+      label: "Logística",
+      icon: Truck,
     },
     {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-      separator: true,
-    },
-    {
-      href: "/facturas",
-      label: "Finanzas",
-      icon: Receipt,
-    },
-    {
-      href: "/margen",
-      label: "Margen",
-      icon: TrendingUp,
-    },
-    {
-      href: "/comisiones",
-      label: "Comisiones",
-      icon: DollarSign,
-      separator: true,
-    },
-    {
-      href: "/post-venta",
-      label: "Post-Venta",
-      icon: ClipboardCheck,
-      children: [
-        {
-          href: "/visitas-tecnicas",
-          label: "Visita Técnica",
-          icon: FileCheck,
-        },
-        {
-          href: "/reclamos-generales",
-          label: "Reclamos",
-          icon: AlertTriangle,
-        },
-      ],
     },
     {
       href: "/tintometria",
@@ -197,6 +157,49 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PaintBucket,
         },
       ],
+      separator: true,
+    },
+    // ── Marketing ──
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
+      href: "/campanas",
+      label: "Email Marketing",
+      icon: Send,
+      separator: true,
+    },
+    // ── Finanzas ──
+    {
+      href: "/facturas",
+      label: "Finanzas",
+      icon: Receipt,
+    },
+    {
+      href: "/margen",
+      label: "Margen",
+      icon: TrendingUp,
+      separator: true,
+    },
+    // ── Post-venta ──
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+      separator: true,
+    },
+    // ── Resto de módulos del admin (fuera del orden pedido, van al final) ──
+    {
+      href: "/visitas-tecnicas",
+      label: "Visita Técnica",
+      icon: FileCheck,
+    },
+    {
+      href: "/comisiones",
+      label: "Comisiones",
+      icon: DollarSign,
     },
     {
       href: "/mantenciones",

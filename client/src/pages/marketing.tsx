@@ -163,7 +163,7 @@ export default function Marketing() {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/20">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8 space-y-6">
 
         {/* Header */}

@@ -7,7 +7,6 @@ import {
   ChevronDown,
   RefreshCw,
   Sparkles,
-  Search,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -43,10 +42,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     try { localStorage.setItem("sidebar_collapsed", val ? "1" : "0"); } catch {}
   };
   const toggleCollapsed = () => setCollapsed(!isCollapsed);
-
-  // Búsqueda rápida de módulos del sidebar
-  const [search, setSearch] = useState("");
-  const normalizedSearch = search.trim().toLowerCase();
 
   // Colapso efectivo: en móvil (drawer abierto) siempre expandido
   const collapsed = isCollapsed && !isMobileOpen;
@@ -128,28 +123,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     [user?.role, can, permissions],
   );
 
-  // Filtrado por búsqueda: deja pasar ítems cuyo label (o el de algún hijo) coincida.
-  // Sin búsqueda devuelve la lista tal cual (con separadores y deshabilitados).
-  const visibleItems = useMemo(() => {
-    if (!normalizedSearch) return sidebarItems;
-    const match = (s: string) => (s || "").toLowerCase().includes(normalizedSearch);
-    const result: any[] = [];
-    for (const item of sidebarItems) {
-      if (item.disabled) continue;
-      if (item.children && item.children.length > 0) {
-        if (match(item.label)) {
-          result.push(item);
-        } else {
-          const kids = item.children.filter((c: any) => match(c.label));
-          if (kids.length > 0) result.push({ ...item, children: kids });
-        }
-      } else if (match(item.label)) {
-        result.push(item);
-      }
-    }
-    return result;
-  }, [sidebarItems, normalizedSearch]);
-
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 30000,
@@ -170,8 +143,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const isNotif = item.href === "/notificaciones";
     const isAi = item.href === "/ai-assistant";
     const isPremium = item.isPremium;
-    // Al buscar, los grupos con coincidencias se muestran expandidos
-    const isExpanded = expandedItems.has(item.href) || !!normalizedSearch;
+    const isExpanded = expandedItems.has(item.href);
     const hasChildren = item.children && item.children.length > 0;
     const hasActiveChild = hasChildren && item.children.some(
       (c: any) => location === c.href || (c.href !== "/mantenciones" && location.startsWith(c.href + "/"))
@@ -380,7 +352,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
       {/* Mobile Button */}
       <button
         className="fixed bottom-5 left-5 z-50 lg:hidden w-10 h-10 bg-[#0a0a0a] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
@@ -398,11 +370,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — tarjeta flotante */}
       <div
-        className={`fixed inset-y-0 left-0 z-[60] ${collapsed ? "w-20" : "w-64"} bg-[#0a0a0a] flex flex-col transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-[60] p-3 ${collapsed ? "w-[5.75rem]" : "w-[17.5rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
+      <div className="h-full flex flex-col bg-[#0a0a0a] rounded-3xl shadow-xl shadow-slate-900/10 overflow-hidden">
         {/* Logo + collapse toggle */}
         <div className={`relative flex-shrink-0 ${collapsed ? "px-2 pt-5 pb-3 flex flex-col items-center gap-2" : "px-3 pt-5 pb-3 flex items-center justify-center"}`}>
           <button
@@ -424,45 +397,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </button>
         </div>
 
-        {/* Search */}
-        {collapsed ? (
-          <div className="px-2 pb-3 flex justify-center flex-shrink-0">
-            <button
-              title="Buscar"
-              onClick={() => setCollapsed(false)}
-              className="w-11 h-11 rounded-xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all duration-150"
-              data-testid="sidebar-search-open"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="px-3 pb-3 flex-shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar módulo..."
-                className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#fd6301]/40 focus:border-[#fd6301]/50 transition-all"
-                data-testid="sidebar-search-input"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Navigation — items in card sections */}
-        <nav className={`flex-1 ${collapsed ? "px-2.5" : "px-4"} pb-4 space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide`}>
-          {visibleItems.map((item, index) => (
+        {/* Navigation */}
+        <nav className={`flex-1 ${collapsed ? "px-2.5" : "px-4"} pt-1 pb-4 space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide`}>
+          {sidebarItems.map((item, index) => (
             <NavItem key={item.disabled ? `disabled-${index}` : item.href} item={item} index={index} />
           ))}
 
-          {normalizedSearch && visibleItems.length === 0 && (
-            <p className="text-xs text-slate-500 text-center py-6">Sin resultados para "{search}"</p>
-          )}
-
-          {can("config.importar") && !normalizedSearch && (
+          {can("config.importar") && (
             <button
               className={`w-full flex items-center ${collapsed ? "justify-center py-3" : "gap-3 px-4 py-2.5"} rounded-xl text-sm text-slate-200 hover:text-white hover:bg-slate-800/70 transition-all duration-150`}
               title={collapsed ? "Importar Datos" : undefined}
@@ -534,10 +475,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         </div>
       </div>
+      </div>
 
-      {/* Main Content */}
-      <div className={`${isCollapsed ? "lg:ml-20" : "lg:ml-64"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
-        {children}
+      {/* Main Content — tarjeta blanca del módulo */}
+      <div className={`${isCollapsed ? "lg:pl-[5.75rem]" : "lg:pl-[17.5rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
+        <main className="p-3 lg:pl-0">
+          <div className="module-card bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800 shadow-sm min-h-[calc(100vh-1.5rem)] overflow-clip">
+            {children}
+          </div>
+        </main>
       </div >
 
       {/* Modals */}

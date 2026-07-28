@@ -26,7 +26,7 @@ export default function FacturasMainPage() {
   const canSeeProyeccion = user.role !== 'salesperson';
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       {/* Modern SaaS Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
