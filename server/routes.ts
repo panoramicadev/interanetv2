@@ -28552,6 +28552,136 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ================================================================================
+  // Chat de una solicitud de marketing — comunicación entre Marketing y el solicitante.
+  // Se apoya en pedido_bitacora con documentoTipo='solicitud_marketing' en vez de una
+  // tabla nueva: el hilo es el mismo formato (nota + autor + fecha) que la bitácora de
+  // pedidos, así que se reutiliza el almacenamiento y no hay migración de por medio.
+  // ================================================================================
+  const SOLICITUD_MKT_DOC_TIPO = 'solicitud_marketing';
+
+  // El hilo lo ven Marketing y admin (gestionan la bandeja) y el solicitante dueño
+  // de la solicitud. Nadie más: es una conversación de dos partes.
+  const puedeVerHiloSolicitud = (user: any, solicitud: any) =>
+    user.role === 'admin' ||
+    user.role === 'marketing' ||
+    String(solicitud.supervisorId ?? '') === String(user.id);
+
+  app.get('/api/marketing/solicitudes/:id/mensajes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      if (!puedeVerHiloSolicitud(req.user, solicitud)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const mensajes = await db
+        .select()
+        .from(pedidoBitacora)
+        .where(and(
+          eq(pedidoBitacora.documentoTipo, SOLICITUD_MKT_DOC_TIPO),
+          eq(pedidoBitacora.documentoId, req.params.id),
+        ))
+        .orderBy(asc(pedidoBitacora.createdAt))
+        .limit(200);
+
+      res.json(mensajes);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener mensajes', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/solicitudes/:id/mensajes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const nota = typeof req.body?.nota === 'string' ? req.body.nota.trim() : '';
+      if (!nota) {
+        return res.status(400).json({ message: 'El mensaje no puede estar vacío' });
+      }
+
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      if (!puedeVerHiloSolicitud(user, solicitud)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const autorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Sistema';
+
+      const [mensaje] = await db
+        .insert(pedidoBitacora)
+        .values({
+          documentoTipo: SOLICITUD_MKT_DOC_TIPO,
+          documentoId: req.params.id,
+          documentoNumero: solicitud.titulo ? String(solicitud.titulo).slice(0, 100) : null,
+          clienteNombre: solicitud.clienteNombre || null,
+          nota,
+          tipo: 'nota',
+          autorId: String(user.id),
+          autorNombre,
+          // created_at es un timestamp SIN zona: si se guarda la hora local del proceso,
+          // el cliente (que interpreta el valor como UTC) muestra la hora corrida. Se
+          // fija el instante en UTC para que la hora del chat calce en local y en el
+          // servidor de producción por igual.
+          createdAt: sql`timezone('utc', now())`,
+          updatedAt: sql`timezone('utc', now())`,
+        })
+        .returning();
+
+      // Aviso a la contraparte: si escribe Marketing, le llega al solicitante; si
+      // escribe el solicitante, le llega al equipo de Marketing (y a admin como
+      // respaldo cuando todavía no hay nadie con rol marketing cargado).
+      const esSolicitante = String(solicitud.supervisorId ?? '') === String(user.id);
+      const resumen = nota.length > 140 ? `${nota.slice(0, 140)}…` : nota;
+      try {
+        if (!esSolicitante && solicitud.supervisorId) {
+          await NotifyHelper.createAutoNotification({
+            targetType: 'personal',
+            targetUserId: String(solicitud.supervisorId),
+            title: `💬 Marketing te respondió: ${solicitud.titulo}`,
+            message: `${autorNombre}: ${resumen}`,
+            priority: 'media',
+            actionUrl: '/tareas',
+            createdByName: autorNombre,
+          });
+        } else if (esSolicitante) {
+          const { users } = await import('../shared/schema');
+          let destinatarios = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, 'marketing'));
+          if (destinatarios.length === 0) {
+            destinatarios = await db
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.role, 'admin'));
+          }
+          for (const destinatario of destinatarios) {
+            await NotifyHelper.createAutoNotification({
+              targetType: 'personal',
+              targetUserId: String(destinatario.id),
+              title: `💬 Mensaje en la solicitud: ${solicitud.titulo}`,
+              message: `${autorNombre}: ${resumen}`,
+              priority: 'media',
+              actionUrl: '/marketing',
+              createdByName: autorNombre,
+            });
+          }
+        }
+      } catch (err: any) {
+        // El mensaje ya quedó guardado: un fallo de notificación no puede tumbar el chat.
+        console.error('[MKT CHAT] No se pudo notificar el mensaje:', err?.message);
+      }
+
+      res.status(201).json(mensaje);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al enviar mensaje', error: error.message });
+    }
+  }));
+
   // Upload imagen de referencia para solicitud de marketing
   app.post('/api/marketing/solicitudes/:id/imagen', requireMarketingAccess, upload.single('imagen'), asyncHandler(async (req: any, res: any) => {
     try {
