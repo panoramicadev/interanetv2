@@ -3405,6 +3405,49 @@ export const insertObraProductoSchema = createInsertSchema(obraProductos).omit({
 export type ObraProducto = typeof obraProductos.$inferSelect;
 export type InsertObraProducto = z.infer<typeof insertObraProductoSchema>;
 
+// Movimientos de un producto de obra — el historial detrás de los totales.
+// Cada pedido, entrega o consumo que se carga desde la obra queda como una fila
+// acá y además suma en la columna correspondiente de `obra_productos`, que sigue
+// siendo el acumulado que se lee de un vistazo. Es el germen de las hojas
+// "Pedidos" y "Avances" de la planilla, que hasta ahora solo existían como un
+// número por obra.
+export const obraProductoMovimientos = pgTable("obra_producto_movimientos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  obraProductoId: varchar("obra_producto_id").notNull(), // FK to obra_productos.id
+  tipo: varchar("tipo", { length: 20 }).notNull(), // pedido | entrega | consumo
+  cantidad: numeric("cantidad", { precision: 12, scale: 2 }).notNull(),
+  fecha: date("fecha"), // Fecha del movimiento (la del documento, no la de carga)
+  nota: text("nota"),
+  creadoPor: varchar("creado_por"), // users.id de quien lo cargó
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertObraProductoMovimientoSchema = createInsertSchema(obraProductoMovimientos)
+  .omit({ id: true, createdAt: true, creadoPor: true })
+  .extend({
+    tipo: z.enum(["pedido", "entrega", "consumo"]),
+    // La cantidad llega como string desde el cliente (numeric de Postgres);
+    // 0 no tiene sentido como movimiento, y negativo es una corrección.
+    cantidad: z.union([z.string(), z.number()]).refine(
+      (v) => Number(v) !== 0 && Number.isFinite(Number(v)),
+      "La cantidad del movimiento no puede ser 0",
+    ),
+  });
+
+export type ObraProductoMovimiento = typeof obraProductoMovimientos.$inferSelect;
+export type InsertObraProductoMovimiento = z.infer<typeof insertObraProductoMovimientoSchema>;
+
+// Una fila del buscador de catálogo del panel de productos: el SKU con su color
+// ya resuelto (ver storage.buscarCatalogoObra).
+export interface CatalogoObraItem {
+  sku: string;
+  nombre: string;
+  color: string | null;
+  hex: string | null;
+  familia: string | null;
+  unidad: string | null;
+}
+
 // ==============================================
 // VISITAS TÉCNICAS SYSTEM
 // ==============================================
