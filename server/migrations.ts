@@ -940,6 +940,51 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_id VARCHAR(255)`);
     await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
 
+    // El Panel de Trabajo se navega por ÁREA, pero la bandeja de solicitudes de la pestaña
+    // Marketing mostraba TODAS las solicitudes en cualquier área. `segmento` atribuye cada
+    // pedido al área desde la que se envió para poder acotarla (ver migración 067).
+    await db.execute(sql`ALTER TABLE solicitudes_marketing ADD COLUMN IF NOT EXISTS segmento VARCHAR(255)`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "IDX_solicitudes_marketing_segmento"
+      ON solicitudes_marketing (segmento)
+    `);
+    // Backfill idempotente de las solicitudes previas a la columna: se deduce el área del
+    // solicitante (su segmento asignado o, si no tiene, el de su equipo de vendedores).
+    // assigned_segment es texto libre ("CONSTRUCCION", "Ferreterías"...) → prefijo sin tildes.
+    await db.execute(sql`
+      WITH segmento_usuario AS (
+        SELECT
+          u.id,
+          COALESCE(
+            CASE
+              WHEN LOWER(u.assigned_segment) LIKE '%ferreter%' THEN 'ferreterias'
+              WHEN LOWER(u.assigned_segment) LIKE '%construc%' THEN 'construccion'
+              WHEN LOWER(u.assigned_segment) LIKE '%digital%'
+                OR LOWER(u.assigned_segment) LIKE '%industrial%' THEN 'digital'
+            END,
+            (
+              SELECT CASE
+                WHEN LOWER(sp.assigned_segment) LIKE '%ferreter%' THEN 'ferreterias'
+                WHEN LOWER(sp.assigned_segment) LIKE '%construc%' THEN 'construccion'
+                WHEN LOWER(sp.assigned_segment) LIKE '%digital%'
+                  OR LOWER(sp.assigned_segment) LIKE '%industrial%' THEN 'digital'
+              END
+              FROM salespeople_users sp
+              WHERE sp.supervisor_id = u.id
+                AND sp.assigned_segment IS NOT NULL
+              LIMIT 1
+            )
+          ) AS segmento
+        FROM salespeople_users u
+      )
+      UPDATE solicitudes_marketing s
+      SET segmento = su.segmento
+      FROM segmento_usuario su
+      WHERE s.supervisor_id = su.id
+        AND s.segmento IS NULL
+        AND su.segmento IS NOT NULL
+    `);
+
     // Promesas de compra: el cumplimiento se considera desde la NVV, pero nvv.fact_nvv
     // solo conserva líneas abiertas (al facturarse, la NVV desaparece y la GDV puede caer
     // en otra semana) → sin memoria, el vendido de una semana decae a "solo lo facturado".

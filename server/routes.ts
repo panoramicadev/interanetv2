@@ -28176,6 +28176,21 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Solicitudes Marketing routes
+
+  // Normaliza el área de origen de una solicitud a uno de los segmentos del Panel de
+  // Trabajo. Acepta tanto el valor exacto que manda el panel ("construccion") como el
+  // texto libre de salespeople_users.assigned_segment ("CONSTRUCCION", "Ferreterías",
+  // "Digital"), que viene de los datos de ventas.
+  const normalizarSegmentoSolicitud = (raw?: string | null): string | null => {
+    if (!raw || typeof raw !== 'string') return null;
+    const s = raw.toLowerCase();
+    if (s.includes('ferreter')) return 'ferreterias';
+    if (s.includes('construc')) return 'construccion';
+    if (s.includes('digital') || s.includes('industrial')) return 'digital';
+    if (s.includes('marketing')) return 'marketing';
+    return null;
+  };
+
   app.post('/api/marketing/solicitudes', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -28218,6 +28233,12 @@ export function registerRoutes(app: Express): Server {
         supervisorName: solicitanteName,
         // Rol de quien origina el pedido (Marketing lo usa para saber de dónde viene)
         solicitanteRol: user.role === 'admin' && req.body.solicitanteId ? 'admin' : user.role,
+        // Área de origen: la que el solicitante tenía seleccionada en el Panel de Trabajo
+        // (el cliente la manda) y, si no viene, el segmento asignado del usuario. Se acota
+        // acá y no se confía en el body crudo para que no entre cualquier string.
+        segmento:
+          normalizarSegmentoSolicitud(req.body.segmento) ??
+          normalizarSegmentoSolicitud(user.assignedSegment),
         // Cliente de origen (opcional; típico cuando un vendedor pide en nombre de su cliente)
         clienteId: req.body.clienteId || null,
         clienteNombre: req.body.clienteNombre || null,

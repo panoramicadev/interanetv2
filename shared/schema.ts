@@ -4991,6 +4991,10 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   supervisorId: varchar("supervisor_id").references(() => salespeopleUsers.id),
   supervisorName: varchar("supervisor_name"),
   solicitanteRol: varchar("solicitante_rol"), // rol de quien pide: supervisor, encargado_area, salesperson, admin
+  // Área/segmento del que nace el pedido (ferreterias | construccion | digital).
+  // El Panel de Trabajo se navega por área, así que la bandeja de Marketing se acota
+  // con esto: en Construcción solo se ven las solicitudes de Construcción.
+  segmento: varchar("segmento"),
   clienteId: varchar("cliente_id"), // cliente de origen cuando un vendedor pide en su nombre (opcional)
   clienteNombre: varchar("cliente_nombre"),
   fechaSolicitud: timestamp("fecha_solicitud").notNull().defaultNow(),
