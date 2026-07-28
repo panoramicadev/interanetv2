@@ -7918,7 +7918,9 @@ export const emailCampaigns = pgTable("email_campaigns", {
   createdAtIdx: index("IDX_email_campaigns_created_at").on(table.createdAt),
 }));
 
-// Un registro por destinatario de una campaña. source: client | manual | crm | seguimiento
+// Un registro por destinatario de una campaña.
+// source: client | manual | crm | seguimiento | cotizador | market | inactivo |
+//         ayuda_memoria | obra | distribuidor
 // status: pending | sent | failed | skipped
 export const emailCampaignRecipients = pgTable("email_campaign_recipients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -7927,6 +7929,7 @@ export const emailCampaignRecipients = pgTable("email_campaign_recipients", {
   name: varchar("name"), // nombre para personalizar ({{nombre}})
   source: varchar("source").notNull().default("manual"),
   sourceId: varchar("source_id"), // id/koen del origen (cliente, lead, seguimiento)
+  sourceDetail: varchar("source_detail"), // evidencia legible del origen ("Lead CRM · etapa Visita · Juan P.")
   status: varchar("status").notNull().default("pending"),
   errorMessage: text("error_message"),
   sentAt: timestamp("sent_at"),

@@ -59,8 +59,16 @@ function fromAddress(campaign: EmailCampaign): string | undefined {
 }
 
 /**
- * Inserta los contactos "manuales" de la campaña en el CRM y en Seguimiento
- * (si aún no existen por email). Los leads se marcan con stage 'campana', que
+ * Fuentes cuyos contactos viven fuera del CRM: al enviarles una campaña
+ * conviene dejarlos registrados como lead. Las fuentes que ya son CRM,
+ * Seguimiento o clientes del ERP quedan fuera (ya existen).
+ */
+const EXTERNAL_SOURCES = ['manual', 'cotizador', 'obra', 'distribuidor', 'ayuda_memoria'];
+
+/**
+ * Inserta los contactos externos de la campaña (cargados a mano, del cotizador
+ * web, de obras, distribuidores o ayuda memoria) en el CRM y en Seguimiento si
+ * aún no existen por email. Los leads se marcan con stage 'campana', que
  * existe justo para este flujo. Best-effort: nunca bloquea el envío.
  */
 async function registerManualContactsInCrm(campaignId: string, userId?: string | null): Promise<void> {
@@ -82,7 +90,7 @@ async function registerManualContactsInCrm(campaignId: string, userId?: string |
     const recips = await db
       .select()
       .from(emailCampaignRecipients)
-      .where(and(eq(emailCampaignRecipients.campaignId, campaignId), eq(emailCampaignRecipients.source, 'manual')));
+      .where(and(eq(emailCampaignRecipients.campaignId, campaignId), inArray(emailCampaignRecipients.source, EXTERNAL_SOURCES)));
 
     for (const r of recips) {
       const email = r.email.trim().toLowerCase();
@@ -99,6 +107,7 @@ async function registerManualContactsInCrm(campaignId: string, userId?: string |
             stage: 'campana',
             salespersonId: ownerId,
             salespersonName: ownerName,
+            notes: r.sourceDetail ? `Origen: ${r.sourceDetail}` : null,
           } as any);
         }
       } catch (e: any) {
@@ -118,6 +127,7 @@ async function registerManualContactsInCrm(campaignId: string, userId?: string |
             email,
             estado: 'nuevo',
             origen: 'campana_mailing',
+            notas: r.sourceDetail ? `Origen: ${r.sourceDetail}` : null,
             vendedorId: ownerId,
             vendedorNombre: ownerName,
             active: true,

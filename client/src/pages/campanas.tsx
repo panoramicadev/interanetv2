@@ -6,7 +6,8 @@ import {
   Bold, Italic, List, Link2, Heading, Save, TestTube2, PlayCircle, Ban,
   Image as ImageIcon, Upload, Minus, Quote, MousePointerClick, MoveVertical,
   Search, Building2, Target, ClipboardList, Download, Monitor, Smartphone,
-  UserPlus, CheckCheck, Square, X,
+  UserPlus, CheckCheck, Square, X, ShoppingCart, BookOpen, HardHat, MapPin,
+  Info,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ type Recipient = {
   email: string;
   name?: string | null;
   source: string;
+  sourceDetail?: string | null;
   status: string;
   errorMessage?: string | null;
 };
@@ -83,9 +85,34 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Etiqueta corta de cada origen (el valor persistido en recipients.source).
 const SOURCE_LABEL: Record<string, string> = {
-  client: "Cliente", manual: "Manual", crm: "CRM", seguimiento: "Seguimiento",
+  client: "Cliente ERP", manual: "Manual", crm: "CRM", seguimiento: "Seguimiento",
+  cotizador: "Cotizador web", market: "Market", inactivo: "Inactivo",
+  ayuda_memoria: "Ayuda Memoria", obra: "Obra", distribuidor: "Dónde Comprar",
 };
+
+// Color por origen, para que la lista final se lea de un vistazo.
+const SOURCE_CLS: Record<string, string> = {
+  client: "bg-slate-100 text-slate-700 border-slate-200",
+  crm: "bg-violet-100 text-violet-700 border-violet-200",
+  seguimiento: "bg-sky-100 text-sky-700 border-sky-200",
+  cotizador: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  market: "bg-orange-100 text-orange-700 border-orange-200",
+  inactivo: "bg-amber-100 text-amber-700 border-amber-200",
+  ayuda_memoria: "bg-teal-100 text-teal-700 border-teal-200",
+  obra: "bg-stone-100 text-stone-700 border-stone-200",
+  distribuidor: "bg-rose-100 text-rose-700 border-rose-200",
+  manual: "bg-blue-100 text-blue-700 border-blue-200",
+};
+
+function SourceBadge({ source, className = "" }: { source: string; className?: string }) {
+  return (
+    <Badge variant="outline" className={`text-[10px] font-medium shrink-0 ${SOURCE_CLS[source] || ""} ${className}`}>
+      {SOURCE_LABEL[source] || source}
+    </Badge>
+  );
+}
 
 // ================================================================
 // PÁGINA PRINCIPAL
@@ -125,12 +152,12 @@ export default function CampanasPage() {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-white tracking-tight">Campañas de Marketing</h1>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Campañas Mailing</h1>
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-400/30 px-2 py-0.5 rounded-full">
                   <Sparkles className="h-3 w-3" /> Resend
                 </span>
               </div>
-              <p className="text-sm text-slate-300 mt-1">Creá newsletters y envíos masivos a clientes, CRM, seguimiento o listas propias.</p>
+              <p className="text-sm text-slate-300 mt-1">Creá newsletters y envíos masivos a clientes, CRM, cotizador web, obras, distribuidores o listas propias.</p>
             </div>
             <Button onClick={() => setCreating(true)} className="bg-orange-500 hover:bg-orange-600">
               <Plus className="h-4 w-4 mr-2" /> Nueva campaña
@@ -373,8 +400,8 @@ function CampaignEditor({ campaignId, onBack }: { campaignId: string; onBack: ()
                   <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-100">
                     <Switch checked={form.registerInCrm} onCheckedChange={(v) => setForm({ ...form, registerInCrm: v })} />
                     <div>
-                      <div className="font-medium text-sm">Registrar contactos manuales en CRM y Seguimiento</div>
-                      <div className="text-xs text-muted-foreground">Al enviar, los correos cargados manualmente se insertan como leads (etapa "campaña") y en Seguimiento, si no existen ya.</div>
+                      <div className="font-medium text-sm">Registrar contactos externos en CRM y Seguimiento</div>
+                      <div className="text-xs text-muted-foreground">Al enviar, los contactos que aún no viven en el CRM (lista manual, cotizador web, obras, distribuidores y Ayuda Memoria) se insertan como leads (etapa "campaña") y en Seguimiento, con su origen anotado.</div>
                     </div>
                   </div>
                 </CardContent>
@@ -809,7 +836,7 @@ function InsertButtonDialog({ open, onClose, onInsert }: { open: boolean; onClos
 }
 
 // ── Constructor de audiencia ───────────────────────────────────
-type Cand = { email: string; name: string | null; source: string; sourceId: string | null };
+type Cand = { email: string; name: string | null; source: string; sourceId: string | null; detail: string | null };
 
 const CRM_STAGES = [
   { v: "lead", label: "Lead" }, { v: "contacto", label: "Contacto" }, { v: "visita", label: "Visita" },
@@ -820,6 +847,35 @@ const SEG_ESTADOS = [
   { v: "nuevo", label: "Nuevo" }, { v: "contactado", label: "Contactado" }, { v: "cotizacion", label: "Cotización" },
   { v: "venta", label: "Venta" }, { v: "despacho", label: "Despacho" }, { v: "completado", label: "Completado" },
   { v: "perdido", label: "Perdido" },
+];
+const COTIZADOR_ESTADOS = [
+  { v: "pending", label: "Pendiente" }, { v: "contacted", label: "Contactado" },
+  { v: "quoted", label: "Cotizado" }, { v: "closed", label: "Cerrado" },
+];
+const OBRA_ROLES = [
+  { v: "contratista", label: "Contratista" }, { v: "administrador", label: "Administrador de obra" },
+  { v: "supervisor", label: "Supervisor/Capataz" },
+];
+const RETAIL_TIPOS = [
+  { v: "ferreteria", label: "Ferretería" }, { v: "distribuidor", label: "Distribuidor" },
+  { v: "sucursal_propia", label: "Sucursal propia" },
+];
+const INACTIVOS_DIAS = [
+  { v: "90", label: "+90 días" }, { v: "180", label: "+180 días" }, { v: "365", label: "+1 año" },
+];
+
+/** Catálogo de fuentes del constructor de audiencia (orden de las pestañas). */
+const AUDIENCE_TABS: { key: string; label: string; icon: any; source: string }[] = [
+  { key: "clients", label: "Clientes ERP", icon: Building2, source: "client" },
+  { key: "crm", label: "CRM", icon: Target, source: "crm" },
+  { key: "seguimiento", label: "Seguimiento", icon: ClipboardList, source: "seguimiento" },
+  { key: "cotizador", label: "Cotizador web", icon: Quote, source: "cotizador" },
+  { key: "market", label: "Compradores Market", icon: ShoppingCart, source: "market" },
+  { key: "inactivos", label: "Inactivos", icon: Clock, source: "inactivo" },
+  { key: "ayuda_memoria", label: "Ayuda Memoria", icon: BookOpen, source: "ayuda_memoria" },
+  { key: "obras", label: "Obras", icon: HardHat, source: "obra" },
+  { key: "distribuidores", label: "Dónde Comprar", icon: MapPin, source: "distribuidor" },
+  { key: "manual", label: "Lista manual", icon: Mail, source: "manual" },
 ];
 
 function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: CampaignDetail }) {
@@ -858,34 +914,45 @@ function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: C
 
   const [crmStages, setCrmStages] = useState<string[]>([]);
   const [segEstados, setSegEstados] = useState<string[]>([]);
+  const [cotEstados, setCotEstados] = useState<string[]>([]);
+  const [obraRoles, setObraRoles] = useState<string[]>([]);
+  const [retailTipos, setRetailTipos] = useState<string[]>([]);
+  const [inactivosDias, setInactivosDias] = useState<string[]>([]);
 
   const add = (b: any) => addMut.mutate(b);
   const adding = addMut.isPending;
+
+  // Los filtros de "inactivos" son excluyentes entre sí: se toma el mayor.
+  const minDias = inactivosDias.length ? Math.max(...inactivosDias.map(Number)) : undefined;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
       {/* Fuentes */}
       <div className="lg:col-span-3 space-y-4">
+        <SourcesOverview />
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2"><UserPlus className="h-4 w-4" /> Agregar destinatarios</CardTitle>
             <CardDescription>
-              Elegí una fuente, buscá y agregá todos los que coincidan o marcá uno por uno. Los correos repetidos se descartan solos.
+              Elegí una fuente, buscá y agregá todos los que coincidan o marcá uno por uno. Cada contacto muestra de dónde
+              sale y ese origen queda guardado con el destinatario. Los correos repetidos se descartan solos.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="clients">
-              <TabsList className="mb-4 grid grid-cols-4 w-full">
-                <TabsTrigger value="clients" className="gap-1.5"><Building2 className="h-3.5 w-3.5" /> Clientes</TabsTrigger>
-                <TabsTrigger value="crm" className="gap-1.5"><Target className="h-3.5 w-3.5" /> CRM</TabsTrigger>
-                <TabsTrigger value="seguimiento" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Seguimiento</TabsTrigger>
-                <TabsTrigger value="manual" className="gap-1.5"><Mail className="h-3.5 w-3.5" /> Lista manual</TabsTrigger>
+              <TabsList className="mb-4 flex flex-wrap h-auto justify-start gap-1 p-1">
+                {AUDIENCE_TABS.map(({ key, label, icon: Icon }) => (
+                  <TabsTrigger key={key} value={key} className="gap-1.5 text-xs px-2.5 py-1.5">
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               <TabsContent value="clients">
                 <SourceExplorer
                   source="clients"
-                  hint="Clientes del sistema con email registrado."
+                  hint="Clientes del ERP con email registrado (usa el comercial si no hay uno principal)."
                   placeholder="Buscar por nombre, código, RUT o email…"
                   extraParams={{}}
                   existing={existing}
@@ -920,6 +987,82 @@ function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: C
                 />
               </TabsContent>
 
+              <TabsContent value="cotizador">
+                <SourceExplorer
+                  source="cotizador"
+                  hint="Solicitudes de cotización del sitio público. Son leads que pidieron precio por su cuenta."
+                  placeholder="Buscar por nombre, empresa o email…"
+                  extraParams={{ estados: cotEstados }}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                  filters={<ChipFilter options={COTIZADOR_ESTADOS} selected={cotEstados} onChange={setCotEstados} />}
+                />
+              </TabsContent>
+
+              <TabsContent value="market">
+                <SourceExplorer
+                  source="market"
+                  hint="Quienes ya compraron en Panorámica Market, con su cantidad de pedidos y última compra."
+                  placeholder="Buscar por nombre o email…"
+                  extraParams={{}}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                />
+              </TabsContent>
+
+              <TabsContent value="inactivos">
+                <SourceExplorer
+                  source="inactivos"
+                  hint="Clientes que dejaron de comprar. Base natural para campañas de reactivación."
+                  placeholder="Buscar por nombre, RUT o email…"
+                  extraParams={{ minDias }}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                  filters={<ChipFilter options={INACTIVOS_DIAS} selected={inactivosDias} onChange={setInactivosDias} />}
+                />
+              </TabsContent>
+
+              <TabsContent value="ayuda_memoria">
+                <SourceExplorer
+                  source="ayuda_memoria"
+                  hint="Contactos levantados en terreno por los vendedores en las fichas de Ayuda Memoria."
+                  placeholder="Buscar por cliente, contacto o email…"
+                  extraParams={{}}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                />
+              </TabsContent>
+
+              <TabsContent value="obras">
+                <SourceExplorer
+                  source="obras"
+                  hint="Contratistas, administradores y supervisores registrados en las visitas técnicas."
+                  placeholder="Buscar por nombre o email…"
+                  extraParams={{ roles: obraRoles }}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                  filters={<ChipFilter options={OBRA_ROLES} selected={obraRoles} onChange={setObraRoles} />}
+                />
+              </TabsContent>
+
+              <TabsContent value="distribuidores">
+                <SourceExplorer
+                  source="distribuidores"
+                  hint="Puntos de venta activos del mapa Dónde Comprar con correo de contacto."
+                  placeholder="Buscar por nombre, comuna o email…"
+                  extraParams={{ tipos: retailTipos }}
+                  existing={existing}
+                  onAdd={add}
+                  adding={adding}
+                  filters={<ChipFilter options={RETAIL_TIPOS} selected={retailTipos} onChange={setRetailTipos} />}
+                />
+              </TabsContent>
+
               <TabsContent value="manual">
                 <ManualSource existing={existing} onAdd={add} adding={adding} />
               </TabsContent>
@@ -933,6 +1076,51 @@ function AudienceBuilder({ campaignId, detail }: { campaignId: string; detail: C
         <RecipientsPanel detail={detail} onRemove={(id) => removeMut.mutate(id)} onClear={() => clearMut.mutate()} clearing={clearMut.isPending} />
       </div>
     </div>
+  );
+}
+
+/** Cuántos contactos con correo hay disponibles hoy en cada módulo del sistema. */
+function SourcesOverview() {
+  const { data, isLoading } = useQuery<{ sources: { source: string; count: number; error?: boolean }[] }>({
+    queryKey: ["/api/campanas/audience/sources"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const rows = data?.sources || [];
+  const total = rows.reduce((a, s) => a + (s.count || 0), 0);
+
+  return (
+    <Card className="border-orange-100 bg-orange-50/40">
+      <CardContent className="py-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Info className="h-4 w-4 text-orange-600" />
+          <p className="text-sm font-medium text-slate-800">
+            Leads disponibles en el sistema{!isLoading && total > 0 ? `: ${fmtNum(total)}` : ""}
+          </p>
+          {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {AUDIENCE_TABS.filter((t) => t.key !== "manual").map((t) => {
+            const row = rows.find((r) => r.source === t.key);
+            const Icon = t.icon;
+            return (
+              <span
+                key={t.key}
+                className={`inline-flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 bg-white ${row?.count ? "border-slate-200 text-slate-700" : "border-slate-100 text-slate-400"}`}
+                title={`Fuente: ${t.label}`}
+              >
+                <Icon className="h-3 w-3" />
+                {t.label}
+                <strong className="tabular-nums">{isLoading ? "…" : fmtNum(row?.count || 0)}</strong>
+              </span>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-2">
+          Los totales son contactos únicos con correo válido por fuente; un mismo correo puede aparecer en más de una.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1076,7 +1264,11 @@ function SourceExplorer({ source, hint, placeholder, extraParams, filters, exist
                   <div className="flex-1 min-w-0">
                     <div className="truncate font-medium">{c.name || c.email}</div>
                     <div className="truncate text-xs text-muted-foreground">{c.email}</div>
+                    {c.detail && (
+                      <div className="truncate text-[11px] text-slate-400 mt-0.5" title={c.detail}>{c.detail}</div>
+                    )}
                   </div>
+                  <SourceBadge source={c.source} />
                   {already && <Badge variant="outline" className="text-[10px] shrink-0">Ya agregado</Badge>}
                 </label>
               );
@@ -1212,12 +1404,17 @@ function RecipientsPanel({ detail, onRemove, onClear, clearing }: { detail: Camp
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     return detail.recipients.filter(
-      (r) => (!srcFilter || r.source === srcFilter) && (!t || r.email.includes(t) || (r.name || "").toLowerCase().includes(t)),
+      (r) =>
+        (!srcFilter || r.source === srcFilter) &&
+        (!t || r.email.includes(t) || (r.name || "").toLowerCase().includes(t) || (r.sourceDetail || "").toLowerCase().includes(t)),
     );
   }, [detail.recipients, q, srcFilter]);
 
   const exportCsv = () => {
-    const rows = [["email", "nombre", "origen"], ...detail.recipients.map((r) => [r.email, r.name || "", SOURCE_LABEL[r.source] || r.source])];
+    const rows = [
+      ["email", "nombre", "origen", "detalle_origen"],
+      ...detail.recipients.map((r) => [r.email, r.name || "", SOURCE_LABEL[r.source] || r.source, r.sourceDetail || ""]),
+    ];
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -1283,8 +1480,11 @@ function RecipientsPanel({ detail, onRemove, onClear, clearing }: { detail: Camp
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{r.name || r.email}</div>
                   <div className="truncate text-xs text-muted-foreground">{r.email}</div>
+                  {r.sourceDetail && (
+                    <div className="truncate text-[11px] text-slate-400 mt-0.5" title={r.sourceDetail}>{r.sourceDetail}</div>
+                  )}
                 </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">{SOURCE_LABEL[r.source] || r.source}</Badge>
+                <SourceBadge source={r.source} />
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-300 group-hover:text-red-500" title="Quitar" onClick={() => onRemove(r.id)}>
                   <XCircle className="h-4 w-4" />
                 </Button>
@@ -1468,7 +1668,10 @@ function SentDashboard({ detail, campaignId }: { detail: CampaignDetail; campaig
                       <div className="text-sm font-medium">{r.name || r.email}</div>
                       <div className="text-xs text-muted-foreground">{r.email}</div>
                     </TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{SOURCE_LABEL[r.source] || r.source}</Badge></TableCell>
+                    <TableCell>
+                      <SourceBadge source={r.source} />
+                      {r.sourceDetail && <div className="text-[11px] text-slate-400 mt-1 max-w-[280px] truncate" title={r.sourceDetail}>{r.sourceDetail}</div>}
+                    </TableCell>
                     <TableCell>
                       {r.status === "sent" ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200"><CheckCircle2 className="h-3 w-3 mr-1" />Enviado</Badge>
                         : r.status === "failed" ? <Badge className="bg-red-100 text-red-700 border-red-200" title={r.errorMessage || ""}><XCircle className="h-3 w-3 mr-1" />Falló</Badge>
