@@ -63,7 +63,8 @@ import {
   MapPin,
   Palette,
   HardHat,
-  FileCheck
+  FileCheck,
+  RotateCcw
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -7215,6 +7216,18 @@ function MarketingManagerPanel() {
                       onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada", description: "Quedó registrada como entregada." }) })}
                     >
                       <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
+                    </Button>
+                  )}
+                  {/* Deshacer un "Completar" mal marcado: la devuelve a En curso con su plazo intacto. */}
+                  {seccion === "completadas" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-2xl text-xs font-semibold border-slate-200 text-slate-600 hover:border-orange-300 hover:text-[#fd6301] hover:bg-orange-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-orange-950/30 shrink-0"
+                      disabled={estadoMutation.isPending}
+                      onClick={() => estadoMutation.mutate({ id: s.id, body: { estado: "en_proceso" } }, { onSuccess: () => toast({ title: "Solicitud reabierta", description: "Volvió a tus solicitudes en curso." }) })}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reabrir
                     </Button>
                   )}
                 </div>
