@@ -181,6 +181,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/margen",
       label: "Margen",
       icon: TrendingUp,
+    },
+    {
+      href: "/comisiones",
+      label: "Comisiones",
+      icon: DollarSign,
       separator: true,
     },
     // ── Post-venta ──
@@ -191,16 +196,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       separator: true,
     },
     // ── Resto de módulos del admin (fuera del orden pedido, van al final) ──
-    {
-      href: "/visitas-tecnicas",
-      label: "Visita Técnica",
-      icon: FileCheck,
-    },
-    {
-      href: "/comisiones",
-      label: "Comisiones",
-      icon: DollarSign,
-    },
+    // Visitas Técnicas salió del sidebar: su acceso vive como pestaña del Panel
+    // de Trabajo en el área Construcción (la ruta /visitas-tecnicas sigue activa).
     {
       href: "/mantenciones",
       label: "Mantención",
@@ -267,11 +264,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
-    },
-    {
-      href: "/visitas-tecnicas",
-      label: "Visita Técnica",
-      icon: FileCheck,
     },
     {
       href: "/reclamos-generales",
@@ -483,11 +475,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/visitas-tecnicas",
-      label: "Visita Técnica",
-      icon: FileCheck,
     },
     {
       href: "/reclamos-generales",
@@ -873,11 +860,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   tecnico_obra: [
     {
-      href: "/visitas-tecnicas",
-      label: "Visitas Técnicas",
-      icon: Wrench,
-    },
-    {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
@@ -894,11 +876,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
-    },
-    {
-      href: "/visitas-tecnicas",
-      label: "Visitas Técnicas",
-      icon: FileCheck,
     },
     {
       href: "/productos",

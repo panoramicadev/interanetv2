@@ -665,6 +665,17 @@ const DetailField = ({
 );
 
 export default function VisitasTecnicasPage() {
+  return <VisitasTecnicasContent />;
+}
+
+/**
+ * Contenido reutilizable de Visitas Técnicas.
+ * Se usa como página standalone (ruta /visitas-tecnicas, que sigue activa aunque
+ * el módulo ya no aparezca en el sidebar) y embebido como pestaña del Panel de
+ * Trabajo en el área Construcción (tareas.tsx). Con `embedded` se omiten el
+ * contenedor de página y el encabezado, que ya los aporta el panel.
+ */
+export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -1848,17 +1859,19 @@ export default function VisitasTecnicasPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header principal */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Visitas Técnicas</h1>
-            <p className="text-muted-foreground">
-              Sistema de inspecciones técnicas para evaluación de productos
-            </p>
+    <div className={embedded ? "" : "min-h-screen bg-background"}>
+      <div className={embedded ? "space-y-6" : "container mx-auto p-6 space-y-6"}>
+        {/* Header principal — embebido en el Panel de Trabajo lo aporta el panel */}
+        {!embedded && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Visitas Técnicas</h1>
+              <p className="text-muted-foreground">
+                Sistema de inspecciones técnicas para evaluación de productos
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Banner sutil de notificaciones */}
         {notificaciones && (notificaciones.nuevosReclamos > 0 || notificaciones.nuevasResoluciones > 0) && (
