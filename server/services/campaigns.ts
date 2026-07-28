@@ -9,7 +9,10 @@ import {
   type EmailCampaign,
 } from '../../shared/schema';
 import { emailService } from './email';
-import { wrapEmailContent } from '../email-templates';
+import { renderCampaignEmail } from '../../shared/campaign-email';
+
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://ai.pinturaspanoramica.cl').replace(/\/$/, '');
+const CAMPAIGN_LOGO_URL = `${PUBLIC_BASE_URL}/panoramica-logo-white.png`;
 
 // Pacing entre envíos para respetar los rate limits de Resend (~2 req/s en
 // planes base). Enviamos secuencialmente con una pausa; para volúmenes muy
@@ -37,11 +40,11 @@ function personalize(text: string, recipient: { name?: string | null; email: str
 
 /** Construye el HTML final de un correo de campaña (cuerpo + branding). */
 export function buildCampaignHtml(campaign: Pick<EmailCampaign, 'bodyHtml' | 'preheader'>, recipient: { name?: string | null; email: string }): string {
-  const preheader = campaign.preheader
-    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${personalize(campaign.preheader, recipient)}</div>`
-    : '';
-  const body = preheader + personalize(campaign.bodyHtml || '', recipient);
-  return wrapEmailContent(body);
+  return renderCampaignEmail({
+    body: personalize(campaign.bodyHtml || '', recipient),
+    preheader: campaign.preheader ? personalize(campaign.preheader, recipient) : null,
+    logoUrl: CAMPAIGN_LOGO_URL,
+  });
 }
 
 function fromAddress(campaign: EmailCampaign): string | undefined {

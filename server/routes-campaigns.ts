@@ -40,14 +40,33 @@ function parseManualList(raw: string): Candidate[] {
   return out;
 }
 
+/** Normaliza una lista de contactos elegidos uno por uno en el picker del panel. */
+function parseSelection(items: any): Candidate[] {
+  if (!Array.isArray(items)) return [];
+  const out: Candidate[] = [];
+  for (const it of items) {
+    const email = String(it?.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) continue;
+    const source = ['client', 'crm', 'seguimiento', 'manual'].includes(it?.source) ? it.source : 'manual';
+    out.push({
+      email,
+      name: it?.name ? String(it.name).trim() : null,
+      sourceId: it?.sourceId ? String(it.sourceId) : null,
+      source,
+    });
+  }
+  return dedupe(out);
+}
+
 /** Resuelve destinatarios candidatos desde una fuente del sistema. */
 async function resolveCandidates(source: string, params: any): Promise<Candidate[]> {
   const LIMIT = 20000;
+  const q = (params?.q || '').trim();
+
   if (source === 'clients') {
-    const q = (params?.q || '').trim();
     const conds: any[] = [or(isNotNull(clients.email), isNotNull(clients.emailcomer))];
     if (q) {
-      conds.push(or(ilike(clients.nokoen, `%${q}%`), ilike(clients.koen, `%${q}%`), ilike(clients.rten, `%${q}%`)));
+      conds.push(or(ilike(clients.nokoen, `%${q}%`), ilike(clients.koen, `%${q}%`), ilike(clients.rten, `%${q}%`), ilike(clients.email, `%${q}%`)));
     }
     const rows = await db
       .select({ koen: clients.koen, nokoen: clients.nokoen, email: clients.email, emailcomer: clients.emailcomer })
@@ -67,6 +86,7 @@ async function resolveCandidates(source: string, params: any): Promise<Candidate
     const stages: string[] = Array.isArray(params?.stages) ? params.stages : [];
     const conds: any[] = [isNotNull(crmLeads.clientEmail)];
     if (stages.length) conds.push(inArray(crmLeads.stage, stages));
+    if (q) conds.push(or(ilike(crmLeads.clientName, `%${q}%`), ilike(crmLeads.clientEmail, `%${q}%`)));
     const rows = await db
       .select({ id: crmLeads.id, name: crmLeads.clientName, email: crmLeads.clientEmail })
       .from(crmLeads)
@@ -83,6 +103,7 @@ async function resolveCandidates(source: string, params: any): Promise<Candidate
     const estados: string[] = Array.isArray(params?.estados) ? params.estados : [];
     const conds: any[] = [isNotNull(crmSeguimientoClientes.email), eq(crmSeguimientoClientes.active, true)];
     if (estados.length) conds.push(inArray(crmSeguimientoClientes.estado, estados));
+    if (q) conds.push(or(ilike(crmSeguimientoClientes.nombre, `%${q}%`), ilike(crmSeguimientoClientes.email, `%${q}%`)));
     const rows = await db
       .select({ id: crmSeguimientoClientes.id, name: crmSeguimientoClientes.nombre, email: crmSeguimientoClientes.email })
       .from(crmSeguimientoClientes)
@@ -241,8 +262,24 @@ export function registerCampaignRoutes(app: Express) {
       const { source, ...params } = req.body || {};
       let cands: Candidate[];
       if (source === 'manual') cands = parseManualList(params?.raw || '');
+      else if (source === 'selection') cands = parseSelection(params?.items);
       else cands = await resolveCandidates(source, params);
       res.json({ count: cands.length, sample: cands.slice(0, 20) });
+    } catch (e: any) {
+      res.status(400).json({ message: e?.message });
+    }
+  });
+
+  // Lista los candidatos de una fuente para elegirlos uno por uno en el panel.
+  // Devuelve el total real y una página acotada (el picker no puede pintar 20k filas).
+  app.post('/api/campanas/audience/list', requireAuth, requireCampaigns, async (req, res) => {
+    try {
+      const { source, limit, ...params } = req.body || {};
+      const max = Math.min(Number(limit) || 300, 1000);
+      let cands: Candidate[];
+      if (source === 'manual') cands = parseManualList(params?.raw || '');
+      else cands = await resolveCandidates(source, params);
+      res.json({ total: cands.length, truncated: cands.length > max, items: cands.slice(0, max) });
     } catch (e: any) {
       res.status(400).json({ message: e?.message });
     }
@@ -259,6 +296,7 @@ export function registerCampaignRoutes(app: Express) {
       const { source, ...params } = req.body || {};
       let cands: Candidate[];
       if (source === 'manual') cands = parseManualList(params?.raw || '');
+      else if (source === 'selection') cands = parseSelection(params?.items);
       else cands = await resolveCandidates(source, params);
 
       if (cands.length === 0) return res.json({ added: 0, total: campaign.totalRecipients });
