@@ -3364,6 +3364,47 @@ export const insertObraSchema = createInsertSchema(obras).omit({
 export type Obra = typeof obras.$inferSelect;
 export type InsertObra = z.infer<typeof insertObraSchema>;
 
+// La tabla `obras` solo guarda el id del cliente, pero la UI siempre muestra el
+// nombre de la constructora (la cartera se arma agrupando obras por cliente).
+// El listado lo resuelve con un join contra `clients`.
+export type ObraConCliente = Obra & {
+  clienteNombre: string | null;
+  clienteComuna: string | null;
+};
+
+// Productos comprometidos en una obra — detalle POR PRODUCTO del despacho.
+// Es un desglose que acompaña al control de tinetas de la obra (que sigue siendo
+// la planilla): acá se ve, por SKU, cuánto se proyectó, se pidió, se entregó y se
+// usó. Sirve para las obras donde además de la tineta de fachada van sellador,
+// diluyente, esmalte de rejas, etc. Los totales de la obra NO se derivan de esta
+// tabla; son controles independientes que se muestran lado a lado.
+export const obraProductos = pgTable("obra_productos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  obraId: varchar("obra_id").notNull(), // FK to obras.id
+  // SKU del catálogo cuando el producto se eligió del buscador; queda en NULL si
+  // se cargó a mano (producto que todavía no está en el maestro).
+  kopr: varchar("kopr", { length: 60 }),
+  nombre: text("nombre").notNull(), // Nombre mostrado (del catálogo o escrito a mano)
+  color: varchar("color", { length: 80 }), // Color/tono, cuando aplica
+  unidad: varchar("unidad", { length: 20 }).notNull().default("tineta"), // tineta, galón, litro, unidad…
+  cantidadProyectada: numeric("cantidad_proyectada", { precision: 12, scale: 2 }).notNull().default("0"),
+  cantidadPedida: numeric("cantidad_pedida", { precision: 12, scale: 2 }).notNull().default("0"),
+  cantidadEntregada: numeric("cantidad_entregada", { precision: 12, scale: 2 }).notNull().default("0"),
+  cantidadUtilizada: numeric("cantidad_utilizada", { precision: 12, scale: 2 }).notNull().default("0"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertObraProductoSchema = createInsertSchema(obraProductos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ObraProducto = typeof obraProductos.$inferSelect;
+export type InsertObraProducto = z.infer<typeof insertObraProductoSchema>;
+
 // ==============================================
 // VISITAS TÉCNICAS SYSTEM
 // ==============================================

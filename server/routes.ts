@@ -404,7 +404,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -24348,6 +24348,62 @@ export function registerRoutes(app: Express): Server {
         message: 'Error al eliminar obra',
         error: error.message
       });
+    }
+  }));
+
+  // ----------------------------------------------
+  // Productos por obra (desglose del despacho por SKU)
+  // ----------------------------------------------
+  // Ruta propia (no anidada bajo /api/obras/:id) para no competir con
+  // /api/obras/:id en el matcher de Express.
+
+  // ?obraId= productos de una obra · ?clienteId= productos de todas sus obras
+  app.get('/api/obra-productos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { obraId, clienteId } = req.query;
+      const productos = await storage.getObraProductos({ obraId, clienteId });
+      res.json(productos);
+    } catch (error: any) {
+      console.error('❌ Error al obtener productos de obra:', error);
+      res.status(500).json({ message: 'Error al obtener productos de la obra', error: error.message });
+    }
+  }));
+
+  app.post('/api/obra-productos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = insertObraProductoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos de producto inválidos', errors: parsed.error.errors });
+      }
+      const nuevo = await storage.createObraProducto(parsed.data);
+      res.status(201).json(nuevo);
+    } catch (error: any) {
+      console.error('❌ Error al agregar producto a la obra:', error);
+      res.status(500).json({ message: 'Error al agregar el producto', error: error.message });
+    }
+  }));
+
+  app.put('/api/obra-productos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = insertObraProductoSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Datos de producto inválidos', errors: parsed.error.errors });
+      }
+      const actualizado = await storage.updateObraProducto(req.params.id, parsed.data);
+      res.json(actualizado);
+    } catch (error: any) {
+      console.error('❌ Error al actualizar producto de la obra:', error);
+      res.status(500).json({ message: 'Error al actualizar el producto', error: error.message });
+    }
+  }));
+
+  app.delete('/api/obra-productos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteObraProducto(req.params.id);
+      res.json({ message: 'Producto eliminado de la obra' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar producto de la obra:', error);
+      res.status(500).json({ message: 'Error al eliminar el producto', error: error.message });
     }
   }));
 
