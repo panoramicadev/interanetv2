@@ -388,6 +388,8 @@ export function ControlObrasContent() {
 
   const [temporadaFiltro, setTemporadaFiltro] = useState("todas");
   const [planillaCompleta, setPlanillaCompleta] = useState(false);
+  // Los indicadores van plegados: la tabla de obras es lo primero que se ve.
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [obraExpandida, setObraExpandida] = useState<string | null>(null);
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
@@ -996,103 +998,114 @@ export function ControlObrasContent() {
 
           {filas.length > 0 && (
             <>
-              {/* Banner de la planilla */}
-              <div className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-5 py-4 shadow-md shadow-orange-500/25 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-                    <HardHat className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold uppercase tracking-wide truncate">
-                      Control {cliente.nokoen}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-white/80">
-                      {temporadaFiltro !== "todas" ? `Temporada ${temporadaFiltro} · ` : ""}
-                      Avance, compra, entrega, saldo y próximo pedido sugerido
-                    </p>
-                  </div>
-                </div>
-                <div className="text-xs sm:text-right text-white/80 flex-shrink-0">
-                  <div className="uppercase tracking-wider font-bold text-[10px] text-white/70">Última actualización</div>
-                  <div className="font-semibold">
-                    {totales.ultima ? totales.ultima.toLocaleDateString("es-CL") : "—"}
-                  </div>
-                </div>
-              </div>
-
-              {/* KPIs principales */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <KpiCard icon={<Home className="h-4 w-4" />} tono="slate" label="Total viviendas" valor={fmt(totales.viviendas)} sufijo="VIV" />
-                <KpiCard icon={<Package className="h-4 w-4" />} tono="sky" label="Tinetas proyectadas" valor={fmt(totales.proyectadas)} sufijo="tinetas" />
-                <KpiCard
-                  icon={<Paintbrush className="h-4 w-4" />}
-                  tono="emerald"
-                  label="Viviendas pintadas"
-                  valor={fmt(totales.pintadas)}
-                  sufijo={`de ${fmt(totales.viviendas)}`}
-                  progreso={totales.avance}
-                />
-                {/* Próximo pedido — el número que la planilla usaba para gatillar la compra */}
-                <div className="rounded-2xl border-0 bg-gradient-to-br from-orange-500 to-[#fd6301] text-white p-4 shadow-md shadow-orange-500/25">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold text-white/80">
-                    <span className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
-                      <ShoppingCart className="h-4 w-4" />
+              {/* Franja de resumen: banner + los cuatro números que se miran
+                  siempre. El resto de los indicadores va plegado para que la
+                  tabla de obras quede a la vista al entrar. */}
+              <div className="rounded-2xl overflow-hidden shadow-md shadow-orange-500/25">
+                <div className="bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                      <HardHat className="h-4 w-4" />
                     </span>
-                    Próximo pedido sugerido
+                    <div className="min-w-0">
+                      <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide truncate">
+                        Control {cliente.nokoen}
+                      </h3>
+                      <p className="text-[11px] text-white/75 truncate">
+                        {temporadaFiltro !== "todas" ? `Temporada ${temporadaFiltro} · ` : ""}
+                        Avance, compra, entrega y saldo
+                      </p>
+                    </div>
                   </div>
-                  <div className="mt-2.5 flex items-baseline gap-1.5">
-                    <span className="text-3xl font-bold tabular-nums" data-testid="text-obras-sugerido">{fmt(totales.sugerido)}</span>
-                    <span className="text-xs font-semibold text-white/80">tinetas</span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-white/75">
-                    Faltan {fmt(totales.faltante)} por pedir del total proyectado
+
+                  <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+                    <BannerStat label="Viviendas" valor={fmt(totales.viviendas)} />
+                    <BannerStat label="Proyectadas" valor={fmt(totales.proyectadas)} sufijo="tinetas" />
+                    <BannerStat
+                      label="Pintadas"
+                      valor={fmt(totales.pintadas)}
+                      sufijo={`${fmtPct(totales.avance)} de ${fmt(totales.viviendas)}`}
+                    />
+                    {/* Próximo pedido — el número que la planilla usaba para gatillar la compra */}
+                    <div className="rounded-xl bg-white/15 px-3 py-1.5">
+                      <div className="text-[9px] uppercase tracking-wider font-bold text-white/70 flex items-center gap-1.5">
+                        <ShoppingCart className="h-3 w-3" />
+                        Próximo pedido
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">{fmt(totales.sugerido)}</span>
+                        <span className="text-[10px] font-semibold text-white/80">tinetas</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setDetalleAbierto((v) => !v)}
+                      className="flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
+                      data-testid="button-toggle-detalle-obras"
+                    >
+                      {detalleAbierto ? "Ocultar" : "Indicadores"}
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${detalleAbierto ? "rotate-180" : ""}`} />
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Segunda fila: compra / entrega / consumo / saldo + resumen por estado */}
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                <div className="xl:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Tinetas pedidas" valor={fmt(totales.pedidas)} />
-                  <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Tinetas entregadas" valor={fmt(totales.entregadas)} />
-                  <MiniStat
-                    icon={<Paintbrush className="h-3.5 w-3.5" />}
-                    tono="slate"
-                    label="Tinetas usadas (control)"
-                    valor={fmtDec(totales.usadasControl)}
-                  />
-                  <MiniStat
-                    icon={<Scale className="h-3.5 w-3.5" />}
-                    tono={totales.teoricoVsReal < 0 ? "red" : "emerald"}
-                    label="Teórico vs real"
-                    valor={fmtDec(totales.teoricoVsReal)}
-                  />
-                  <MiniStat
-                    icon={<Package className="h-3.5 w-3.5" />}
-                    tono={totales.saldo < 0 ? "red" : "emerald"}
-                    label="Saldo en obra"
-                    valor={fmtDec(totales.saldo)}
-                  />
-                  <MiniStat icon={<AlertTriangle className="h-3.5 w-3.5" />} tono="amber" label="Faltante por pedir" valor={fmt(totales.faltante)} />
-                </div>
+                {detalleAbierto && (
+                  <div className="bg-white dark:bg-slate-900 border border-t-0 border-slate-200/70 dark:border-slate-700/60 p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                      <span>Faltan {fmt(totales.faltante)} tinetas por pedir del total proyectado</span>
+                      <span>
+                        <span className="uppercase tracking-wider font-bold">Última actualización</span>{" "}
+                        <span className="font-semibold text-slate-500 dark:text-slate-300">
+                          {totales.ultima ? totales.ultima.toLocaleDateString("es-CL") : "—"}
+                        </span>
+                      </span>
+                    </div>
 
-                {/* Resumen por estado */}
-                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm">
-                  <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-3">Obras por estado</div>
-                  <div className="space-y-2">
-                    {totales.conteoEstados.map((e) => {
-                      const pct = filas.length > 0 ? e.cantidad / filas.length : 0;
-                      return (
-                        <div key={e.key} className="flex items-center gap-2.5" data-testid={`row-estado-${e.key}`}>
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${e.dot}`} />
-                          <span className="text-sm font-medium text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{e.label}</span>
-                          <span className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-100">{e.cantidad}</span>
-                          <span className="text-[11px] tabular-nums text-slate-400 w-10 text-right">{fmtPct(pct)}</span>
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+                      <div className="xl:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Tinetas pedidas" valor={fmt(totales.pedidas)} />
+                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Tinetas entregadas" valor={fmt(totales.entregadas)} />
+                        <MiniStat
+                          icon={<Paintbrush className="h-3.5 w-3.5" />}
+                          tono="slate"
+                          label="Tinetas usadas (control)"
+                          valor={fmtDec(totales.usadasControl)}
+                        />
+                        <MiniStat
+                          icon={<Scale className="h-3.5 w-3.5" />}
+                          tono={totales.teoricoVsReal < 0 ? "red" : "emerald"}
+                          label="Teórico vs real"
+                          valor={fmtDec(totales.teoricoVsReal)}
+                        />
+                        <MiniStat
+                          icon={<Package className="h-3.5 w-3.5" />}
+                          tono={totales.saldo < 0 ? "red" : "emerald"}
+                          label="Saldo en obra"
+                          valor={fmtDec(totales.saldo)}
+                        />
+                        <MiniStat icon={<AlertTriangle className="h-3.5 w-3.5" />} tono="amber" label="Faltante por pedir" valor={fmt(totales.faltante)} />
+                      </div>
+
+                      {/* Resumen por estado */}
+                      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-3">Obras por estado</div>
+                        <div className="space-y-2">
+                          {totales.conteoEstados.map((e) => {
+                            const pct = filas.length > 0 ? e.cantidad / filas.length : 0;
+                            return (
+                              <div key={e.key} className="flex items-center gap-2.5" data-testid={`row-estado-${e.key}`}>
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${e.dot}`} />
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{e.label}</span>
+                                <span className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-100">{e.cantidad}</span>
+                                <span className="text-[11px] tabular-nums text-slate-400 w-10 text-right">{fmtPct(pct)}</span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Tabla de obras */}
@@ -1670,12 +1683,15 @@ function FilaObra({
         </td>
       </tr>
 
+      {/* Mismo tinte naranja de la fila abierta e indentado: el panel se lee
+          como hijo de esa obra y no como un bloque suelto de la tabla. */}
       {expandida && (
-        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/60 dark:bg-slate-900/40">
-          <td colSpan={columnas.length + 2} className="px-4 py-4">
+        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-orange-50/40 dark:bg-orange-950/10">
+          <td colSpan={columnas.length + 2} className="pl-10 pr-4 pb-4">
             <PanelProductos
               obraId={fila.obra.id}
               obraNombre={fila.obra.nombre}
+              obraCiudad={fila.obra.ciudad}
               productos={productos}
             />
           </td>
@@ -1794,9 +1810,14 @@ function FilaObraGlobal({
       </tr>
 
       {expandida && (
-        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/60 dark:bg-slate-900/40">
-          <td colSpan={8} className="px-4 py-4">
-            <PanelProductos obraId={fila.obra.id} obraNombre={fila.obra.nombre} productos={productos} />
+        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-orange-50/40 dark:bg-orange-950/10">
+          <td colSpan={8} className="pl-10 pr-4 pb-4">
+            <PanelProductos
+              obraId={fila.obra.id}
+              obraNombre={fila.obra.nombre}
+              obraCiudad={fila.obra.ciudad}
+              productos={productos}
+            />
           </td>
         </tr>
       )}
@@ -1804,42 +1825,15 @@ function FilaObraGlobal({
   );
 }
 
-function KpiCard({
-  icon,
-  tono,
-  label,
-  valor,
-  sufijo,
-  progreso,
-}: {
-  icon: React.ReactNode;
-  tono: keyof typeof TONOS | string;
-  label: string;
-  valor: string;
-  sufijo?: string;
-  progreso?: number;
-}) {
+/** Número suelto dentro del banner naranja (sin tarjeta, para ahorrar alto). */
+function BannerStat({ label, valor, sufijo }: { label: string; valor: string; sufijo?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold text-slate-400">
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${TONOS[tono] ?? TONOS.slate}`}>{icon}</span>
-        {label}
+    <div className="leading-tight">
+      <div className="text-[9px] uppercase tracking-wider font-bold text-white/70">{label}</div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xl font-bold tabular-nums">{valor}</span>
+        {sufijo && <span className="text-[10px] font-semibold text-white/70">{sufijo}</span>}
       </div>
-      <div className="mt-2.5 flex items-baseline gap-1.5">
-        <span className="text-3xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{valor}</span>
-        {sufijo && <span className="text-xs font-semibold text-slate-400">{sufijo}</span>}
-      </div>
-      {progreso !== undefined && (
-        <div className="mt-2.5 flex items-center gap-2">
-          <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
-              style={{ width: `${Math.round(progreso * 100)}%` }}
-            />
-          </div>
-          <span className="text-xs font-bold tabular-nums text-slate-500 dark:text-slate-300">{fmtPct(progreso)}</span>
-        </div>
-      )}
     </div>
   );
 }
