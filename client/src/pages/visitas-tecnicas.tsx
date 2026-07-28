@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,7 +48,12 @@ import {
   PenLine,
   Download,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Info,
+  Image as ImageIcon
 } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -602,6 +608,62 @@ const VisitaPDFDocument = ({ visita, evidencias = [] }: { visita: VisitaDetalle;
   </Document>
 );
 
+// ---- Bloques de presentación del modal de detalle ----
+
+/** Sección con título e icono opcional, pensada para leerse bien en móvil */
+const DetailSection = ({
+  title,
+  icon: Icon,
+  action,
+  children,
+}: {
+  title: string;
+  icon?: any;
+  action?: ReactNode;
+  children: ReactNode;
+}) => (
+  <section className="rounded-xl border bg-card shadow-sm">
+    <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold sm:text-base">
+        {Icon && <Icon className="h-4 w-4 text-primary shrink-0" />}
+        <span className="truncate">{title}</span>
+      </h3>
+      {action}
+    </div>
+    <div className="p-3 sm:p-4">{children}</div>
+  </section>
+);
+
+/**
+ * En el tema claro `--destructive` es el mismo naranjo que `--primary`, así que
+ * "correcta" y "deficiente" se veían idénticas: se fuerzan verde y rojo.
+ */
+const aplicacionBadgeClass = (aplicacion?: string) =>
+  aplicacion === 'correcta'
+    ? 'border-transparent bg-green-600 text-white hover:bg-green-600'
+    : 'border-transparent bg-red-600 text-white hover:bg-red-600';
+
+/** Par etiqueta / valor. Se apila en móvil y nunca desborda el ancho */
+const DetailField = ({
+  label,
+  value,
+  icon: Icon,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  icon?: any;
+  className?: string;
+}) => (
+  <div className={`min-w-0 rounded-lg border bg-muted/70 px-2.5 py-2 ${className}`}>
+    <p className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      {Icon && <Icon className="h-3 w-3 shrink-0" />}
+      <span className="truncate">{label}</span>
+    </p>
+    <div className="mt-0.5 break-words text-sm font-medium leading-snug">{value}</div>
+  </div>
+);
+
 export default function VisitasTecnicasPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -626,6 +688,30 @@ export default function VisitasTecnicasPage() {
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  // Visor de imágenes (lightbox) del detalle de visita
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
+
+  // Teclado del visor: flechas para navegar y Escape solo cierra el visor
+  // (en captura, para que el modal de detalle que está detrás no se cierre también).
+  const lightboxOpen = !!lightbox;
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setLightbox(null);
+        return;
+      }
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      setLightbox((prev) => {
+        if (!prev) return prev;
+        const delta = e.key === 'ArrowLeft' ? -1 : 1;
+        return { ...prev, index: (prev.index + delta + prev.images.length) % prev.images.length };
+      });
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [lightboxOpen]);
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editVisitData, setEditVisitData] = useState<any>(null);
@@ -1203,7 +1289,10 @@ export default function VisitasTecnicasPage() {
   });
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CL', {
+    // Las columnas `date` llegan como 'YYYY-MM-DD' y se parsean como UTC:
+    // sin el mediodía se mostrarían un día antes en Chile (UTC-4).
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateString) ? `${dateString}T12:00:00` : dateString;
+    return new Date(normalized).toLocaleDateString('es-CL', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -2766,222 +2855,468 @@ export default function VisitasTecnicasPage() {
 
       {/* Dialog para ver detalles de visita */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
-          <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Detalle de Visita Técnica</DialogTitle>
-            <DialogDescription className="text-sm">
-              Información completa de la inspección técnica realizada
-            </DialogDescription>
-          </DialogHeader>
-          
-          {loadingDetalle ? (
-            <div className="space-y-4">
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+        <DialogContent
+          hideCloseButton
+          /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+          overlayClassName="z-[70]"
+          className="z-[70] flex w-full max-w-3xl flex-col gap-0 overflow-hidden rounded-none border-0 p-0 left-0 top-0 h-[100dvh] max-h-[100dvh] translate-x-0 translate-y-0 sm:left-[50%] sm:top-[50%] sm:h-auto sm:max-h-[90dvh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-xl sm:border"
+          data-testid="modal-detalle-visita"
+        >
+          {/* Encabezado fijo */}
+          <DialogHeader className="shrink-0 space-y-0 border-b bg-background px-3 py-3 text-left sm:px-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="truncate text-base font-semibold sm:text-lg" data-testid="text-detalle-titulo">
+                  {visitaDetalle?.nombreObra || 'Detalle de Visita Técnica'}
+                </DialogTitle>
+                <DialogDescription className="truncate text-xs sm:text-sm">
+                  {visitaDetalle
+                    ? `Inspección técnica${visitaDetalle.createdAt ? ` del ${formatDate(visitaDetalle.createdAt)}` : ''}`
+                    : 'Información completa de la inspección técnica realizada'}
+                </DialogDescription>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {selectedVisitId && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => handleDownloadPDF(selectedVisitId)}
+                    title="Descargar PDF"
+                    data-testid="button-detalle-pdf"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" data-testid="button-detalle-cerrar">
+                    <X className="h-5 w-5" />
+                    <span className="sr-only">Cerrar</span>
+                  </Button>
+                </DialogClose>
+              </div>
             </div>
-          ) : visitaDetalle ? (
-            <div className="space-y-6">
-              {/* Información general */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Información General</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-sm font-medium text-muted-foreground">Obra:</span>
-                      <p className="font-medium">{visitaDetalle.nombreObra}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-muted-foreground">Dirección:</span>
-                      <p className="font-medium">{visitaDetalle.direccionObra}</p>
-                    </div>
-                    {visitaDetalle.recepcionistaNombre && (
-                      <div>
-                        <span className="text-sm font-medium text-muted-foreground">Recepcionista:</span>
-                        <p className="font-medium">{visitaDetalle.recepcionistaNombre}</p>
-                      </div>
-                    )}
-                    {visitaDetalle.recepcionistaCargo && (
-                      <div>
-                        <span className="text-sm font-medium text-muted-foreground">Cargo:</span>
-                        <p className="font-medium">{visitaDetalle.recepcionistaCargo}</p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-sm font-medium text-muted-foreground">Estado:</span>
-                      <div className="mt-1">{getEstadoBadge(visitaDetalle.estado)}</div>
-                    </div>
+          </DialogHeader>
+
+          {/* Cuerpo scrolleable */}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-muted/30 p-3 sm:space-y-4 sm:p-4">
+            {loadingDetalle ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-xl border bg-card p-4">
+                    <div className="mb-3 h-4 w-1/3 animate-pulse rounded bg-muted"></div>
+                    <div className="mb-2 h-3 w-3/4 animate-pulse rounded bg-muted"></div>
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-muted"></div>
                   </div>
-                </CardContent>
-              </Card>
+                ))}
+              </div>
+            ) : visitaDetalle ? (
+              <>
+                {/* Información general */}
+                <DetailSection title="Información General" icon={Info}>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {getEstadoBadge(visitaDetalle.estado)}
+                    {visitaDetalle.aplicacionGeneral && (
+                      <Badge className={`capitalize ${aplicacionBadgeClass(visitaDetalle.aplicacionGeneral)}`}>
+                        Aplicación {visitaDetalle.aplicacionGeneral}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <DetailField
+                      icon={Building2}
+                      label="Obra"
+                      value={visitaDetalle.nombreObra || '-'}
+                      className="col-span-2"
+                    />
+                    <DetailField
+                      icon={MapPin}
+                      label="Dirección"
+                      value={visitaDetalle.direccionObra || '-'}
+                      className="col-span-2"
+                    />
+                    {visitaDetalle.cliente && (
+                      <DetailField icon={Users} label="Cliente" value={visitaDetalle.cliente} className="col-span-2" />
+                    )}
+                    {visitaDetalle.createdAt && (
+                      <DetailField icon={Calendar} label="Fecha de visita" value={formatDate(visitaDetalle.createdAt)} />
+                    )}
+                    {visitaDetalle.recepcionistaNombre && (
+                      <DetailField
+                        icon={User}
+                        label="Recepcionista"
+                        value={
+                          <>
+                            {visitaDetalle.recepcionistaNombre}
+                            {visitaDetalle.recepcionistaCargo && (
+                              <span className="block text-xs font-normal text-muted-foreground">
+                                {visitaDetalle.recepcionistaCargo}
+                              </span>
+                            )}
+                          </>
+                        }
+                      />
+                    )}
+                    {visitaDetalle.tipoSuperficie && (
+                      <DetailField label="Tipo de superficie" value={visitaDetalle.tipoSuperficie} />
+                    )}
+                    {visitaDetalle.ambiente && (
+                      <DetailField label="Ambiente" value={<span className="capitalize">{visitaDetalle.ambiente}</span>} />
+                    )}
+                    {visitaDetalle.condicionesClimaticas && (
+                      <DetailField label="Clima" value={<span className="capitalize">{visitaDetalle.condicionesClimaticas}</span>} />
+                    )}
+                    {visitaDetalle.dilucion && (
+                      <DetailField label="Dilución" value={`${visitaDetalle.dilucion}%`} />
+                    )}
+                  </div>
+                </DetailSection>
 
-              {/* Observaciones Generales */}
-              {visitaDetalle.observacionesGenerales && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Observaciones Generales</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm whitespace-pre-wrap">{visitaDetalle.observacionesGenerales}</p>
-                  </CardContent>
-                </Card>
-              )}
+                {/* Observaciones Generales */}
+                {(visitaDetalle.observacionesGenerales || visitaDetalle.comentarios) && (
+                  <DetailSection title="Observaciones Generales" icon={FileText}>
+                    <div className="space-y-3">
+                      {visitaDetalle.observacionesGenerales && (
+                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                          {visitaDetalle.observacionesGenerales}
+                        </p>
+                      )}
+                      {visitaDetalle.comentarios && (
+                        <div className="rounded-lg bg-muted/50 px-2.5 py-2">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Comentarios
+                          </p>
+                          <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            {visitaDetalle.comentarios}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </DetailSection>
+                )}
 
-              {/* Fotos de la Visita */}
-              {visitaEvidencias && visitaEvidencias.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Camera className="w-5 h-5" />
-                      Fotos de la Visita ({visitaEvidencias.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                      {visitaEvidencias.map((evidencia: any) => (
-                        <div key={evidencia.id} className="relative aspect-square group">
+                {/* Fotos de la Visita */}
+                {visitaEvidencias && visitaEvidencias.length > 0 && (
+                  <DetailSection title={`Fotos de la Visita (${visitaEvidencias.length})`} icon={Camera}>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                      {visitaEvidencias.map((evidencia: any, idx: number) => (
+                        <button
+                          key={evidencia.id}
+                          type="button"
+                          onClick={() =>
+                            setLightbox({
+                              images: visitaEvidencias.map((e: any) => e.urlArchivo),
+                              index: idx,
+                            })
+                          }
+                          className="group relative aspect-square overflow-hidden rounded-lg border bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                          data-testid={`img-evidencia-${evidencia.id}`}
+                        >
                           <img
                             src={evidencia.urlArchivo}
-                            alt={evidencia.nombreArchivo || 'Foto'}
-                            className="w-full h-full object-cover rounded-lg border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => window.open(evidencia.urlArchivo, '_blank')}
+                            alt={evidencia.nombreArchivo || 'Foto de la visita'}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
                           />
                           {evidencia.descripcion && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 rounded-b-lg truncate">
+                            <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1 py-0.5 text-left text-[10px] text-white">
                               {evidencia.descripcion}
-                            </div>
+                            </span>
                           )}
-                        </div>
+                        </button>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </DetailSection>
+                )}
 
-              {/* Productos evaluados */}
-              {visitaDetalle.productos && visitaDetalle.productos.length > 0 ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Productos Evaluados</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
+                {/* Productos evaluados */}
+                {visitaDetalle.productos && visitaDetalle.productos.length > 0 ? (
+                  <DetailSection
+                    title={`Productos Evaluados (${visitaDetalle.productos.length})`}
+                    icon={Package}
+                  >
+                    <div className="space-y-3">
                       {visitaDetalle.productos.map((producto: any, index: number) => (
-                        <Card key={index} className="border-2">
-                          <CardContent className="pt-6">
-                            <div className="space-y-3">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h4 className="font-semibold text-base">{producto.name || producto.productoManual || 'Producto sin nombre'}</h4>
-                                  <p className="text-sm text-muted-foreground">SKU: {producto.sku}</p>
-                                  <p className="text-sm text-muted-foreground">Formato: {producto.formato}</p>
-                                </div>
-                                {producto.evaluacion?.aplicacion && (
-                                  <Badge variant={producto.evaluacion.aplicacion === 'correcta' ? 'default' : 'destructive'}>
-                                    {producto.evaluacion.aplicacion}
-                                  </Badge>
+                        <article
+                          key={index}
+                          className="overflow-hidden rounded-lg border"
+                          data-testid={`detalle-producto-${index}`}
+                        >
+                          <div className="flex flex-col gap-2 border-b bg-muted/40 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                            <div className="min-w-0">
+                              <h4 className="break-words text-sm font-semibold sm:text-base">
+                                {producto.name || producto.productoManual || 'Producto sin nombre'}
+                              </h4>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                {producto.sku && <span>SKU: {producto.sku}</span>}
+                                {producto.formato && <span>Formato: {producto.formato}</span>}
+                              </div>
+                            </div>
+                            {producto.evaluacion?.aplicacion && (
+                              <Badge
+                                className={`w-fit shrink-0 capitalize ${aplicacionBadgeClass(producto.evaluacion.aplicacion)}`}
+                              >
+                                {producto.evaluacion.aplicacion}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {producto.evaluacion && (
+                            <div className="space-y-3 p-3">
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {(producto.color || producto.evaluacion.color) && (
+                                  <DetailField label="Color" value={producto.color || producto.evaluacion.color} />
+                                )}
+                                {(producto.lote || producto.evaluacion.lote) && (
+                                  <DetailField label="Lote" value={producto.lote || producto.evaluacion.lote} />
+                                )}
+                                {(producto.fechaLlegada || producto.evaluacion.fechaLlegada) && (
+                                  <DetailField
+                                    label="Fecha llegada"
+                                    value={formatDate(producto.fechaLlegada || producto.evaluacion.fechaLlegada)}
+                                  />
+                                )}
+                                {(producto.avance || producto.evaluacion.avance) && (
+                                  <DetailField
+                                    label="Avance"
+                                    value={`${Number(producto.avance ?? producto.evaluacion.avance)}%`}
+                                  />
+                                )}
+                                {producto.m2Aplicados && (
+                                  <DetailField label="m² aplicados" value={`${Number(producto.m2Aplicados)} m²`} />
+                                )}
+                                {producto.evaluacion.condicionesClimaticas && (
+                                  <DetailField
+                                    label="Clima"
+                                    value={<span className="capitalize">{producto.evaluacion.condicionesClimaticas}</span>}
+                                  />
+                                )}
+                                {producto.evaluacion.dilucion && (
+                                  <DetailField label="Dilución" value={`${producto.evaluacion.dilucion}%`} />
+                                )}
+                                {producto.evaluacion.tipoSuperficie && (
+                                  <DetailField label="Superficie" value={producto.evaluacion.tipoSuperficie} />
                                 )}
                               </div>
 
-                              {producto.evaluacion && (
-                                <>
-                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 p-3 bg-muted/50 rounded-lg">
-                                    {producto.evaluacion.color && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Color:</span>
-                                        <p className="text-sm">{producto.evaluacion.color}</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.lote && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Lote:</span>
-                                        <p className="text-sm">{producto.evaluacion.lote}</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.fechaLlegada && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Fecha Llegada:</span>
-                                        <p className="text-sm">{formatDate(producto.evaluacion.fechaLlegada)}</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.avance && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Avance:</span>
-                                        <p className="text-sm">{producto.evaluacion.avance}%</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.condicionesClimaticas && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Clima:</span>
-                                        <p className="text-sm capitalize">{producto.evaluacion.condicionesClimaticas}</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.dilucion && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground">Dilución:</span>
-                                        <p className="text-sm">{producto.evaluacion.dilucion}%</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.anomalias && (
-                                      <div className="col-span-2 md:col-span-3">
-                                        <span className="text-xs font-medium text-muted-foreground">Deficiencia:</span>
-                                        <p className="text-sm">{producto.evaluacion.anomalias}</p>
-                                      </div>
-                                    )}
-                                    {producto.evaluacion.observacionesTecnicas && (
-                                      <div className="col-span-2 md:col-span-3">
-                                        <span className="text-xs font-medium text-muted-foreground">Observaciones:</span>
-                                        <p className="text-sm">{producto.evaluacion.observacionesTecnicas}</p>
-                                      </div>
-                                    )}
-                                  </div>
+                              {producto.evaluacion.anomalias && (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 dark:border-red-900/50 dark:bg-red-950/30">
+                                  <p className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-red-700 dark:text-red-400">
+                                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                                    Deficiencia
+                                  </p>
+                                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-snug">
+                                    {producto.evaluacion.anomalias}
+                                  </p>
+                                </div>
+                              )}
 
-                                  {producto.evaluacion.imagenesUrls && producto.evaluacion.imagenesUrls.length > 0 && (
-                                    <div className="mt-4">
-                                      <span className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2">
-                                        <Camera className="w-4 h-4" />
-                                        Evidencia Fotográfica
-                                      </span>
-                                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                        {producto.evaluacion.imagenesUrls.map((url: string, imgIdx: number) => (
-                                          <div key={imgIdx} className="relative aspect-square">
-                                            <img 
-                                              src={url} 
-                                              alt={`Evidencia ${imgIdx + 1}`} 
-                                              className="w-full h-full object-cover rounded border hover:scale-105 transition-transform cursor-pointer"
-                                              onClick={() => window.open(url, '_blank')}
-                                            />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
+                              {producto.evaluacion.observacionesTecnicas && (
+                                <div className="rounded-lg bg-muted/50 px-2.5 py-2">
+                                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    Observaciones técnicas
+                                  </p>
+                                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-snug">
+                                    {producto.evaluacion.observacionesTecnicas}
+                                  </p>
+                                </div>
+                              )}
+
+                              {producto.evaluacion.imagenesUrls && producto.evaluacion.imagenesUrls.length > 0 && (
+                                <div>
+                                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    <ImageIcon className="h-3 w-3" />
+                                    Evidencia fotográfica ({producto.evaluacion.imagenesUrls.length})
+                                  </p>
+                                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                                    {producto.evaluacion.imagenesUrls.map((url: string, imgIdx: number) => (
+                                      <button
+                                        key={imgIdx}
+                                        type="button"
+                                        onClick={() =>
+                                          setLightbox({ images: producto.evaluacion.imagenesUrls, index: imgIdx })
+                                        }
+                                        className="group relative aspect-square overflow-hidden rounded-lg border bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                                      >
+                                        <img
+                                          src={url}
+                                          alt={`Evidencia ${imgIdx + 1}`}
+                                          loading="lazy"
+                                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </CardContent>
-                        </Card>
+                          )}
+                        </article>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-8 text-center text-muted-foreground">
-                    <p>No hay productos evaluados en esta visita</p>
-                  </CardContent>
-                </Card>
+                  </DetailSection>
+                ) : (
+                  <DetailSection title="Productos Evaluados" icon={Package}>
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No hay productos evaluados en esta visita
+                    </p>
+                  </DetailSection>
+                )}
+
+                {/* Firmas */}
+                {(visitaDetalle.firmaTecnicoData || visitaDetalle.firmaRecepcionistaData) && (
+                  <DetailSection title="Firmas de Recepción" icon={ClipboardCheck}>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border p-2">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Técnico
+                        </p>
+                        {visitaDetalle.firmaTecnicoData ? (
+                          <img
+                            src={visitaDetalle.firmaTecnicoData}
+                            alt="Firma del técnico"
+                            className="mt-1 h-20 w-full object-contain"
+                          />
+                        ) : (
+                          <div className="mt-1 h-20 border-b border-dashed" />
+                        )}
+                        <p className="mt-1 truncate text-xs">{visitaDetalle.firmaTecnicoNombre || '-'}</p>
+                      </div>
+                      <div className="rounded-lg border p-2">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Recepcionista
+                        </p>
+                        {visitaDetalle.firmaRecepcionistaData ? (
+                          <img
+                            src={visitaDetalle.firmaRecepcionistaData}
+                            alt="Firma del recepcionista"
+                            className="mt-1 h-20 w-full object-contain"
+                          />
+                        ) : (
+                          <div className="mt-1 h-20 border-b border-dashed" />
+                        )}
+                        <p className="mt-1 truncate text-xs">{visitaDetalle.recepcionistaNombre || '-'}</p>
+                      </div>
+                    </div>
+                    {visitaDetalle.fechaFirma && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Firmada el {formatDate(visitaDetalle.fechaFirma)}
+                      </p>
+                    )}
+                  </DetailSection>
+                )}
+              </>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <p>No se pudieron cargar los detalles de la visita</p>
+              </div>
+            )}
+          </div>
+
+          {/* Acciones fijas (móvil y desktop) */}
+          <div className="shrink-0 border-t bg-background px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:px-4">
+            <div className="flex gap-2">
+              {selectedVisitId && (
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => handleDownloadPDF(selectedVisitId)}
+                  data-testid="button-detalle-pdf-footer"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar PDF
+                </Button>
               )}
+              <Button
+                variant="secondary"
+                className="flex-1 sm:ml-auto sm:flex-none"
+                onClick={() => setShowDetailModal(false)}
+              >
+                Cerrar
+              </Button>
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              <p>No se pudieron cargar los detalles de la visita</p>
-            </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Visor de imágenes a pantalla completa.
+          Va en un portal propio y no en un <Dialog>: dos diálogos modales de Radix
+          anidados se roban los eventos y un clic real cerraba ambos. */}
+      {lightbox &&
+        createPortal(
+          <div
+            className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black"
+            onClick={() => setLightbox(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visor de imágenes"
+            data-testid="lightbox-visita"
+          >
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`Evidencia ${lightbox.index + 1}`}
+              className="max-h-[calc(100dvh-7rem)] max-w-[95vw] object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            <div className="absolute left-3 top-3 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white">
+              {lightbox.index + 1} / {lightbox.images.length}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setLightbox(null)}
+              className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+              aria-label="Cerrar visor"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {lightbox.images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightbox((prev) =>
+                      prev
+                        ? { ...prev, index: (prev.index - 1 + prev.images.length) % prev.images.length }
+                        : prev
+                    );
+                  }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                  aria-label="Imagen anterior"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightbox((prev) =>
+                      prev ? { ...prev, index: (prev.index + 1) % prev.images.length } : prev
+                    );
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                  aria-label="Imagen siguiente"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+
+            <a
+              href={lightbox.images[lightbox.index]}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 rounded-full bg-white/15 px-4 py-2 text-xs text-white hover:bg-white/25"
+            >
+              Abrir original
+            </a>
+          </div>,
+          document.body
+        )}
 
       {/* Dialog para crear/editar obras */}
       <Dialog open={showNewObraDialog} onOpenChange={handleCloseObraDialog}>
