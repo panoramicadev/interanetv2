@@ -17,9 +17,13 @@ import {
     BarChart3,
     PieChart as PieChartIcon,
     Table2,
+    MousePointerClick,
+    ListOrdered,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage } from "@/hooks/useAiChat";
+import { useTour } from "@/components/guided-tour";
+import { resolveGuide } from "@shared/module-map";
 import {
     BarChart,
     Bar,
@@ -323,6 +327,63 @@ function SmartChart({ tableData }: { tableData: TableData }) {
     );
 }
 
+// ─── Lanzador de guía en pantalla ───
+// El asistente cierra sus respuestas de capacitación con un bloque ```guia```
+// que trae el id de la guía. Acá se convierte en el botón que arranca el tour:
+// la app navega al módulo y va marcando dónde hacer clic en cada paso.
+function GuideLauncher({ payload }: { payload: string }) {
+    const { startTour, tour } = useTour();
+
+    let guideId = "";
+    let fallbackTitle = "";
+    try {
+        const parsed = JSON.parse(payload.trim());
+        guideId = String(parsed.guideId || "");
+        fallbackTitle = String(parsed.title || "");
+    } catch {
+        // Bloque mal formado: mejor no mostrar nada que un botón muerto.
+        return null;
+    }
+
+    const resolved = guideId ? resolveGuide(guideId) : null;
+    if (!resolved) return null;
+
+    const isRunning = tour?.guideId === guideId;
+    const stepCount = resolved.steps.length;
+
+    return (
+        <div className="my-4 rounded-2xl border border-[#fd6301]/30 bg-gradient-to-br from-orange-50 to-amber-50/40 dark:from-orange-950/20 dark:to-amber-950/10 overflow-hidden">
+            <div className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/30">
+                        <ListOrdered className="w-4.5 h-4.5 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#fd6301]">
+                            Guía en pantalla · {resolved.module.label}
+                        </p>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mt-0.5 leading-snug">
+                            {resolved.guide.title || fallbackTitle}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {stepCount} {stepCount === 1 ? "paso" : "pasos"} · te llevo al módulo y te marco dónde hacer clic
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => startTour(guideId)}
+                    disabled={isRunning}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-[#fd6301] hover:brightness-110 disabled:opacity-50 shadow-md shadow-[#fd6301]/30 transition-all"
+                    data-testid="button-start-guide"
+                >
+                    <MousePointerClick className="w-4 h-4" />
+                    {isRunning ? "Guía en curso…" : "Mostrarme en pantalla"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ─── Smart markdown-ish renderer with chart detection ───
 function renderContent(text: string) {
     if (!text) return null;
@@ -333,7 +394,12 @@ function renderContent(text: string) {
     return parts.map((part, i) => {
         // Code block
         if (part.startsWith("```")) {
+            const lang = (part.match(/^```(\w*)/)?.[1] || "").toLowerCase();
             const code = part.replace(/^```\w*\n?/, "").replace(/\n?```$/, "");
+            // Bloque de guía: no es código, es una guía ejecutable en pantalla.
+            if (lang === "guia") {
+                return <GuideLauncher key={i} payload={code} />;
+            }
             return (
                 <pre
                     key={i}
@@ -471,10 +537,10 @@ function renderContent(text: string) {
 
 const DEFAULT_SUGGESTIONS = [
     "¿Cuáles son mis ventas de este mes?",
-    "Busca el cliente Ferretería López",
+    "Guíame para hacer un pedido",
     "Busca esmalte al agua y hazme una cotización",
-    "¿Cuánto ha comprado el cliente Juan este mes?",
-    "Busca productos de la línea Élite",
+    "¿Cómo rindo un gasto?",
+    "¿Qué módulos tengo disponibles?",
     "¿Cómo va mi meta de ventas?",
 ];
 

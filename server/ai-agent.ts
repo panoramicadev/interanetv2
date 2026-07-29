@@ -10,6 +10,7 @@
 import OpenAI from "openai";
 import { toolImplementations } from "./ai-tools";
 import { AI_SYSTEM_RULES } from "./ai-system-rules";
+import { AI_TRAINING_RULES, buildModulesPromptSection, guideBlockFor } from "./ai-modules";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 
 // ─── OpenAI Client (lazy init) ───
@@ -28,7 +29,13 @@ export function getOpenAI(): OpenAI {
 
 // ─── System Prompt ───
 function buildSystemPrompt(
-    user: { role: string; salespersonName?: string; firstName?: string; lastName?: string },
+    user: {
+        role: string;
+        salespersonName?: string;
+        firstName?: string;
+        lastName?: string;
+        permissions?: Record<string, boolean> | null;
+    },
     knowledgeBase?: Array<{ title: string; content: string; fileType?: string }>
 ): string {
     const now = new Date();
@@ -58,7 +65,8 @@ ${isPublic ? `Actúas como tomador de pedidos digital de ${user.salespersonName}
 ## Herramientas disponibles
 ${isPublic ? `Productos (buscar, precios, fichas técnicas), cotizaciones (crear con PDF), inventario.
 NO tienes acceso a datos internos (metas, facturación, otros clientes).` :
-            `Ventas (resumen, metas, clientes top, NVV/GDV), productos (buscar, precios, inventario), clientes (buscar, crédito, historial compras), cotizaciones (crear/listar con PDF).`}
+            `Ventas (resumen, metas, clientes top, NVV/GDV), productos (buscar, precios, inventario), clientes (buscar, crédito, historial compras), cotizaciones (crear/listar con PDF).
+Capacitación: list_modules (qué módulos tiene el usuario), search_help (buscar una guía con las palabras del usuario), get_module_guide (los pasos, con marcado en pantalla).`}
 ${isSalesperson ? `⚠️ Solo datos de ${user.salespersonName}.` : ""}
 
 ${isPublic ? `## Flujo pedidos: Entender necesidad → Buscar productos → Preguntar color/formato/cantidad → Resumir → Cotizar si acepta` : ""}
@@ -69,6 +77,13 @@ ${isPublic ? `## Flujo pedidos: Entender necesidad → Buscar productos → Preg
 - Datos de cliente se auto-completan; solo pide nombre, productos, cantidades y tier de precio.`;
 
     prompt += `\n\n${AI_SYSTEM_RULES}`;
+
+    // Capacitación: el visitante del catálogo público no usa la intranet, así
+    // que no tiene sentido cargarle el mapa de módulos.
+    if (!isPublic) {
+        prompt += `\n\n${AI_TRAINING_RULES}`;
+        prompt += `\n\n${buildModulesPromptSection({ role: user.role, permissions: user.permissions })}`;
+    }
 
     if (systemInstructions.length > 0) {
         prompt += `\n\n## Instrucciones del administrador`;
@@ -272,6 +287,53 @@ const toolDefinitions: ChatCompletionTool[] = [
             },
         },
     },
+    // ─── Capacitación: enseñar a usar la intranet ───
+    {
+        type: "function",
+        function: {
+            name: "search_help",
+            description:
+                "Busca una guía paso a paso para usar la intranet. Úsala SIEMPRE que el usuario pregunte cómo hacer algo, dónde está algo, o diga que no encuentra o no puede hacer algo en el sistema. Pásale las palabras del usuario tal como las dijo. Devuelve guideIds para get_module_guide.",
+            parameters: {
+                type: "object",
+                properties: {
+                    query: { type: "string", description: "Lo que pidió el usuario, con sus propias palabras (ej: 'cómo hago un pedido', 'no encuentro el CRM')." },
+                    limit: { type: "number", description: "Cantidad máxima de guías a retornar (default: 5)." },
+                },
+                required: ["query"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_module_guide",
+            description:
+                "Obtiene los pasos de una guía de la intranet. Devuelve un campo 'message' ya escrito que DEBES copiar textualmente, incluido el bloque ```guia``` del final: ese bloque activa el botón que le marca al usuario en pantalla dónde hacer clic. Se llama con guideId (de search_help) o con moduleId para recorrer un módulo completo.",
+            parameters: {
+                type: "object",
+                properties: {
+                    guideId: { type: "string", description: "Id de la guía, obtenido de search_help (ej: 'tomador_pedidos::crear-pedido')." },
+                    moduleId: { type: "string", description: "Id del módulo, para un recorrido de orientación (ej: 'gastos', 'postventa.reclamos')." },
+                },
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "list_modules",
+            description:
+                "Lista los módulos de la intranet que ESTE usuario tiene habilitados, con para qué sirve cada uno, dónde está en el menú y sus guías disponibles. Úsala cuando el usuario pregunte qué puede hacer en el sistema, cuando haya que ubicarlo en el módulo correcto, o al capacitar a alguien nuevo.",
+            parameters: {
+                type: "object",
+                properties: {
+                    group: { type: "string", description: "Filtrar por grupo (Comercial, Finanzas, Panorámica Market, Mantención (CMMS), Administración, etc.)." },
+                    query: { type: "string", description: "Filtrar por texto en el nombre o propósito del módulo." },
+                },
+            },
+        },
+    },
     {
         type: "function",
         function: {
@@ -297,6 +359,11 @@ export interface AiUserContext {
     salespersonName?: string;
     firstName?: string;
     lastName?: string;
+    /**
+     * Permisos efectivos del usuario (rol + overrides personales). Los usa la
+     * capacitación para no enseñar módulos que la persona no puede abrir.
+     */
+    permissions?: Record<string, boolean> | null;
 }
 
 // ─── Message Type ───
@@ -325,12 +392,25 @@ export async function processAgentMessage(
         { role: "user", content: userMessage },
     ];
 
+    // Herramientas permitidas según el rol. El visitante del catálogo público
+    // solo puede consultar productos y cotizar: nada de datos internos ni de
+    // capacitación en módulos de la intranet.
+    const publicAllowedTools = [
+        "search_products",
+        "create_quote",
+        "get_inventory_summary",
+        "log_product_question",
+    ];
+    const allowedToolDefs = toolDefinitions.filter(
+        (t) => userContext.role !== "public" || publicAllowedTools.includes((t as any).function.name),
+    );
+
     try {
         // First LLM call — may include tool calls
         let completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages,
-            tools: toolDefinitions,
+            tools: allowedToolDefs,
             tool_choice: "auto",
             temperature: 0.3,
             max_tokens: 2000,
@@ -376,17 +456,7 @@ export async function processAgentMessage(
                 } as any);
             }
 
-            // Filter tools based on user role for subsequent calls
-            const publicAllowedTools = [
-                "search_products",
-                "create_quote",
-                "get_inventory_summary",
-                "log_product_question"
-            ];
-
-            const filteredToolDefs = toolDefinitions.filter(t =>
-                userContext.role !== "public" || publicAllowedTools.includes((t as any).function.name)
-            );
+            const filteredToolDefs = allowedToolDefs;
 
             completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
@@ -420,6 +490,26 @@ export async function processAgentMessage(
                         }
                     } catch (_) { /* not JSON, skip */ }
                 }
+            }
+        }
+
+        // ── POST-PROCESSING: Re-inyectar el bloque ```guia``` de las guías ──
+        // Igual que con los links de PDF, gpt-4o-mini a veces se come el bloque
+        // que activa la guía visual. Si llamó a get_module_guide y el bloque no
+        // está en la respuesta, lo agregamos: sin él el usuario pierde el
+        // marcado en pantalla, que es lo que hace útil la capacitación.
+        if (toolsUsed.includes('get_module_guide') && !processedContent.includes('```guia')) {
+            for (const msg of messages) {
+                if ((msg as any).role !== 'tool' || !(msg as any).content) continue;
+                try {
+                    const toolResult = JSON.parse((msg as any).content);
+                    if (!toolResult?.guideId) continue;
+                    const block = guideBlockFor(toolResult.guideId);
+                    if (block) {
+                        processedContent += `\n\n${block}`;
+                        break; // una guía por respuesta: la primera que se resolvió
+                    }
+                } catch (_) { /* not JSON, skip */ }
             }
         }
 

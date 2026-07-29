@@ -98,7 +98,7 @@ import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
-import { registerPermissionRoutes, requirePermission } from "./permissions";
+import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser } from "./permissions";
 import { registerCommissionRoutes } from "./commissions";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -36882,13 +36882,15 @@ Instrucciones extra:
         content: m.content || '',
       }));
 
-    // Build user context
+    // Build user context — incluye los permisos efectivos para que la
+    // capacitación no enseñe módulos que este usuario no puede abrir.
     const userContext: AiUserContext = {
       userId,
       role: userRole,
       salespersonName: salespersonName || undefined,
       firstName,
       lastName,
+      permissions: await getEffectivePermissionsForUser(req.user?.email, userRole),
     };
 
     // Process with AI agent — include knowledge base content

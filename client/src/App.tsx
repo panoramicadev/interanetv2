@@ -9,6 +9,7 @@ import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
 import { TrackingScripts } from "@/components/tracking-scripts";
 import { Guarded } from "@/components/guarded-route";
+import { TourProvider, TourOverlay } from "@/components/guided-tour";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import ClientEcommerceLayout from "@/components/layout/client-ecommerce-layout";
 import ClientOrderTracking from "@/pages/client-order-tracking";
@@ -394,10 +395,15 @@ function App() {
       <FilterProvider>
         <CartProvider>
           <TooltipProvider>
-            <Toaster />
-            <Router />
-            <UpdateNotification />
-            <TrackingScripts />
+            {/* TourProvider envuelve al Router para que las guías del asistente
+                puedan navegar entre módulos sin cortarse. */}
+            <TourProvider>
+              <Toaster />
+              <Router />
+              <UpdateNotification />
+              <TrackingScripts />
+              <TourOverlay />
+            </TourProvider>
           </TooltipProvider>
         </CartProvider>
       </FilterProvider>

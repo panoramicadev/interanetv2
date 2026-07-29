@@ -186,6 +186,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
             }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+            data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
           >
             <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
             {hasPendingChild && (
@@ -206,6 +207,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   : "text-slate-200 hover:text-white hover:bg-slate-800/70"
             }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+            /* El tour guiado necesita saber qué módulos viven dentro del grupo:
+               el anidamiento cambia según el rol y no se puede inferir del DOM
+               cuando el submenú está cerrado. */
+            data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
           >
             <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
             {isPremium ? (

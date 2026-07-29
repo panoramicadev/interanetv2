@@ -5,6 +5,7 @@
  * Tools query the database directly via the storage layer (no HTTP round-trips).
  */
 import { storage } from "./storage";
+import { tool_listModules, tool_searchHelp, tool_getModuleGuide } from "./ai-modules";
 
 // ─── Helper: format currency for AI responses ───
 const fmtCLP = (n: number) =>
@@ -683,5 +684,9 @@ export const toolImplementations: Record<string, (args: any, userContext: any) =
     log_product_question: tool_logProductQuestion,
     search_clients: tool_searchClients,
     get_client_purchase_history: tool_getClientPurchaseHistory,
+    // Capacitación: el asistente enseña a usar la propia intranet.
+    list_modules: tool_listModules,
+    search_help: tool_searchHelp,
+    get_module_guide: tool_getModuleGuide,
 };
 
