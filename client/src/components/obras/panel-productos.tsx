@@ -1,6 +1,5 @@
 /**
- * Detalle POR PRODUCTO de una obra — el panel que se despliega en cada fila de
- * la pestaña Obras.
+ * Los productos de una obra, como filas de la MISMA tabla de obras.
  *
  * Acá vive TODO el control de la obra: por SKU se sigue cuánto se proyectó, se
  * pidió, se entregó y se usó, más el rendimiento declarado y las viviendas que
@@ -8,61 +7,38 @@
  * filas — la tineta de fachada, el sellador y el esmalte de rejas avanzan a
  * ritmos distintos y por eso ya no se controlan como un solo número.
  *
+ * Antes esto era un panel con su propia tabla adentro de la fila: dos grillas
+ * que no calzaban y las mismas magnitudes con otro nombre. Ahora cada producto
+ * es una fila indentada que usa las columnas de la obra (ver columnas.tsx), así
+ * que el número del producto cae justo debajo del total al que suma.
+ *
  * Está armado para cargar datos seguido, no de una vez:
  *  - se agrega con un buscador de SKU (código, nombre o color) contra el
  *    catálogo real, y el producto entra en la obra con todo en cero;
  *  - las cantidades se editan en la propia celda (Enter o salir guarda);
  *  - los botones + registran un pedido, una entrega o un consumo con su fecha,
  *    que suma al acumulado y queda en el historial de la fila;
- *  - la columna "Real" contrasta el consumo contra el rendimiento declarado,
- *    que es la revisión que se hace en terreno con el bodeguero.
+ *  - la columna "Rendimiento" contrasta el consumo contra lo declarado, que es
+ *    la revisión que se hace en terreno con el bodeguero.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CatalogoObraItem, ObraProducto, ObraProductoMovimiento } from "@shared/schema";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Layers,
-  Loader2,
-  Paintbrush,
-  PenLine,
-  Plus,
-  Search,
-  ShoppingCart,
-  Trash2,
-  Truck,
-} from "lucide-react";
-import { fmtDec, numeroEditable, toNum } from "./formato";
-import { calcularProducto, fmtDesviacion } from "./calculos";
+import { ChevronDown, ChevronRight, Clock, Loader2, PenLine, Plus, Trash2 } from "lucide-react";
+import { fmtDec, toNum } from "./formato";
+import { calcularProducto } from "./calculos";
+import type { CeldaProducto, ColumnaDef } from "./columnas";
+import { InputCantidad, MOV_MAP, TextoEditable, type TipoMovimiento } from "./celdas";
 
 // Unidades de despacho que se usan en obra. La tineta (5 gl) es la unidad de la
 // planilla; el resto aparece cuando la obra lleva sellador, esmalte, diluyente…
 const UNIDADES = ["tineta", "galón", "litro", "kilo", "unidad"];
-
-type TipoMovimiento = "pedido" | "entrega" | "consumo";
-
-const MOVIMIENTOS: Array<{
-  tipo: TipoMovimiento;
-  label: string;
-  accion: string;
-  icono: typeof ShoppingCart;
-  clase: string;
-}> = [
-  { tipo: "pedido", label: "Pedido", accion: "Registrar pedido", icono: ShoppingCart, clase: "text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30" },
-  { tipo: "entrega", label: "Entrega", accion: "Registrar entrega", icono: Truck, clase: "text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/30" },
-  { tipo: "consumo", label: "Consumo", accion: "Registrar consumo en obra", icono: Paintbrush, clase: "text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30" },
-];
-
-const MOV_MAP = Object.fromEntries(MOVIMIENTOS.map((m) => [m.tipo, m])) as Record<TipoMovimiento, (typeof MOVIMIENTOS)[number]>;
 
 /** La unidad del catálogo viene como texto libre ("TINETA 5 GL", "GALON"). */
 function unidadDesdeCatalogo(unidad: string | null | undefined): string {
@@ -74,9 +50,13 @@ function unidadDesdeCatalogo(unidad: string | null | undefined): string {
   return u ? "unidad" : "tineta";
 }
 
-const hoyISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** "0,8 galones por vivienda" — el plural a mano, que en español no es solo +s. */
+const PLURAL: Record<string, string> = {
+  tineta: "tinetas",
+  "galón": "galones",
+  litro: "litros",
+  kilo: "kilos",
+  unidad: "unidades",
 };
 
 const fmtFecha = (valor: string | Date | null | undefined) => {
@@ -85,21 +65,28 @@ const fmtFecha = (valor: string | Date | null | undefined) => {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-CL");
 };
 
+// Fondos de las filas de producto. Van más claras que la obra y con la línea del
+// árbol a la izquierda: se leen como hijas de la fila de arriba.
+const FONDO_FILA = "bg-orange-50/30 dark:bg-orange-950/[0.08] hover:bg-orange-50/70 dark:hover:bg-orange-950/20";
+const FONDO_STICKY = "bg-[#fff7f1] dark:bg-slate-800/95";
+
 // ---------------------------------------------------------------------------
-// Panel
+// Filas de producto de una obra
 // ---------------------------------------------------------------------------
 
-export function PanelProductos({
+export function FilasProductos({
   obraId,
-  obraNombre,
-  obraCiudad,
+  viviendas,
   productos,
+  columnas,
+  /** La primera columna queda fija al hacer scroll lateral (tabla de la planilla). */
+  sticky = false,
 }: {
   obraId: string;
-  obraNombre: string;
-  /** Se muestra en el encabezado para amarrar el panel a su obra. */
-  obraCiudad?: string | null;
+  viviendas: number;
   productos: ObraProducto[];
+  columnas: ColumnaDef[];
+  sticky?: boolean;
 }) {
   const { toast } = useToast();
   const [filaAbierta, setFilaAbierta] = useState<string | null>(null);
@@ -191,211 +178,67 @@ export function PanelProductos({
     });
   };
 
+  const colSpan = columnas.length + 2;
+
   return (
-    <div className="rounded-2xl border border-orange-200/70 dark:border-orange-900/40 border-l-4 border-l-[#fd6301] bg-white dark:bg-slate-800/60 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 bg-orange-50/70 dark:bg-orange-950/20 border-b border-orange-100 dark:border-slate-700/60">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white flex items-center justify-center flex-shrink-0">
-            <Layers className="h-3.5 w-3.5" />
-          </span>
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-slate-700 dark:text-slate-100 truncate">{obraNombre}</div>
-            <div className="text-[10px] uppercase tracking-wider font-bold text-orange-600/80 dark:text-orange-400/80 truncate">
-              Detalle por producto
-              {obraCiudad ? ` · ${obraCiudad}` : ""}
-              {productos.length > 0 ? ` · ${productos.length} ${productos.length === 1 ? "producto" : "productos"}` : ""}
-            </div>
-          </div>
-        </div>
-        <div className="sm:ml-auto w-full sm:w-[340px]">
-          <BuscadorCatalogo
-            onElegir={elegirDelCatalogo}
-            onManual={agregarAMano}
-            guardando={agregar.isPending}
-          />
-        </div>
-      </div>
+    <>
+      {productos.map((producto) => (
+        <FilaProducto
+          key={producto.id}
+          producto={producto}
+          viviendas={viviendas}
+          columnas={columnas}
+          sticky={sticky}
+          colSpan={colSpan}
+          abierta={filaAbierta === producto.id}
+          onToggle={() => setFilaAbierta(filaAbierta === producto.id ? null : producto.id)}
+          onGuardar={(data) => actualizar.mutate({ id: producto.id, data })}
+          onEliminar={() => eliminar.mutate(producto.id)}
+          onMovimiento={(data) => registrarMovimiento.mutate({ id: producto.id, data })}
+          registrando={registrarMovimiento.isPending}
+        />
+      ))}
 
-      {productos.length === 0 ? (
-        <div className="px-4 py-6 text-center text-sm text-slate-400">
-          Sin productos cargados. Busca el SKU o el color arriba para seguir el despacho producto por producto
-          (tinetas de fachada, sellador, esmalte…).
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[1220px]">
-            <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-700/60">
-                <Th className="text-left pl-4 min-w-[240px]">Producto</Th>
-                <Th>Color</Th>
-                <Th>Unidad</Th>
-                <Th>Proyectado</Th>
-                <Th>Pedido</Th>
-                <Th title="Proyectado − pedido">Por pedir</Th>
-                <Th>Entregado</Th>
-                <Th>Utilizado</Th>
-                <Th title="Entregado − utilizado">Saldo</Th>
-                {/* El bloque de rendimiento: lo declarado, lo pintado y el
-                    contraste que se arma en terreno con el bodeguero. */}
-                <Th title="Rendimiento declarado: unidades por vivienda">Rend.</Th>
-                <Th title="Viviendas pintadas con este producto">Pintadas</Th>
-                <Th title="Consumo real vs el declarado (+ = se está gastando de más)">Real</Th>
-                <Th className="pr-4"> </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {productos.map((p) => (
-                <FilaProducto
-                  key={p.id}
-                  producto={p}
-                  abierta={filaAbierta === p.id}
-                  onToggle={() => setFilaAbierta(filaAbierta === p.id ? null : p.id)}
-                  onGuardar={(data) => actualizar.mutate({ id: p.id, data })}
-                  onEliminar={() => eliminar.mutate(p.id)}
-                  onMovimiento={(data) => registrarMovimiento.mutate({ id: p.id, data })}
-                  registrando={registrarMovimiento.isPending}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Buscador del catálogo (SKU / nombre / color)
-// ---------------------------------------------------------------------------
-
-function BuscadorCatalogo({
-  onElegir,
-  onManual,
-  guardando,
-}: {
-  onElegir: (item: CatalogoObraItem) => void;
-  onManual: (nombre: string) => void;
-  guardando: boolean;
-}) {
-  const [texto, setTexto] = useState("");
-  const [termino, setTermino] = useState("");
-  const [abierto, setAbierto] = useState(false);
-
-  // La búsqueda pega contra tres maestros: no vale la pena dispararla en cada tecla.
-  useEffect(() => {
-    const t = setTimeout(() => setTermino(texto.trim()), 250);
-    return () => clearTimeout(t);
-  }, [texto]);
-
-  const { data: resultados = [], isFetching } = useQuery<CatalogoObraItem[]>({
-    queryKey: ["/api/obra-productos/catalogo", termino],
-    queryFn: async () => {
-      const res = await apiRequest(`/api/obra-productos/catalogo?q=${encodeURIComponent(termino)}`);
-      return res.json();
-    },
-    enabled: termino.length >= 2,
-  });
-
-  const elegir = (item: CatalogoObraItem) => {
-    onElegir(item);
-    setTexto("");
-    setTermino("");
-    setAbierto(false);
-  };
-
-  const manual = () => {
-    const nombre = texto.trim();
-    if (!nombre) return;
-    onManual(nombre);
-    setTexto("");
-    setTermino("");
-    setAbierto(false);
-  };
-
-  // El panel vive dentro de una tabla con scroll horizontal, y un desplegable
-  // posicionado en el flujo queda recortado por ese contenedor (se veía cortado
-  // por abajo). Va en un popover, que se renderiza en un portal fuera de la
-  // tabla; el ancla es el input para que quede pegado y del mismo ancho.
-  return (
-    <Popover open={abierto && texto.trim().length >= 2} onOpenChange={setAbierto}>
-      <PopoverAnchor asChild>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-          <Input
-            value={texto}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              setAbierto(true);
-            }}
-            onFocus={() => setAbierto(true)}
-            placeholder="Agregar producto o color por SKU…"
-            className="pl-9 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
-            data-testid="input-obra-producto-buscar"
-          />
-          {(isFetching || guardando) && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
-          )}
-        </div>
-      </PopoverAnchor>
-
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        // El foco se queda en el input: se sigue escribiendo para filtrar.
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-72 overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
-      >
-          {resultados.map((item) => (
-            <button
-              key={item.sku}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => elegir(item)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
-              data-testid={`option-catalogo-${item.sku}`}
-            >
-              <span
-                className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
-                style={{ background: item.hex || "linear-gradient(135deg,#f1f5f9,#cbd5e1)" }}
+      {/* Última fila: agregar un producto más. Queda al pie de los que ya están
+          cargados, que es donde uno mira después de revisar la lista. */}
+      <tr className={`border-b border-slate-100 dark:border-slate-700/40 ${FONDO_FILA}`}>
+        <td
+          colSpan={colSpan}
+          className="pl-4 pr-4 py-2.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* La fila cruza toda la tabla, así que el buscador se queda pegado a
+              la izquierda aunque se scrollee de lado. */}
+          <div className="sticky left-0 w-fit flex flex-wrap items-center gap-x-3 gap-y-2 pl-5">
+            <div className="w-full sm:w-[340px]">
+              <BuscadorCatalogo
+                onElegir={elegirDelCatalogo}
+                onManual={agregarAMano}
+                guardando={agregar.isPending}
               />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                  {item.nombre}
-                </span>
-                <span className="flex items-center gap-2 text-[10px] text-slate-400">
-                  <span className="font-bold tabular-nums">{item.sku}</span>
-                  {item.color && <span className="uppercase tracking-wide">{item.color}</span>}
-                  {item.unidad && <span className="truncate">{item.unidad}</span>}
-                </span>
-              </span>
-            </button>
-          ))}
-
-          {resultados.length === 0 && !isFetching && (
-            <div className="px-3 py-2.5 text-sm text-slate-400">Sin resultados en el catálogo.</div>
-          )}
-
-          {/* Tonos de tintometría y productos que todavía no están en el maestro. */}
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={manual}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800"
-            data-testid="button-catalogo-manual"
-          >
-            <PenLine className="h-3.5 w-3.5 flex-shrink-0" />
-            Agregar «{texto.trim()}» a mano
-          </button>
-      </PopoverContent>
-    </Popover>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {productos.length === 0
+                ? "Cargá los productos de la obra: la fachada, el sellador, el esmalte de rejas… Los números de la obra son la suma de ellos."
+                : "Busca por SKU, nombre o color."}
+            </span>
+          </div>
+        </td>
+      </tr>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Fila de producto
+// Una fila de producto
 // ---------------------------------------------------------------------------
 
 function FilaProducto({
   producto,
+  viviendas,
+  columnas,
+  sticky,
+  colSpan,
   abierta,
   onToggle,
   onGuardar,
@@ -404,6 +247,10 @@ function FilaProducto({
   registrando,
 }: {
   producto: ObraProducto;
+  viviendas: number;
+  columnas: ColumnaDef[];
+  sticky: boolean;
+  colSpan: number;
   abierta: boolean;
   onToggle: () => void;
   onGuardar: (data: Record<string, unknown>) => void;
@@ -411,21 +258,29 @@ function FilaProducto({
   onMovimiento: (data: Record<string, unknown>) => void;
   registrando: boolean;
 }) {
-  const { pedida, entregada, porPedir, saldo, rendimiento, pintadas, rendimientoReal, desviacion } =
-    calcularProducto(producto);
+  const calc = calcularProducto(producto);
+  const ctx: CeldaProducto = { producto, calc, viviendas, onGuardar, onMovimiento, registrando };
 
   return (
     <>
       <tr
-        className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/30 dark:hover:bg-orange-950/10 transition-colors group/prod"
+        className={`border-b border-slate-100 dark:border-slate-700/40 transition-colors group/prod ${FONDO_FILA}`}
+        onClick={(e) => e.stopPropagation()}
         data-testid={`row-obra-producto-${producto.id}`}
       >
-        <td className="pl-4 py-2">
-          <div className="flex items-start gap-2">
+        <td
+          className={`pl-4 py-2 align-top ${sticky ? `sticky left-0 z-10 ${FONDO_STICKY}` : ""}`}
+        >
+          <div className="flex items-start gap-1.5">
+            {/* Codo del árbol: la fila se lee como hija de la obra de arriba. */}
+            <span
+              className="mt-2 ml-3 h-3 w-3 border-l-2 border-b-2 border-orange-200 dark:border-orange-900/60 rounded-bl-[4px] flex-shrink-0"
+              aria-hidden
+            />
             <button
               onClick={onToggle}
-              className="text-slate-300 dark:text-slate-600 hover:text-orange-500 transition-colors pt-0.5 flex-shrink-0"
-              aria-label="Ver movimientos"
+              className="mt-1 text-slate-300 dark:text-slate-600 hover:text-orange-500 transition-colors flex-shrink-0"
+              aria-label="Ver rendimiento, notas y movimientos"
               data-testid={`button-historial-${producto.id}`}
             >
               {abierta ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -438,114 +293,50 @@ function FilaProducto({
                 valor={producto.nombre}
                 onGuardar={(v) => v && onGuardar({ nombre: v })}
                 title={producto.nombre}
-                className="font-semibold text-slate-700 dark:text-slate-100 w-full min-w-[220px]"
+                className="text-sm font-medium text-slate-700 dark:text-slate-100 w-[205px]"
                 testId={`input-nombre-${producto.id}`}
               />
-              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+              {/* Color, unidad y SKU son la identidad del producto, no números:
+                  van acá y no ocupando columnas de la planilla. */}
+              <div className="flex items-center gap-1 text-[10px] text-slate-400 w-[205px]">
+                <TextoEditable
+                  valor={producto.color ?? ""}
+                  onGuardar={(v) => onGuardar({ color: v || null })}
+                  placeholder="+ color"
+                  className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 w-[74px] flex-shrink-0"
+                  testId={`input-color-${producto.id}`}
+                />
+                <Select value={producto.unidad ?? "tineta"} onValueChange={(v) => onGuardar({ unidad: v })}>
+                  <SelectTrigger
+                    className="h-5 w-[64px] flex-shrink-0 rounded-md border-transparent bg-transparent px-1 text-[10px] hover:border-slate-200 dark:hover:border-slate-700 focus:ring-orange-400/20 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:opacity-40"
+                    data-testid={`select-unidad-${producto.id}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
+                    {UNIDADES.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {producto.kopr ? (
-                  <span className="font-bold tabular-nums">{producto.kopr}</span>
+                  <span className="font-bold tabular-nums truncate">{producto.kopr}</span>
                 ) : (
-                  <span className="italic">sin SKU</span>
+                  <span className="italic truncate">sin SKU</span>
                 )}
-                {producto.notas && <span className="truncate max-w-[180px]">{producto.notas}</span>}
               </div>
             </div>
           </div>
         </td>
 
-        <td className="px-3 py-2 text-center">
-          <TextoEditable
-            valor={producto.color ?? ""}
-            onGuardar={(v) => onGuardar({ color: v || null })}
-            placeholder="—"
-            className="text-slate-600 dark:text-slate-300 text-center max-w-[110px] mx-auto"
-            testId={`input-color-${producto.id}`}
-          />
-        </td>
-
-        <td className="px-3 py-2 text-center">
-          <Select value={producto.unidad ?? "tineta"} onValueChange={(v) => onGuardar({ unidad: v })}>
-            <SelectTrigger
-              className="h-7 w-[92px] mx-auto rounded-lg border-transparent bg-transparent text-xs hover:border-slate-200 dark:hover:border-slate-700 focus:ring-orange-400/20 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-40"
-              data-testid={`select-unidad-${producto.id}`}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="z-[80]">
-              {UNIDADES.map((u) => (
-                <SelectItem key={u} value={u}>{u}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </td>
-
-        <CeldaCantidad
-          valor={producto.cantidadProyectada}
-          onGuardar={(v) => onGuardar({ cantidadProyectada: v })}
-          testId={`input-proyectada-${producto.id}`}
-        />
-
-        <CeldaCantidad
-          valor={producto.cantidadPedida}
-          onGuardar={(v) => onGuardar({ cantidadPedida: v })}
-          testId={`input-pedida-${producto.id}`}
-          movimiento={{ tipo: "pedido", sugerido: porPedir, onRegistrar: onMovimiento, registrando }}
-        />
-
-        <Td className={porPedir > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmtDec(porPedir)}</Td>
-
-        <CeldaCantidad
-          valor={producto.cantidadEntregada}
-          onGuardar={(v) => onGuardar({ cantidadEntregada: v })}
-          testId={`input-entregada-${producto.id}`}
-          movimiento={{ tipo: "entrega", sugerido: Math.max(0, pedida - entregada), onRegistrar: onMovimiento, registrando }}
-        />
-
-        <CeldaCantidad
-          valor={producto.cantidadUtilizada}
-          onGuardar={(v) => onGuardar({ cantidadUtilizada: v })}
-          testId={`input-utilizada-${producto.id}`}
-          movimiento={{ tipo: "consumo", sugerido: 0, onRegistrar: onMovimiento, registrando }}
-        />
-
-        <Td className={saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(saldo)}</Td>
-
-        {/* Rendimiento declarado: dato de entrada (1,5 tinetas por casa), no se
-            deriva de proyectado/viviendas. */}
-        <CeldaCantidad
-          valor={producto.rendimientoPorVivienda}
-          onGuardar={(v) => onGuardar({ rendimientoPorVivienda: v })}
-          testId={`input-rendimiento-${producto.id}`}
-        />
-
-        <CeldaCantidad
-          valor={producto.viviendasPintadas}
-          onGuardar={(v) => onGuardar({ viviendasPintadas: Math.round(toNum(v)) })}
-          testId={`input-pintadas-${producto.id}`}
-        />
-
-        {/* El número que el vendedor arma en terreno: utilizado / pintadas
-            contra lo que se prometió. */}
-        <td className="px-3 py-2 text-center">
-          {pintadas > 0 && rendimiento > 0 ? (
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
-                desviacion > 0.05
-                  ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
-                  : desviacion < -0.05
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
-              }`}
-              title={`Está rindiendo ${fmtDec(rendimientoReal)} por vivienda; se declaró ${fmtDec(rendimiento)}`}
-              data-testid={`text-rendimiento-real-${producto.id}`}
-            >
-              {fmtDec(rendimientoReal)}
-              <span className="opacity-70 font-semibold">{fmtDesviacion(desviacion)}</span>
-            </span>
-          ) : (
-            <span className="text-slate-300" title="Falta el rendimiento declarado o las viviendas pintadas">—</span>
-          )}
-        </td>
+        {columnas.map((c) => (
+          <td
+            key={c.key}
+            className={`px-2.5 py-2 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
+          >
+            {c.renderProducto ? c.renderProducto(ctx) : null}
+          </td>
+        ))}
 
         <td className="pr-4 py-2">
           <div className="flex items-center justify-end opacity-0 group-hover/prod:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -565,7 +356,7 @@ function FilaProducto({
 
       {abierta && (
         <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-          <td colSpan={13} className="px-4 py-3">
+          <td colSpan={colSpan} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <DetalleProducto producto={producto} onGuardar={onGuardar} />
           </td>
         </tr>
@@ -574,7 +365,7 @@ function FilaProducto({
   );
 }
 
-/** Notas del producto + historial de sus movimientos. */
+/** Rendimiento declarado, notas y el historial de movimientos del producto. */
 function DetalleProducto({
   producto,
   onGuardar,
@@ -607,7 +398,27 @@ function DetalleProducto({
   });
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4">
+    // Ancho acotado y pegado a la izquierda: el detalle no tiene que ensanchar
+    // la tabla ni irse de pantalla cuando se scrollea de lado.
+    <div className="sticky left-0 w-full max-w-[1080px] grid grid-cols-1 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-4 pl-6">
+      {/* El rendimiento declarado se carga una vez por producto: es un dato de
+          setup, no del día a día, así que vive acá y no ocupa una columna. */}
+      <div>
+        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">
+          Rendimiento declarado
+        </div>
+        <div className="flex items-center gap-1.5">
+          <InputCantidad
+            valor={producto.rendimientoPorVivienda}
+            onGuardar={(v) => onGuardar({ rendimientoPorVivienda: v })}
+            testId={`input-rendimiento-${producto.id}`}
+          />
+          <span className="text-xs text-slate-400">
+            {PLURAL[producto.unidad ?? "tineta"] ?? "unidades"} por vivienda
+          </span>
+        </div>
+      </div>
+
       <div>
         <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Notas del producto</div>
         <TextoEditable
@@ -668,232 +479,127 @@ function DetalleProducto({
 }
 
 // ---------------------------------------------------------------------------
-// Celdas editables
+// Buscador del catálogo (SKU / nombre / color)
 // ---------------------------------------------------------------------------
 
-/** Cantidad editable en la propia celda, con el botón de movimiento al lado. */
-function CeldaCantidad({
-  valor,
-  onGuardar,
-  testId,
-  movimiento,
+function BuscadorCatalogo({
+  onElegir,
+  onManual,
+  guardando,
 }: {
-  valor: string | number | null;
-  onGuardar: (valor: string) => void;
-  testId: string;
-  movimiento?: {
-    tipo: TipoMovimiento;
-    sugerido: number;
-    onRegistrar: (data: Record<string, unknown>) => void;
-    registrando: boolean;
-  };
+  onElegir: (item: CatalogoObraItem) => void;
+  onManual: (nombre: string) => void;
+  guardando: boolean;
 }) {
-  const [texto, setTexto] = useState(() => numeroEditable(valor));
-  const [editando, setEditando] = useState(false);
-
-  // Mientras no se esté escribiendo, la celda sigue a la base (un movimiento
-  // registrado desde el botón + cambia el número sin tocar el input).
-  useEffect(() => {
-    if (!editando) setTexto(numeroEditable(valor));
-  }, [valor, editando]);
-
-  const confirmar = () => {
-    setEditando(false);
-    const nuevo = toNum(texto);
-    if (nuevo === toNum(valor)) {
-      setTexto(numeroEditable(valor));
-      return;
-    }
-    onGuardar(String(nuevo));
-  };
-
-  return (
-    <td className="px-1.5 py-2">
-      <div className="flex items-center justify-center gap-0.5">
-        <input
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onFocus={() => setEditando(true)}
-          onBlur={confirmar}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            if (e.key === "Escape") {
-              setTexto(numeroEditable(valor));
-              setEditando(false);
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          inputMode="decimal"
-          placeholder="0"
-          className="w-14 h-7 rounded-lg border border-transparent bg-transparent text-center text-sm tabular-nums text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors"
-          data-testid={testId}
-        />
-        {movimiento && <BotonMovimiento {...movimiento} />}
-      </div>
-    </td>
-  );
-}
-
-/** Texto editable en línea (nombre, color, notas). */
-function TextoEditable({
-  valor,
-  onGuardar,
-  placeholder,
-  className = "",
-  title,
-  testId,
-}: {
-  valor: string;
-  onGuardar: (valor: string) => void;
-  placeholder?: string;
-  className?: string;
-  title?: string;
-  testId: string;
-}) {
-  const [texto, setTexto] = useState(valor);
-  const [editando, setEditando] = useState(false);
-
-  useEffect(() => {
-    if (!editando) setTexto(valor);
-  }, [valor, editando]);
-
-  return (
-    <input
-      value={texto}
-      onChange={(e) => setTexto(e.target.value)}
-      onFocus={() => setEditando(true)}
-      onBlur={() => {
-        setEditando(false);
-        const limpio = texto.trim();
-        if (limpio !== (valor ?? "").trim()) onGuardar(limpio);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        if (e.key === "Escape") {
-          setTexto(valor);
-          setEditando(false);
-          (e.target as HTMLInputElement).blur();
-        }
-      }}
-      placeholder={placeholder}
-      title={title}
-      className={`h-6 rounded-md border border-transparent bg-transparent px-1 text-sm hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors ${className}`}
-      data-testid={testId}
-    />
-  );
-}
-
-/** Botón + de la celda: registra un pedido, una entrega o un consumo. */
-function BotonMovimiento({
-  tipo,
-  sugerido,
-  onRegistrar,
-  registrando,
-}: {
-  tipo: TipoMovimiento;
-  sugerido: number;
-  onRegistrar: (data: Record<string, unknown>) => void;
-  registrando: boolean;
-}) {
-  const def = MOV_MAP[tipo];
-  const Icono = def.icono;
+  const [texto, setTexto] = useState("");
+  const [termino, setTermino] = useState("");
   const [abierto, setAbierto] = useState(false);
-  const [cantidad, setCantidad] = useState("");
-  const [fecha, setFecha] = useState(hoyISO());
-  const [nota, setNota] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Al abrir, propone lo que falta (lo pendiente por pedir o por entregar).
+  // La búsqueda pega contra tres maestros: no vale la pena dispararla en cada tecla.
   useEffect(() => {
-    if (!abierto) return;
-    setCantidad(sugerido > 0 ? numeroEditable(sugerido) : "");
-    setFecha(hoyISO());
-    setNota("");
-    const t = setTimeout(() => inputRef.current?.select(), 50);
+    const t = setTimeout(() => setTermino(texto.trim()), 250);
     return () => clearTimeout(t);
-  }, [abierto, sugerido]);
+  }, [texto]);
 
-  const registrar = () => {
-    const n = toNum(cantidad);
-    if (n === 0) return;
-    onRegistrar({ tipo, cantidad: String(n), fecha: fecha || null, nota: nota.trim() || null });
+  const { data: resultados = [], isFetching } = useQuery<CatalogoObraItem[]>({
+    queryKey: ["/api/obra-productos/catalogo", termino],
+    queryFn: async () => {
+      const res = await apiRequest(`/api/obra-productos/catalogo?q=${encodeURIComponent(termino)}`);
+      return res.json();
+    },
+    enabled: termino.length >= 2,
+  });
+
+  const elegir = (item: CatalogoObraItem) => {
+    onElegir(item);
+    setTexto("");
+    setTermino("");
     setAbierto(false);
   };
 
+  const manual = () => {
+    const nombre = texto.trim();
+    if (!nombre) return;
+    onManual(nombre);
+    setTexto("");
+    setTermino("");
+    setAbierto(false);
+  };
+
+  // El buscador vive dentro de una tabla con scroll horizontal, y un desplegable
+  // posicionado en el flujo queda recortado por ese contenedor (se veía cortado
+  // por abajo). Va en un popover, que se renderiza en un portal fuera de la
+  // tabla; el ancla es el input para que quede pegado y del mismo ancho.
   return (
-    <Popover open={abierto} onOpenChange={setAbierto}>
-      <PopoverTrigger asChild>
-        <button
-          className={`h-6 w-6 rounded-md flex items-center justify-center text-slate-300 opacity-0 group-hover/prod:opacity-100 focus:opacity-100 transition-all ${def.clase} ${abierto ? "opacity-100" : ""}`}
-          aria-label={def.accion}
-          data-testid={`button-movimiento-${tipo}`}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="center" className="w-64 p-3 rounded-2xl z-[80]">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-200 mb-2.5">
-          <Icono className={`h-4 w-4 ${def.clase.split(" ")[0]}`} />
-          {def.accion}
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Input
-              ref={inputRef}
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && registrar()}
-              inputMode="decimal"
-              placeholder="Cantidad"
-              className="h-8 rounded-lg text-sm"
-              data-testid={`input-movimiento-cantidad-${tipo}`}
-            />
-            <Input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="h-8 rounded-lg text-xs w-[132px]"
-              data-testid={`input-movimiento-fecha-${tipo}`}
-            />
-          </div>
+    <Popover open={abierto && texto.trim().length >= 2} onOpenChange={setAbierto}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-500" />
           <Input
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && registrar()}
-            placeholder="Nota (guía, OC…)"
-            className="h-8 rounded-lg text-sm"
-            data-testid={`input-movimiento-nota-${tipo}`}
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value);
+              setAbierto(true);
+            }}
+            onFocus={() => setAbierto(true)}
+            placeholder="Agregar producto por SKU, nombre o color…"
+            className="pl-9 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
+            data-testid="input-obra-producto-buscar"
           />
-          <Button
-            onClick={registrar}
-            disabled={toNum(cantidad) === 0 || registrando}
-            className="w-full h-8 rounded-lg bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white text-xs font-semibold"
-            data-testid={`button-movimiento-guardar-${tipo}`}
-          >
-            {registrando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
-            Sumar al {def.label.toLowerCase()}
-          </Button>
+          {(isFetching || guardando) && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
+          )}
         </div>
+      </PopoverAnchor>
+
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        // El foco se queda en el input: se sigue escribiendo para filtrar.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-72 overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
+      >
+        {resultados.map((item) => (
+          <button
+            key={item.sku}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => elegir(item)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
+            data-testid={`option-catalogo-${item.sku}`}
+          >
+            <span
+              className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
+              style={{ background: item.hex || "linear-gradient(135deg,#f1f5f9,#cbd5e1)" }}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                {item.nombre}
+              </span>
+              <span className="flex items-center gap-2 text-[10px] text-slate-400">
+                <span className="font-bold tabular-nums">{item.sku}</span>
+                {item.color && <span className="uppercase tracking-wide">{item.color}</span>}
+                {item.unidad && <span className="truncate">{item.unidad}</span>}
+              </span>
+            </span>
+          </button>
+        ))}
+
+        {resultados.length === 0 && !isFetching && (
+          <div className="px-3 py-2.5 text-sm text-slate-400">Sin resultados en el catálogo.</div>
+        )}
+
+        {/* Tonos de tintometría y productos que todavía no están en el maestro. */}
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={manual}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800"
+          data-testid="button-catalogo-manual"
+        >
+          <PenLine className="h-3.5 w-3.5 flex-shrink-0" />
+          Agregar «{texto.trim()}» a mano
+        </button>
       </PopoverContent>
     </Popover>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Celdas de tabla
-// ---------------------------------------------------------------------------
-
-function Th({ children, className = "", title }: { children: React.ReactNode; className?: string; title?: string }) {
-  return (
-    <th
-      title={title}
-      className={`px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-3 py-2 text-center tabular-nums text-slate-600 dark:text-slate-300 ${className}`}>{children}</td>;
 }
