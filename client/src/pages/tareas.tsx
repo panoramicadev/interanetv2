@@ -21,6 +21,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SolicitudDetalleDialog } from "@/components/marketing/solicitud-detalle-dialog";
+import { EvidenciaVisitaDialog, type VisitaEvidencia } from "@/components/rutas/evidencia-visita-dialog";
+import { getProxiedUrl } from "@/components/ui/image-zoom-viewer";
 import {
   CheckSquare,
   Camera,
@@ -6067,6 +6069,8 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
   const isAdmin = authUser?.role === "admin";
   const [selRuta, setSelRuta] = useState("");
   const [completing, setCompleting] = useState<{ id: string; nombre: string } | null>(null);
+  // Visor de la evidencia (foto + geo + nota) del histórico de visitas.
+  const [viewer, setViewer] = useState<{ visitas: VisitaEvidencia[]; index: number } | null>(null);
 
   const { data: rutasCliente = [], isLoading } = useQuery<Array<{ id: string; nombre: string; estado: string; fecha: string | null; visitado: boolean | null; fechaVisita: string | null }>>({
     queryKey: ["/api/rutas/by-cliente", clienteId],
@@ -6129,6 +6133,9 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
     <div className="space-y-5">
       {completing && (
         <CompletarRutaDialog clienteId={clienteId} clienteNombre={clienteNombre} ruta={completing} onClose={() => setCompleting(null)} />
+      )}
+      {viewer && (
+        <EvidenciaVisitaDialog visitas={viewer.visitas} startIndex={viewer.index} onClose={() => setViewer(null)} />
       )}
       {/* Rutas del cliente */}
       <div className="space-y-2">
@@ -6225,10 +6232,16 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                     <a href={`https://www.google.com/maps?q=${v.lat},${v.lng}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline mt-0.5 inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> Ver ubicación</a>
                   )}
                   {v.registradoPorNombre && <p className="text-[10px] text-slate-400 mt-0.5">por {v.registradoPorNombre}</p>}
+                  {/* La foto abre en el visor (zoom/rotar) en vez de una pestaña nueva. */}
                   {v.imagenUrl && (
-                    <a href={v.imagenUrl} target="_blank" rel="noreferrer" className="block mt-1.5">
-                      <img src={v.imagenUrl} alt="Evidencia de la visita" className="h-24 w-full max-w-[220px] object-cover rounded-lg border border-slate-200" />
-                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setViewer({ visitas: visitas as VisitaEvidencia[], index: visitas.findIndex((x) => x.id === v.id) })}
+                      className="block mt-1.5 rounded-lg overflow-hidden border border-slate-200 hover:border-[#fd6301] transition-colors"
+                      title="Ver evidencia de la visita"
+                    >
+                      <img src={getProxiedUrl(v.imagenUrl)} alt="Evidencia de la visita" loading="lazy" className="h-24 w-full max-w-[220px] object-cover" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -6296,6 +6309,9 @@ function CompletarRutaDialog({ clienteId, clienteNombre, ruta, onClose, activida
       }
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/by-cliente", clienteId] });
       queryClient.invalidateQueries({ queryKey: ["/api/rutas/visitas/by-cliente", clienteId] });
+      // Para que la evidencia aparezca al tiro en el apartado Rutas.
+      queryClient.invalidateQueries({ queryKey: [`/api/rutas/${ruta.id}/visitas`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/rutas/${ruta.id}/clientes`] });
       if (taskId) queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
       toast({ title: actividadId ? "Visita completada" : "Ruta marcada como realizada" });
       onClose();

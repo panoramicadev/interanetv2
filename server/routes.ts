@@ -14792,6 +14792,13 @@ export function registerRoutes(app: Express): Server {
     catch (e) { console.error("Error fetching ruta clientes:", e); res.status(500).json({ message: "Failed" }); }
   });
 
+  // Evidencia (foto + geo + nota) de todas las visitas de la ruta, para revisarla
+  // desde el apartado Rutas sin tener que entrar cliente por cliente.
+  app.get('/api/rutas/:id/visitas', requireAuth, async (req: any, res) => {
+    try { res.json(await storage.getRutaVisitasByRuta(req.params.id)); }
+    catch (e) { console.error("Error fetching ruta visitas:", e); res.status(500).json({ message: "Failed" }); }
+  });
+
   app.post('/api/rutas', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;

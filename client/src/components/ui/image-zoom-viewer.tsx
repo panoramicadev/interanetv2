@@ -14,7 +14,7 @@ const OLD_SUPABASE_HOSTS = [
   'madsymjqjzvuyvmuoyej.supabase.co',
 ];
 
-function getProxiedUrl(url: string): string {
+export function getProxiedUrl(url: string): string {
   if (!url) return url;
   // Relative URLs are internal — no proxy needed
   if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return url;

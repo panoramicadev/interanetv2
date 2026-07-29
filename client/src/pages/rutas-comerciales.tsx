@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Trash2, Search, ChevronDown, ChevronRight, User, Building2, Loader2, CalendarDays } from "lucide-react";
+import { MapPin, Plus, Trash2, Search, ChevronDown, ChevronRight, User, Building2, Loader2, CalendarDays, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { EvidenciaVisitaDialog, EvidenciaThumb, type VisitaEvidencia } from "@/components/rutas/evidencia-visita-dialog";
 
 interface Ruta {
   id: string;
@@ -34,6 +35,7 @@ interface RutaCliente {
   clienteNombre: string;
   orden: number | null;
   visitado: boolean | null;
+  fechaVisita: string | null;
 }
 interface Vendedor {
   id: string;
@@ -283,8 +285,31 @@ export function RutasComercialesContent() {
 function RutaClientesPanel({ rutaId, canManage }: { rutaId: string; canManage: boolean }) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  // Visita cuya evidencia se está revisando en el visor (foto + geo + nota).
+  const [viewer, setViewer] = useState<{ visitas: VisitaEvidencia[]; index: number } | null>(null);
 
   const { data: clientes = [], isLoading } = useQuery<RutaCliente[]>({ queryKey: [`/api/rutas/${rutaId}/clientes`] });
+  // Evidencia registrada al completar las visitas de esta ruta, para poder revisarla
+  // acá mismo sin entrar cliente por cliente al Panel de Trabajo.
+  const { data: visitas = [] } = useQuery<VisitaEvidencia[]>({ queryKey: [`/api/rutas/${rutaId}/visitas`] });
+
+  // Visitas agrupadas por cliente, de la más reciente a la más antigua.
+  const visitasPorCliente = useMemo(() => {
+    const map = new Map<string, VisitaEvidencia[]>();
+    for (const v of [...visitas].sort((a, b) => +new Date(b.fecha) - +new Date(a.fecha))) {
+      if (!v.clienteId) continue;
+      const list = map.get(v.clienteId) ?? [];
+      list.push(v);
+      map.set(v.clienteId, list);
+    }
+    return map;
+  }, [visitas]);
+  const conFoto = visitas.filter((v) => v.imagenUrl).length;
+  // Visitas de clientes que ya no están asignados a la ruta: su evidencia se conserva.
+  const huerfanas = useMemo(
+    () => visitas.filter((v) => !clientes.some((c) => c.clienteId === v.clienteId)),
+    [visitas, clientes],
+  );
   const { data: results = [] } = useQuery<Cliente[]>({
     queryKey: ["/api/clients/search", search],
     queryFn: async () => {
@@ -315,10 +340,19 @@ function RutaClientesPanel({ rutaId, canManage }: { rutaId: string; canManage: b
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      {viewer && (
+        <EvidenciaVisitaDialog visitas={viewer.visitas} startIndex={viewer.index} onClose={() => setViewer(null)} />
+      )}
+      <div className="flex items-center justify-between gap-2">
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5" /> Clientes en la ruta ({clientes.length})
         </h4>
+        {visitas.length > 0 && (
+          <span className="text-[11px] text-slate-400 flex items-center gap-1">
+            <Camera className="h-3.5 w-3.5" /> {visitas.length} visita{visitas.length === 1 ? "" : "s"} registrada{visitas.length === 1 ? "" : "s"}
+            {conFoto > 0 && ` · ${conFoto} con foto`}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -327,28 +361,71 @@ function RutaClientesPanel({ rutaId, canManage }: { rutaId: string; canManage: b
         <p className="text-xs text-slate-400 italic">Sin clientes en esta ruta todavía.</p>
       ) : (
         <div className="space-y-1.5">
-          {clientes.map((c) => (
-            <div key={c.id} className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-lg px-3 py-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+          {clientes.map((c) => {
+            const evidencias = visitasPorCliente.get(c.clienteId) ?? [];
+            return (
+              <div key={c.id} className="bg-white border border-slate-200 rounded-lg px-3 py-2 space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-800 truncate">{c.clienteNombre}</p>
+                    <p className="text-[11px] text-slate-400">Código: {c.clienteId}</p>
+                  </div>
+                  {c.visitado && (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 flex-shrink-0">
+                      Visitado{c.fechaVisita ? ` · ${format(new Date(c.fechaVisita), "dd MMM", { locale: es })}` : ""}
+                    </Badge>
+                  )}
+                  {canManage && (
+                    <button
+                      onClick={() => removeMutation.mutate(c.clienteId)}
+                      disabled={removeMutation.isPending}
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                      title="Quitar de la ruta"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {/* Evidencia de las visitas: click en la miniatura abre el visor. */}
+                {evidencias.length > 0 ? (
+                  <div className="flex items-center gap-1.5 flex-wrap pl-9">
+                    {evidencias.map((v, i) => (
+                      <EvidenciaThumb key={v.id} visita={v} onClick={() => setViewer({ visitas: evidencias, index: i })} />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setViewer({ visitas: evidencias, index: 0 })}
+                      className="text-[11px] font-semibold text-[#fd6301] hover:text-[#e35400] hover:underline ml-1"
+                    >
+                      Revisar evidencia ({evidencias.length})
+                    </button>
+                  </div>
+                ) : c.visitado ? (
+                  <p className="text-[11px] text-slate-400 italic pl-9">Visita marcada sin evidencia adjunta.</p>
+                ) : null}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-800 truncate">{c.clienteNombre}</p>
-                <p className="text-[11px] text-slate-400">Código: {c.clienteId}</p>
+            );
+          })}
+        </div>
+      )}
+
+      {/* La evidencia sobrevive si se quita al cliente de la ruta; se muestra aparte. */}
+      {huerfanas.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Camera className="h-3.5 w-3.5" /> Visitas de clientes ya no asignados ({huerfanas.length})
+          </h4>
+          <div className="flex items-start gap-2 flex-wrap">
+            {huerfanas.map((v, i) => (
+              <div key={v.id} className="w-14">
+                <EvidenciaThumb visita={v} onClick={() => setViewer({ visitas: huerfanas, index: i })} />
+                <p className="text-[10px] text-slate-400 truncate mt-0.5" title={v.clienteNombre ?? undefined}>{v.clienteNombre || v.clienteId}</p>
               </div>
-              {c.visitado && <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Visitado</Badge>}
-              {canManage && (
-                <button
-                  onClick={() => removeMutation.mutate(c.clienteId)}
-                  disabled={removeMutation.isPending}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
-                  title="Quitar de la ruta"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 

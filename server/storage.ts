@@ -14337,6 +14337,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(rutaVisitas.fecha));
   }
 
+  // Evidencia de todas las visitas de una ruta (para revisarla desde el apartado Rutas)
+  async getRutaVisitasByRuta(rutaId: string): Promise<RutaVisita[]> {
+    return db.select().from(rutaVisitas)
+      .where(eq(rutaVisitas.rutaId, rutaId))
+      .orderBy(desc(rutaVisitas.fecha));
+  }
+
   // === Actividades (subtareas tipadas de un seguimiento de cliente) ===
   async getActividadesByTask(taskId: string): Promise<TaskActividad[]> {
     return db.select().from(taskActividades)
