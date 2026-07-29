@@ -52,6 +52,12 @@ import {
   type Obra,
   type ObraConCliente,
   type InsertObra,
+  obraTiposVivienda,
+  type ObraTipoVivienda,
+  type InsertObraTipoVivienda,
+  obraEtapas,
+  type ObraEtapa,
+  type InsertObraEtapa,
   obraProductos,
   type ObraProducto,
   type InsertObraProducto,
@@ -1243,6 +1249,14 @@ export interface IStorage {
   createObra(obra: InsertObra): Promise<Obra>;
   updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra>;
   deleteObra(id: string): Promise<void>;
+  // Los tipos de vivienda se guardan como bloque junto con su obra.
+  reemplazarTiposVivienda(
+    obraId: string,
+    tipos: Array<Omit<InsertObraTipoVivienda, "obraId" | "orden">>,
+  ): Promise<ObraTipoVivienda[]>;
+  // Catálogo de etapas constructivas (editable desde el selector de la obra)
+  getObraEtapas(): Promise<ObraEtapa[]>;
+  createObraEtapa(etapa: InsertObraEtapa): Promise<ObraEtapa>;
 
   // Productos por obra (desglose del despacho por SKU)
   getObraProductos(filtro: { obraId?: string; clienteId?: string }): Promise<ObraProducto[]>;
@@ -13317,10 +13331,28 @@ export class DatabaseStorage implements IStorage {
       ? await query.where(eq(obras.clienteId, clienteId)).orderBy(desc(obras.createdAt))
       : await query.orderBy(desc(obras.createdAt));
 
+    // Los tipos de vivienda se editan dentro del formulario de la obra, así que
+    // viajan en el mismo fetch (una consulta para todas, no una por obra).
+    const ids = rows.map((r) => r.obra.id);
+    const tipos = ids.length
+      ? await db
+          .select()
+          .from(obraTiposVivienda)
+          .where(inArray(obraTiposVivienda.obraId, ids))
+          .orderBy(asc(obraTiposVivienda.orden))
+      : [];
+    const tiposPorObra = new Map<string, ObraTipoVivienda[]>();
+    for (const t of tipos) {
+      const lista = tiposPorObra.get(t.obraId);
+      if (lista) lista.push(t);
+      else tiposPorObra.set(t.obraId, [t]);
+    }
+
     return rows.map((r) => ({
       ...r.obra,
       clienteNombre: r.clienteNombre ?? null,
       clienteComuna: r.clienteComuna ?? null,
+      tiposVivienda: tiposPorObra.get(r.obra.id) ?? [],
     }));
   }
 
@@ -13355,6 +13387,52 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(obras)
       .where(eq(obras.id, id));
+  }
+
+  /**
+   * Guarda los tipos de vivienda de una obra reemplazando los que había.
+   *
+   * Son filas de un mismo formulario (se agregan, se renombran y se borran
+   * juntas antes de apretar guardar), así que no tiene sentido diferenciar
+   * altas de bajas: llega la lista final y esa queda. El orden de captura se
+   * conserva porque la UI los muestra como "Tipo A, Tipo B…".
+   */
+  async reemplazarTiposVivienda(
+    obraId: string,
+    tipos: Array<Omit<InsertObraTipoVivienda, "obraId" | "orden">>,
+  ): Promise<ObraTipoVivienda[]> {
+    return await db.transaction(async (tx) => {
+      await tx.delete(obraTiposVivienda).where(eq(obraTiposVivienda.obraId, obraId));
+      if (tipos.length === 0) return [];
+      return await tx
+        .insert(obraTiposVivienda)
+        .values(tipos.map((t, i) => ({ ...t, obraId, orden: i })))
+        .returning();
+    });
+  }
+
+  // --- Catálogo de etapas constructivas ---
+  async getObraEtapas(): Promise<ObraEtapa[]> {
+    return await db
+      .select()
+      .from(obraEtapas)
+      .where(eq(obraEtapas.activo, true))
+      .orderBy(asc(obraEtapas.orden), asc(obraEtapas.nombre));
+  }
+
+  async createObraEtapa(etapa: InsertObraEtapa): Promise<ObraEtapa> {
+    // La etapa que se agrega desde el selector va al final del catálogo.
+    const [{ maximo }] = await db
+      .select({ maximo: sql<number>`COALESCE(MAX(${obraEtapas.orden}), 0)` })
+      .from(obraEtapas);
+    const [nueva] = await db
+      .insert(obraEtapas)
+      .values({ ...etapa, orden: etapa.orden ?? Number(maximo) + 1 })
+      // Si esa etapa ya existía (aunque estuviera oculta), se reactiva en vez
+      // de reventar por el UNIQUE del nombre.
+      .onConflictDoUpdate({ target: obraEtapas.nombre, set: { activo: true } })
+      .returning();
+    return nueva;
   }
 
   // --- Productos por obra ---

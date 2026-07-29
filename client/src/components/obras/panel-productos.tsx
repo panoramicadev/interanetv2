@@ -2,17 +2,20 @@
  * Detalle POR PRODUCTO de una obra — el panel que se despliega en cada fila de
  * la pestaña Obras.
  *
- * Es un control aparte del de tinetas de la planilla: acá se sigue, por SKU,
- * cuánto se proyectó, se pidió, se entregó y se usó, para las obras donde
- * además de la tineta de fachada van sellador, esmalte de rejas, diluyente…
- * Los totales de la obra NO se derivan de esta tabla.
+ * Acá vive TODO el control de la obra: por SKU se sigue cuánto se proyectó, se
+ * pidió, se entregó y se usó, más el rendimiento declarado y las viviendas que
+ * se pintaron con ese producto. Los números de la obra son la suma de estas
+ * filas — la tineta de fachada, el sellador y el esmalte de rejas avanzan a
+ * ritmos distintos y por eso ya no se controlan como un solo número.
  *
  * Está armado para cargar datos seguido, no de una vez:
  *  - se agrega con un buscador de SKU (código, nombre o color) contra el
  *    catálogo real, y el producto entra en la obra con todo en cero;
  *  - las cantidades se editan en la propia celda (Enter o salir guarda);
  *  - los botones + registran un pedido, una entrega o un consumo con su fecha,
- *    que suma al acumulado y queda en el historial de la fila.
+ *    que suma al acumulado y queda en el historial de la fila;
+ *  - la columna "Real" contrasta el consumo contra el rendimiento declarado,
+ *    que es la revisión que se hace en terreno con el bodeguero.
  */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -20,7 +23,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CatalogoObraItem, ObraProducto, ObraProductoMovimiento } from "@shared/schema";
 import {
@@ -39,6 +42,7 @@ import {
   Truck,
 } from "lucide-react";
 import { fmtDec, numeroEditable, toNum } from "./formato";
+import { calcularProducto, fmtDesviacion } from "./calculos";
 
 // Unidades de despacho que se usan en obra. La tineta (5 gl) es la unidad de la
 // planilla; el resto aparece cuando la obra lleva sellador, esmalte, diluyente…
@@ -219,7 +223,7 @@ export function PanelProductos({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[1220px]">
             <thead>
               <tr className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-700/60">
                 <Th className="text-left pl-4 min-w-[240px]">Producto</Th>
@@ -231,6 +235,11 @@ export function PanelProductos({
                 <Th>Entregado</Th>
                 <Th>Utilizado</Th>
                 <Th title="Entregado − utilizado">Saldo</Th>
+                {/* El bloque de rendimiento: lo declarado, lo pintado y el
+                    contraste que se arma en terreno con el bodeguero. */}
+                <Th title="Rendimiento declarado: unidades por vivienda">Rend.</Th>
+                <Th title="Viviendas pintadas con este producto">Pintadas</Th>
+                <Th title="Consumo real vs el declarado (+ = se está gastando de más)">Real</Th>
                 <Th className="pr-4"> </Th>
               </tr>
             </thead>
@@ -303,27 +312,40 @@ function BuscadorCatalogo({
     setAbierto(false);
   };
 
+  // El panel vive dentro de una tabla con scroll horizontal, y un desplegable
+  // posicionado en el flujo queda recortado por ese contenedor (se veía cortado
+  // por abajo). Va en un popover, que se renderiza en un portal fuera de la
+  // tabla; el ancla es el input para que quede pegado y del mismo ancho.
   return (
-    <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-      <Input
-        value={texto}
-        onChange={(e) => {
-          setTexto(e.target.value);
-          setAbierto(true);
-        }}
-        onFocus={() => setAbierto(true)}
-        onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        placeholder="Agregar producto o color por SKU…"
-        className="pl-9 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
-        data-testid="input-obra-producto-buscar"
-      />
-      {(isFetching || guardando) && (
-        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
-      )}
+    <Popover open={abierto && texto.trim().length >= 2} onOpenChange={setAbierto}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+          <Input
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value);
+              setAbierto(true);
+            }}
+            onFocus={() => setAbierto(true)}
+            placeholder="Agregar producto o color por SKU…"
+            className="pl-9 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
+            data-testid="input-obra-producto-buscar"
+          />
+          {(isFetching || guardando) && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
+          )}
+        </div>
+      </PopoverAnchor>
 
-      {abierto && texto.trim().length >= 2 && (
-        <div className="absolute z-[60] left-0 right-0 top-full mt-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        // El foco se queda en el input: se sigue escribiendo para filtrar.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-72 overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
+      >
           {resultados.map((item) => (
             <button
               key={item.sku}
@@ -363,9 +385,8 @@ function BuscadorCatalogo({
             <PenLine className="h-3.5 w-3.5 flex-shrink-0" />
             Agregar «{texto.trim()}» a mano
           </button>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -390,12 +411,8 @@ function FilaProducto({
   onMovimiento: (data: Record<string, unknown>) => void;
   registrando: boolean;
 }) {
-  const proyectada = toNum(producto.cantidadProyectada);
-  const pedida = toNum(producto.cantidadPedida);
-  const entregada = toNum(producto.cantidadEntregada);
-  const utilizada = toNum(producto.cantidadUtilizada);
-  const porPedir = Math.max(0, proyectada - pedida);
-  const saldo = entregada - utilizada;
+  const { pedida, entregada, porPedir, saldo, rendimiento, pintadas, rendimientoReal, desviacion } =
+    calcularProducto(producto);
 
   return (
     <>
@@ -414,10 +431,14 @@ function FilaProducto({
               {abierta ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
             <div className="min-w-0">
+              {/* Los nombres del catálogo son largos ("LATEX SUPERCUBRIENTE
+                  BLANCO TINETA"): la celda se estira y el título muestra el
+                  nombre completo al pasar por encima. */}
               <TextoEditable
                 valor={producto.nombre}
                 onGuardar={(v) => v && onGuardar({ nombre: v })}
-                className="font-semibold text-slate-700 dark:text-slate-100 max-w-[240px]"
+                title={producto.nombre}
+                className="font-semibold text-slate-700 dark:text-slate-100 w-full min-w-[220px]"
                 testId={`input-nombre-${producto.id}`}
               />
               <div className="flex items-center gap-2 text-[10px] text-slate-400">
@@ -489,6 +510,43 @@ function FilaProducto({
 
         <Td className={saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(saldo)}</Td>
 
+        {/* Rendimiento declarado: dato de entrada (1,5 tinetas por casa), no se
+            deriva de proyectado/viviendas. */}
+        <CeldaCantidad
+          valor={producto.rendimientoPorVivienda}
+          onGuardar={(v) => onGuardar({ rendimientoPorVivienda: v })}
+          testId={`input-rendimiento-${producto.id}`}
+        />
+
+        <CeldaCantidad
+          valor={producto.viviendasPintadas}
+          onGuardar={(v) => onGuardar({ viviendasPintadas: Math.round(toNum(v)) })}
+          testId={`input-pintadas-${producto.id}`}
+        />
+
+        {/* El número que el vendedor arma en terreno: utilizado / pintadas
+            contra lo que se prometió. */}
+        <td className="px-3 py-2 text-center">
+          {pintadas > 0 && rendimiento > 0 ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+                desviacion > 0.05
+                  ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+                  : desviacion < -0.05
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
+              }`}
+              title={`Está rindiendo ${fmtDec(rendimientoReal)} por vivienda; se declaró ${fmtDec(rendimiento)}`}
+              data-testid={`text-rendimiento-real-${producto.id}`}
+            >
+              {fmtDec(rendimientoReal)}
+              <span className="opacity-70 font-semibold">{fmtDesviacion(desviacion)}</span>
+            </span>
+          ) : (
+            <span className="text-slate-300" title="Falta el rendimiento declarado o las viviendas pintadas">—</span>
+          )}
+        </td>
+
         <td className="pr-4 py-2">
           <div className="flex items-center justify-end opacity-0 group-hover/prod:opacity-100 focus-within:opacity-100 transition-opacity">
             <Button
@@ -507,7 +565,7 @@ function FilaProducto({
 
       {abierta && (
         <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-          <td colSpan={10} className="px-4 py-3">
+          <td colSpan={13} className="px-4 py-3">
             <DetalleProducto producto={producto} onGuardar={onGuardar} />
           </td>
         </tr>
@@ -682,12 +740,14 @@ function TextoEditable({
   onGuardar,
   placeholder,
   className = "",
+  title,
   testId,
 }: {
   valor: string;
   onGuardar: (valor: string) => void;
   placeholder?: string;
   className?: string;
+  title?: string;
   testId: string;
 }) {
   const [texto, setTexto] = useState(valor);
@@ -716,6 +776,7 @@ function TextoEditable({
         }
       }}
       placeholder={placeholder}
+      title={title}
       className={`h-6 rounded-md border border-transparent bg-transparent px-1 text-sm hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors ${className}`}
       data-testid={testId}
     />

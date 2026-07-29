@@ -17,11 +17,17 @@
  * (components/obras/panel-productos.tsx), que es donde se cargan los SKU y se
  * lleva el día a día de pedidos, entregas y consumo.
  *
+ * El control se lleva a nivel de PRODUCTO: cada SKU tiene su proyectado, su
+ * rendimiento declarado y sus viviendas pintadas, y los números de la obra son
+ * la suma de sus productos (ver components/obras/calculos.ts). La obra en sí
+ * solo declara qué es y cuánto mide: casas o edificios, cuántas torres, el
+ * total de viviendas y su desglose por modelo.
+ *
  * Lo ÚNICO que se elige desde el sistema es el cliente y los productos (ambos
  * contra sus maestros); el resto se ingresa a mano. Todo lo derivado (% avance,
- * saldo, faltante, próximo pedido, estado) se calcula acá en el cliente; en la
- * base solo viven los datos ingresados (ver `obras` y `obra_productos` en
- * shared/schema.ts).
+ * saldo, faltante, próximo pedido, rendimiento, estado) se calcula acá en el
+ * cliente; en la base solo viven los datos ingresados (ver `obras`,
+ * `obra_tipos_vivienda` y `obra_productos` en shared/schema.ts).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -35,7 +41,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { PanelProductos } from "@/components/obras/panel-productos";
 import { fmt, fmtDec, fmtPct, normalizar, toInt, toNum } from "@/components/obras/formato";
-import type { Obra, ObraConCliente, ObraProducto } from "@shared/schema";
+import { calcularProducto, fmtDesviacion, type ProductoCalculado } from "@/components/obras/calculos";
+import { useAuth } from "@/hooks/useAuth";
+import type { Obra, ObraConCliente, ObraEtapa, ObraProducto } from "@shared/schema";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -91,73 +99,113 @@ const ESTADO_MAP = Object.fromEntries(ESTADOS.map((e) => [e.key, e])) as Record<
 interface ObraCalculada {
   obra: ObraConCliente;
   viviendas: number;
-  proyectadas: number;
   pintadas: number;
   pendientes: number;
+  avance: number;
+  proyectadas: number;
   pedidas: number;
   entregadas: number;
-  ratio: number;
-  avance: number;
-  usadasTeorico: number;
-  usadasReal: number;
-  teoricoVsReal: number;
-  usadasControl: number;
+  usadas: number;
   saldo: number;
   faltantePorPedir: number;
   sugerido: number;
+  /** Consumo esperado y consumo real, para saber si el producto está rindiendo. */
+  consumoTeorico: number;
+  consumoReal: number;
+  desviacion: number;
+  productos: number;
   estado: EstadoObra;
 }
 
 /**
- * Derivadas de una obra — mismas fórmulas que la hoja "Control General" de la
- * planilla:
- *  - viviendas pendientes  = viviendas − pintadas
- *  - tinetas usadas teórico = pintadas × tinetas por vivienda
- *  - teórico vs real        = teórico − real (negativo = se gastó de más)
- *  - tinetas usadas control = el real informado por la obra; si aún no hay
- *                             dato real, se usa el teórico
- *  - saldo tineta en obra   = entregadas − usadas control
- *  - faltante por pedir     = proyectadas − pedidas
- *  - próximo pedido         = proyectadas − pedidas − saldo disponible
- *  - estado = Terminado si está todo pintado; Revisar saldo si se consumió más
- *             de lo entregado; Crítico si no queda nada en obra y falta pintar;
- *             Pedir si el saldo cubre menos del 20% de lo que falta.
+ * Derivadas de una obra — TODO sale de sus productos.
+ *
+ * La planilla llevaba el control en "tinetas" de la obra; ahora cada SKU tiene
+ * su proyectado, su rendimiento y sus viviendas pintadas, y la obra es la suma:
+ *  - proyectadas / pedidas / entregadas / usadas = suma de sus productos
+ *  - saldo en obra      = entregado − utilizado
+ *  - faltante por pedir = proyectado − pedido
+ *  - próximo pedido     = proyectado − pedido − saldo disponible
+ *  - avance             = el producto más adelantado marca las viviendas
+ *                         pintadas de la obra (el detalle por producto muestra
+ *                         cuánto va rezagado cada uno)
+ *  - desviación         = consumo real / consumo esperado − 1: es el "¿está
+ *                         rindiendo lo que dijimos?" que se revisa en terreno
+ *  - estado = Terminado si está todo pintado; Revisar saldo si algún producto
+ *             consumió más de lo entregado; Crítico si no queda nada en obra y
+ *             falta pintar; Pedir si el saldo cubre menos del 20% de lo que falta.
+ *
+ * Las obras cargadas antes de este cambio todavía no tienen productos: mientras
+ * no se les cargue ninguno se siguen leyendo las columnas de la obra, para no
+ * dejar en cero un control que ya estaba andando.
  */
-function calcularObra(obra: ObraConCliente): ObraCalculada {
+function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[] = []): ObraCalculada {
   const viviendas = toInt(obra.viviendas);
-  const proyectadas = toInt(obra.tinetasProyectadas);
-  const pintadas = toInt(obra.viviendasPintadas);
-  const pedidas = toInt(obra.tinetasPedidas);
-  const entregadas = toInt(obra.tinetasEntregadas);
-  const usadasReal = toNum(obra.tinetasUtilizadasReal);
+  const calculados = productosObra.map(calcularProducto);
 
-  // "Tinetas x Viv" es un dato de entrada de la planilla, no una división: las
-  // proyectadas van redondeadas hacia arriba, así que derivarlo de
-  // proyectadas/viviendas desviaría el teórico (1,502 en vez de 1,5).
-  const ratio = toNum(obra.tinetasPorVivienda) || (viviendas > 0 ? proyectadas / viviendas : 1.5);
+  if (calculados.length === 0) {
+    const proyectadas = toInt(obra.tinetasProyectadas);
+    const pintadas = toInt(obra.viviendasPintadas);
+    const pedidas = toInt(obra.tinetasPedidas);
+    const entregadas = toInt(obra.tinetasEntregadas);
+    const ratio = toNum(obra.tinetasPorVivienda);
+    const usadas = toNum(obra.tinetasUtilizadasReal) || pintadas * ratio;
+    const saldo = entregadas - usadas;
+    return {
+      obra, viviendas, pintadas,
+      pendientes: Math.max(0, viviendas - pintadas),
+      avance: viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0,
+      proyectadas, pedidas, entregadas, usadas, saldo,
+      faltantePorPedir: Math.max(0, proyectadas - pedidas),
+      sugerido: Math.max(0, proyectadas - pedidas - Math.max(0, saldo)),
+      consumoTeorico: pintadas * ratio,
+      consumoReal: toNum(obra.tinetasUtilizadasReal),
+      desviacion: 0,
+      productos: 0,
+      estado: viviendas > 0 && pintadas >= viviendas ? "terminado" : saldo < 0 ? "revisar" : "ok",
+    };
+  }
 
-  const avance = viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0;
+  const suma = (f: (p: ProductoCalculado) => number) => calculados.reduce((a, p) => a + f(p), 0);
+  const proyectadas = suma((p) => p.proyectada);
+  const pedidas = suma((p) => p.pedida);
+  const entregadas = suma((p) => p.entregada);
+  const usadas = suma((p) => p.utilizada);
+  const saldo = suma((p) => p.saldo);
+  const faltantePorPedir = suma((p) => p.porPedir);
+  const sugerido = suma((p) => p.sugerido);
+
+  // Solo entran al contraste los productos que declararon rendimiento: sin ese
+  // dato no hay contra qué comparar el consumo.
+  const conRendimiento = calculados.filter((p) => p.rendimiento > 0 && p.pintadas > 0);
+  const consumoTeorico = conRendimiento.reduce((a, p) => a + p.teorico, 0);
+  const consumoReal = conRendimiento.reduce((a, p) => a + p.utilizada, 0);
+  const desviacion = consumoTeorico > 0 ? consumoReal / consumoTeorico - 1 : 0;
+
+  // La obra avanza al ritmo de su producto más adelantado (la fachada, casi
+  // siempre); el rezago de cada SKU se ve en el detalle.
+  const pintadas = calculados.reduce((max, p) => Math.max(max, p.pintadas), 0);
   const pendientes = Math.max(0, viviendas - pintadas);
-  const usadasTeorico = pintadas * ratio;
-  const teoricoVsReal = usadasTeorico - usadasReal;
-  // Mientras la obra no informe consumo real, el control se hace con el teórico.
-  const usadasControl = usadasReal > 0 ? usadasReal : usadasTeorico;
-  const saldo = entregadas - usadasControl;
-  const faltantePorPedir = Math.max(0, proyectadas - pedidas);
-  const sugerido = Math.max(0, proyectadas - pedidas - Math.max(0, saldo));
-  const cobertura = ratio > 0 ? Math.max(0, saldo) / ratio : 0; // viviendas que alcanza el saldo
+  const avance = viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0;
+
+  // El producto más escaso manda: la obra se para cuando se acaba cualquiera.
+  const coberturas = calculados.filter((p) => p.rendimiento > 0).map((p) => p.cobertura);
+  const cobertura = coberturas.length > 0 ? Math.min(...coberturas) : Infinity;
 
   let estado: EstadoObra;
   if (viviendas > 0 && pintadas >= viviendas) estado = "terminado";
-  else if (saldo < 0) estado = "revisar";
+  else if (calculados.some((p) => p.saldo < 0)) estado = "revisar";
   else if (viviendas === 0) estado = "ok";
-  else if (saldo <= 0) estado = "critico";
+  else if (cobertura <= 0) estado = "critico";
   else if (cobertura < pendientes * 0.2) estado = "pedir";
   else estado = "ok";
 
   return {
-    obra, viviendas, proyectadas, pintadas, pendientes, pedidas, entregadas, ratio, avance,
-    usadasTeorico, usadasReal, teoricoVsReal, usadasControl, saldo, faltantePorPedir, sugerido, estado,
+    obra, viviendas, pintadas, pendientes, avance,
+    proyectadas, pedidas, entregadas, usadas, saldo, faltantePorPedir, sugerido,
+    consumoTeorico, consumoReal, desviacion,
+    productos: calculados.length,
+    estado,
   };
 }
 
@@ -170,19 +218,20 @@ function calcularTotales(filas: ObraCalculada[]) {
       acc.proyectadas += f.proyectadas;
       acc.pintadas += f.pintadas;
       acc.pendientes += f.pendientes;
-      acc.usadasTeorico += f.usadasTeorico;
-      acc.usadasReal += f.usadasReal;
-      acc.usadasControl += f.usadasControl;
+      acc.usadas += f.usadas;
       acc.pedidas += f.pedidas;
       acc.entregadas += f.entregadas;
       acc.saldo += f.saldo;
       acc.faltante += f.faltantePorPedir;
       acc.sugerido += f.sugerido;
+      acc.consumoTeorico += f.consumoTeorico;
+      acc.consumoReal += f.consumoReal;
       return acc;
     },
     {
-      viviendas: 0, proyectadas: 0, pintadas: 0, pendientes: 0, usadasTeorico: 0, usadasReal: 0,
-      usadasControl: 0, pedidas: 0, entregadas: 0, saldo: 0, faltante: 0, sugerido: 0,
+      viviendas: 0, proyectadas: 0, pintadas: 0, pendientes: 0, usadas: 0,
+      pedidas: 0, entregadas: 0, saldo: 0, faltante: 0, sugerido: 0,
+      consumoTeorico: 0, consumoReal: 0,
     },
   );
   const conteoEstados = ESTADOS.map((e) => ({
@@ -196,7 +245,7 @@ function calcularTotales(filas: ObraCalculada[]) {
   return {
     ...t,
     avance: t.viviendas > 0 ? t.pintadas / t.viviendas : 0,
-    teoricoVsReal: t.usadasTeorico - t.usadasReal,
+    desviacion: t.consumoTeorico > 0 ? t.consumoReal / t.consumoTeorico - 1 : 0,
     conteoEstados,
     ultima,
   };
@@ -214,7 +263,7 @@ interface Constructora {
 }
 
 /** Agrupa todas las obras por constructora — es la cartera de la portada. */
-function armarCartera(obras: ObraConCliente[]): Constructora[] {
+function armarCartera(obras: ObraConCliente[], productosPorObra: Map<string, ObraProducto[]>): Constructora[] {
   const porCliente = new Map<string, ObraConCliente[]>();
   for (const o of obras) {
     const lista = porCliente.get(o.clienteId);
@@ -227,7 +276,7 @@ function armarCartera(obras: ObraConCliente[]): Constructora[] {
       const filas = lista
         .slice()
         .sort((a, b) => new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime())
-        .map(calcularObra);
+        .map((o) => calcularObra(o, productosPorObra.get(o.id) ?? []));
       return {
         id,
         // El nombre viene del join contra clients; si el cliente se borró del
@@ -244,6 +293,9 @@ function armarCartera(obras: ObraConCliente[]): Constructora[] {
     .sort((a, b) => b.totales.sugerido - a.totales.sugerido || a.nombre.localeCompare(b.nombre));
 }
 
+// El alta de la obra quedó reducida a lo que la identifica y la dimensiona: el
+// avance y los pedidos ya no se cargan acá, se llevan producto por producto en
+// el panel de cada obra.
 const emptyForm = {
   ciudad: "",
   nombre: "",
@@ -252,18 +304,46 @@ const emptyForm = {
   direccion: "",
   descripcion: "",
   estado: "activa",
+  tipoObra: "casas",
+  etapa: "",
+  torres: "",
   viviendas: "",
-  tinetasPorVivienda: "1.5",
-  tinetasProyectadas: "",
-  viviendasPintadas: "",
-  tinetasUtilizadasReal: "",
-  tinetasPedidas: "",
-  tinetasEntregadas: "",
   fechaInicio: "",
   fechaEstimadaFin: "",
 };
 
 type ObraForm = typeof emptyForm;
+
+/** Una fila del desglose por modelo dentro del formulario. */
+interface TipoViviendaForm {
+  nombre: string;
+  cantidad: string;
+}
+
+// Casi todo proyecto tiene al menos dos modelos (el estándar y el de
+// discapacidad), así que el formulario parte con dos y desde ahí se agregan.
+const TIPOS_INICIALES: TipoViviendaForm[] = [
+  { nombre: "Tipo A", cantidad: "" },
+  { nombre: "Tipo B", cantidad: "" },
+];
+
+/** Casas y edificios se controlan igual; solo cambia cómo se llaman las cosas. */
+const VOCABULARIO = {
+  casas: {
+    total: "Total de viviendas",
+    unidad: "viviendas",
+    tipo: "Tipo de vivienda",
+    ejemplo: "Ej: Alerce",
+  },
+  edificios: {
+    total: "Total de departamentos",
+    unidad: "departamentos",
+    tipo: "Tipo de departamento",
+    ejemplo: "Ej: 2 dormitorios",
+  },
+} as const;
+
+const vocab = (tipoObra: string) => VOCABULARIO[tipoObra === "edificios" ? "edificios" : "casas"];
 
 // ---------------------------------------------------------------------------
 // Columnas de la tabla de obras
@@ -302,9 +382,37 @@ const COLUMNAS: ColumnaDef[] = [
     label: "Ciudad",
     render: (f) => <span className="font-medium text-slate-700 dark:text-slate-200">{f.obra.ciudad || "—"}</span>,
   },
-  { key: "viv", label: "VIV", title: "Viviendas del proyecto", render: (f) => fmt(f.viviendas), total: (t) => fmt(t.viviendas) },
-  { key: "ratio", label: "Tinetas x Viv", title: "Tinetas por vivienda", soloCompleta: true, render: (f) => fmtDec(f.ratio) },
-  { key: "proyectadas", label: "Proyectadas", title: "Total tinetas proyectadas", render: (f) => fmt(f.proyectadas), total: (t) => fmt(t.proyectadas) },
+  {
+    key: "etapa",
+    label: "Etapa",
+    title: "Etapa constructiva",
+    soloCompleta: true,
+    render: (f) =>
+      f.obra.etapa ? (
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{f.obra.etapa}</span>
+      ) : (
+        <span className="text-slate-300">—</span>
+      ),
+  },
+  {
+    key: "viv",
+    label: "VIV",
+    title: "Viviendas o departamentos del proyecto",
+    render: (f) => (
+      <span title={f.obra.tipoObra === "edificios" ? `${fmt(f.obra.torres)} torres` : undefined}>
+        {fmt(f.viviendas)}
+      </span>
+    ),
+    total: (t) => fmt(t.viviendas),
+  },
+  {
+    key: "productos",
+    label: "SKU",
+    title: "Productos cargados en la obra",
+    soloCompleta: true,
+    render: (f) => (f.productos > 0 ? fmt(f.productos) : <span className="text-slate-300">—</span>),
+  },
+  { key: "proyectadas", label: "Proyectadas", title: "Suma de lo proyectado de todos sus productos", render: (f) => fmtDec(f.proyectadas), total: (t) => fmtDec(t.proyectadas) },
   { key: "pintadas", label: "Pintadas", title: "Viviendas pintadas", render: (f) => fmt(f.pintadas), total: (t) => fmt(t.pintadas) },
   { key: "pendientes", label: "Pendientes", title: "Viviendas pendientes de pintar", soloCompleta: true, render: (f) => fmt(f.pendientes), total: (t) => fmt(t.pendientes) },
   {
@@ -326,34 +434,31 @@ const COLUMNAS: ColumnaDef[] = [
     ),
     total: (t) => fmtPct(t.avance),
   },
-  { key: "teorico", label: "Usadas teórico", title: "Tinetas utilizadas teórico = pintadas × tinetas por vivienda", soloCompleta: true, render: (f) => fmtDec(f.usadasTeorico), total: (t) => fmtDec(t.usadasTeorico) },
-  { key: "real", label: "Usadas real", title: "Tinetas utilizadas real informadas por la obra", soloCompleta: true, render: (f) => fmtDec(f.usadasReal), total: (t) => fmtDec(t.usadasReal) },
+  { key: "usadas", label: "Utilizadas", title: "Suma de lo consumido en obra", soloCompleta: true, render: (f) => fmtDec(f.usadas), total: (t) => fmtDec(t.usadas) },
   {
-    key: "teoricoVsReal",
-    label: "Teórico vs real",
-    title: "Teórico − real (negativo = se gastó de más)",
-    soloCompleta: true,
-    render: (f) => (
-      <span className={f.teoricoVsReal < 0 ? "text-red-600 dark:text-red-400 font-semibold" : ""}>{fmtDec(f.teoricoVsReal)}</span>
-    ),
-    total: (t) => fmtDec(t.teoricoVsReal),
+    // Reemplaza al viejo "teórico vs real": el número suelto no decía nada, lo
+    // que se necesita saber es si el producto está rindiendo lo prometido.
+    key: "rendimiento",
+    label: "Rendimiento",
+    title: "Consumo real vs el declarado (+ = se está gastando de más)",
+    render: (f) => <BadgeDesviacion desviacion={f.desviacion} hayDato={f.consumoTeorico > 0} />,
+    total: (t) => <BadgeDesviacion desviacion={t.desviacion} hayDato={t.consumoTeorico > 0} />,
   },
-  { key: "control", label: "Usadas control", title: "Consumo con el que se controla el saldo", soloCompleta: true, render: (f) => fmtDec(f.usadasControl), total: (t) => fmtDec(t.usadasControl) },
-  { key: "pedidas", label: "Pedidas", title: "Tinetas pedidas", render: (f) => fmt(f.pedidas), total: (t) => fmt(t.pedidas) },
-  { key: "entregadas", label: "Entregadas", title: "Tinetas entregadas", render: (f) => fmt(f.entregadas), total: (t) => fmt(t.entregadas) },
+  { key: "pedidas", label: "Pedidas", title: "Suma de lo pedido de todos sus productos", render: (f) => fmtDec(f.pedidas), total: (t) => fmtDec(t.pedidas) },
+  { key: "entregadas", label: "Entregadas", title: "Suma de lo entregado a la obra", render: (f) => fmtDec(f.entregadas), total: (t) => fmtDec(t.entregadas) },
   {
     key: "saldo",
     label: "Saldo obra",
-    title: "Saldo de tinetas en obra",
+    title: "Entregado − utilizado: lo que debería estar en la bodega de la obra",
     render: (f) => <span className={f.saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(f.saldo)}</span>,
     total: (t) => fmtDec(t.saldo),
   },
   {
     key: "sugerido",
     label: "Próx. pedido",
-    title: "Próximo pedido sugerido",
-    render: (f) => <span className="font-bold text-slate-700 dark:text-slate-100">{fmt(f.sugerido)}</span>,
-    total: (t) => fmt(t.sugerido),
+    title: "Proyectado − pedido − saldo en obra",
+    render: (f) => <span className="font-bold text-slate-700 dark:text-slate-100">{fmtDec(f.sugerido)}</span>,
+    total: (t) => fmtDec(t.sugerido),
   },
   {
     key: "estado",
@@ -376,6 +481,10 @@ const COLUMNAS: ColumnaDef[] = [
 
 export function ControlObrasContent() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  // Las etapas quedan disponibles para todas las obras, así que solo las suman
+  // los roles que mandan en el área.
+  const puedeAgregarEtapas = user?.role === "admin" || user?.role === "supervisor";
 
   // Constructora abierta. null = portada (cartera).
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
@@ -396,8 +505,10 @@ export function ControlObrasContent() {
   const [obraEditando, setObraEditando] = useState<Obra | null>(null);
   const [obraAEliminar, setObraAEliminar] = useState<Obra | null>(null);
   const [form, setForm] = useState<ObraForm>(emptyForm);
-  // Si el usuario escribe las proyectadas a mano dejamos de auto-calcularlas.
-  const proyectadasTocadas = useRef(false);
+  const [tipos, setTipos] = useState<TipoViviendaForm[]>(TIPOS_INICIALES);
+  // Si el usuario escribe el total a mano dejamos de derivarlo de los tipos.
+  const totalTocado = useRef(false);
+  const [nuevaEtapa, setNuevaEtapa] = useState<string | null>(null);
 
   // --- Todas las obras: alimenta la cartera y el detalle con un solo fetch ---
   const { data: todasLasObras = [], isLoading: cargandoObras } = useQuery<ObraConCliente[]>({
@@ -428,6 +539,33 @@ export function ControlObrasContent() {
     queryFn: async () => {
       const res = await apiRequest("/api/obra-productos");
       return res.json();
+    },
+  });
+
+  // --- Catálogo de etapas constructivas ---
+  const { data: etapas = [] } = useQuery<ObraEtapa[]>({
+    queryKey: ["/api/obras/etapas"],
+    queryFn: async () => {
+      const res = await apiRequest("/api/obras/etapas");
+      return res.json();
+    },
+  });
+
+  const crearEtapa = useMutation({
+    mutationFn: async (nombre: string) => {
+      const res = await apiRequest("/api/obras/etapas", { method: "POST", data: { nombre } });
+      return res.json();
+    },
+    onSuccess: (etapa: ObraEtapa) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/obras/etapas"] });
+      // La etapa recién creada queda seleccionada: se agrega justamente porque
+      // es la que tiene esta obra.
+      setForm((p) => ({ ...p, etapa: etapa.nombre }));
+      setNuevaEtapa(null);
+      toast({ title: `Etapa «${etapa.nombre}» agregada` });
+    },
+    onError: (error: any) => {
+      toast({ title: "No se pudo agregar la etapa", description: error?.message, variant: "destructive" });
     },
   });
 
@@ -466,7 +604,19 @@ export function ControlObrasContent() {
   });
 
   // --- Derivados ---
-  const cartera = useMemo(() => armarCartera(todasLasObras), [todasLasObras]);
+  // Productos agrupados por obra: alimentan el panel desplegable de cada fila y
+  // además TODOS los números de la planilla, que ahora se derivan de ellos.
+  const productosPorObra = useMemo(() => {
+    const mapa = new Map<string, ObraProducto[]>();
+    for (const p of productos) {
+      const lista = mapa.get(p.obraId);
+      if (lista) lista.push(p);
+      else mapa.set(p.obraId, [p]);
+    }
+    return mapa;
+  }, [productos]);
+
+  const cartera = useMemo(() => armarCartera(todasLasObras, productosPorObra), [todasLasObras, productosPorObra]);
 
   const carteraFiltrada = useMemo(() => {
     const q = normalizar(filtroCartera.trim());
@@ -535,21 +685,10 @@ export function ControlObrasContent() {
     return visibles
       .slice()
       .sort((a, b) => new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime())
-      .map(calcularObra);
-  }, [obras, temporadaFiltro]);
+      .map((o) => calcularObra(o, productosPorObra.get(o.id) ?? []));
+  }, [obras, temporadaFiltro, productosPorObra]);
 
   const totales = useMemo(() => calcularTotales(filas), [filas]);
-
-  // Productos agrupados por obra, para el panel desplegable de cada fila.
-  const productosPorObra = useMemo(() => {
-    const mapa = new Map<string, ObraProducto[]>();
-    for (const p of productos) {
-      const lista = mapa.get(p.obraId);
-      if (lista) lista.push(p);
-      else mapa.set(p.obraId, [p]);
-    }
-    return mapa;
-  }, [productos]);
 
   const columnasVisibles = useMemo(
     () => COLUMNAS.filter((c) => planillaCompleta || !c.soloCompleta),
@@ -558,8 +697,10 @@ export function ControlObrasContent() {
 
   // --- Formulario de obra ---
   const abrirNueva = () => {
-    proyectadasTocadas.current = false;
+    totalTocado.current = false;
+    setNuevaEtapa(null);
     setObraEditando(null);
+    setTipos(TIPOS_INICIALES);
     setForm({
       ...emptyForm,
       temporada: temporadaFiltro !== "todas" ? temporadaFiltro : temporadas[0] ?? "",
@@ -567,9 +708,15 @@ export function ControlObrasContent() {
     setDialogAbierto(true);
   };
 
-  const abrirEdicion = (obra: Obra) => {
-    proyectadasTocadas.current = true;
+  const abrirEdicion = (obra: ObraConCliente) => {
+    totalTocado.current = true;
+    setNuevaEtapa(null);
     setObraEditando(obra);
+    setTipos(
+      obra.tiposVivienda?.length
+        ? obra.tiposVivienda.map((t) => ({ nombre: t.nombre, cantidad: String(t.cantidad ?? 0) }))
+        : TIPOS_INICIALES,
+    );
     setForm({
       ciudad: obra.ciudad ?? "",
       nombre: obra.nombre ?? "",
@@ -578,34 +725,42 @@ export function ControlObrasContent() {
       direccion: obra.direccion ?? "",
       descripcion: obra.descripcion ?? "",
       estado: obra.estado ?? "activa",
+      tipoObra: obra.tipoObra ?? "casas",
+      etapa: obra.etapa ?? "",
+      torres: obra.torres ? String(obra.torres) : "",
       viviendas: String(obra.viviendas ?? 0),
-      tinetasPorVivienda: String(obra.tinetasPorVivienda ?? "1.5"),
-      tinetasProyectadas: String(obra.tinetasProyectadas ?? 0),
-      viviendasPintadas: String(obra.viviendasPintadas ?? 0),
-      tinetasUtilizadasReal: String(obra.tinetasUtilizadasReal ?? 0),
-      tinetasPedidas: String(obra.tinetasPedidas ?? 0),
-      tinetasEntregadas: String(obra.tinetasEntregadas ?? 0),
       fechaInicio: (obra.fechaInicio as any) ?? "",
       fechaEstimadaFin: (obra.fechaEstimadaFin as any) ?? "",
     });
     setDialogAbierto(true);
   };
 
-  // Al tocar viviendas o el ratio, proponemos las tinetas proyectadas (redondeo
-  // hacia arriba, igual que la planilla). Queda editable.
   const setCampo = (campo: keyof ObraForm, valor: string) => {
-    setForm((prev) => {
-      const next = { ...prev, [campo]: valor };
-      if (campo === "tinetasProyectadas") {
-        proyectadasTocadas.current = true;
-      } else if ((campo === "viviendas" || campo === "tinetasPorVivienda") && !proyectadasTocadas.current) {
-        const viviendas = toInt(campo === "viviendas" ? valor : prev.viviendas);
-        const ratio = toNum(campo === "tinetasPorVivienda" ? valor : prev.tinetasPorVivienda);
-        next.tinetasProyectadas = viviendas > 0 && ratio > 0 ? String(Math.ceil(viviendas * ratio)) : "";
-      }
-      return next;
-    });
+    if (campo === "viviendas") totalTocado.current = true;
+    setForm((prev) => ({ ...prev, [campo]: valor }));
   };
+
+  // El total se propone sumando los modelos; queda editable porque no siempre
+  // cuadra exacto con lo que dice el contrato.
+  const totalTipos = tipos.reduce((a, t) => a + toInt(t.cantidad), 0);
+
+  // Mientras el total no se escriba a mano, sigue a la suma de los modelos.
+  const aplicarTipos = (next: TipoViviendaForm[]) => {
+    setTipos(next);
+    if (!totalTocado.current) {
+      const suma = next.reduce((a, t) => a + toInt(t.cantidad), 0);
+      setForm((f) => ({ ...f, viviendas: suma > 0 ? String(suma) : "" }));
+    }
+  };
+
+  const setTipo = (indice: number, campo: keyof TipoViviendaForm, valor: string) =>
+    aplicarTipos(tipos.map((t, i) => (i === indice ? { ...t, [campo]: valor } : t)));
+
+  const agregarTipo = () =>
+    // Tipo A, Tipo B, Tipo C… siguiendo la letra que toca.
+    setTipos([...tipos, { nombre: `Tipo ${String.fromCharCode(65 + tipos.length)}`, cantidad: "" }]);
+
+  const quitarTipo = (indice: number) => aplicarTipos(tipos.filter((_, i) => i !== indice));
 
   const enviar = () => {
     if (!cliente) return;
@@ -626,22 +781,20 @@ export function ControlObrasContent() {
         direccion: form.direccion.trim() || null,
         descripcion: form.descripcion.trim() || null,
         estado: form.estado,
+        tipoObra: form.tipoObra,
+        etapa: form.etapa || null,
+        torres: form.tipoObra === "edificios" ? toInt(form.torres) : 0,
         viviendas: toInt(form.viviendas),
-        tinetasPorVivienda: String(toNum(form.tinetasPorVivienda) || 1.5),
-        tinetasProyectadas: toInt(form.tinetasProyectadas),
-        viviendasPintadas: toInt(form.viviendasPintadas),
-        tinetasUtilizadasReal: String(toNum(form.tinetasUtilizadasReal)),
-        tinetasPedidas: toInt(form.tinetasPedidas),
-        tinetasEntregadas: toInt(form.tinetasEntregadas),
         fechaInicio: form.fechaInicio || null,
         fechaEstimadaFin: form.fechaEstimadaFin || null,
+        // Los modelos sin nombre o en cero no se guardan: son filas que el
+        // formulario ofrece y el usuario no llegó a llenar.
+        tiposVivienda: tipos
+          .filter((t) => t.nombre.trim() && toInt(t.cantidad) > 0)
+          .map((t) => ({ nombre: t.nombre.trim(), cantidad: toInt(t.cantidad) })),
       },
     });
   };
-
-  const previewProyectadas = toInt(form.viviendas) > 0 && toNum(form.tinetasPorVivienda) > 0
-    ? Math.ceil(toInt(form.viviendas) * toNum(form.tinetasPorVivienda))
-    : 0;
 
   const seleccionarConstructora = (c: Constructora) => {
     setCliente({ id: c.id, nokoen: c.nombre, comuna: c.comuna ?? undefined });
@@ -756,7 +909,7 @@ export function ControlObrasContent() {
                 <MiniStat icon={<Building2 className="h-3.5 w-3.5" />} tono="sky" label="Constructoras" valor={fmt(cartera.length)} />
                 <MiniStat icon={<Home className="h-3.5 w-3.5" />} tono="slate" label="Viviendas en control" valor={fmt(totalesCartera.viviendas)} />
                 <MiniStat icon={<Paintbrush className="h-3.5 w-3.5" />} tono="emerald" label="Avance global" valor={fmtPct(totalesCartera.avance)} />
-                <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="amber" label="Próximo pedido total" valor={fmt(totalesCartera.sugerido)} />
+                <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="amber" label="Próximo pedido total" valor={fmtDec(totalesCartera.sugerido)} />
               </div>
 
               {/* ---------- Listado de constructoras ---------- */}
@@ -1020,7 +1173,7 @@ export function ControlObrasContent() {
 
                   <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
                     <BannerStat label="Viviendas" valor={fmt(totales.viviendas)} />
-                    <BannerStat label="Proyectadas" valor={fmt(totales.proyectadas)} sufijo="tinetas" />
+                    <BannerStat label="Proyectadas" valor={fmtDec(totales.proyectadas)} />
                     <BannerStat
                       label="Pintadas"
                       valor={fmt(totales.pintadas)}
@@ -1033,8 +1186,8 @@ export function ControlObrasContent() {
                         Próximo pedido
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">{fmt(totales.sugerido)}</span>
-                        <span className="text-[10px] font-semibold text-white/80">tinetas</span>
+                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">{fmtDec(totales.sugerido)}</span>
+                        <span className="text-[10px] font-semibold text-white/80">unidades</span>
                       </div>
                     </div>
 
@@ -1063,19 +1216,21 @@ export function ControlObrasContent() {
 
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                       <div className="xl:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Tinetas pedidas" valor={fmt(totales.pedidas)} />
-                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Tinetas entregadas" valor={fmt(totales.entregadas)} />
+                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Pedidas" valor={fmtDec(totales.pedidas)} />
+                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Entregadas" valor={fmtDec(totales.entregadas)} />
                         <MiniStat
                           icon={<Paintbrush className="h-3.5 w-3.5" />}
                           tono="slate"
-                          label="Tinetas usadas (control)"
-                          valor={fmtDec(totales.usadasControl)}
+                          label="Utilizadas en obra"
+                          valor={fmtDec(totales.usadas)}
                         />
+                        {/* Reemplaza al "teórico vs real": lo que se mira es si
+                            el producto rinde lo que se prometió. */}
                         <MiniStat
                           icon={<Scale className="h-3.5 w-3.5" />}
-                          tono={totales.teoricoVsReal < 0 ? "red" : "emerald"}
-                          label="Teórico vs real"
-                          valor={fmtDec(totales.teoricoVsReal)}
+                          tono={totales.consumoTeorico === 0 ? "slate" : totales.desviacion > 0.05 ? "red" : "emerald"}
+                          label="Rendimiento vs declarado"
+                          valor={totales.consumoTeorico > 0 ? fmtDesviacion(totales.desviacion) : "—"}
                         />
                         <MiniStat
                           icon={<Package className="h-3.5 w-3.5" />}
@@ -1175,10 +1330,10 @@ export function ControlObrasContent() {
               </div>
 
               <p className="text-[11px] text-slate-400 px-1">
-                Usadas teórico = viviendas pintadas × tinetas por vivienda. Usadas control = el consumo real informado
-                por la obra, o el teórico mientras no haya dato real. Saldo en obra = entregadas − usadas control.
-                Próximo pedido sugerido = proyectadas − pedidas − saldo disponible. El detalle por producto de cada
-                obra es un control aparte: no altera estos totales.
+                Todos los números salen del detalle por producto de cada obra. Saldo en obra = entregado − utilizado.
+                Próximo pedido sugerido = proyectado − pedido − saldo en obra. Rendimiento vs declarado = consumo real
+                sobre el esperado (viviendas pintadas × rendimiento del producto): positivo es que se está gastando de
+                más. El avance de la obra lo marca el producto más adelantado.
               </p>
             </>
           )}
@@ -1271,6 +1426,31 @@ export function ControlObrasContent() {
             {/* Identificación */}
             <Seccion icono={<Building2 className="w-3.5 h-3.5" />} titulo="Identificación">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Lo primero que define la obra: un edificio se cuenta por
+                    torres y sus modelos son departamentos. */}
+                <Campo label="Tipo de obra" className="sm:col-span-2">
+                  <div className="flex items-center gap-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 p-1 w-full sm:w-[280px]">
+                    {([
+                      { key: "casas", label: "Casas", icono: <Home className="h-3.5 w-3.5" /> },
+                      { key: "edificios", label: "Edificios", icono: <Building2 className="h-3.5 w-3.5" /> },
+                    ] as const).map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setCampo("tipoObra", t.key)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          form.tipoObra === t.key
+                            ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                        data-testid={`button-tipo-obra-${t.key}`}
+                      >
+                        {t.icono}
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </Campo>
                 <Campo label="Proyecto *" className="sm:col-span-2">
                   <Input
                     value={form.nombre}
@@ -1319,6 +1499,76 @@ export function ControlObrasContent() {
                     </SelectContent>
                   </Select>
                 </Campo>
+                {/* Etapa constructiva: es otra cosa que el estado del registro
+                    (una obra en terminaciones sigue estando activa). El catálogo
+                    se completa desde acá mismo cuando aparece una que falta. */}
+                <Campo label="Etapa de la obra">
+                  {nuevaEtapa === null ? (
+                    <Select
+                      value={form.etapa || "__sin"}
+                      onValueChange={(v) => {
+                        if (v === "__nueva") setNuevaEtapa("");
+                        else setCampo("etapa", v === "__sin" ? "" : v);
+                      }}
+                    >
+                      <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200" data-testid="select-obra-etapa">
+                        <SelectValue placeholder="Sin etapa" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[80]">
+                        <SelectItem value="__sin">Sin etapa</SelectItem>
+                        {etapas.map((e) => (
+                          <SelectItem key={e.id} value={e.nombre}>{e.nombre}</SelectItem>
+                        ))}
+                        {/* La obra puede tener una etapa vieja que ya se sacó
+                            del catálogo: se muestra igual para no perderla. */}
+                        {form.etapa && !etapas.some((e) => e.nombre === form.etapa) && (
+                          <SelectItem value={form.etapa}>{form.etapa}</SelectItem>
+                        )}
+                        {puedeAgregarEtapas && (
+                          <SelectItem value="__nueva" className="text-orange-600 font-semibold">
+                            + Agregar etapa…
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        autoFocus
+                        value={nuevaEtapa}
+                        onChange={(e) => setNuevaEtapa(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && nuevaEtapa.trim().length >= 2) crearEtapa.mutate(nuevaEtapa.trim());
+                          if (e.key === "Escape") setNuevaEtapa(null);
+                        }}
+                        placeholder="Ej: Entrega de viviendas"
+                        className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        data-testid="input-obra-etapa-nueva"
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        disabled={nuevaEtapa.trim().length < 2 || crearEtapa.isPending}
+                        onClick={() => crearEtapa.mutate(nuevaEtapa.trim())}
+                        className="h-9 w-9 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white flex-shrink-0"
+                        aria-label="Guardar etapa"
+                        data-testid="button-obra-etapa-guardar"
+                      >
+                        {crearEtapa.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setNuevaEtapa(null)}
+                        className="h-9 w-9 rounded-xl text-slate-400 flex-shrink-0"
+                        aria-label="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </Campo>
                 <Campo label="Dirección" className="sm:col-span-2">
                   <Input
                     value={form.direccion}
@@ -1331,10 +1581,24 @@ export function ControlObrasContent() {
               </div>
             </Seccion>
 
-            {/* Proyección */}
-            <Seccion icono={<Package className="w-3.5 h-3.5" />} titulo="Proyección">
+            {/* Dimensión de la obra. El avance y los pedidos ya no se cargan
+                acá: cada producto lleva los suyos en el panel de la obra. */}
+            <Seccion icono={<Home className="w-3.5 h-3.5" />} titulo={form.tipoObra === "edificios" ? "Departamentos" : "Viviendas"}>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Campo label="Viviendas">
+                {form.tipoObra === "edificios" && (
+                  <Campo label="Torres">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={form.torres}
+                      onChange={(e) => setCampo("torres", e.target.value)}
+                      placeholder="0"
+                      className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                      data-testid="input-obra-torres"
+                    />
+                  </Campo>
+                )}
+                <Campo label={vocab(form.tipoObra).total}>
                   <Input
                     type="number"
                     min={0}
@@ -1345,90 +1609,79 @@ export function ControlObrasContent() {
                     data-testid="input-obra-viviendas"
                   />
                 </Campo>
-                <Campo label="Tinetas por vivienda">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min={0}
-                    value={form.tinetasPorVivienda}
-                    onChange={(e) => setCampo("tinetasPorVivienda", e.target.value)}
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-ratio"
-                  />
-                </Campo>
-                <Campo label="Tinetas proyectadas">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.tinetasProyectadas}
-                    onChange={(e) => setCampo("tinetasProyectadas", e.target.value)}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-proyectadas"
-                  />
-                </Campo>
               </div>
-              {previewProyectadas > 0 && toInt(form.tinetasProyectadas) !== previewProyectadas && (
+
+              {totalTipos > 0 && toInt(form.viviendas) !== totalTipos && (
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, tinetasProyectadas: String(previewProyectadas) }))}
+                  onClick={() => {
+                    totalTocado.current = false;
+                    setForm((p) => ({ ...p, viviendas: String(totalTipos) }));
+                  }}
                   className="mt-3 text-xs font-semibold text-orange-600 hover:text-[#e35400] transition-colors"
-                  data-testid="button-obra-sugerir-proyectadas"
+                  data-testid="button-obra-sugerir-total"
                 >
-                  Usar {fmt(previewProyectadas)} tinetas ({form.viviendas} viviendas × {form.tinetasPorVivienda})
+                  Usar {fmt(totalTipos)} {vocab(form.tipoObra).unidad} (suma de los modelos)
                 </button>
               )}
+
+              {/* Desglose por modelo: cada tipo tiene su metraje y por lo tanto
+                  su propio consumo, así que el total solo no alcanza. */}
+              <div className="mt-4 pt-4 border-t border-slate-200/70 dark:border-slate-700/60">
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {vocab(form.tipoObra).tipo}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={agregarTipo}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-[#e35400] transition-colors"
+                    data-testid="button-obra-agregar-tipo"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Agregar
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {tipos.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={t.nombre}
+                        onChange={(e) => setTipo(i, "nombre", e.target.value)}
+                        placeholder={vocab(form.tipoObra).ejemplo}
+                        className="flex-1 bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        data-testid={`input-obra-tipo-nombre-${i}`}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        value={t.cantidad}
+                        onChange={(e) => setTipo(i, "cantidad", e.target.value)}
+                        placeholder="0"
+                        className="w-24 bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        data-testid={`input-obra-tipo-cantidad-${i}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => quitarTipo(i)}
+                        disabled={tipos.length <= 1}
+                        className="h-9 w-9 rounded-xl text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
+                        aria-label="Quitar tipo"
+                        data-testid={`button-obra-quitar-tipo-${i}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </Seccion>
 
-            {/* Avance y pedidos */}
-            <Seccion icono={<Paintbrush className="w-3.5 h-3.5" />} titulo="Avance y pedidos">
+            {/* Plazos y notas */}
+            <Seccion icono={<Package className="w-3.5 h-3.5" />} titulo="Plazos y notas">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Campo label="Viviendas pintadas">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.viviendasPintadas}
-                    onChange={(e) => setCampo("viviendasPintadas", e.target.value)}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-pintadas"
-                  />
-                </Campo>
-                {/* El teórico se calcula; acá va lo que la obra informa que gastó de verdad. */}
-                <Campo label="Tinetas utilizadas (real)">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={form.tinetasUtilizadasReal}
-                    onChange={(e) => setCampo("tinetasUtilizadasReal", e.target.value)}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-usadas-real"
-                  />
-                </Campo>
-                <Campo label="Tinetas pedidas">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.tinetasPedidas}
-                    onChange={(e) => setCampo("tinetasPedidas", e.target.value)}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-pedidas"
-                  />
-                </Campo>
-                <Campo label="Tinetas entregadas">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.tinetasEntregadas}
-                    onChange={(e) => setCampo("tinetasEntregadas", e.target.value)}
-                    placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
-                    data-testid="input-obra-entregadas"
-                  />
-                </Campo>
                 <Campo label="Fecha de inicio">
                   <Input
                     type="date"
@@ -1574,7 +1827,7 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
         <div className="w-24 text-right">
           <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
           <div className={`text-sm font-bold tabular-nums ${totales.sugerido > 0 ? "text-orange-600 dark:text-orange-400" : "text-slate-400"}`}>
-            {fmt(totales.sugerido)}
+            {fmtDec(totales.sugerido)}
           </div>
         </div>
 
@@ -1784,7 +2037,7 @@ function FilaObraGlobal({
         </td>
 
         <Td className={fila.saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(fila.saldo)}</Td>
-        <Td className={fila.sugerido > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmt(fila.sugerido)}</Td>
+        <Td className={fila.sugerido > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmtDec(fila.sugerido)}</Td>
 
         <Td>
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${est.badge}`}>
@@ -1822,6 +2075,40 @@ function FilaObraGlobal({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * Cuánto se está desviando el consumo real del rendimiento declarado.
+ *
+ * Es el reemplazo del viejo "teórico vs real": el número suelto no decía nada,
+ * lo que se necesita saber en terreno es si el producto está rindiendo lo que
+ * se prometió. Verde = rinde igual o mejor; rojo = se está gastando de más.
+ */
+function BadgeDesviacion({ desviacion, hayDato }: { desviacion: number; hayDato: boolean }) {
+  if (!hayDato) return <span className="text-slate-300">—</span>;
+  // Hasta un 5% es ruido de medición (casas a medio pintar, tinetas abiertas).
+  const alerta = desviacion > 0.05;
+  const bien = desviacion < -0.05;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+        alerta
+          ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+          : bien
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+            : "bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
+      }`}
+      title={
+        alerta
+          ? "Se está consumiendo más de lo declarado"
+          : bien
+            ? "Está rindiendo mejor de lo declarado"
+            : "Consume lo declarado"
+      }
+    >
+      {fmtDesviacion(desviacion)}
+    </span>
   );
 }
 

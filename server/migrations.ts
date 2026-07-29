@@ -1246,6 +1246,46 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_prod_mov_producto" ON obra_producto_movimientos (obra_producto_id)`);
 
+    // Tipo de obra, tipos de vivienda y etapas constructivas (migración 071).
+    // Una obra deja de ser "N viviendas": se declara si es casas o edificios y
+    // se desglosa en modelos, porque cada uno rinde distinto.
+    console.log('  🏘️  Verificando tipos de vivienda y etapas de obra...');
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS tipo_obra VARCHAR(20) NOT NULL DEFAULT 'casas'`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS torres INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS etapa VARCHAR(60)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_tipos_vivienda (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        obra_id VARCHAR NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+        nombre TEXT NOT NULL,
+        cantidad INTEGER NOT NULL DEFAULT 0,
+        metros_cuadrados NUMERIC(8, 2),
+        orden INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_tipos_vivienda_obra_id" ON obra_tipos_vivienda (obra_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_etapas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre TEXT NOT NULL UNIQUE,
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    // Las tres etapas que usa Construcción; el resto las agrega el supervisor.
+    await db.execute(sql`
+      INSERT INTO obra_etapas (nombre, orden) VALUES
+        ('Fundaciones', 1), ('Obra gruesa', 2), ('Terminaciones', 3)
+      ON CONFLICT (nombre) DO NOTHING
+    `);
+    // El avance baja a nivel de producto: cada SKU tiene su rendimiento y sus
+    // viviendas pintadas (el sellador no avanza al ritmo de la fachada).
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS rendimiento_por_vivienda NUMERIC(8, 2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS viviendas_pintadas INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS tipo_vivienda_id VARCHAR REFERENCES obra_tipos_vivienda(id) ON DELETE SET NULL`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {
