@@ -3337,6 +3337,16 @@ export const obras = pgTable("obras", {
   temporada: varchar("temporada", { length: 20 }), // Ej: "2026-2027"
   descripcion: text("descripcion"), // Descripción opcional
   estado: varchar("estado").notNull().default("activa"), // 'activa', 'completada', 'cancelada'
+  // Casas o edificios. Cambia el vocabulario de toda la obra (viviendas vs
+  // departamentos) y es lo primero que se elige al crearla: un edificio además
+  // tiene torres, y sus tipos de unidad son departamentos.
+  tipoObra: varchar("tipo_obra", { length: 20 }).notNull().default("casas"), // 'casas' | 'edificios'
+  torres: integer("torres").notNull().default(0), // Solo edificios: torres del proyecto
+  // Etapa constructiva (Fundaciones, Obra gruesa, Terminaciones…). NO reemplaza
+  // a `estado`, que es el ciclo de vida del registro: una obra en terminaciones
+  // sigue estando activa. El catálogo editable vive en `obra_etapas`; acá se
+  // guarda el nombre, para que editar el catálogo no reescriba obras viejas.
+  etapa: varchar("etapa", { length: 60 }),
   // --- Control de avance (todo se ingresa a mano) ---
   viviendas: integer("viviendas").notNull().default(0), // Total de viviendas del proyecto
   tinetasPorVivienda: numeric("tinetas_por_vivienda", { precision: 5, scale: 2 }).notNull().default("1.5"),
@@ -3364,12 +3374,71 @@ export const insertObraSchema = createInsertSchema(obras).omit({
 export type Obra = typeof obras.$inferSelect;
 export type InsertObra = z.infer<typeof insertObraSchema>;
 
+// Tipos de vivienda de una obra — el desglose del total.
+//
+// Casi ningún proyecto es homogéneo: hay 375 viviendas pero repartidas en un
+// par de modelos ("Alerce", "Maule", las de discapacidad), y en los edificios lo
+// mismo con los tipos de departamento (2D, 3D). Cada tipo tiene su metraje y por
+// lo tanto rinde distinto, así que el desglose es la base para calcular consumo
+// por modelo. Los m² quedaron fuera del alta por ahora (se decidió partir solo
+// con las cantidades), pero la columna ya está para cuando entre el rendimiento
+// por metro cuadrado.
+export const obraTiposVivienda = pgTable("obra_tipos_vivienda", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  obraId: varchar("obra_id").notNull(), // FK to obras.id
+  nombre: text("nombre").notNull(), // "Tipo A", "Alerce", "2 dormitorios"…
+  cantidad: integer("cantidad").notNull().default(0), // Viviendas/departamentos de ese tipo
+  metrosCuadrados: numeric("metros_cuadrados", { precision: 8, scale: 2 }), // Superficie a pintar, cuando se sepa
+  orden: integer("orden").notNull().default(0), // Orden de captura en el formulario
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertObraTipoViviendaSchema = createInsertSchema(obraTiposVivienda).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ObraTipoVivienda = typeof obraTiposVivienda.$inferSelect;
+export type InsertObraTipoVivienda = z.infer<typeof insertObraTipoViviendaSchema>;
+
+// Los tipos de vivienda se guardan y se editan siempre junto con su obra (son
+// filas de un mismo formulario), así que viajan dentro del payload en vez de
+// tener su propio CRUD.
+export const obraTiposViviendaPayloadSchema = z.array(
+  z.object({
+    nombre: z.string().trim().min(1),
+    cantidad: z.coerce.number().int().min(0).default(0),
+    metrosCuadrados: z.union([z.string(), z.number()]).nullable().optional(),
+  }),
+);
+
+// Catálogo de etapas constructivas, editable desde el propio selector de la
+// obra. Arranca con las tres que usa Construcción (fundaciones, obra gruesa,
+// terminaciones) y crece cuando aparece una que no estaba; solo admin y
+// supervisor pueden sumar etapas, porque quedan disponibles para todas las obras.
+export const obraEtapas = pgTable("obra_etapas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: text("nombre").notNull().unique(),
+  orden: integer("orden").notNull().default(0),
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertObraEtapaSchema = createInsertSchema(obraEtapas)
+  .omit({ id: true, createdAt: true })
+  .extend({ nombre: z.string().trim().min(2, "El nombre de la etapa es muy corto").max(60) });
+
+export type ObraEtapa = typeof obraEtapas.$inferSelect;
+export type InsertObraEtapa = z.infer<typeof insertObraEtapaSchema>;
+
 // La tabla `obras` solo guarda el id del cliente, pero la UI siempre muestra el
 // nombre de la constructora (la cartera se arma agrupando obras por cliente).
-// El listado lo resuelve con un join contra `clients`.
+// El listado lo resuelve con un join contra `clients`. Los tipos de vivienda
+// vienen en el mismo fetch: el formulario los edita junto con la obra.
 export type ObraConCliente = Obra & {
   clienteNombre: string | null;
   clienteComuna: string | null;
+  tiposVivienda: ObraTipoVivienda[];
 };
 
 // Productos comprometidos en una obra — detalle POR PRODUCTO del despacho.
@@ -3391,6 +3460,17 @@ export const obraProductos = pgTable("obra_productos", {
   cantidadPedida: numeric("cantidad_pedida", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadEntregada: numeric("cantidad_entregada", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadUtilizada: numeric("cantidad_utilizada", { precision: 12, scale: 2 }).notNull().default("0"),
+  // Rendimiento declarado del producto: cuántas unidades se van por vivienda
+  // (1,5 tinetas por casa, por ejemplo). Es un dato de entrada, igual que en la
+  // planilla: no se deriva de proyectada/viviendas.
+  rendimientoPorVivienda: numeric("rendimiento_por_vivienda", { precision: 8, scale: 2 }).notNull().default("0"),
+  // Viviendas pintadas CON ESTE producto. Cada SKU avanza a su ritmo (el
+  // sellador va antes que el esmalte de rejas), así que el avance no puede
+  // seguir siendo un solo número de la obra.
+  viviendasPintadas: integer("viviendas_pintadas").notNull().default(0),
+  // Tipo de vivienda al que aplica, cuando el producto solo va en un modelo.
+  // NULL = aplica a toda la obra.
+  tipoViviendaId: varchar("tipo_vivienda_id"), // FK to obra_tipos_vivienda.id
   notas: text("notas"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),

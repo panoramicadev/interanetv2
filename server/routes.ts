@@ -404,7 +404,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema, insertObraProductoMovimientoSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema, insertObraProductoMovimientoSchema, insertObraEtapaSchema, obraTiposViviendaPayloadSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -24277,6 +24277,32 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Catálogo de etapas constructivas (fundaciones, obra gruesa, terminaciones…).
+  // Va ANTES de /api/obras/:id para que 'etapas' no se tome como un id.
+  app.get('/api/obras/etapas', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    try {
+      res.json(await storage.getObraEtapas());
+    } catch (error: any) {
+      console.error('❌ Error al obtener etapas de obra:', error);
+      res.status(500).json({ message: 'Error al obtener las etapas', error: error.message });
+    }
+  }));
+
+  // Agregar una etapa al catálogo: queda disponible para todas las obras, por
+  // eso solo la crean admin y supervisor.
+  app.post('/api/obras/etapas', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = insertObraEtapaSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Etapa inválida', errors: parsed.error.errors });
+      }
+      res.status(201).json(await storage.createObraEtapa(parsed.data));
+    } catch (error: any) {
+      console.error('❌ Error al crear etapa de obra:', error);
+      res.status(500).json({ message: 'Error al crear la etapa', error: error.message });
+    }
+  }));
+
   // Get obra by ID
   app.get('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -24306,8 +24332,22 @@ export function registerRoutes(app: Express): Server {
       if (!parsed.success) {
         return res.status(400).json({ message: 'Datos de obra inválidos', errors: parsed.error.errors });
       }
+      // Los tipos de vivienda son filas del mismo formulario: llegan aparte del
+      // schema de la obra porque son otra tabla, pero se guardan en el mismo POST.
+      const tipos = obraTiposViviendaPayloadSchema.safeParse(req.body.tiposVivienda ?? []);
+      if (!tipos.success) {
+        return res.status(400).json({ message: 'Tipos de vivienda inválidos', errors: tipos.error.errors });
+      }
       const nuevaObra = await storage.createObra(parsed.data);
-      res.status(201).json(nuevaObra);
+      const tiposVivienda = await storage.reemplazarTiposVivienda(
+        nuevaObra.id,
+        tipos.data.map((t) => ({
+          nombre: t.nombre,
+          cantidad: t.cantidad,
+          metrosCuadrados: t.metrosCuadrados != null ? String(t.metrosCuadrados) : null,
+        })),
+      );
+      res.status(201).json({ ...nuevaObra, tiposVivienda });
     } catch (error: any) {
       console.error('❌ Error al crear obra:', error);
       res.status(500).json({
@@ -24326,6 +24366,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Datos de obra inválidos', errors: parsed.error.errors });
       }
       const obraActualizada = await storage.updateObra(id, parsed.data);
+      // Solo se tocan los tipos si el formulario los mandó: un PUT parcial de
+      // otra pantalla no puede borrar el desglose de la obra sin querer.
+      if (req.body.tiposVivienda !== undefined) {
+        const tipos = obraTiposViviendaPayloadSchema.safeParse(req.body.tiposVivienda);
+        if (!tipos.success) {
+          return res.status(400).json({ message: 'Tipos de vivienda inválidos', errors: tipos.error.errors });
+        }
+        const tiposVivienda = await storage.reemplazarTiposVivienda(
+          id,
+          tipos.data.map((t) => ({
+            nombre: t.nombre,
+            cantidad: t.cantidad,
+            metrosCuadrados: t.metrosCuadrados != null ? String(t.metrosCuadrados) : null,
+          })),
+        );
+        return res.json({ ...obraActualizada, tiposVivienda });
+      }
       res.json(obraActualizada);
     } catch (error: any) {
       console.error('❌ Error al actualizar obra:', error);
