@@ -13,9 +13,11 @@
  *  2. Detalle — la planilla de esa constructora: resumen arriba y una fila por
  *     obra.
  *
- * En los dos listados, cada obra se despliega y muestra su detalle POR PRODUCTO
- * (components/obras/panel-productos.tsx), que es donde se cargan los SKU y se
- * lleva el día a día de pedidos, entregas y consumo.
+ * En los dos listados, cada obra se despliega y sus productos aparecen como
+ * filas indentadas de la MISMA tabla (components/obras/panel-productos.tsx),
+ * usando las mismas columnas que la obra (components/obras/columnas.tsx): así el
+ * número de cada SKU queda justo debajo del total al que suma. Ahí se cargan los
+ * productos y se lleva el día a día de pedidos, entregas y consumo.
  *
  * El control se lleva a nivel de PRODUCTO: cada SKU tiene su proyectado, su
  * rendimiento declarado y sus viviendas pintadas, y los números de la obra son
@@ -39,16 +41,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { PanelProductos } from "@/components/obras/panel-productos";
-import { fmt, fmtDec, fmtPct, normalizar, toInt, toNum } from "@/components/obras/formato";
-import { calcularProducto, fmtDesviacion, type ProductoCalculado } from "@/components/obras/calculos";
+import { FilasProductos } from "@/components/obras/panel-productos";
+import { fmt, fmtDec, fmtPct, normalizar, toInt } from "@/components/obras/formato";
+import {
+  calcularObra,
+  calcularTotales,
+  fmtDesviacion,
+  type EstadoObra,
+  type ObraCalculada,
+  type Totales,
+} from "@/components/obras/calculos";
+import {
+  CLAVES_CARTERA,
+  COLUMNAS,
+  columnaConstructora,
+  prepararColumnas,
+  type ColumnaDef,
+} from "@/components/obras/columnas";
+import { BORDE_GRUPO, Th } from "@/components/obras/celdas";
 import { useAuth } from "@/hooks/useAuth";
 import type { Obra, ObraConCliente, ObraEtapa, ObraProducto } from "@shared/schema";
 import {
   AlertTriangle,
   ArrowLeft,
   Building2,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   HardHat,
@@ -77,181 +93,6 @@ interface ClienteBusqueda {
   koen?: string;
   comuna?: string;
 }
-
-type EstadoObra = "critico" | "pedir" | "ok" | "terminado" | "revisar";
-
-// Orden fijo del resumen por estado (mismo orden que traía la planilla).
-const ESTADOS: Array<{
-  key: EstadoObra;
-  label: string;
-  badge: string;
-  dot: string;
-}> = [
-  { key: "critico", label: "Crítico", badge: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300", dot: "bg-red-500" },
-  { key: "pedir", label: "Pedir", badge: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300", dot: "bg-amber-500" },
-  { key: "ok", label: "OK", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", dot: "bg-emerald-500" },
-  { key: "terminado", label: "Terminado", badge: "bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200", dot: "bg-slate-400" },
-  { key: "revisar", label: "Revisar saldo", badge: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300", dot: "bg-violet-500" },
-];
-
-const ESTADO_MAP = Object.fromEntries(ESTADOS.map((e) => [e.key, e])) as Record<EstadoObra, (typeof ESTADOS)[number]>;
-
-interface ObraCalculada {
-  obra: ObraConCliente;
-  viviendas: number;
-  pintadas: number;
-  pendientes: number;
-  avance: number;
-  proyectadas: number;
-  pedidas: number;
-  entregadas: number;
-  usadas: number;
-  saldo: number;
-  faltantePorPedir: number;
-  sugerido: number;
-  /** Consumo esperado y consumo real, para saber si el producto está rindiendo. */
-  consumoTeorico: number;
-  consumoReal: number;
-  desviacion: number;
-  productos: number;
-  estado: EstadoObra;
-}
-
-/**
- * Derivadas de una obra — TODO sale de sus productos.
- *
- * La planilla llevaba el control en "tinetas" de la obra; ahora cada SKU tiene
- * su proyectado, su rendimiento y sus viviendas pintadas, y la obra es la suma:
- *  - proyectadas / pedidas / entregadas / usadas = suma de sus productos
- *  - saldo en obra      = entregado − utilizado
- *  - faltante por pedir = proyectado − pedido
- *  - próximo pedido     = proyectado − pedido − saldo disponible
- *  - avance             = el producto más adelantado marca las viviendas
- *                         pintadas de la obra (el detalle por producto muestra
- *                         cuánto va rezagado cada uno)
- *  - desviación         = consumo real / consumo esperado − 1: es el "¿está
- *                         rindiendo lo que dijimos?" que se revisa en terreno
- *  - estado = Terminado si está todo pintado; Revisar saldo si algún producto
- *             consumió más de lo entregado; Crítico si no queda nada en obra y
- *             falta pintar; Pedir si el saldo cubre menos del 20% de lo que falta.
- *
- * Las obras cargadas antes de este cambio todavía no tienen productos: mientras
- * no se les cargue ninguno se siguen leyendo las columnas de la obra, para no
- * dejar en cero un control que ya estaba andando.
- */
-function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[] = []): ObraCalculada {
-  const viviendas = toInt(obra.viviendas);
-  const calculados = productosObra.map(calcularProducto);
-
-  if (calculados.length === 0) {
-    const proyectadas = toInt(obra.tinetasProyectadas);
-    const pintadas = toInt(obra.viviendasPintadas);
-    const pedidas = toInt(obra.tinetasPedidas);
-    const entregadas = toInt(obra.tinetasEntregadas);
-    const ratio = toNum(obra.tinetasPorVivienda);
-    const usadas = toNum(obra.tinetasUtilizadasReal) || pintadas * ratio;
-    const saldo = entregadas - usadas;
-    return {
-      obra, viviendas, pintadas,
-      pendientes: Math.max(0, viviendas - pintadas),
-      avance: viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0,
-      proyectadas, pedidas, entregadas, usadas, saldo,
-      faltantePorPedir: Math.max(0, proyectadas - pedidas),
-      sugerido: Math.max(0, proyectadas - pedidas - Math.max(0, saldo)),
-      consumoTeorico: pintadas * ratio,
-      consumoReal: toNum(obra.tinetasUtilizadasReal),
-      desviacion: 0,
-      productos: 0,
-      estado: viviendas > 0 && pintadas >= viviendas ? "terminado" : saldo < 0 ? "revisar" : "ok",
-    };
-  }
-
-  const suma = (f: (p: ProductoCalculado) => number) => calculados.reduce((a, p) => a + f(p), 0);
-  const proyectadas = suma((p) => p.proyectada);
-  const pedidas = suma((p) => p.pedida);
-  const entregadas = suma((p) => p.entregada);
-  const usadas = suma((p) => p.utilizada);
-  const saldo = suma((p) => p.saldo);
-  const faltantePorPedir = suma((p) => p.porPedir);
-  const sugerido = suma((p) => p.sugerido);
-
-  // Solo entran al contraste los productos que declararon rendimiento: sin ese
-  // dato no hay contra qué comparar el consumo.
-  const conRendimiento = calculados.filter((p) => p.rendimiento > 0 && p.pintadas > 0);
-  const consumoTeorico = conRendimiento.reduce((a, p) => a + p.teorico, 0);
-  const consumoReal = conRendimiento.reduce((a, p) => a + p.utilizada, 0);
-  const desviacion = consumoTeorico > 0 ? consumoReal / consumoTeorico - 1 : 0;
-
-  // La obra avanza al ritmo de su producto más adelantado (la fachada, casi
-  // siempre); el rezago de cada SKU se ve en el detalle.
-  const pintadas = calculados.reduce((max, p) => Math.max(max, p.pintadas), 0);
-  const pendientes = Math.max(0, viviendas - pintadas);
-  const avance = viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0;
-
-  // El producto más escaso manda: la obra se para cuando se acaba cualquiera.
-  const coberturas = calculados.filter((p) => p.rendimiento > 0).map((p) => p.cobertura);
-  const cobertura = coberturas.length > 0 ? Math.min(...coberturas) : Infinity;
-
-  let estado: EstadoObra;
-  if (viviendas > 0 && pintadas >= viviendas) estado = "terminado";
-  else if (calculados.some((p) => p.saldo < 0)) estado = "revisar";
-  else if (viviendas === 0) estado = "ok";
-  else if (cobertura <= 0) estado = "critico";
-  else if (cobertura < pendientes * 0.2) estado = "pedir";
-  else estado = "ok";
-
-  return {
-    obra, viviendas, pintadas, pendientes, avance,
-    proyectadas, pedidas, entregadas, usadas, saldo, faltantePorPedir, sugerido,
-    consumoTeorico, consumoReal, desviacion,
-    productos: calculados.length,
-    estado,
-  };
-}
-
-/** Suma de un conjunto de obras — sirve igual para la tarjeta de una
- *  constructora en la cartera que para el resumen del detalle. */
-function calcularTotales(filas: ObraCalculada[]) {
-  const t = filas.reduce(
-    (acc, f) => {
-      acc.viviendas += f.viviendas;
-      acc.proyectadas += f.proyectadas;
-      acc.pintadas += f.pintadas;
-      acc.pendientes += f.pendientes;
-      acc.usadas += f.usadas;
-      acc.pedidas += f.pedidas;
-      acc.entregadas += f.entregadas;
-      acc.saldo += f.saldo;
-      acc.faltante += f.faltantePorPedir;
-      acc.sugerido += f.sugerido;
-      acc.consumoTeorico += f.consumoTeorico;
-      acc.consumoReal += f.consumoReal;
-      return acc;
-    },
-    {
-      viviendas: 0, proyectadas: 0, pintadas: 0, pendientes: 0, usadas: 0,
-      pedidas: 0, entregadas: 0, saldo: 0, faltante: 0, sugerido: 0,
-      consumoTeorico: 0, consumoReal: 0,
-    },
-  );
-  const conteoEstados = ESTADOS.map((e) => ({
-    ...e,
-    cantidad: filas.filter((f) => f.estado === e.key).length,
-  }));
-  const ultima = filas.reduce<Date | null>((max, f) => {
-    const d = f.obra.updatedAt ? new Date(f.obra.updatedAt as any) : null;
-    return d && (!max || d > max) ? d : max;
-  }, null);
-  return {
-    ...t,
-    avance: t.viviendas > 0 ? t.pintadas / t.viviendas : 0,
-    desviacion: t.consumoTeorico > 0 ? t.consumoReal / t.consumoTeorico - 1 : 0,
-    conteoEstados,
-    ultima,
-  };
-}
-
-type Totales = ReturnType<typeof calcularTotales>;
 
 interface Constructora {
   id: string;
@@ -344,136 +185,6 @@ const VOCABULARIO = {
 } as const;
 
 const vocab = (tipoObra: string) => VOCABULARIO[tipoObra === "edificios" ? "edificios" : "casas"];
-
-// ---------------------------------------------------------------------------
-// Columnas de la tabla de obras
-// ---------------------------------------------------------------------------
-// La planilla trae 18 columnas: mostrarlas todas de entrada obliga a leer con
-// scroll lateral. Por defecto se ven las de decisión (avance, saldo, próximo
-// pedido) y con el toggle aparece la planilla completa. La definición es una
-// sola para que fila y totales nunca se desalineen.
-
-interface ColumnaDef {
-  key: string;
-  label: string;
-  title?: string;
-  soloCompleta?: boolean;
-  thClassName?: string;
-  render: (f: ObraCalculada) => React.ReactNode;
-  total?: (t: Totales) => React.ReactNode;
-}
-
-const COLUMNAS: ColumnaDef[] = [
-  {
-    key: "programa",
-    label: "Programa",
-    soloCompleta: true,
-    render: (f) =>
-      f.obra.programa ? (
-        <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-          {f.obra.programa}
-        </span>
-      ) : (
-        <span className="text-slate-300">—</span>
-      ),
-  },
-  {
-    key: "ciudad",
-    label: "Ciudad",
-    render: (f) => <span className="font-medium text-slate-700 dark:text-slate-200">{f.obra.ciudad || "—"}</span>,
-  },
-  {
-    key: "etapa",
-    label: "Etapa",
-    title: "Etapa constructiva",
-    soloCompleta: true,
-    render: (f) =>
-      f.obra.etapa ? (
-        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{f.obra.etapa}</span>
-      ) : (
-        <span className="text-slate-300">—</span>
-      ),
-  },
-  {
-    key: "viv",
-    label: "VIV",
-    title: "Viviendas o departamentos del proyecto",
-    render: (f) => (
-      <span title={f.obra.tipoObra === "edificios" ? `${fmt(f.obra.torres)} torres` : undefined}>
-        {fmt(f.viviendas)}
-      </span>
-    ),
-    total: (t) => fmt(t.viviendas),
-  },
-  {
-    key: "productos",
-    label: "SKU",
-    title: "Productos cargados en la obra",
-    soloCompleta: true,
-    render: (f) => (f.productos > 0 ? fmt(f.productos) : <span className="text-slate-300">—</span>),
-  },
-  { key: "proyectadas", label: "Proyectadas", title: "Suma de lo proyectado de todos sus productos", render: (f) => fmtDec(f.proyectadas), total: (t) => fmtDec(t.proyectadas) },
-  { key: "pintadas", label: "Pintadas", title: "Viviendas pintadas", render: (f) => fmt(f.pintadas), total: (t) => fmt(t.pintadas) },
-  { key: "pendientes", label: "Pendientes", title: "Viviendas pendientes de pintar", soloCompleta: true, render: (f) => fmt(f.pendientes), total: (t) => fmt(t.pendientes) },
-  {
-    key: "avance",
-    label: "% avance",
-    thClassName: "min-w-[120px]",
-    render: (f) => (
-      <div className="flex items-center gap-2">
-        <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden min-w-[52px]">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
-            style={{ width: `${Math.round(f.avance * 100)}%` }}
-          />
-        </div>
-        <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-300 w-9 text-right">
-          {fmtPct(f.avance)}
-        </span>
-      </div>
-    ),
-    total: (t) => fmtPct(t.avance),
-  },
-  { key: "usadas", label: "Utilizadas", title: "Suma de lo consumido en obra", soloCompleta: true, render: (f) => fmtDec(f.usadas), total: (t) => fmtDec(t.usadas) },
-  {
-    // Reemplaza al viejo "teórico vs real": el número suelto no decía nada, lo
-    // que se necesita saber es si el producto está rindiendo lo prometido.
-    key: "rendimiento",
-    label: "Rendimiento",
-    title: "Consumo real vs el declarado (+ = se está gastando de más)",
-    render: (f) => <BadgeDesviacion desviacion={f.desviacion} hayDato={f.consumoTeorico > 0} />,
-    total: (t) => <BadgeDesviacion desviacion={t.desviacion} hayDato={t.consumoTeorico > 0} />,
-  },
-  { key: "pedidas", label: "Pedidas", title: "Suma de lo pedido de todos sus productos", render: (f) => fmtDec(f.pedidas), total: (t) => fmtDec(t.pedidas) },
-  { key: "entregadas", label: "Entregadas", title: "Suma de lo entregado a la obra", render: (f) => fmtDec(f.entregadas), total: (t) => fmtDec(t.entregadas) },
-  {
-    key: "saldo",
-    label: "Saldo obra",
-    title: "Entregado − utilizado: lo que debería estar en la bodega de la obra",
-    render: (f) => <span className={f.saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(f.saldo)}</span>,
-    total: (t) => fmtDec(t.saldo),
-  },
-  {
-    key: "sugerido",
-    label: "Próx. pedido",
-    title: "Proyectado − pedido − saldo en obra",
-    render: (f) => <span className="font-bold text-slate-700 dark:text-slate-100">{fmtDec(f.sugerido)}</span>,
-    total: (t) => fmtDec(t.sugerido),
-  },
-  {
-    key: "estado",
-    label: "Estado",
-    render: (f) => {
-      const est = ESTADO_MAP[f.estado];
-      return (
-        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${est.badge}`}>
-          {f.estado === "terminado" ? <CheckCircle2 className="h-3 w-3" /> : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />}
-          {est.label}
-        </span>
-      );
-    },
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Componente
@@ -663,6 +374,26 @@ export function ControlObrasContent() {
     });
   }, [obrasDeLaCartera, filtroCartera, filtroEstado]);
 
+  // Columnas del listado plano: la constructora (acá las obras vienen
+  // mezcladas) más las de decisión de la planilla. Al desplegar una obra, sus
+  // productos usan estas mismas columnas.
+  const constructoraPorCliente = useMemo(() => {
+    const mapa = new Map<string, Constructora>();
+    for (const c of cartera) mapa.set(c.id, c);
+    return mapa;
+  }, [cartera]);
+
+  const { columnas: columnasCartera } = prepararColumnas([
+    columnaConstructora(
+      (f) => constructoraPorCliente.get(f.obra.clienteId)?.nombre ?? "—",
+      (f) => {
+        const destino = constructoraPorCliente.get(f.obra.clienteId);
+        if (destino) seleccionarConstructora(destino);
+      },
+    ),
+    ...COLUMNAS.filter((c) => CLAVES_CARTERA.has(c.key)),
+  ]);
+
   const obras = useMemo(
     () => todasLasObras.filter((o) => o.clienteId === cliente?.id),
     [todasLasObras, cliente?.id],
@@ -690,8 +421,10 @@ export function ControlObrasContent() {
 
   const totales = useMemo(() => calcularTotales(filas), [filas]);
 
-  const columnasVisibles = useMemo(
-    () => COLUMNAS.filter((c) => planillaCompleta || !c.soloCompleta),
+  // Columnas de la planilla, agrupadas en bloques (obra / avance / material /
+  // qué hacer). El toggle "planilla completa" suma las columnas de detalle.
+  const { columnas: columnasVisibles, grupos } = useMemo(
+    () => prepararColumnas(COLUMNAS.filter((c) => planillaCompleta || !c.soloCompleta)),
     [planillaCompleta],
   );
 
@@ -985,16 +718,17 @@ export function ControlObrasContent() {
                         </div>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm min-w-[860px]">
+                        {/* Mismas columnas que la planilla, recortadas a las de
+                            decisión: una obra se lee igual en los dos listados. */}
+                        <table className="w-full text-sm min-w-[900px]">
                           <thead>
                             <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60">
                               <Th className="text-left pl-4 min-w-[260px]">Obra</Th>
-                              <Th className="text-left min-w-[180px]">Constructora</Th>
-                              <Th>VIV</Th>
-                              <Th className="min-w-[120px]">% avance</Th>
-                              <Th title="Saldo de tinetas en obra">Saldo</Th>
-                              <Th title="Próximo pedido sugerido">Próx. pedido</Th>
-                              <Th>Estado</Th>
+                              {columnasCartera.map((c) => (
+                                <Th key={c.key} title={c.title} className={`${c.borde ?? ""} ${c.thClassName ?? ""}`}>
+                                  {c.label}
+                                </Th>
+                              ))}
                               <Th className="pr-4"> </Th>
                             </tr>
                           </thead>
@@ -1005,7 +739,7 @@ export function ControlObrasContent() {
                                 <FilaObraGlobal
                                   key={fila.obra.id}
                                   fila={fila}
-                                  constructora={constructora}
+                                  columnas={columnasCartera}
                                   productos={productosPorObra.get(fila.obra.id) ?? []}
                                   expandida={expandida}
                                   onToggle={() => setObraExpandida(expandida ? null : fila.obra.id)}
@@ -1269,7 +1003,7 @@ export function ControlObrasContent() {
                   <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Obras
                     <span className="ml-2 text-xs font-normal text-slate-400">
-                      Toca una fila para ver sus productos
+                      Cada fila es el total de sus productos · toca una para abrirlos
                     </span>
                   </div>
                   <button
@@ -1281,16 +1015,32 @@ export function ControlObrasContent() {
                   </button>
                 </div>
                 <div className="overflow-x-auto">
-                  {/* Columnas de la hoja "Control General" de la planilla. La
-                      primera queda fija al hacer scroll lateral. */}
-                  <table className={`w-full text-sm ${planillaCompleta ? "min-w-[1680px]" : "min-w-[980px]"}`}>
+                  {/* Columnas de la hoja "Control General" de la planilla, en
+                      bloques: qué obra es → cómo va → cuánto material → qué
+                      hago. La primera queda fija al hacer scroll lateral. */}
+                  <table className={`w-full text-sm ${planillaCompleta ? "min-w-[1720px]" : "min-w-[1180px]"}`}>
                     <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/60">
+                        <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800" />
+                        {grupos.map((g, i) => (
+                          <th
+                            key={g.label}
+                            colSpan={g.span}
+                            className={`px-3 pt-2.5 pb-1 text-center text-[9px] uppercase tracking-[0.14em] font-bold text-slate-400/80 whitespace-nowrap ${i > 0 ? BORDE_GRUPO : ""}`}
+                          >
+                            {g.label}
+                          </th>
+                        ))}
+                        <th />
+                      </tr>
                       <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60">
-                        <Th className="text-left pl-4 sticky left-0 z-10 bg-slate-50 dark:bg-slate-800 min-w-[250px]">
+                        <Th className="text-left pl-4 sticky left-0 z-10 bg-slate-50 dark:bg-slate-800 min-w-[270px]">
                           Proyecto
                         </Th>
                         {columnasVisibles.map((c) => (
-                          <Th key={c.key} title={c.title} className={c.thClassName}>{c.label}</Th>
+                          <Th key={c.key} title={c.title} className={`pt-1 ${c.borde ?? ""} ${c.thClassName ?? ""}`}>
+                            {c.label}
+                          </Th>
                         ))}
                         <Th className="pr-4"> </Th>
                       </tr>
@@ -1318,7 +1068,7 @@ export function ControlObrasContent() {
                       <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-t border-slate-200/70 dark:border-slate-700/60 font-bold text-slate-700 dark:text-slate-100">
                         <td className="pl-4 py-3 text-left sticky left-0 z-10 bg-slate-50 dark:bg-slate-800">Total</td>
                         {columnasVisibles.map((c) => (
-                          <td key={c.key} className="px-3 py-3 text-center tabular-nums">
+                          <td key={c.key} className={`px-2.5 py-3 text-center tabular-nums ${c.borde ?? ""}`}>
                             {c.total ? c.total(totales) : null}
                           </td>
                         ))}
@@ -1329,12 +1079,22 @@ export function ControlObrasContent() {
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-400 px-1">
-                Todos los números salen del detalle por producto de cada obra. Saldo en obra = entregado − utilizado.
-                Próximo pedido sugerido = proyectado − pedido − saldo en obra. Rendimiento vs declarado = consumo real
-                sobre el esperado (viviendas pintadas × rendimiento del producto): positivo es que se está gastando de
-                más. El avance de la obra lo marca el producto más adelantado.
-              </p>
+              {/* Las tres fórmulas que no se adivinan mirando la tabla. El resto
+                  (proyectado, pedido, entregado) se explica solo. */}
+              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1.5 text-[11px] text-slate-400 px-1">
+                <div>
+                  <dt className="font-bold text-slate-500 dark:text-slate-400">Saldo en obra</dt>
+                  <dd>Entregado − utilizado: lo que debería quedar en la bodega de la obra.</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500 dark:text-slate-400">Próx. pedido</dt>
+                  <dd>Proyectado − pedido − saldo en obra: lo que hay que comprar ahora.</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500 dark:text-slate-400">Rendimiento</dt>
+                  <dd>Consumo real vs el declarado; en + se está gastando de más.</dd>
+                </div>
+              </dl>
             </>
           )}
         </>
@@ -1850,7 +1610,10 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
   );
 }
 
-/** Fila de la tabla + su panel desplegable con el detalle por producto. */
+/**
+ * Fila de la obra — el TOTAL de sus productos. Al abrirla, sus productos
+ * aparecen debajo como filas de la misma tabla, en las mismas columnas.
+ */
 function FilaObra({
   fila,
   indice,
@@ -1886,27 +1649,31 @@ function FilaObra({
               {indice + 1}
             </span>
             <div className="min-w-0">
-              <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[180px]">
+              <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[210px]">
                 {fila.obra.nombre}
               </div>
-              <div className="flex items-center gap-2">
+              {/* Ciudad y estado de la obra son identidad: van con el nombre y
+                  no ocupando columnas de números. */}
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                {fila.obra.ciudad && <span className="truncate max-w-[100px]">{fila.obra.ciudad}</span>}
                 {fila.obra.estado !== "activa" && (
-                  <span className="inline-flex text-[10px] uppercase tracking-wide font-bold text-slate-400">
-                    {fila.obra.estado}
-                  </span>
+                  <span className="inline-flex uppercase tracking-wide font-bold">{fila.obra.estado}</span>
                 )}
-                {productos.length > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                    <Layers className="h-3 w-3" />
-                    {productos.length} {productos.length === 1 ? "producto" : "productos"}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 font-bold flex-shrink-0">
+                  <Layers className="h-3 w-3" />
+                  {productos.length === 0
+                    ? "sin productos"
+                    : `${productos.length} ${productos.length === 1 ? "producto" : "productos"}`}
+                </span>
               </div>
             </div>
           </div>
         </td>
         {columnas.map((c) => (
-          <td key={c.key} className="px-3 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300">
+          <td
+            key={c.key}
+            className={`px-2.5 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
+          >
             {c.render(fila)}
           </td>
         ))}
@@ -1936,19 +1703,16 @@ function FilaObra({
         </td>
       </tr>
 
-      {/* Mismo tinte naranja de la fila abierta e indentado: el panel se lee
-          como hijo de esa obra y no como un bloque suelto de la tabla. */}
+      {/* Los productos son filas de esta misma tabla: cada número cae en la
+          columna del total al que suma. */}
       {expandida && (
-        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-orange-50/40 dark:bg-orange-950/10">
-          <td colSpan={columnas.length + 2} className="pl-10 pr-4 pb-4">
-            <PanelProductos
-              obraId={fila.obra.id}
-              obraNombre={fila.obra.nombre}
-              obraCiudad={fila.obra.ciudad}
-              productos={productos}
-            />
-          </td>
-        </tr>
+        <FilasProductos
+          obraId={fila.obra.id}
+          viviendas={fila.viviendas}
+          productos={productos}
+          columnas={columnas}
+          sticky
+        />
       )}
     </>
   );
@@ -1958,25 +1722,24 @@ function FilaObra({
  * Fila del listado de TODAS las obras de la cartera. Muestra las columnas de
  * decisión (avance, saldo, próximo pedido) más la constructora, porque acá las
  * obras vienen mezcladas; el detalle completo de la planilla sigue estando al
- * entrar a la constructora.
+ * entrar a la constructora. Al desplegarla, sus productos aparecen como filas
+ * de esta misma tabla, igual que en la planilla.
  */
 function FilaObraGlobal({
   fila,
-  constructora,
+  columnas,
   productos,
   expandida,
   onToggle,
   onAbrirConstructora,
 }: {
   fila: ObraCalculada;
-  constructora: Constructora;
+  columnas: ColumnaDef[];
   productos: ObraProducto[];
   expandida: boolean;
   onToggle: () => void;
   onAbrirConstructora: () => void;
 }) {
-  const est = ESTADO_MAP[fila.estado];
-
   return (
     <>
       <tr
@@ -1996,55 +1759,23 @@ function FilaObraGlobal({
               <div className="flex items-center gap-2 text-[10px] text-slate-400">
                 {fila.obra.ciudad && <span className="truncate">{fila.obra.ciudad}</span>}
                 {fila.obra.programa && <span className="font-bold">{fila.obra.programa}</span>}
-                {productos.length > 0 && (
-                  <span className="inline-flex items-center gap-1 font-bold">
-                    <Layers className="h-3 w-3" />
-                    {productos.length}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 font-bold">
+                  <Layers className="h-3 w-3" />
+                  {productos.length === 0 ? "sin productos" : productos.length}
+                </span>
               </div>
             </div>
           </div>
         </td>
 
-        <td className="px-3 py-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAbrirConstructora();
-            }}
-            className="text-left text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-orange-600 transition-colors truncate max-w-[170px] block"
-            data-testid={`button-abrir-constructora-${constructora.id}`}
+        {columnas.map((c) => (
+          <td
+            key={c.key}
+            className={`px-2.5 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
           >
-            {constructora.nombre}
-          </button>
-        </td>
-
-        <Td>{fmt(fila.viviendas)}</Td>
-
-        <td className="px-3 py-3">
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden min-w-[52px]">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
-                style={{ width: `${Math.round(fila.avance * 100)}%` }}
-              />
-            </div>
-            <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-300 w-9 text-right">
-              {fmtPct(fila.avance)}
-            </span>
-          </div>
-        </td>
-
-        <Td className={fila.saldo < 0 ? "text-red-600 dark:text-red-400 font-bold" : ""}>{fmtDec(fila.saldo)}</Td>
-        <Td className={fila.sugerido > 0 ? "font-bold text-orange-600 dark:text-orange-400" : ""}>{fmtDec(fila.sugerido)}</Td>
-
-        <Td>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${est.badge}`}>
-            {fila.estado === "terminado" ? <CheckCircle2 className="h-3 w-3" /> : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />}
-            {est.label}
-          </span>
-        </Td>
+            {c.render(fila)}
+          </td>
+        ))}
 
         <td className="pr-4 py-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -2063,52 +1794,14 @@ function FilaObraGlobal({
       </tr>
 
       {expandida && (
-        <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-orange-50/40 dark:bg-orange-950/10">
-          <td colSpan={8} className="pl-10 pr-4 pb-4">
-            <PanelProductos
-              obraId={fila.obra.id}
-              obraNombre={fila.obra.nombre}
-              obraCiudad={fila.obra.ciudad}
-              productos={productos}
-            />
-          </td>
-        </tr>
+        <FilasProductos
+          obraId={fila.obra.id}
+          viviendas={fila.viviendas}
+          productos={productos}
+          columnas={columnas}
+        />
       )}
     </>
-  );
-}
-
-/**
- * Cuánto se está desviando el consumo real del rendimiento declarado.
- *
- * Es el reemplazo del viejo "teórico vs real": el número suelto no decía nada,
- * lo que se necesita saber en terreno es si el producto está rindiendo lo que
- * se prometió. Verde = rinde igual o mejor; rojo = se está gastando de más.
- */
-function BadgeDesviacion({ desviacion, hayDato }: { desviacion: number; hayDato: boolean }) {
-  if (!hayDato) return <span className="text-slate-300">—</span>;
-  // Hasta un 5% es ruido de medición (casas a medio pintar, tinetas abiertas).
-  const alerta = desviacion > 0.05;
-  const bien = desviacion < -0.05;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
-        alerta
-          ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
-          : bien
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-            : "bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
-      }`}
-      title={
-        alerta
-          ? "Se está consumiendo más de lo declarado"
-          : bien
-            ? "Está rindiendo mejor de lo declarado"
-            : "Consume lo declarado"
-      }
-    >
-      {fmtDesviacion(desviacion)}
-    </span>
   );
 }
 
@@ -2135,21 +1828,6 @@ function MiniStat({ icon, tono, label, valor }: { icon: React.ReactNode; tono: s
       <div className="mt-1.5 text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{valor}</div>
     </div>
   );
-}
-
-function Th({ children, className = "", title }: { children: React.ReactNode; className?: string; title?: string }) {
-  return (
-    <th
-      title={title}
-      className={`px-3 py-2.5 text-center text-[10px] uppercase tracking-wider font-bold text-slate-400 whitespace-nowrap ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-3 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${className}`}>{children}</td>;
 }
 
 function Seccion({ icono, titulo, children }: { icono: React.ReactNode; titulo: string; children: React.ReactNode }) {
