@@ -36,15 +36,17 @@ function makeIcon(_color: string, logoUrl?: string | null, _isFerreteria = false
   const PIN_COLOR = "#ff7f33"; // naranja Panorámica
   const innerLogo = logoUrl || PIN_DEFAULT_LOGO;
   // Tamaño del pin: 36×46. Círculo blanco interior 28×28 con el logo a tamaño completo.
+  // El z-index explícito es necesario: leaflet.css le pone z-index:200 a los <svg> del mapa
+  // y sin él el círculo blanco tapa el logo.
   return L.divIcon({
     className: "panoramica-pin",
     html: `
       <div style="position:relative;width:36px;height:46px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.3));">
-        <svg viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg" width="36" height="46" style="position:absolute;inset:0;display:block;">
+        <svg viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg" width="36" height="46" style="position:absolute;inset:0;display:block;z-index:0;">
           <path d="M18 0C8 0 0 8 0 18c0 12 18 28 18 28s18-16 18-28C36 8 28 0 18 0z" fill="${PIN_COLOR}"/>
           <circle cx="18" cy="18" r="14" fill="white"/>
         </svg>
-        <img src="${innerLogo}" alt="" style="position:absolute;top:5px;left:5px;width:26px;height:26px;border-radius:50%;object-fit:contain;display:block;"/>
+        <img src="${innerLogo}" alt="" style="position:absolute;top:5px;left:5px;width:26px;height:26px;border-radius:50%;object-fit:contain;display:block;z-index:1;"/>
       </div>
     `,
     iconSize: [36, 46],
