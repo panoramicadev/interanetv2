@@ -352,6 +352,17 @@ export default function TareasPage() {
     return () => clearTimeout(t);
   }, [taskSearch]);
 
+  // Buscador propio de la pestaña Seguimiento: filtra los clientes en seguimiento
+  // (nombre del cliente, título del seguimiento o colaborador a cargo). Va aparte
+  // del de Tareas para que cada pestaña conserve su búsqueda al ir y volver.
+  const [seguimientoSearch, setSeguimientoSearch] = useState("");
+  const [seguimientoSearchDebounced, setSeguimientoSearchDebounced] = useState("");
+  const [showSeguimientoSuggestions, setShowSeguimientoSuggestions] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSeguimientoSearchDebounced(seguimientoSearch), 250);
+    return () => clearTimeout(t);
+  }, [seguimientoSearch]);
+
   // Cambios recientes del panel: badges por pestaña, campana junto a Área y
   // destacado de los ítems modificados al entrar a cada sección.
   const panelChanges = usePanelChangesController({
@@ -1008,6 +1019,21 @@ export default function TareasPage() {
       if (!terms.every((t) => haystack.includes(t))) return false;
     }
 
+    // Buscador de Seguimiento: mismo criterio (cliente, título, colaborador).
+    if (activeTab === 'seguimiento' && seguimientoSearchDebounced.trim()) {
+      const terms = normalizeSearchText(seguimientoSearchDebounced).split(/\s+/).filter(Boolean);
+      const assigneeNames = task.assignments
+        .map((a) =>
+          availableUsers?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+          availableSupervisors?.find((s) => s.id === a.assigneeId)?.salespersonName ||
+          "")
+        .join(" ");
+      const haystack = normalizeSearchText(
+        `${task.title} ${task.description ?? ""} ${(task as any).clienteNombre ?? ""} ${assigneeNames}`,
+      );
+      if (!terms.every((t) => haystack.includes(t))) return false;
+    }
+
     // Cliente filter
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
     if (clienteFilter === "without-client" && (task as any).clienteId) return false;
@@ -1071,6 +1097,16 @@ export default function TareasPage() {
       .filter((t) => (t as any).clienteNombre)
       .map((t) => (t as any).clienteNombre)
   ));
+
+  // Clientes que hoy están en seguimiento — alimentan las sugerencias del
+  // buscador de esa pestaña (el título del seguimiento es el nombre del cliente
+  // cuando la tarea no trae clienteNombre).
+  const clientesEnSeguimiento = Array.from(new Set(
+    (tasksQuery.data || [])
+      .filter((t) => (t as any).payload?.kind === 'seguimiento_cliente')
+      .map((t) => String((t as any).clienteNombre || t.title || "").trim())
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'es'));
 
   // Helper functions
   const getStatusIcon = (status: string) => {
@@ -1324,6 +1360,64 @@ export default function TareasPage() {
             >
               <Building2 className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
               <span className="truncate">{String(c)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Buscador de la pestaña Seguimiento: filtra los clientes en seguimiento sin
+  // importar de quién sean. Con sugerencias de los clientes que ya están en
+  // seguimiento, para llegar en dos teclas al que se busca.
+  const seguimientoSuggestions = seguimientoSearch.trim().length >= 1
+    ? clientesEnSeguimiento
+        .filter((c) => normalizeSearchText(c).includes(normalizeSearchText(seguimientoSearch.trim())))
+        .slice(0, 6)
+    : [];
+
+  const seguimientoSearchBox = (
+    <div className="relative flex-1 min-w-[220px]">
+      <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-orange-200 hover:shadow focus-within:border-orange-300 transition-all">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+          <Search className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col leading-none flex-1 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Buscar cliente</span>
+          <input
+            value={seguimientoSearch}
+            onChange={(e) => { setSeguimientoSearch(e.target.value); setShowSeguimientoSuggestions(true); }}
+            onFocus={() => setShowSeguimientoSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSeguimientoSuggestions(false), 150)}
+            placeholder="Nombre del cliente o del colaborador…"
+            className="h-5 w-full bg-transparent border-0 outline-none font-semibold text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-500 p-0"
+            data-testid="input-seguimiento-search"
+          />
+        </div>
+        {seguimientoSearch && (
+          <button
+            onClick={() => { setSeguimientoSearch(""); setShowSeguimientoSuggestions(false); }}
+            className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+            data-testid="button-clear-seguimiento-search"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {showSeguimientoSuggestions && seguimientoSuggestions.length > 0 && (
+        <div className="absolute z-30 left-0 right-0 top-full mt-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden">
+          <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold text-slate-400">Clientes en seguimiento</div>
+          {seguimientoSuggestions.map((c) => (
+            <button
+              key={c}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setSeguimientoSearch(c); setShowSeguimientoSuggestions(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors"
+              data-testid={`suggestion-seguimiento-${c}`}
+            >
+              <Building2 className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+              <span className="truncate">{c}</span>
             </button>
           ))}
         </div>
@@ -2120,6 +2214,18 @@ export default function TareasPage() {
             </div>
           )}
 
+          {/* Vendedores: su Seguimiento es una lista simple (no gestionan equipo),
+              así que el buscador de clientes va acá arriba. Los demás roles lo
+              tienen dentro de la vista por colaborador. */}
+          {activeTab === 'seguimiento' && isSalesperson && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              {seguimientoSearchBox}
+              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
+                {filteredTasks.length} cliente{filteredTasks.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+          )}
+
           {/* Group Management Bar */}
           {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
           {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !hideMktTasks && (
@@ -2563,12 +2669,19 @@ export default function TareasPage() {
                 const ensureMember = (id: string, name: string, role: PersonGroup['role']) => {
                   if (id && id !== user.id && !byPerson[id]) byPerson[id] = { name, role, tasks: [] };
                 };
-                if (user.role === 'supervisor' || user.role === 'encargado_area') {
-                  (supervisorSalespeople || []).forEach((sp) => ensureMember(sp.id, sp.salespersonName, 'salesperson'));
+                // Con el buscador activo solo importan las coincidencias: no sumamos
+                // colaboradores vacíos ni dejamos cards en cero ensuciando el resultado.
+                const searching = seguimientoSearchDebounced.trim().length > 0;
+                if (!searching) {
+                  if (user.role === 'supervisor' || user.role === 'encargado_area') {
+                    (supervisorSalespeople || []).forEach((sp) => ensureMember(sp.id, sp.salespersonName, 'salesperson'));
+                  }
+                  extraSeguimientoMembers.forEach((m) => ensureMember(m.id, m.name, m.type));
                 }
-                extraSeguimientoMembers.forEach((m) => ensureMember(m.id, m.name, m.type));
 
-                const people = Object.entries(byPerson).sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+                const people = Object.entries(byPerson)
+                  .filter(([, g]) => !searching || g.tasks.length > 0)
+                  .sort((a, b) => b[1].tasks.length - a[1].tasks.length);
 
                 // Pool del buscador "agregar puntual": cualquier usuario del sistema no listado aún.
                 const alreadyIn = new Set(Object.keys(byPerson));
@@ -2582,7 +2695,8 @@ export default function TareasPage() {
                   const completed = grp.tasks.filter(isTaskDone).length;
                   const total = grp.tasks.length;
                   const pct = total > 0 ? (completed / total) * 100 : 0;
-                  const isCollapsed = collapsedGroups.has(id);
+                  // Buscando, las cards se abren solas para mostrar las coincidencias.
+                  const isCollapsed = collapsedGroups.has(id) && !searching;
                   const done = total > 0 && pct === 100;
                   const isSupervisor = grp.role === 'supervisor';
                   const isNone = id === '__none__';
@@ -2696,6 +2810,17 @@ export default function TareasPage() {
                     {/* Marketing: sus solicitudes son su trabajo asignado */}
                     {isMarketing && <MarketingSolicitudesInbox />}
 
+                    {/* Buscador de clientes en seguimiento */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {seguimientoSearchBox}
+                      {searching && (
+                        <span className="text-xs font-semibold text-slate-500 whitespace-nowrap" data-testid="text-seguimiento-search-count">
+                          {teamTotal} resultado{teamTotal !== 1 ? 's' : ''}
+                          {teamTotal > 0 && <span className="text-slate-400 font-medium"> en {people.length} colaborador{people.length !== 1 ? 'es' : ''}</span>}
+                        </span>
+                      )}
+                    </div>
+
                     {/* Buscador para sumar puntualmente cualquier colaborador del sistema */}
                     {canManageTeam && (
                       <div className="rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm">
@@ -2800,6 +2925,22 @@ export default function TareasPage() {
                           {people.map(([id, grp]) => renderPersonRow(id, grp))}
                         </div>
                       </>
+                    ) : searching ? (
+                      <div className="text-center py-14">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                          <Search className="h-7 w-7 text-slate-400" />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Sin coincidencias</h3>
+                        <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
+                          Ningún cliente en seguimiento coincide con «{seguimientoSearchDebounced.trim()}».
+                        </p>
+                        <button
+                          onClick={() => setSeguimientoSearch("")}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-4 py-2 transition-colors"
+                        >
+                          <X className="h-4 w-4" /> Limpiar búsqueda
+                        </button>
+                      </div>
                     ) : !isMarketing ? (
                       <div className="text-center py-14">
                         <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
