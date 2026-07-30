@@ -3525,7 +3525,14 @@ export interface CatalogoObraItem {
   color: string | null;
   hex: string | null;
   familia: string | null;
+  /** Unidad de medida tal como viene del maestro ("TINETA 5 GL", "GALON"). */
   unidad: string | null;
+  /**
+   * De qué maestro salió el SKU. En obra se usan productos especiales que solo
+   * existen en bodega, así que el buscador lo muestra para distinguirlos de los
+   * del catálogo comercial.
+   */
+  origen?: 'precios' | 'erp' | 'inventario';
 }
 
 // ==============================================

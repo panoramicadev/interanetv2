@@ -115,6 +115,15 @@ export interface ObraCalculada {
   consumoTeorico: number;
   consumoReal: number;
   desviacion: number;
+  /**
+   * Cuánto producto se está yendo en cada vivienda = usadas / pintadas.
+   *
+   * Es el rendimiento que está teniendo la obra de verdad, y se puede saber
+   * SIN haber declarado nada: alcanza con lo que se consumió y las casas que se
+   * pintaron. La desviación necesita además el rendimiento declarado, así que
+   * este número aparece antes y sirve justamente para descubrirlo.
+   */
+  rendimientoReal: number;
   productos: number;
   estado: EstadoObra;
 }
@@ -170,6 +179,7 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
       consumoTeorico: teorico,
       consumoReal: real,
       desviacion: teorico > 0 ? real / teorico - 1 : 0,
+      rendimientoReal: pintadas > 0 ? usadas / pintadas : 0,
       productos: 0,
       estado: vacia ? "sindatos" : viviendas > 0 && pintadas >= viviendas ? "terminado" : saldo < 0 ? "revisar" : "ok",
     };
@@ -213,6 +223,9 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
     obra, viviendas, pintadas, pendientes, avance,
     proyectadas, pedidas, entregadas, usadas, saldo, faltantePorPedir, sugerido,
     consumoTeorico, consumoReal, desviacion,
+    // Sobre las pintadas de la obra (el producto más adelantado): es el consumo
+    // total repartido entre las casas que efectivamente se pintaron.
+    rendimientoReal: pintadas > 0 ? usadas / pintadas : 0,
     productos: calculados.length,
     estado,
   };
@@ -255,6 +268,7 @@ export function calcularTotales(filas: ObraCalculada[]) {
     ...t,
     avance: t.viviendas > 0 ? t.pintadas / t.viviendas : 0,
     desviacion: t.consumoTeorico > 0 ? t.consumoReal / t.consumoTeorico - 1 : 0,
+    rendimientoReal: t.pintadas > 0 ? t.usadas / t.pintadas : 0,
     conteoEstados,
     ultima,
   };

@@ -25,6 +25,11 @@
  * solo declara qué es y cuánto mide: casas o edificios, cuántas torres, el
  * total de viviendas y su desglose por modelo.
  *
+ * El formulario de alta también deja elegir los productos, como atajo: entran
+ * en la obra con todo en cero, igual que si se agregaran después desde el panel
+ * (que es donde se les lleva el día a día). Es opcional — una obra se puede
+ * crear sin productos y cargárselos más adelante.
+ *
  * Lo ÚNICO que se elige desde el sistema es el cliente y los productos (ambos
  * contra sus maestros); el resto se ingresa a mano. Todo lo derivado (% avance,
  * saldo, faltante, próximo pedido, rendimiento, estado) se calcula acá en el
@@ -42,9 +47,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilasProductos } from "@/components/obras/panel-productos";
+import { BuscadorCatalogo, unidadDeObra } from "@/components/obras/buscador-catalogo";
 import { fmt, fmtDec, fmtPct, normalizar, toInt } from "@/components/obras/formato";
 import {
   calcularObra,
+  calcularProducto,
   calcularTotales,
   fmtDesviacion,
   type EstadoObra,
@@ -60,7 +67,7 @@ import {
 } from "@/components/obras/columnas";
 import { BORDE_GRUPO, Th } from "@/components/obras/celdas";
 import { useAuth } from "@/hooks/useAuth";
-import type { Obra, ObraConCliente, ObraEtapa, ObraProducto } from "@shared/schema";
+import type { CatalogoObraItem, Obra, ObraConCliente, ObraEtapa, ObraProducto } from "@shared/schema";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -168,6 +175,31 @@ const TIPOS_INICIALES: TipoViviendaForm[] = [
   { nombre: "Tipo B", cantidad: "" },
 ];
 
+/**
+ * Un producto elegido en el formulario y todavía sin guardar.
+ *
+ * Elegir los productos acá es un atajo del alta: en la obra real se cargan igual
+ * que siempre (con todo en cero) y el día a día —proyectado, pedidos, entregas y
+ * consumo— se sigue llevando en el panel de la obra, no en este formulario.
+ */
+interface ProductoForm {
+  kopr: string | null;
+  nombre: string;
+  color: string | null;
+  unidad: string;
+  /** Solo para la muestra de color de la lista; no se guarda. */
+  hex: string | null;
+}
+
+/** Dos veces el mismo SKU es un error de tipeo; a mano se compara por nombre. */
+const claveProducto = (p: { kopr: string | null; nombre: string }) =>
+  p.kopr ? `sku:${p.kopr}` : `nom:${normalizar(p.nombre)}`;
+
+// Clases compartidas de los campos del formulario de obra: un solo alto y un
+// solo foco naranja para todos los inputs, selects y textareas.
+const INPUT_FORM =
+  "h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20";
+
 /** Casas y edificios se controlan igual; solo cambia cómo se llaman las cosas. */
 const VOCABULARIO = {
   casas: {
@@ -204,6 +236,8 @@ export function ControlObrasContent() {
   const [vistaCartera, setVistaCartera] = useState<"constructoras" | "obras">("constructoras");
   const [filtroEstado, setFiltroEstado] = useState<EstadoObra | "todos">("todos");
   const [dialogAgregarCliente, setDialogAgregarCliente] = useState(false);
+  // Detalle del "próximo pedido total": qué productos faltan y cuáles ya están críticos.
+  const [dialogPedido, setDialogPedido] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
   const [temporadaFiltro, setTemporadaFiltro] = useState("todas");
@@ -217,6 +251,8 @@ export function ControlObrasContent() {
   const [obraAEliminar, setObraAEliminar] = useState<Obra | null>(null);
   const [form, setForm] = useState<ObraForm>(emptyForm);
   const [tipos, setTipos] = useState<TipoViviendaForm[]>(TIPOS_INICIALES);
+  // Productos elegidos en el formulario, todavía sin guardar (ver ProductoForm).
+  const [productosForm, setProductosForm] = useState<ProductoForm[]>([]);
   // Si el usuario escribe el total a mano dejamos de derivarlo de los tipos.
   const totalTocado = useRef(false);
   const [nuevaEtapa, setNuevaEtapa] = useState<string | null>(null);
@@ -281,18 +317,62 @@ export function ControlObrasContent() {
   });
 
   const guardar = useMutation({
-    mutationFn: async ({ id, data }: { id?: string; data: Record<string, unknown> }) => {
+    mutationFn: async ({
+      id,
+      data,
+      productos,
+    }: {
+      id?: string;
+      data: Record<string, unknown>;
+      productos: ProductoForm[];
+    }) => {
       const res = await apiRequest(id ? `/api/obras/${id}` : "/api/obras", {
         method: id ? "PUT" : "POST",
         data,
       });
-      return res.json();
+      const obra = await res.json();
+
+      // Los productos elegidos en el formulario entran con todo en cero: el día
+      // a día (proyectado, pedidos, entregas y consumo) se sigue llevando en el
+      // panel de la obra. La obra ya quedó guardada, así que si alguno falla se
+      // dice cuál en vez de dar el alta entera por perdida.
+      const fallidos: string[] = [];
+      for (const p of productos) {
+        try {
+          await apiRequest("/api/obra-productos", {
+            method: "POST",
+            data: {
+              obraId: obra.id,
+              kopr: p.kopr,
+              nombre: p.nombre,
+              color: p.color,
+              unidad: p.unidad,
+              cantidadProyectada: "0",
+              cantidadPedida: "0",
+              cantidadEntregada: "0",
+              cantidadUtilizada: "0",
+            },
+          });
+        } catch {
+          fallidos.push(p.nombre);
+        }
+      }
+      return { obra, fallidos };
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: ({ fallidos }, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/obras"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
       setDialogAbierto(false);
       setObraEditando(null);
+      setProductosForm([]);
       toast({ title: vars.id ? "Obra actualizada" : "Obra creada" });
+      if (fallidos.length > 0) {
+        toast({
+          title: "Algunos productos no se agregaron",
+          description: `${fallidos.join(", ")}. Cargálos desde el panel de la obra.`,
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       toast({ title: "No se pudo guardar la obra", description: error?.message, variant: "destructive" });
@@ -344,6 +424,36 @@ export function ControlObrasContent() {
     () => calcularTotales(cartera.flatMap((c) => c.filas)),
     [cartera],
   );
+
+  /**
+   * Qué hay que comprar, producto por producto y de toda la cartera.
+   *
+   * El "próximo pedido total" era un número suelto: decía cuánto pero no de
+   * qué ni para quién. Acá se abre en sus productos, con los críticos primero
+   * —los que ya no tienen nada en obra y todavía tienen viviendas por pintar,
+   * que es cuando la cuadrilla se para— y después los que solo faltan pedir.
+   */
+  const pedidoPendiente = useMemo(() => {
+    const items = cartera.flatMap((c) =>
+      c.filas.flatMap((f) =>
+        (productosPorObra.get(f.obra.id) ?? []).map((p) => {
+          const calc = calcularProducto(p);
+          const critico = f.pendientes > 0 && calc.saldo <= 0;
+          return { producto: p, calc, obra: f.obra, constructora: c, pendientes: f.pendientes, critico };
+        }),
+      ),
+    );
+    return items
+      .filter((i) => i.calc.sugerido > 0 || i.critico)
+      .sort(
+        (a, b) =>
+          Number(b.critico) - Number(a.critico) ||
+          b.calc.sugerido - a.calc.sugerido ||
+          a.constructora.nombre.localeCompare(b.constructora.nombre),
+      );
+  }, [cartera, productosPorObra]);
+
+  const criticos = useMemo(() => pedidoPendiente.filter((i) => i.critico).length, [pedidoPendiente]);
 
   // Todas las obras de la cartera, cada una con su constructora al lado: es el
   // listado plano de la portada. Primero lo que hay que comprar.
@@ -434,6 +544,7 @@ export function ControlObrasContent() {
     setNuevaEtapa(null);
     setObraEditando(null);
     setTipos(TIPOS_INICIALES);
+    setProductosForm([]);
     setForm({
       ...emptyForm,
       temporada: temporadaFiltro !== "todas" ? temporadaFiltro : temporadas[0] ?? "",
@@ -445,6 +556,9 @@ export function ControlObrasContent() {
     totalTocado.current = true;
     setNuevaEtapa(null);
     setObraEditando(obra);
+    // Los que ya están cargados se muestran aparte y no se tocan desde acá: su
+    // día a día vive en el panel de la obra. Esta lista es solo para sumar.
+    setProductosForm([]);
     setTipos(
       obra.tiposVivienda?.length
         ? obra.tiposVivienda.map((t) => ({ nombre: t.nombre, cantidad: String(t.cantidad ?? 0) }))
@@ -495,6 +609,32 @@ export function ControlObrasContent() {
 
   const quitarTipo = (indice: number) => aplicarTipos(tipos.filter((_, i) => i !== indice));
 
+  // --- Productos del formulario ---
+  // En edición, los que ya están en la obra: se listan para no volver a
+  // agregarlos, pero se siguen editando en el panel de la obra.
+  const productosYaCargados = useMemo(
+    () => (obraEditando ? productosPorObra.get(obraEditando.id) ?? [] : []),
+    [obraEditando, productosPorObra],
+  );
+
+  const agregarProducto = (p: ProductoForm) => {
+    const clave = claveProducto(p);
+    const repetido =
+      productosForm.some((x) => claveProducto(x) === clave) ||
+      productosYaCargados.some((x) => claveProducto(x) === clave);
+    if (repetido) {
+      toast({ title: "Ese producto ya está en la obra" });
+      return;
+    }
+    setProductosForm((prev) => [...prev, p]);
+  };
+
+  const quitarProducto = (indice: number) =>
+    setProductosForm((prev) => prev.filter((_, i) => i !== indice));
+
+  // Con cuántos productos va a quedar la obra al guardar.
+  const productosEnLaObra = productosYaCargados.length + productosForm.length;
+
   const enviar = () => {
     if (!cliente) return;
     const ciudad = form.ciudad.trim();
@@ -505,6 +645,7 @@ export function ControlObrasContent() {
     }
     guardar.mutate({
       id: obraEditando?.id,
+      productos: productosForm,
       data: {
         clienteId: cliente.id,
         nombre,
@@ -642,7 +783,29 @@ export function ControlObrasContent() {
                 <MiniStat icon={<Building2 className="h-3.5 w-3.5" />} tono="sky" label="Constructoras" valor={fmt(cartera.length)} />
                 <MiniStat icon={<Home className="h-3.5 w-3.5" />} tono="slate" label="Viviendas en control" valor={fmt(totalesCartera.viviendas)} />
                 <MiniStat icon={<Paintbrush className="h-3.5 w-3.5" />} tono="emerald" label="Avance global" valor={fmtPct(totalesCartera.avance)} />
-                <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="amber" label="Próximo pedido total" valor={fmtDec(totalesCartera.sugerido)} />
+                <MiniStat
+                  icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                  tono="amber"
+                  label="Próximo pedido total"
+                  valor={fmtDec(totalesCartera.sugerido)}
+                  sufijo="unidades"
+                  onClick={() => setDialogPedido(true)}
+                  testId="button-abrir-proximo-pedido"
+                  pie={
+                    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-orange-600">
+                      {criticos > 0 && (
+                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          {fmt(criticos)} {criticos === 1 ? "crítico" : "críticos"}
+                        </span>
+                      )}
+                      <span className={criticos > 0 ? "text-slate-300 dark:text-slate-600" : ""}>
+                        {criticos > 0 ? "·" : ""}
+                      </span>
+                      <span>Ver qué falta</span>
+                    </div>
+                  }
+                />
               </div>
 
               {/* ---------- Listado de constructoras ---------- */}
@@ -1092,7 +1255,7 @@ export function ControlObrasContent() {
                 </div>
                 <div>
                   <dt className="font-bold text-slate-500 dark:text-slate-400">Rendimiento</dt>
-                  <dd>Consumo real vs el declarado; en + se está gastando de más.</dd>
+                  <dd>Utilizado ÷ viviendas pintadas: cuánto producto se va en cada una.</dd>
                 </div>
               </dl>
             </>
@@ -1101,6 +1264,111 @@ export function ControlObrasContent() {
       )}
 
       {/* ===================== DIÁLOGOS ===================== */}
+
+      {/* Qué falta comprar: el "próximo pedido total" abierto por producto */}
+      <Dialog open={dialogPedido} onOpenChange={setDialogPedido}>
+        <DialogContent
+          className="sm:max-w-[680px] max-h-[85vh] flex flex-col p-0 overflow-hidden z-[70]"
+          overlayClassName="z-[70]"
+        >
+          <div className="px-6 py-5 border-b border-slate-200/70 dark:border-slate-700/60">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                <ShoppingCart className="h-5 w-5" />
+              </span>
+              <div>
+                <DialogTitle className="text-lg font-bold text-foreground">Qué hay que pedir</DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground">
+                  {fmtDec(totalesCartera.sugerido)} unidades en {fmt(pedidoPendiente.length)}{" "}
+                  {pedidoPendiente.length === 1 ? "producto" : "productos"}
+                  {criticos > 0 && ` · ${fmt(criticos)} sin stock en obra`}
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {pedidoPendiente.length === 0 ? (
+              <p className="text-sm text-slate-400 py-8 text-center">
+                No hay nada pendiente de pedir: todas las obras tienen material suficiente para lo que
+                les falta pintar.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {pedidoPendiente.map(({ producto, calc, obra, constructora, pendientes, critico }) => (
+                  <li
+                    key={producto.id}
+                    className={`rounded-2xl border px-3.5 py-3 ${
+                      critico
+                        ? "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20"
+                        : "border-slate-200/70 bg-white dark:border-slate-700/60 dark:bg-slate-800/40"
+                    }`}
+                    data-testid={`row-pedido-pendiente-${producto.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 break-words">
+                          {producto.nombre}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-0.5">
+                          {producto.kopr && <span className="font-bold tabular-nums">{producto.kopr}</span>}
+                          {producto.color && <span className="uppercase tracking-wide">{producto.color}</span>}
+                          <span className="uppercase tracking-wide">{producto.unidad}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            seleccionarConstructora(constructora);
+                            setDialogPedido(false);
+                          }}
+                          className="mt-1 text-[11px] font-semibold text-slate-500 hover:text-orange-600 dark:text-slate-400 transition-colors text-left"
+                          data-testid={`link-pedido-obra-${producto.id}`}
+                        >
+                          {constructora.nombre} · {obra.nombre}
+                        </button>
+                      </div>
+
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-lg font-bold tabular-nums text-[#fd6301] leading-tight">
+                          {fmtDec(calc.sugerido)}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
+                          a pedir
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Por qué está en la lista: lo que queda en obra contra lo
+                        que todavía falta pintar. */}
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                      {critico ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 px-2 py-0.5 font-bold">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sin material en obra
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 px-2 py-0.5 font-bold">
+                          Falta pedir
+                        </span>
+                      )}
+                      <span className="text-slate-400">
+                        Saldo en obra {fmtDec(calc.saldo)} · quedan {fmt(pendientes)}{" "}
+                        {pendientes === 1 ? "vivienda" : "viviendas"} por pintar
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-slate-200/70 dark:border-slate-700/60 flex justify-end">
+            <Button variant="outline" className="rounded-2xl" onClick={() => setDialogPedido(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Agregar constructora a la cartera */}
       <Dialog open={dialogAgregarCliente} onOpenChange={setDialogAgregarCliente}>
@@ -1163,29 +1431,33 @@ export function ControlObrasContent() {
       {/* Alta/edición de obra */}
       <Dialog open={dialogAbierto} onOpenChange={setDialogAbierto}>
         <DialogContent
-          className="sm:max-w-[680px] max-h-[90vh] flex flex-col p-0 overflow-hidden z-[70]"
+          className="sm:max-w-[760px] max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden z-[70]"
           overlayClassName="z-[70]"
         >
-          <div className="px-6 py-5 border-b bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
+          <div className="px-6 py-5 border-b border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-br from-orange-50 via-white to-orange-50/60 dark:from-orange-950/40 dark:via-slate-900 dark:to-orange-950/30">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25">
+              <div className="bg-gradient-to-br from-orange-500 to-[#fd6301] rounded-xl p-2.5 shadow-md shadow-orange-500/25 flex-shrink-0">
                 <HardHat className="h-5 w-5 text-white" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-bold text-foreground">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-bold text-foreground leading-tight">
                   {obraEditando ? "Editar obra" : "Nueva obra"}
                 </DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground">
+                <DialogDescription className="text-[11px] font-bold uppercase tracking-wider text-orange-700/70 dark:text-orange-300/70 truncate">
                   {cliente?.nokoen ?? ""}
                 </DialogDescription>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-5 overflow-y-auto flex-1 px-6 py-5">
+          <div className="flex flex-col gap-6 overflow-y-auto flex-1 px-6 py-5">
             {/* Identificación */}
-            <Seccion icono={<Building2 className="w-3.5 h-3.5" />} titulo="Identificación">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Seccion
+              icono={<Building2 className="w-3.5 h-3.5" />}
+              titulo="Identificación"
+              descripcion="Qué obra es y en qué estado está"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
                 {/* Lo primero que define la obra: un edificio se cuenta por
                     torres y sus modelos son departamentos. */}
                 <Campo label="Tipo de obra" className="sm:col-span-2">
@@ -1211,12 +1483,12 @@ export function ControlObrasContent() {
                     ))}
                   </div>
                 </Campo>
-                <Campo label="Proyecto *" className="sm:col-span-2">
+                <Campo label="Proyecto" requerido className="sm:col-span-2">
                   <Input
                     value={form.nombre}
                     onChange={(e) => setCampo("nombre", e.target.value)}
                     placeholder="Ej: COMITÉ BUEN VIVIR"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-nombre"
                   />
                 </Campo>
@@ -1225,7 +1497,7 @@ export function ControlObrasContent() {
                     value={form.ciudad}
                     onChange={(e) => setCampo("ciudad", e.target.value)}
                     placeholder="Ej: PUERTO MONTT"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-ciudad"
                   />
                 </Campo>
@@ -1234,7 +1506,7 @@ export function ControlObrasContent() {
                     value={form.programa}
                     onChange={(e) => setCampo("programa", e.target.value)}
                     placeholder="Ej: DS-49"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-programa"
                   />
                 </Campo>
@@ -1243,13 +1515,13 @@ export function ControlObrasContent() {
                     value={form.temporada}
                     onChange={(e) => setCampo("temporada", e.target.value)}
                     placeholder="Ej: 2026-2027"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-temporada"
                   />
                 </Campo>
-                <Campo label="Estado de la obra">
+                <Campo label="Estado del registro">
                   <Select value={form.estado} onValueChange={(v) => setCampo("estado", v)}>
-                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200" data-testid="select-obra-estado">
+                    <SelectTrigger className={INPUT_FORM} data-testid="select-obra-estado">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="z-[80]">
@@ -1262,7 +1534,7 @@ export function ControlObrasContent() {
                 {/* Etapa constructiva: es otra cosa que el estado del registro
                     (una obra en terminaciones sigue estando activa). El catálogo
                     se completa desde acá mismo cuando aparece una que falta. */}
-                <Campo label="Etapa de la obra">
+                <Campo label="Etapa de la obra" className="sm:col-span-2">
                   {nuevaEtapa === null ? (
                     <Select
                       value={form.etapa || "__sin"}
@@ -1271,7 +1543,7 @@ export function ControlObrasContent() {
                         else setCampo("etapa", v === "__sin" ? "" : v);
                       }}
                     >
-                      <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200" data-testid="select-obra-etapa">
+                      <SelectTrigger className={INPUT_FORM} data-testid="select-obra-etapa">
                         <SelectValue placeholder="Sin etapa" />
                       </SelectTrigger>
                       <SelectContent className="z-[80]">
@@ -1302,7 +1574,7 @@ export function ControlObrasContent() {
                           if (e.key === "Escape") setNuevaEtapa(null);
                         }}
                         placeholder="Ej: Entrega de viviendas"
-                        className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        className={INPUT_FORM}
                         data-testid="input-obra-etapa-nueva"
                       />
                       <Button
@@ -1310,7 +1582,7 @@ export function ControlObrasContent() {
                         size="icon"
                         disabled={nuevaEtapa.trim().length < 2 || crearEtapa.isPending}
                         onClick={() => crearEtapa.mutate(nuevaEtapa.trim())}
-                        className="h-9 w-9 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white flex-shrink-0"
+                        className="h-10 w-10 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white flex-shrink-0"
                         aria-label="Guardar etapa"
                         data-testid="button-obra-etapa-guardar"
                       >
@@ -1321,7 +1593,7 @@ export function ControlObrasContent() {
                         size="icon"
                         variant="ghost"
                         onClick={() => setNuevaEtapa(null)}
-                        className="h-9 w-9 rounded-xl text-slate-400 flex-shrink-0"
+                        className="h-10 w-10 rounded-xl text-slate-400 flex-shrink-0"
                         aria-label="Cancelar"
                       >
                         <X className="h-4 w-4" />
@@ -1329,12 +1601,12 @@ export function ControlObrasContent() {
                     </div>
                   )}
                 </Campo>
-                <Campo label="Dirección" className="sm:col-span-2">
+                <Campo label="Dirección" hint="Opcional" className="sm:col-span-2">
                   <Input
                     value={form.direccion}
                     onChange={(e) => setCampo("direccion", e.target.value)}
-                    placeholder="Opcional"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    placeholder="Calle y número de la obra"
+                    className={INPUT_FORM}
                     data-testid="input-obra-direccion"
                   />
                 </Campo>
@@ -1343,7 +1615,11 @@ export function ControlObrasContent() {
 
             {/* Dimensión de la obra. El avance y los pedidos ya no se cargan
                 acá: cada producto lleva los suyos en el panel de la obra. */}
-            <Seccion icono={<Home className="w-3.5 h-3.5" />} titulo={form.tipoObra === "edificios" ? "Departamentos" : "Viviendas"}>
+            <Seccion
+              icono={<Home className="w-3.5 h-3.5" />}
+              titulo={form.tipoObra === "edificios" ? "Departamentos" : "Viviendas"}
+              descripcion="Cuánto mide la obra y cómo se reparte por modelo"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {form.tipoObra === "edificios" && (
                   <Campo label="Torres">
@@ -1353,7 +1629,7 @@ export function ControlObrasContent() {
                       value={form.torres}
                       onChange={(e) => setCampo("torres", e.target.value)}
                       placeholder="0"
-                      className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                      className={INPUT_FORM}
                       data-testid="input-obra-torres"
                     />
                   </Campo>
@@ -1365,7 +1641,7 @@ export function ControlObrasContent() {
                     value={form.viviendas}
                     onChange={(e) => setCampo("viviendas", e.target.value)}
                     placeholder="0"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-viviendas"
                   />
                 </Campo>
@@ -1378,7 +1654,7 @@ export function ControlObrasContent() {
                     totalTocado.current = false;
                     setForm((p) => ({ ...p, viviendas: String(totalTipos) }));
                   }}
-                  className="mt-3 text-xs font-semibold text-orange-600 hover:text-[#e35400] transition-colors"
+                  className="mt-3 inline-flex items-center gap-1 rounded-lg px-2 py-1 -ml-2 text-xs font-semibold text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors"
                   data-testid="button-obra-sugerir-total"
                 >
                   Usar {fmt(totalTipos)} {vocab(form.tipoObra).unidad} (suma de los modelos)
@@ -1388,19 +1664,24 @@ export function ControlObrasContent() {
               {/* Desglose por modelo: cada tipo tiene su metraje y por lo tanto
                   su propio consumo, así que el total solo no alcanza. */}
               <div className="mt-4 pt-4 border-t border-slate-200/70 dark:border-slate-700/60">
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     {vocab(form.tipoObra).tipo}
                   </div>
                   <button
                     type="button"
                     onClick={agregarTipo}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-[#e35400] transition-colors"
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors"
                     data-testid="button-obra-agregar-tipo"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Agregar
                   </button>
+                </div>
+                <div className="hidden sm:flex items-center gap-2 px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="flex-1">Modelo</span>
+                  <span className="w-24 text-center">Cantidad</span>
+                  <span className="w-10" />
                 </div>
                 <div className="space-y-2">
                   {tipos.map((t, i) => (
@@ -1409,7 +1690,7 @@ export function ControlObrasContent() {
                         value={t.nombre}
                         onChange={(e) => setTipo(i, "nombre", e.target.value)}
                         placeholder={vocab(form.tipoObra).ejemplo}
-                        className="flex-1 bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        className={`flex-1 ${INPUT_FORM}`}
                         data-testid={`input-obra-tipo-nombre-${i}`}
                       />
                       <Input
@@ -1418,7 +1699,7 @@ export function ControlObrasContent() {
                         value={t.cantidad}
                         onChange={(e) => setTipo(i, "cantidad", e.target.value)}
                         placeholder="0"
-                        className="w-24 bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                        className={`w-24 text-center ${INPUT_FORM}`}
                         data-testid={`input-obra-tipo-cantidad-${i}`}
                       />
                       <Button
@@ -1427,7 +1708,7 @@ export function ControlObrasContent() {
                         size="icon"
                         onClick={() => quitarTipo(i)}
                         disabled={tipos.length <= 1}
-                        className="h-9 w-9 rounded-xl text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
+                        className="h-10 w-10 rounded-xl text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
                         aria-label="Quitar tipo"
                         data-testid={`button-obra-quitar-tipo-${i}`}
                       >
@@ -1436,18 +1717,140 @@ export function ControlObrasContent() {
                     </div>
                   ))}
                 </div>
+                {totalTipos > 0 && (
+                  <div className="flex items-center gap-2 pt-2.5 mt-2.5 border-t border-dashed border-slate-200 dark:border-slate-700 text-xs">
+                    <span className="flex-1 font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
+                      Suma de los modelos
+                    </span>
+                    <span className="w-24 text-center font-bold tabular-nums text-slate-700 dark:text-slate-200">
+                      {fmt(totalTipos)}
+                    </span>
+                    <span className="w-10" />
+                  </div>
+                )}
               </div>
             </Seccion>
 
+            {/* Productos de la obra. Elegirlos acá es un atajo del alta: entran
+                con todo en cero y su día a día se lleva en el panel de la obra,
+                que es donde viven pedidos, entregas y consumo. */}
+            <Seccion
+              icono={<Paintbrush className="w-3.5 h-3.5" />}
+              titulo="Productos"
+              descripcion="Opcional · el control de la obra se lleva sobre estos SKU"
+              accion={
+                productosEnLaObra > 0 ? (
+                  <span className="text-[11px] font-bold tabular-nums text-slate-400">
+                    {fmt(productosEnLaObra)} en la obra
+                  </span>
+                ) : undefined
+              }
+            >
+              <BuscadorCatalogo
+                variante="inline"
+                guardando={guardar.isPending}
+                placeholder="Buscar en catálogo e inventario: SKU, nombre o color…"
+                testId="input-obra-form-producto-buscar"
+                onElegir={(item) =>
+                  agregarProducto({
+                    kopr: item.sku || null,
+                    nombre: item.nombre,
+                    color: item.color || null,
+                    unidad: unidadDeObra(item.unidad),
+                    hex: item.hex,
+                  })
+                }
+                onManual={(nombre) =>
+                  agregarProducto({ kopr: null, nombre, color: null, unidad: "tineta", hex: null })
+                }
+              />
+
+              {/* En edición: los que la obra ya tiene, para no repetirlos. */}
+              {productosYaCargados.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Ya cargados · se editan en el panel de la obra
+                  </div>
+                  {productosYaCargados.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-2"
+                    >
+                      <span className="text-sm text-slate-500 dark:text-slate-400 break-words leading-snug flex-1 min-w-0">
+                        {p.nombre}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wide text-slate-400 flex-shrink-0">
+                        {p.unidad}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {productosForm.length > 0 ? (
+                <ul className="mt-3 space-y-2">
+                  {productosForm.map((p, i) => (
+                    <li
+                      key={`${p.kopr ?? p.nombre}-${i}`}
+                      className="flex items-start gap-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+                      data-testid={`row-obra-form-producto-${i}`}
+                    >
+                      <span
+                        className="mt-1 w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
+                        style={{ background: p.hex || "linear-gradient(135deg,#f1f5f9,#cbd5e1)" }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        {/* El nombre completo, en varias líneas si hace falta:
+                            cortado, dos SKU del catálogo se leen igual. */}
+                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200 break-words leading-snug">
+                          {p.nombre}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-400">
+                          {p.kopr ? (
+                            <span className="font-bold tabular-nums">{p.kopr}</span>
+                          ) : (
+                            <span className="italic">sin SKU</span>
+                          )}
+                          {p.color && <span className="uppercase tracking-wide">{p.color}</span>}
+                          <span className="uppercase tracking-wide">{p.unidad}</span>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => quitarProducto(i)}
+                        className="h-8 w-8 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
+                        aria-label="Quitar producto"
+                        data-testid={`button-obra-quitar-producto-${i}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-[11px] text-slate-400">
+                  {productosYaCargados.length > 0
+                    ? "Buscá arriba para sumarle otro producto a la obra."
+                    : "La fachada, el sellador, el esmalte de rejas… Entran con todo en cero y después se les lleva el día a día en el panel de la obra. También se pueden cargar más adelante."}
+                </p>
+              )}
+            </Seccion>
+
             {/* Plazos y notas */}
-            <Seccion icono={<Package className="w-3.5 h-3.5" />} titulo="Plazos y notas">
+            <Seccion
+              icono={<Package className="w-3.5 h-3.5" />}
+              titulo="Plazos y notas"
+              descripcion="Opcional"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Campo label="Fecha de inicio">
                   <Input
                     type="date"
                     value={form.fechaInicio}
                     onChange={(e) => setCampo("fechaInicio", e.target.value)}
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-fecha-inicio"
                   />
                 </Campo>
@@ -1456,7 +1859,7 @@ export function ControlObrasContent() {
                     type="date"
                     value={form.fechaEstimadaFin}
                     onChange={(e) => setCampo("fechaEstimadaFin", e.target.value)}
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className={INPUT_FORM}
                     data-testid="input-obra-fecha-fin"
                   />
                 </Campo>
@@ -1466,7 +1869,7 @@ export function ControlObrasContent() {
                     onChange={(e) => setCampo("descripcion", e.target.value)}
                     rows={2}
                     placeholder="Observaciones de la obra"
-                    className="bg-white dark:bg-slate-900 border-slate-200 focus:border-orange-400 focus:ring-orange-400/20"
+                    className="rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
                     data-testid="input-obra-notas"
                   />
                 </Campo>
@@ -1474,19 +1877,33 @@ export function ControlObrasContent() {
             </Seccion>
           </div>
 
-          <div className="px-6 py-4 border-t border-slate-200/70 dark:border-slate-700/60 flex justify-end gap-2">
-            <Button variant="outline" className="rounded-2xl" onClick={() => setDialogAbierto(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={enviar}
-              disabled={guardar.isPending}
-              className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
-              data-testid="button-guardar-obra"
-            >
-              {guardar.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {obraEditando ? "Guardar cambios" : "Crear obra"}
-            </Button>
+          {/* Pie: lo que se va a guardar, resumido, y las acciones. */}
+          <div className="px-6 py-4 border-t border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-900/40 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+              <Pastilla icono={form.tipoObra === "edificios" ? <Building2 className="h-3 w-3" /> : <Home className="h-3 w-3" />}>
+                {form.tipoObra === "edificios" ? "Edificios" : "Casas"}
+              </Pastilla>
+              <Pastilla icono={<Layers className="h-3 w-3" />}>
+                {fmt(toInt(form.viviendas))} {vocab(form.tipoObra).unidad}
+              </Pastilla>
+              <Pastilla icono={<Paintbrush className="h-3 w-3" />}>
+                {fmt(productosEnLaObra)} {productosEnLaObra === 1 ? "producto" : "productos"}
+              </Pastilla>
+            </div>
+            <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+              <Button variant="outline" className="rounded-2xl" onClick={() => setDialogAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={enviar}
+                disabled={guardar.isPending}
+                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
+                data-testid="button-guardar-obra"
+              >
+                {guardar.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {obraEditando ? "Guardar cambios" : "Crear obra"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1818,40 +2235,125 @@ function BannerStat({ label, valor, sufijo }: { label: string; valor: string; su
   );
 }
 
-function MiniStat({ icon, tono, label, valor }: { icon: React.ReactNode; tono: string; label: string; valor: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 px-3.5 py-3 shadow-sm">
+function MiniStat({
+  icon,
+  tono,
+  label,
+  valor,
+  sufijo,
+  pie,
+  onClick,
+  testId,
+}: {
+  icon: React.ReactNode;
+  tono: string;
+  label: string;
+  valor: string;
+  /** Unidad del número ("unidades"): un total suelto no dice de qué. */
+  sufijo?: string;
+  /** Línea de abajo, para invitar a abrir el detalle. */
+  pie?: React.ReactNode;
+  onClick?: () => void;
+  testId?: string;
+}) {
+  const contenido = (
+    <>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold text-slate-400">
         <span className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${TONOS[tono] ?? TONOS.slate}`}>{icon}</span>
         <span className="leading-tight">{label}</span>
       </div>
-      <div className="mt-1.5 text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{valor}</div>
-    </div>
+      <div className="mt-1.5 flex items-baseline gap-1.5">
+        <span className="text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{valor}</span>
+        {sufijo && <span className="text-[11px] font-semibold text-slate-400">{sufijo}</span>}
+      </div>
+      {pie}
+    </>
+  );
+
+  const base = "rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 px-3.5 py-3 shadow-sm";
+
+  if (!onClick) return <div className={base}>{contenido}</div>;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${base} text-left hover:border-orange-300 dark:hover:border-orange-700 hover:shadow transition-all`}
+      data-testid={testId}
+    >
+      {contenido}
+    </button>
   );
 }
 
-function Seccion({ icono, titulo, children }: { icono: React.ReactNode; titulo: string; children: React.ReactNode }) {
+function Seccion({
+  icono,
+  titulo,
+  descripcion,
+  accion,
+  children,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  /** Para qué sirve la sección: evita tener que deducirlo de los campos. */
+  descripcion?: string;
+  /** Contador o botón alineado a la derecha del título. */
+  accion?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-        <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
-          {icono}
-        </span>
-        {titulo}
+    <section className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-7 h-7 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center flex-shrink-0">
+            {icono}
+          </span>
+          <div className="leading-tight min-w-0">
+            <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{titulo}</div>
+            {descripcion && <div className="text-[11px] text-slate-400 truncate">{descripcion}</div>}
+          </div>
+        </div>
+        {accion}
       </div>
       <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4">
         {children}
       </div>
+    </section>
+  );
+}
+
+function Campo({
+  label,
+  requerido,
+  hint,
+  children,
+  className = "",
+}: {
+  label: string;
+  requerido?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="flex items-baseline gap-1.5 mb-1.5">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</span>
+        {requerido && <span className="text-[10px] font-bold text-[#fd6301]">obligatorio</span>}
+        {hint && <span className="text-[10px] text-slate-400 ml-auto">{hint}</span>}
+      </div>
+      {children}
     </div>
   );
 }
 
-function Campo({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+/** Resumen chico de lo que se va a guardar, para el pie del formulario. */
+function Pastilla({ icono, children }: { icono: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className={className}>
-      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</div>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-300">
+      <span className="text-slate-400">{icono}</span>
       {children}
-    </div>
+    </span>
   );
 }
 
