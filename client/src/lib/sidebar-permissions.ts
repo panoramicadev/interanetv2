@@ -34,10 +34,27 @@ import {
   Mail,
   Send,
 } from "lucide-react";
-import { SIDEBAR_CONFIG, type SidebarItem } from "@/config/sidebar-config";
+import { SIDEBAR_CONFIG, marketingSidebarItem, type SidebarItem } from "@/config/sidebar-config";
 import { PERMISSION_BY_HREF } from "@shared/permissions";
 
 type Can = (key: string) => boolean;
+
+/**
+ * Sub-secciones administrativas de Marketing (plata del área). El módulo ya las
+ * esconde para quien no corresponde; esto evita además el ítem muerto en el menú.
+ * El criterio es el mismo `isAdmin` que usa `pages/marketing.tsx`.
+ */
+const MARKETING_ADMIN_HREFS = new Set(["/marketing/gastos", "/marketing/presupuesto", "/marketing/proveedores"]);
+const MARKETING_ADMIN_ROLES = new Set(["admin", "supervisor", "encargado_area", "marketing"]);
+
+function filterMarketingByRole(items: SidebarItem[], role: string | undefined): SidebarItem[] {
+  if (role && MARKETING_ADMIN_ROLES.has(role)) return items;
+  return items.map((item) =>
+    item.href === "/marketing" && item.children
+      ? { ...item, children: item.children.filter((c) => !MARKETING_ADMIN_HREFS.has(c.href)) }
+      : item,
+  );
+}
 
 function permissionKeyForItem(item: SidebarItem): string | null {
   if (item.isExternalCatalog) return "mi_catalogo";
@@ -139,7 +156,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "tomador_pedidos", item: { href: "/tomador-pedidos-v2", label: "Tomador de Pedidos", icon: ClipboardCheck } },
   { key: "seguimiento_pedidos", item: { href: "/seguimiento-pedidos", label: "Pedidos", icon: PackageSearch } },
   { key: "mis_pedidos", item: { href: "/mis-pedidos", label: "Mis Pedidos", icon: ShoppingCart } },
-  { key: "marketing", item: { href: "/marketing", label: "Marketing", icon: TrendingUp } },
+  { key: "marketing", item: marketingSidebarItem() },
   // Email Marketing salió del sidebar: vive como pestaña del módulo Marketing
   // (la ruta /campanas sigue activa y el permiso market.campanas la gobierna).
   // { key: "market.campanas", item: { href: "/campanas", label: "Campañas Mailing", icon: Send } },
@@ -168,7 +185,7 @@ export function buildSidebarItems(role: string | undefined, can: Can): SidebarIt
   // El sidebar del admin es la referencia curada del sistema: tiene todos
   // los permisos pero solo muestra los módulos elegidos para su menú
   // (varias rutas quedan deliberadamente fuera del sidebar).
-  if (role === "admin") return items;
+  if (role === "admin") return filterMarketingByRole(items, role);
 
   const covered = collectCoveredKeys(base);
 
@@ -196,8 +213,8 @@ export function buildSidebarItems(role: string | undefined, can: Can): SidebarIt
   for (const { key, item } of EXTRA_TOP_LEVEL) {
     if (covered.has(key) || !can(key)) continue;
     if (items.some((existing) => existing.href === item.href && !existing.children)) continue;
-    items.push({ ...item });
+    items.push({ ...item, ...(item.children ? { children: item.children.map((c) => ({ ...c })) } : {}) });
   }
 
-  return items;
+  return filterMarketingByRole(items, role);
 }

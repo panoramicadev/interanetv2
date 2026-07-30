@@ -386,6 +386,14 @@ export const PERMISSION_BY_HREF: Record<string, string> = Object.fromEntries(
 // así se muestra/oculta para exactamente los mismos roles.
 PERMISSION_BY_HREF["/tomador-pedidos-v2"] = "tomador_pedidos";
 
+// Sub-secciones del módulo Marketing: son rutas propias en el sidebar, pero el
+// acceso lo sigue gobernando el permiso del módulo. La única con permiso propio es
+// Email Marketing, que ya tenía el suyo cuando vivía como página aparte (/campanas).
+for (const seccion of ["hoy", "solicitudes", "mis-tareas", "inventario", "gastos", "presupuesto", "proveedores"]) {
+  PERMISSION_BY_HREF[`/marketing/${seccion}`] = "marketing";
+}
+PERMISSION_BY_HREF["/marketing/email"] = "market.campanas";
+
 /** Etiquetas legibles de cada rol */
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",

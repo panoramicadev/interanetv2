@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,6 +29,7 @@ import {
   Loader2,
   MessageSquare,
   Play,
+  Plus,
   Search,
   User,
   Users,
@@ -43,6 +45,7 @@ import {
   type TareaMarketingItem,
 } from "@/components/marketing/tarea-detalle-dialog";
 import { formatFechaCorta } from "@/components/marketing/solicitud-detalle-dialog";
+import { MarketingTaskDialog } from "@/pages/marketing/nueva-tarea-dialog";
 
 type FiltroEstado = "todas" | "pendiente" | "en_progreso" | "completada";
 
@@ -69,6 +72,7 @@ export default function MisTareasMarketing() {
   const [estado, setEstado] = useState<FiltroEstado>("todas");
   const [prioridad, setPrioridad] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState("");
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
   // Se guarda el id y no el objeto: así la ficha abierta refleja el estado recién
   // guardado en vez de un snapshot viejo de la lista.
   const [detalleId, setDetalleId] = useState<string | null>(null);
@@ -115,31 +119,29 @@ export default function MisTareasMarketing() {
 
   return (
     <div className="space-y-4">
-      {/* Banner del módulo */}
-      <div className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-4 sm:px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-            <CheckSquare className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold leading-tight">Mis tareas</h2>
-            <p className="text-xs text-white/85 mt-0.5">
-              Solo lo que te toca a ti: tareas de marketing que tienes asignadas o que creaste.
-            </p>
-          </div>
-          <div className="ml-auto hidden sm:flex items-center gap-2 flex-shrink-0">
-            {altasActivas > 0 && (
-              <Badge className="bg-white text-[#fd6301] hover:bg-white font-bold rounded-full px-3 inline-flex items-center gap-1">
-                <Flame className="h-3 w-3" /> {altasActivas} de prioridad alta
-              </Badge>
-            )}
-            {vencidas > 0 && (
-              <Badge className="bg-red-600 text-white hover:bg-red-600 font-bold rounded-full px-3 inline-flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> {vencidas} con plazo vencido
-              </Badge>
-            )}
-          </div>
+      {/* Sin banner de título (el encabezado de la página ya dice "Mis tareas"): acá van
+          solo las alertas y la acción. Crear tarea vive en esta sección porque el rol
+          Marketing ya no pasa por el Panel de Trabajo. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {altasActivas > 0 && (
+            <Badge variant="outline" className="bg-orange-50 text-[#fd6301] border-orange-200 dark:bg-orange-500/10 dark:border-orange-900/50 font-semibold rounded-full px-3 inline-flex items-center gap-1">
+              <Flame className="h-3 w-3" /> {altasActivas} de prioridad alta
+            </Badge>
+          )}
+          {vencidas > 0 && (
+            <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:border-red-900/50 font-semibold rounded-full px-3 inline-flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" /> {vencidas} con plazo vencido
+            </Badge>
+          )}
         </div>
+        <Button
+          onClick={() => setNuevaAbierta(true)}
+          className="ml-auto rounded-2xl font-medium bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
+          data-testid="button-nueva-tarea-marketing"
+        >
+          <Plus className="h-4 w-4 mr-1.5" /> Nueva tarea
+        </Button>
       </div>
 
       {/* KPIs por estado — también son el selector de la lista */}
@@ -236,6 +238,8 @@ export default function MisTareasMarketing() {
         onOpenChange={(o) => { if (!o) setDetalleId(null); }}
         nombrePorId={nombrePorId}
       />
+
+      <MarketingTaskDialog open={nuevaAbierta} onOpenChange={setNuevaAbierta} />
     </div>
   );
 }
@@ -253,9 +257,12 @@ export function TareaCard({
   const estado = estadoTarea(tarea);
   const meta = TAREA_ESTADO_META[estado] || TAREA_ESTADO_META.pendiente;
   const EstadoIcon = meta.icon;
+  const creador = nombrePorId?.get(String(tarea.createdByUserId));
+  // Lo habitual es que uno se cree sus propias tareas: repetir el nombre como creador
+  // y como asignado no dice nada, así que solo se listan los asignados distintos.
   const asignados = (tarea.assignments || [])
     .map((a) => nombrePorId?.get(String(a.assigneeId)) || null)
-    .filter(Boolean) as string[];
+    .filter((n): n is string => !!n && n !== creador);
 
   return (
     <button
@@ -283,9 +290,12 @@ export function TareaCard({
           </div>
           {tarea.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{tarea.description}</p>}
           <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 flex-wrap">
-            <span className="inline-flex items-center gap-1">
-              <User className="h-3 w-3" /> {nombrePorId?.get(String(tarea.createdByUserId)) || "—"}
-            </span>
+            {/* Sin nombre resoluble no se muestra la fila: un "—" no aporta nada. */}
+            {creador && (
+              <span className="inline-flex items-center gap-1">
+                <User className="h-3 w-3" /> {creador}
+              </span>
+            )}
             {asignados.length > 0 && (
               <span className="inline-flex items-center gap-1 text-slate-500"><Users className="h-3 w-3" /> {asignados.join(", ")}</span>
             )}

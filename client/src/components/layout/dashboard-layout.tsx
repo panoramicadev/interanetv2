@@ -11,7 +11,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { buildSidebarItems } from "@/lib/sidebar-permissions";
@@ -136,6 +136,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   });
   const pendingOrdersCount = pendingOrdersCountData?.count || 0;
 
+  // Solicitudes de Marketing esperando respuesta: el número va en el propio ítem del
+  // menú para que la encargada sepa que hay algo que atender sin entrar al módulo.
+  const hasMarketingInbox = useMemo(
+    () => sidebarItems.some((item) => item.children?.some((c) => c.href === "/marketing/solicitudes")),
+    [sidebarItems],
+  );
+  const { data: marketingSolicitudes = [] } = useQuery<Array<{ estado: string }>>({
+    queryKey: ["/api/marketing/solicitudes"],
+    refetchInterval: 60000,
+    enabled: !!user && hasMarketingInbox,
+  });
+  const marketingPorAceptar = marketingSolicitudes.filter((s) => s.estado === "solicitado").length;
+
+  // Al entrar a una ruta que vive dentro de un grupo, el grupo se abre solo: si no,
+  // el menú se ve colapsado y no se entiende dónde está uno parado.
+  useEffect(() => {
+    const grupoActivo = sidebarItems.find((item) =>
+      item.children?.some((c) => location === c.href || location.startsWith(c.href + "/")),
+    );
+    if (!grupoActivo) return;
+    setExpandedItems((prev) => (prev.has(grupoActivo.href) ? prev : new Set(prev).add(grupoActivo.href)));
+  }, [location, sidebarItems]);
+
   // Each nav item rendered
   const NavItem = ({ item, index }: { item: any; index: number }) => {
     const Icon = item.icon;
@@ -148,8 +171,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const hasActiveChild = hasChildren && item.children.some(
       (c: any) => location === c.href || (c.href !== "/mantenciones" && location.startsWith(c.href + "/"))
     );
-    const hasPendingChild = hasChildren && pendingOrdersCount > 0 &&
-      item.children.some((c: any) => c.href === "/ecommerce-pedidos");
+    const hasPendingChild = hasChildren &&
+      ((pendingOrdersCount > 0 && item.children.some((c: any) => c.href === "/ecommerce-pedidos")) ||
+        (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")));
 
     if (item.disabled) {
       if (collapsed) {
@@ -246,6 +270,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       <span className="flex-1 text-left">{child.label}</span>
                       {child.href === "/ecommerce-pedidos" && pendingOrdersCount > 0 && (
                         <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
+                      )}
+                      {child.href === "/marketing/solicitudes" && marketingPorAceptar > 0 && (
+                        <span
+                          className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                            isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+                          }`}
+                          data-testid="badge-solicitudes-marketing"
+                        >
+                          {marketingPorAceptar}
+                        </span>
                       )}
                     </button>
                   </Link>

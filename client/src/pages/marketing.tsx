@@ -48,7 +48,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send, LayoutDashboard } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send, LayoutDashboard, CalendarClock, Inbox } from "lucide-react";
+import { useRoute } from "wouter";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -58,47 +59,10 @@ import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
-import SolicitudesTabMarketing from "./marketing/solicitudes-tab-marketing";
-import DashboardMarketing from "./marketing/dashboard-marketing";
+import BandejaSolicitudes from "./marketing/bandeja-solicitudes";
+import HoyMarketing from "./marketing/hoy-marketing";
 import MisTareasMarketing from "./marketing/mis-tareas-marketing";
 import CampanasPage from "./campanas";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-
-const createMarketingTaskSchema = z.object({
-  title: z.string().min(1, "Título es requerido"),
-  description: z.string().optional(),
-  type: z.enum(["texto", "formulario", "visita"]).default("texto"),
-  priority: z.enum(["low", "medium", "high"]).default("medium"),
-  dueDate: z.string().optional().or(z.null()),
-  clienteId: z.string().optional().or(z.null()),
-  clienteNombre: z.string().optional().or(z.null()),
-  plataforma: z.string().optional(),
-  presupuesto: z.string().optional(),
-  urlReferencia: z.string().optional(),
-  assignments: z.array(z.object({
-    assigneeType: z.enum(["supervisor", "salesperson"]),
-    assigneeId: z.string().min(1, "Destinatario requerido"),
-  })).optional().default([]),
-});
-
-type CreateMarketingTaskInput = z.infer<typeof createMarketingTaskSchema>;
-
-interface MarketingMetrics {
-  presupuestoTotal: number;
-  presupuestoUtilizado: number;
-  presupuestoComprometido: number;
-  presupuestoDisponible: number;
-  totalSolicitudes: number;
-  solicitudesPorEstado: {
-    solicitado: number;
-    en_proceso: number;
-    completado: number;
-    rechazado: number;
-  };
-}
 
 interface HitoMarketing {
   id: string;
@@ -132,22 +96,46 @@ interface TareaMarketing {
   updatedAt: string;
 }
 
-// Ítem del menú lateral del módulo. En móvil el menú es una fila desplazable, por eso
-// el ítem no se estira; en desktop ocupa todo el ancho de la columna y alinea a la
-// izquierda como cualquier menú.
-const menuItemClass =
-  "flex shrink-0 lg:w-full items-center justify-center lg:justify-start gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl whitespace-nowrap data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all";
+// ==================================================================================
+// Módulo Marketing.
+//
+// El menú del módulo NO vive acá: vive en el sidebar de la app, como sub-ítems de
+// "Marketing" (ver `config/sidebar-config.ts`). Cada sección es una ruta propia
+// —/marketing/hoy, /marketing/solicitudes, …— y esta página solo resuelve cuál
+// mostrar. Antes había un segundo menú en columna dentro de la página, al lado del
+// sidebar: dos menús para lo mismo.
+// ==================================================================================
+
+type Seccion =
+  | "hoy"
+  | "solicitudes"
+  | "mis-tareas"
+  | "email"
+  | "inventario"
+  | "gastos"
+  | "presupuesto"
+  | "proveedores";
+
+// Cada sección se presenta con su propio título: el encabezado dice dónde estás, sin
+// necesidad de un banner extra repitiendo lo mismo dentro del contenido.
+const SECCIONES: Record<Seccion, { titulo: string; bajada: string; icon: any }> = {
+  "hoy": { titulo: "Hoy", bajada: "Lo que tienes que resolver, en orden de urgencia", icon: CalendarClock },
+  "solicitudes": { titulo: "Solicitudes", bajada: "Pedidos que llegan a marketing desde el resto de la empresa", icon: Inbox },
+  "mis-tareas": { titulo: "Mis tareas", bajada: "Tus tareas del área: las que te asignaron y las que creaste", icon: CheckSquare },
+  "email": { titulo: "Email Marketing", bajada: "Campañas de correo y sus destinatarios", icon: Send },
+  "inventario": { titulo: "Inventario", bajada: "Material POP y merchandising del área", icon: Package },
+  "gastos": { titulo: "Gastos", bajada: "Gastos ejecutados del presupuesto de marketing", icon: Receipt },
+  "presupuesto": { titulo: "Presupuesto", bajada: "Planificación anual y ejecución por línea", icon: DollarSign },
+  "proveedores": { titulo: "Proveedores", bajada: "Agencias y proveedores con los que trabaja el área", icon: Users },
+};
 
 export default function Marketing() {
   const { user } = useAuth();
   const { can } = usePermissions();
+  const [, params] = useRoute("/marketing/:seccion");
 
-  // Sección activa del menú lateral. Aterriza en el dashboard: es el resumen de todo
-  // el área (tareas + solicitudes) y desde ahí se baja al detalle.
-  const [vista, setVista] = useState("dashboard");
-
-  // Filtro de período compartido entre las pestañas Gastos y Presupuesto,
-  // para que al cambiar de pestaña se mantenga el mismo mes/año y cruzar datos rápido.
+  // Filtro de período compartido entre Gastos y Presupuesto, para que al cambiar de
+  // sección se mantenga el mismo mes/año y se puedan cruzar los datos rápido.
   const now = new Date();
   const [selectedMes, setSelectedMes] = useState(now.getMonth() + 1);
   const [selectedAnio, setSelectedAnio] = useState(now.getFullYear());
@@ -175,1172 +163,72 @@ export default function Marketing() {
   }
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'marketing';
-
-  // Email Marketing vive acá como pestaña (salió del sidebar); usa el mismo
-  // permiso que gobierna la API de campañas.
+  // Email Marketing usa el mismo permiso que gobierna la API de campañas.
   const canCampanas = can('market.campanas');
+  // Mover el estado de una solicitud es de Marketing y admin; el resto la ve y comenta.
+  const canManageSolicitudes = user.role === 'admin' || user.role === 'marketing';
+
+  // /marketing sin sección (y cualquier sección desconocida o sin permiso) cae en Hoy,
+  // que es la vista que sirve para empezar el día.
+  const pedida = params?.seccion as Seccion | undefined;
+  const permitida =
+    pedida && pedida in SECCIONES &&
+    (pedida !== "email" || canCampanas) &&
+    (!["gastos", "presupuesto", "proveedores"].includes(pedida) || isAdmin);
+  const seccion: Seccion = permitida ? (pedida as Seccion) : "hoy";
+  const meta = SECCIONES[seccion];
+  const SeccionIcon = meta.icon;
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8 space-y-6">
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
-              <TrendingUp className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white" data-testid="text-page-title">
-                Marketing
-              </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Tareas del equipo, solicitudes, presupuesto e inventario del área</p>
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25 shrink-0">
+            <SeccionIcon className="h-6 w-6 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Marketing</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight" data-testid="text-page-title">
+              {meta.titulo}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{meta.bajada}</p>
           </div>
         </div>
 
-        {/* Menú lateral + contenido.
-            En este módulo las secciones no van como pestañas arriba sino como un menú
-            al costado: son muchas y de naturalezas distintas (trabajo del día vs.
-            gestión administrativa), así que se agrupan y se leen en vertical. En móvil
-            el mismo menú colapsa a una fila desplazable. */}
-        <Tabs
-          value={vista}
-          onValueChange={setVista}
-          orientation="vertical"
-          className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start w-full"
-        >
-          <TabsList className="w-full lg:w-60 shrink-0 flex lg:flex-col lg:items-stretch justify-start gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto lg:overflow-visible">
-            <span role="presentation" className="hidden lg:block px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Trabajo
-            </span>
+        {seccion === "hoy" && <HoyMarketing canManage={canManageSolicitudes} />}
 
-            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className={menuItemClass}>
-              <LayoutDashboard className="h-4 w-4 shrink-0" />
-              <span>Dashboard</span>
-            </TabsTrigger>
+        {seccion === "solicitudes" && <BandejaSolicitudes canManage={canManageSolicitudes} />}
 
-            <TabsTrigger value="mis-tareas" data-testid="tab-mis-tareas" className={menuItemClass}>
-              <CheckSquare className="h-4 w-4 shrink-0" />
-              <span>Mis tareas</span>
-            </TabsTrigger>
+        {seccion === "mis-tareas" && <MisTareasMarketing />}
 
-            <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className={menuItemClass}>
-              <ClipboardList className="h-4 w-4 shrink-0" />
-              <span>Solicitudes</span>
-            </TabsTrigger>
+        {seccion === "email" && <CampanasPage embedded />}
 
-            <span role="presentation" className="hidden lg:block px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Gestión
-            </span>
+        {seccion === "inventario" && <InventarioMarketing userRole={user.role} />}
 
-            {canCampanas && (
-              <TabsTrigger value="email-marketing" data-testid="tab-email-marketing" className={menuItemClass}>
-                <Send className="h-4 w-4 shrink-0" />
-                <span>Email Marketing</span>
-              </TabsTrigger>
-            )}
-
-            <TabsTrigger value="inventario" data-testid="tab-inventario" className={menuItemClass}>
-              <Package className="h-4 w-4 shrink-0" />
-              <span>Inventario</span>
-            </TabsTrigger>
-
-            {isAdmin && (
-              <TabsTrigger value="gastos" data-testid="tab-gastos" className={menuItemClass}>
-                <Receipt className="h-4 w-4 shrink-0" />
-                <span>Gastos</span>
-              </TabsTrigger>
-            )}
-
-            {isAdmin && (
-              <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className={menuItemClass}>
-                <DollarSign className="h-4 w-4 shrink-0" />
-                <span>Presupuesto</span>
-              </TabsTrigger>
-            )}
-
-            {isAdmin && (
-              <TabsTrigger value="proveedores" data-testid="tab-proveedores" className={menuItemClass}>
-                <Users className="h-4 w-4 shrink-0" />
-                <span>Proveedores</span>
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <div className="flex-1 min-w-0 w-full">
-            {/* Dashboard — todo el área de un vistazo (tareas + solicitudes) */}
-            <TabsContent value="dashboard" className="mt-0 space-y-6">
-              <DashboardMarketing onIrA={setVista} />
-            </TabsContent>
-
-            {/* Mis tareas — solo lo que me toca a mí */}
-            <TabsContent value="mis-tareas" className="mt-0 space-y-6">
-              <MisTareasMarketing />
-            </TabsContent>
-
-            {/* Solicitudes — los pedidos que llegan al área */}
-            <TabsContent value="solicitudes" className="mt-0 space-y-6">
-              <SolicitudesTabMarketing userRole={user.role} />
-            </TabsContent>
-
-            {/* Email Marketing — campañas de mailing (antes vivía en /campanas) */}
-            {canCampanas && (
-              <TabsContent value="email-marketing" className="mt-0 space-y-6">
-                <CampanasPage embedded />
-              </TabsContent>
-            )}
-
-            <TabsContent value="inventario" className="mt-0 space-y-6">
-              <InventarioMarketing userRole={user.role} />
-            </TabsContent>
-
-            {isAdmin && (
-              <TabsContent value="gastos" className="mt-0 space-y-6">
-                <GastosTabMarketing
-                  userRole={user.role}
-                  selectedMes={selectedMes}
-                  setSelectedMes={setSelectedMes}
-                  selectedAnio={selectedAnio}
-                  setSelectedAnio={setSelectedAnio}
-                />
-              </TabsContent>
-            )}
-
-            {/* Presupuesto (tabla Excel) */}
-            {isAdmin && (
-              <TabsContent value="presupuesto" className="mt-0 space-y-6">
-                <PresupuestoTabMarketing
-                  userRole={user.role}
-                  selectedMes={selectedMes}
-                  setSelectedMes={setSelectedMes}
-                  selectedAnio={selectedAnio}
-                  setSelectedAnio={setSelectedAnio}
-                />
-              </TabsContent>
-            )}
-
-            {isAdmin && (
-              <TabsContent value="proveedores" className="mt-0 space-y-6">
-                <ProveedoresTabMarketing userRole={user.role} />
-              </TabsContent>
-            )}
-          </div>
-        </Tabs>
-      </div>
-    </div>
-  );
-}
-
-// Metrics Dashboard Component
-function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
-  const [gastosModalOpen, setGastosModalOpen] = useState(false);
-
-  const { data: metrics, isLoading } = useQuery<MarketingMetrics>({
-    queryKey: ['/api/marketing/metrics', mes, anio],
-    queryFn: async () => {
-      const response = await fetch(`/api/marketing/metrics/${mes}/${anio}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error('Error al cargar métricas');
-      }
-      return response.json();
-    },
-  });
-
-  const { data: gastos = [] } = useQuery<any[]>({
-    queryKey: ['/api/marketing/gastos', mes, anio],
-    queryFn: async () => {
-      const res = await fetch(`/api/marketing/gastos?mes=${mes}&anio=${anio}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Error al cargar gastos');
-      return res.json();
-    },
-    enabled: gastosModalOpen,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          'bg-gradient-to-br from-orange-500 to-orange-600',
-          'bg-gradient-to-br from-emerald-500 to-teal-600',
-          'bg-gradient-to-br from-amber-500 to-orange-600',
-        ].map((gradient, i) => (
-          <Card key={i} className={`border-0 shadow-md ${gradient} text-white`}>
-            <CardContent className="pt-6 flex items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-white/70" />
-              <p className="text-sm text-white/70">Cargando...</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  const presupuestoUtilizadoPct = metrics
-    ? (metrics.presupuestoUtilizado / metrics.presupuestoTotal) * 100
-    : 0;
-
-  return (
-    <>
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-0 shadow-md bg-gradient-to-br from-orange-500 to-orange-600 text-white" data-testid="card-presupuesto-total">
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-orange-100">Presupuesto Total</p>
-            <p className="text-2xl font-bold mt-1">
-              ${metrics && metrics.presupuestoTotal != null ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
-            </p>
-            <p className="text-xs text-orange-200 mt-1">
-              Presupuesto mensual asignado
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white cursor-pointer hover:brightness-110 transition-all active:scale-[0.98]"
-          data-testid="card-presupuesto-utilizado"
-          onClick={() => setGastosModalOpen(true)}
-        >
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-emerald-100">Presupuesto Utilizado</p>
-            <p className="text-2xl font-bold mt-1">
-              ${metrics && metrics.presupuestoUtilizado != null ? metrics.presupuestoUtilizado.toLocaleString('es-CL') : '0'}
-            </p>
-            <div className="mt-2">
-              <div className="w-full bg-white/20 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-300' :
-                    presupuestoUtilizadoPct > 70 ? 'bg-yellow-300' :
-                      'bg-white/80'
-                    }`}
-                  style={{ width: `${Math.min(presupuestoUtilizadoPct, 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-emerald-200 mt-1">
-                {isNaN(presupuestoUtilizadoPct) ? '0.0' : presupuestoUtilizadoPct.toFixed(1)}% utilizado &middot; <span className="underline underline-offset-2">Ver detalle</span>
-              </p>
-            </div>
-            {metrics && metrics.presupuestoComprometido > 0 && (
-              <div className="mt-3 pt-2 border-t border-white/20">
-                <p className="text-xs text-emerald-100">
-                  Comprometido (cotización/OC): <span className="font-semibold">${metrics.presupuestoComprometido.toLocaleString('es-CL')}</span>
-                </p>
-                <p className="text-xs text-emerald-200 mt-0.5">
-                  Total con comprometido: <span className="font-semibold">${(metrics.presupuestoUtilizado + metrics.presupuestoComprometido).toLocaleString('es-CL')}</span>
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-md bg-gradient-to-br from-amber-500 to-orange-600 text-white" data-testid="card-presupuesto-disponible">
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-amber-100">Presupuesto Disponible</p>
-            <p className="text-2xl font-bold mt-1">
-              ${metrics && metrics.presupuestoDisponible != null ? metrics.presupuestoDisponible.toLocaleString('es-CL') : '0'}
-            </p>
-            <p className="text-xs text-amber-200 mt-1">
-              {metrics?.totalSolicitudes || 0} solicitudes totales
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Gastos Detail Modal */}
-      <Dialog open={gastosModalOpen} onOpenChange={setGastosModalOpen}>
-        <DialogContent className="sm:max-w-[750px] max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-emerald-600" />
-              Gastos — {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][mes - 1]} {anio}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {gastos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <Receipt className="h-12 w-12 mb-3 opacity-30" />
-                <p className="font-medium">Sin gastos registrados para este mes</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white">
-                  <tr className="border-b-2 border-slate-200">
-                    <th className="px-3 py-2 text-left font-bold text-slate-600">Concepto</th>
-                    <th className="px-3 py-2 text-left font-bold text-slate-600">Categoría</th>
-                    <th className="px-3 py-2 text-left font-bold text-slate-600">Proveedor</th>
-                    <th className="px-3 py-2 text-center font-bold text-slate-600">N° Factura</th>
-                    <th className="px-3 py-2 text-center font-bold text-slate-600">Estado</th>
-                    <th className="px-3 py-2 text-right font-bold text-slate-600">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gastos.map((g: any, idx: number) => (
-                    <tr key={g.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                      <td className="px-3 py-2">
-                        <div className="font-medium text-slate-800">{g.concepto}</div>
-                        {g.descripcion && <div className="text-xs text-slate-400 line-clamp-1">{g.descripcion}</div>}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-slate-600">{g.categoria || '—'}</td>
-                      <td className="px-3 py-2 text-xs text-slate-600">{g.proveedor || '—'}</td>
-                      <td className="px-3 py-2 text-center text-xs text-slate-500">{g.numeroFactura || '—'}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium border ${g.estado === 'facturado' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
-                          g.estado === 'con_oc' ? 'bg-blue-50 text-blue-700 border-blue-300' :
-                            'bg-yellow-50 text-yellow-700 border-yellow-300'
-                          }`}>
-                          {g.estado === 'facturado' ? 'Facturado' : g.estado === 'con_oc' ? 'Con OC' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">
-                        ${parseFloat(g.monto || '0').toLocaleString('es-CL', { maximumFractionDigits: 0 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-slate-800 text-white">
-                    <td className="px-3 py-2 font-bold" colSpan={5}>Total</td>
-                    <td className="px-3 py-2 text-right font-bold tabular-nums">
-                      ${gastos.reduce((sum: number, g: any) => sum + parseFloat(g.monto || '0'), 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setGastosModalOpen(false)}>Cerrar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-// Pasos Checklist Component
-function PasosChecklist({
-  solicitudId,
-  pasos,
-  userRole,
-}: {
-  solicitudId: string;
-  pasos: { nombre: string; completado: boolean; orden: number }[];
-  userRole: string;
-}) {
-  const { toast } = useToast();
-
-  const togglePasoMutation = useMutation({
-    mutationFn: async ({ index }: { index: number }) => {
-      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitudId}/pasos/${index}/toggle`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el paso",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleToggle = (index: number) => {
-    if (userRole === 'admin' || (userRole === 'supervisor' || userRole === 'encargado_area')) {
-      togglePasoMutation.mutate({ index });
-    }
-  };
-
-  if (!pasos || pasos.length === 0) {
-    return <span className="text-muted-foreground italic text-sm">Sin pasos</span>;
-  }
-
-  return (
-    <div className="space-y-1">
-      {pasos.map((paso, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={paso.completado}
-            onChange={() => handleToggle(index)}
-            disabled={userRole !== 'admin' && (userRole !== 'supervisor' && userRole !== 'encargado_area')}
-            className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
-            data-testid={`checkbox-paso-${index}`}
+        {seccion === "gastos" && (
+          <GastosTabMarketing
+            userRole={user.role}
+            selectedMes={selectedMes}
+            setSelectedMes={setSelectedMes}
+            selectedAnio={selectedAnio}
+            setSelectedAnio={setSelectedAnio}
           />
-          <span className={`text-sm ${paso.completado ? 'line-through text-muted-foreground' : ''}`}>
-            {paso.nombre}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+        )}
 
-// Marketing Tasks List Component
-function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number; userRole: string; }) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [newComment, setNewComment] = useState('');
+        {seccion === "presupuesto" && (
+          <PresupuestoTabMarketing
+            userRole={user.role}
+            selectedMes={selectedMes}
+            setSelectedMes={setSelectedMes}
+            selectedAnio={selectedAnio}
+            setSelectedAnio={setSelectedAnio}
+          />
+        )}
 
-  const { data: tasks, isLoading } = useQuery<any[]>({
-    queryKey: ['/api/tasks/marketing', mes, anio],
-    queryFn: async () => {
-      const response = await fetch('/api/tasks', { credentials: 'include' });
-      if (!response.ok) {
-        throw new Error('Error al cargar tareas');
-      }
-      const allTasks = await response.json();
-      return allTasks.filter((t: any) => t.segmento === 'marketing');
-    },
-  });
-
-  // Get comments for selected task
-  const assignmentId = selectedTask?.assignments?.[0]?.id;
-  const { data: comments = [], isLoading: isLoadingComments } = useQuery<any[]>({
-    queryKey: ['/api/tasks', selectedTask?.id, 'comments', assignmentId],
-    queryFn: async () => {
-      if (!selectedTask?.id || !assignmentId) return [];
-      const res = await fetch(`/api/tasks/${selectedTask.id}/assignments/${assignmentId}/comments`, { credentials: 'include' });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!selectedTask && !!assignmentId,
-  });
-
-  const addCommentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      if (!selectedTask?.id || !assignmentId) throw new Error('No assignment');
-      const res = await fetch(`/api/tasks/${selectedTask.id}/assignments/${assignmentId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ content }),
-      });
-      if (!res.ok) throw new Error('Error al agregar comentario');
-      return res.json();
-    },
-    onSuccess: () => {
-      setNewComment('');
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', selectedTask?.id, 'comments'] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error('Error al actualizar estado');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
-      toast({ title: "Estado actualizado" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Error al eliminar tarea');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
-      toast({ title: "Tarea eliminada" });
-      setSelectedTask(null);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleDelete = (e: React.MouseEvent, taskId: string, taskTitle: string) => {
-    e.stopPropagation();
-    if (window.confirm(`¿Eliminar la tarea "${taskTitle}"?`)) {
-      deleteMutation.mutate(taskId);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completada': return 'bg-green-100 text-green-800 border-green-200';
-      case 'en_progreso': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-orange-100 text-orange-800 border-orange-200';
-    }
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case 'high': return { label: 'Alta', color: 'text-red-600' };
-      case 'medium': return { label: 'Media', color: 'text-yellow-600' };
-      default: return { label: 'Baja', color: 'text-green-600' };
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        {seccion === "proveedores" && <ProveedoresTabMarketing userRole={user.role} />}
       </div>
-    );
-  }
-
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Tareas de Marketing</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {tasks && tasks.length > 0 ? (
-            <div className="space-y-4">
-              {tasks.map((task: any) => (
-                <Card
-                  key={task.id}
-                  className="p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-orange-200"
-                  onClick={() => setSelectedTask(task)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg">{task.title}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <Badge className={getStatusColor(task.status)}>{task.status}</Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={(e) => handleDelete(e, task.id, task.title)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No hay tareas de marketing registradas en este mes.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Task Detail Modal */}
-      <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) setSelectedTask(null); }}>
-        <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto p-0">
-          {selectedTask && (() => {
-            const priority = getPriorityLabel(selectedTask.priority);
-            const payload = selectedTask.payload || {};
-            return (
-              <>
-                {/* Header */}
-                <div className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-orange-50 to-orange-50">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-xl font-bold text-slate-900">{selectedTask.title}</h2>
-                      {selectedTask.description && (
-                        <p className="text-sm text-slate-600 mt-1">{selectedTask.description}</p>
-                      )}
-                    </div>
-                    <Badge className={`${getStatusColor(selectedTask.status)} text-xs`}>{selectedTask.status}</Badge>
-                  </div>
-                </div>
-
-                {/* Info Grid */}
-                <div className="px-6 py-4 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-xs text-slate-500 font-medium uppercase">Prioridad</p>
-                      <p className={`text-sm font-semibold mt-0.5 ${priority.color}`}>{priority.label}</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-xs text-slate-500 font-medium uppercase">Creada</p>
-                      <p className="text-sm font-semibold mt-0.5">{selectedTask.createdAt ? new Date(selectedTask.createdAt).toLocaleDateString('es-CL') : '-'}</p>
-                    </div>
-                    {selectedTask.dueDate && (
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-500 font-medium uppercase">Fecha límite</p>
-                        <p className="text-sm font-semibold mt-0.5">{new Date(selectedTask.dueDate).toLocaleDateString('es-CL')}</p>
-                      </div>
-                    )}
-                    {payload.plataforma && (
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-500 font-medium uppercase">Plataforma</p>
-                        <p className="text-sm font-semibold mt-0.5 capitalize">{payload.plataforma}</p>
-                      </div>
-                    )}
-                    {payload.presupuesto && (
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-500 font-medium uppercase">Presupuesto</p>
-                        <p className="text-sm font-semibold mt-0.5">${parseInt(payload.presupuesto).toLocaleString('es-CL')}</p>
-                      </div>
-                    )}
-                    {payload.urlReferencia && (
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-500 font-medium uppercase">Enlace</p>
-                        <a href={payload.urlReferencia} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold mt-0.5 text-orange-600 hover:underline flex items-center gap-1">
-                          Ver <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status Change */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">Cambiar estado:</span>
-                    <div className="flex gap-1.5">
-                      {['pendiente', 'en_progreso', 'completada'].map((status) => (
-                        <Button
-                          key={status}
-                          size="sm"
-                          variant={selectedTask.status === status ? 'default' : 'outline'}
-                          className={`text-xs h-7 ${selectedTask.status === status ? '' : 'hover:bg-slate-100'}`}
-                          onClick={() => {
-                            updateStatusMutation.mutate({ taskId: selectedTask.id, status });
-                            setSelectedTask({ ...selectedTask, status });
-                          }}
-                          disabled={updateStatusMutation.isPending}
-                        >
-                          {status === 'pendiente' ? '⏳ Pendiente' : status === 'en_progreso' ? '🔄 En Progreso' : '✅ Completada'}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Bitácora */}
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold text-base flex items-center gap-2 mb-3">
-                      <History className="h-4 w-4 text-orange-500" />
-                      Bitácora
-                    </h3>
-
-                    {/* Add Comment */}
-                    <div className="flex gap-2 mb-4">
-                      <Input
-                        placeholder="Agregar nota a la bitácora..."
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newComment.trim()) {
-                            addCommentMutation.mutate(newComment.trim());
-                          }
-                        }}
-                        className="flex-1"
-                      />
-                      <Button
-                        size="sm"
-                        disabled={!newComment.trim() || addCommentMutation.isPending || !assignmentId}
-                        onClick={() => {
-                          if (newComment.trim()) addCommentMutation.mutate(newComment.trim());
-                        }}
-                        className="bg-[#fd6301] hover:bg-[#e35400]"
-                      >
-                        {addCommentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      </Button>
-                    </div>
-
-                    {/* Comments List */}
-                    {isLoadingComments ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                      </div>
-                    ) : comments.length > 0 ? (
-                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                        {comments.map((comment: any) => (
-                          <div key={comment.id} className="flex gap-3 p-3 bg-slate-50 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                              <span className="text-xs font-bold text-orange-600">
-                                {(comment.authorName || 'U').charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-slate-900">{comment.authorName || 'Usuario'}</span>
-                                <span className="text-xs text-slate-400">
-                                  {comment.createdAt ? new Date(comment.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : ''}
-                                </span>
-                              </div>
-                              <p className="text-sm text-slate-700 mt-0.5">{comment.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 text-sm text-slate-400">
-                        Sin entradas en la bitácora aún.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 py-3 border-t flex justify-between items-center bg-slate-50">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => {
-                      if (window.confirm(`¿Eliminar la tarea "${selectedTask.title}"?`)) {
-                        deleteMutation.mutate(selectedTask.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" /> Eliminar
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setSelectedTask(null)}>
-                    Cerrar
-                  </Button>
-                </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-
-// Presupuesto Dialog Component
-function PresupuestoDialog({
-  open,
-  onOpenChange,
-  mes,
-  anio,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  mes: number;
-  anio: number;
-}) {
-  const { toast } = useToast();
-  const currentDate = new Date();
-  const [presupuestoTotal, setPresupuestoTotal] = useState("");
-  const [selectedMes, setSelectedMes] = useState(currentDate.getMonth() + 1);
-  const [selectedAnio, setSelectedAnio] = useState(currentDate.getFullYear());
-
-  const mesesNombres = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-  ];
-
-  const { data: presupuestoActual } = useQuery({
-    queryKey: ['/api/marketing/presupuesto', selectedMes, selectedAnio],
-    queryFn: async () => {
-      const response = await fetch(`/api/marketing/presupuesto/${selectedMes}/${selectedAnio}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error('Error al cargar presupuesto');
-      }
-      return response.json();
-    },
-    enabled: open,
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: async (data: { mes: number; anio: number; presupuestoTotal: number }) => {
-      return await apiRequest('POST', '/api/marketing/presupuesto', data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/presupuesto'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-      toast({
-        title: "Presupuesto guardado",
-        description: "El presupuesto ha sido configurado correctamente",
-      });
-      onOpenChange(false);
-      setPresupuestoTotal("");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo guardar el presupuesto",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSave = () => {
-    const monto = parseFloat(presupuestoTotal);
-    if (isNaN(monto) || monto <= 0) {
-      toast({
-        title: "Error",
-        description: "Ingrese un monto válido",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    saveMutation.mutate({
-      mes: selectedMes,
-      anio: selectedAnio,
-      presupuestoTotal: monto,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-presupuesto" className="w-[95vw] sm:w-full">
-        <DialogHeader>
-          <DialogTitle>Configurar Presupuesto Mensual</DialogTitle>
-          <DialogDescription>
-            Seleccione el período y configure el presupuesto total
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="mes-presupuesto">Mes</Label>
-              <Select
-                value={selectedMes.toString()}
-                onValueChange={(value) => setSelectedMes(parseInt(value))}
-              >
-                <SelectTrigger id="mes-presupuesto" data-testid="select-mes-presupuesto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mesesNombres.map((mes, index) => (
-                    <SelectItem key={index + 1} value={(index + 1).toString()}>
-                      {mes}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="anio-presupuesto">Año</Label>
-              <Select
-                value={selectedAnio.toString()}
-                onValueChange={(value) => setSelectedAnio(parseInt(value))}
-              >
-                <SelectTrigger id="anio-presupuesto" data-testid="select-anio-presupuesto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[2024, 2025, 2026].map((anio) => (
-                    <SelectItem key={anio} value={anio.toString()}>
-                      {anio}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          {presupuestoActual && (
-            <div className="p-4 bg-muted rounded-md">
-              <p className="text-sm text-muted-foreground">Presupuesto actual para {mesesNombres[selectedMes - 1]} {selectedAnio}:</p>
-              <p className="text-2xl font-bold">
-                ${parseFloat(presupuestoActual.presupuestoTotal).toLocaleString('es-CL')}
-              </p>
-            </div>
-          )}
-          <div>
-            <Label htmlFor="presupuestoTotal">Presupuesto Total (CLP)</Label>
-            <Input
-              id="presupuestoTotal"
-              type="number"
-              placeholder="Ej: 5000000"
-              value={presupuestoTotal}
-              onChange={(e) => setPresupuestoTotal(e.target.value)}
-              data-testid="input-presupuesto-total"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-presupuesto"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            data-testid="button-guardar-presupuesto"
-          >
-            {saveMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              'Guardar'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
-// Marketing Task Dialog
-function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void; }) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-
-
-
-  const form = useForm<CreateMarketingTaskInput>({
-    resolver: zodResolver(createMarketingTaskSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      type: "texto",
-      priority: "medium",
-      dueDate: null,
-      clienteId: null,
-      clienteNombre: null,
-      plataforma: "general",
-      presupuesto: "",
-      urlReferencia: "",
-      assignments: [],
-    },
-  });
-
-  const createMutation = useMutation<any, Error, CreateMarketingTaskInput & { segmento: string; payload?: Record<string, any> }>({
-    mutationFn: async (data) => {
-      const res = await apiRequest("POST", "/api/tasks", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
-      toast({ title: "Tarea de marketing creada" });
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const onSubmit = (data: CreateMarketingTaskInput) => {
-    const payload = {
-      plataforma: data.plataforma,
-      presupuesto: data.presupuesto,
-      urlReferencia: data.urlReferencia
-    };
-    // Auto-assign to creator
-    const autoAssignments = [{
-      assigneeType: ((user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'admin' ? 'supervisor' : 'salesperson') as 'supervisor' | 'salesperson',
-      assigneeId: user?.id || '',
-    }];
-    createMutation.mutate({ ...data, assignments: autoAssignments, payload, segmento: "marketing" });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-        <DialogHeader className="p-6 pb-4 bg-slate-900 border-b relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
-          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-
-          <div className="relative flex items-start gap-4">
-            <div className="p-2.5 bg-orange-500/20 rounded-xl border border-orange-500/20 shadow-inner">
-              <CheckSquare className="h-6 w-6 text-orange-400" />
-            </div>
-            <div>
-              <DialogTitle className="text-xl text-white font-semibold">Nueva Tarea de Marketing</DialogTitle>
-              <DialogDescription className="text-slate-400 mt-1">
-                Completa los detalles de la tarea (Segmento: Marketing por defecto)
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-
-            {/* Sección 1: Info Básica */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                Información de la tarea
-              </div>
-              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TÍTULO *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Ej: Revisar campaña de redes sociales..."
-                          className="bg-white border-slate-200"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">DESCRIPCIÓN</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Agrega detalles, instrucciones o contexto..."
-                          className="min-h-[100px] resize-none bg-white border-slate-200"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Sección 2: Plazos (2 columnas porque quitamos segmento y prioridad visualmente) */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                Fecha Límite
-              </div>
-              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
-                <FormField
-                  control={form.control}
-                  name="dueDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FECHA LÍMITE</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          className="bg-white border-slate-200"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Sección Marketing fields */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-                Datos de Marketing
-              </div>
-              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="plataforma"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">PLATAFORMA</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-white border-slate-200">
-                              <SelectValue placeholder="Selecciona..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="general">General</SelectItem>
-                            <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
-                            <SelectItem value="linkedin">LinkedIn</SelectItem>
-                            <SelectItem value="tiktok">TikTok</SelectItem>
-                            <SelectItem value="youtube">YouTube</SelectItem>
-                            <SelectItem value="web">Sitio Web</SelectItem>
-                            <SelectItem value="impreso">Impreso/Físico</SelectItem>
-                            <SelectItem value="evento">Evento</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="presupuesto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">PRESUPUESTO ESTIMADO (CLP)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="Ej: 50000"
-                            className="bg-white border-slate-200"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="urlReferencia"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">ENLACE / CARPETA DRIVE (OPCIONAL)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://..."
-                          className="bg-white border-slate-200"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-
-
-            <DialogFooter className="sticky bottom-0 bg-white pt-4 mt-6 border-t border-slate-100 flex items-center justify-end gap-3 sm:justify-end">
-              <Button type="button" variant="outline" className="rounded-xl font-medium" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20">
-                {createMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando...</>
-                ) : (
-                  <><Plus className="h-4 w-4 mr-2" /> Crear Tarea</>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog >
+    </div>
   );
 }
 

@@ -36,7 +36,9 @@ import {
   BookOpen,
   MapPin,
   Mail,
-  Send
+  Send,
+  CalendarClock,
+  Inbox
 } from "lucide-react";
 
 export interface SidebarItem {
@@ -50,6 +52,40 @@ export interface SidebarItem {
   isExternalCatalog?: boolean; // Para el enlace dinámico al catálogo público
   isPremium?: boolean; // Para items con estilo dorado premium (ej: Panorámica Market)
 }
+
+/**
+ * Sub-secciones del módulo Marketing.
+ *
+ * Viven acá, en el sidebar de la app, y no en un segundo menú dentro de la página:
+ * son rutas reales (`/marketing/...`), así el ítem activo se resuelve por URL como
+ * en cualquier otro módulo y un enlace se puede compartir.
+ *
+ * El orden es el del trabajo: primero lo que hay que hacer hoy, después la bandeja
+ * de lo que llega desde otros departamentos, después lo propio, y al final la parte
+ * administrativa del área.
+ */
+const MARKETING_CHILDREN: SidebarItem[] = [
+  { href: "/marketing/hoy", label: "Hoy", icon: CalendarClock },
+  { href: "/marketing/solicitudes", label: "Solicitudes", icon: Inbox },
+  { href: "/marketing/mis-tareas", label: "Mis tareas", icon: CheckSquare },
+  { href: "/marketing/email", label: "Email Marketing", icon: Send },
+  { href: "/marketing/inventario", label: "Inventario", icon: Package },
+  { href: "/marketing/gastos", label: "Gastos", icon: Receipt },
+  { href: "/marketing/presupuesto", label: "Presupuesto", icon: DollarSign },
+  { href: "/marketing/proveedores", label: "Proveedores", icon: Users },
+];
+
+/** Copia fresca de las sub-secciones (el sidebar final se arma y filtra por rol). */
+export const marketingChildren = (): SidebarItem[] => MARKETING_CHILDREN.map((c) => ({ ...c }));
+
+/** Ítem de Marketing completo, con sus sub-secciones. */
+export const marketingSidebarItem = (extra: Partial<SidebarItem> = {}): SidebarItem => ({
+  href: "/marketing",
+  label: "Marketing",
+  icon: TrendingUp,
+  children: marketingChildren(),
+  ...extra,
+});
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
@@ -162,12 +198,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     // ── Marketing ──
     // Email Marketing salió del sidebar: vive como pestaña del módulo Marketing
     // (la ruta /campanas sigue activa y el permiso market.campanas la gobierna).
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-      separator: true,
-    },
+    marketingSidebarItem({ separator: true }),
     // ── Finanzas ──
     {
       href: "/facturas",
@@ -463,11 +494,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
       separator: true,
     },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
+    marketingSidebarItem(),
     {
       href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
@@ -673,12 +700,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Clientes",
       icon: Users,
     },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-      separator: true,
-    },
+    marketingSidebarItem({ separator: true }),
     {
       href: "/tareas",
       label: "Panel de Trabajo",
@@ -1103,18 +1125,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
   ],
 
-  marketing: [
-    {
-      href: "/tareas",
-      label: "Panel de Trabajo",
-      icon: CheckCircle2,
-    },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-  ],
+  // El rol Marketing trabaja entero dentro de su módulo: "Hoy", la bandeja de
+  // solicitudes y sus tareas viven ahí. Antes tenía además el Panel de Trabajo, que
+  // le mostraba lo mismo con otra interfaz (una bandeja de solicitudes distinta y un
+  // "Mis tareas" paralelo) y era la principal fuente de confusión.
+  marketing: [marketingSidebarItem()],
 };
 
 const GASTOS_SIDEBAR_ITEM: SidebarItem = {
