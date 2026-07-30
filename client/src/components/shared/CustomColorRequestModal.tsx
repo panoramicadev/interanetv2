@@ -29,7 +29,9 @@ import {
   Phone,
   Building,
   MapPin,
+  Layers,
 } from 'lucide-react';
+import { SEGMENTOS_COTIZACION_WEB } from '@shared/segmentos-cotizacion-web';
 
 interface Props {
   open: boolean;
@@ -102,6 +104,8 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
     visitorPhone: '',
     visitorCompany: '',
     visitorCity: '',
+    // Rutea la solicitud al CRM del área correspondiente
+    segmento: '',
     quantity: String(MIN_TINETAS),
     message: '',
   });
@@ -127,6 +131,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           visitorPhone: '',
           visitorCompany: '',
           visitorCity: '',
+          segmento: '',
           quantity: String(MIN_TINETAS),
           message: '',
         });
@@ -225,6 +230,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
     if (!form.visitorEmail.trim()) e.visitorEmail = 'Email es requerido';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.visitorEmail))
       e.visitorEmail = 'Email inválido';
+    if (!form.segmento) e.segmento = 'Selecciona tu segmento';
     const qty = Number(form.quantity);
     const min = minQtyFor(selectedFormat);
     const unit = unitLabelFor(selectedFormat);
@@ -249,6 +255,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
         visitorPhone: form.visitorPhone.trim() || null,
         visitorCompany: form.visitorCompany.trim() || null,
         visitorCity: form.visitorCity.trim() || null,
+        segmento: form.segmento || undefined,
         message: [
           `COTIZACIÓN COLOR PERSONALIZADO`,
           `Producto: ${selectedProduct.genericName}`,
@@ -894,6 +901,32 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all"
                           placeholder="Empresa (opcional)"
                         />
+                      </div>
+
+                      {/* Segmento — rutea la solicitud al CRM del área */}
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> Segmento *
+                        </label>
+                        <select
+                          value={form.segmento}
+                          onChange={e => {
+                            setForm(p => ({ ...p, segmento: e.target.value }));
+                            if (errors.segmento) setErrors(p => ({ ...p, segmento: '' }));
+                          }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all ${
+                            errors.segmento ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                          } ${form.segmento ? 'text-slate-800' : 'text-slate-400'}`}
+                          data-testid="select-segmento-color"
+                        >
+                          <option value="">Selecciona tu segmento</option>
+                          {SEGMENTOS_COTIZACION_WEB.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                        {errors.segmento && (
+                          <p className="text-xs text-red-500 mt-1">{errors.segmento}</p>
+                        )}
                       </div>
 
                       {/* City */}

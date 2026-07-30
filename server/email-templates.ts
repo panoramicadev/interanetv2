@@ -440,12 +440,17 @@ interface QuoteInternalNotifyData {
   visitorCompany?: string | null;
   visitorCity?: string | null;
   visitorRut?: string | null;
+  /** Segmento declarado por el visitante (Construcción / Ferretería / Industrial). */
+  segmento?: string | null;
+  /** Lead creado en el CRM de seguimiento, si se pudo crear. */
+  crmLeadId?: string | null;
   message?: string | null;
   items: Array<{ productName: string; color?: string; format?: string; quantity: number }>;
 }
 
 export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { subject: string; html: string } {
-  const subject = `📋 Nueva cotización web: ${data.visitorName} (${data.items.length} producto${data.items.length === 1 ? '' : 's'})`;
+  const segmentoTag = data.segmento ? `[${data.segmento}] ` : '';
+  const subject = `📋 ${segmentoTag}Nueva cotización web: ${data.visitorName} (${data.items.length} producto${data.items.length === 1 ? '' : 's'})`;
 
   const contactRow = (label: string, value?: string | null) => value ? `
     <tr>
@@ -465,6 +470,7 @@ export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { 
       Llegó una solicitud desde el cotizador web. Datos de contacto:
     </p>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
+      ${contactRow('Segmento', data.segmento)}
       ${contactRow('Nombre', data.visitorName)}
       ${contactRow('Email', data.visitorEmail)}
       ${contactRow('Teléfono', data.visitorPhone)}
@@ -472,6 +478,11 @@ export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { 
       ${contactRow('Ciudad', data.visitorCity)}
       ${contactRow('RUT', data.visitorRut)}
     </table>
+    ${data.crmLeadId ? `
+    <p style="color: #16a34a; font-size: 13px; margin: 0 0 16px 0;">
+      ✅ Ya quedó en el CRM de ${data.segmento || 'su segmento'} con la etiqueta <strong>COTIZACIÓN WEB</strong>.
+      <a href="${PUBLIC_BASE_URL.replace(/\/$/, '')}/seguimiento-clientes/${data.crmLeadId}" style="color: #fd6301;">Ver el lead</a>
+    </p>` : ''}
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
       <thead>
         <tr style="background-color: #1a1f2e;">

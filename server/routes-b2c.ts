@@ -16,7 +16,9 @@ import {
   deleteQuoteRequest,
 } from './services/quote-request.service';
 import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
+import { linkQuoteRequestToCrm } from './services/crm-web-lead.service';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
+import { segmentoCotizacionWebLabel } from '@shared/segmentos-cotizacion-web';
 import { db } from './db';
 import { eq, sql } from 'drizzle-orm';
 import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
@@ -168,6 +170,11 @@ export function registerB2CRoutes(app: Express) {
 
       const request = await createQuoteRequest(validationResult.data);
 
+      // La solicitud cae además como lead en el CRM del segmento declarado,
+      // etiquetada "COTIZACIÓN WEB". Nunca puede tumbar el POST público: la
+      // cotización ya quedó guardada en quote_requests.
+      const crmLeadId = await linkQuoteRequestToCrm(request);
+
       // Customer-facing auto-confirmation
       try {
         const { sendAutoCustomerEmail } = await import('./notifications-helper');
@@ -198,6 +205,8 @@ export function registerB2CRoutes(app: Express) {
           visitorCompany: validationResult.data.visitorCompany,
           visitorCity: validationResult.data.visitorCity,
           visitorRut: validationResult.data.visitorRut,
+          segmento: segmentoCotizacionWebLabel(validationResult.data.segmento),
+          crmLeadId,
           message: validationResult.data.message,
           items: (validationResult.data.items || []) as any[],
         });

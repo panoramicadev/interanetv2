@@ -5,9 +5,11 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw, DollarSign, Palette, Printer, Trash2, StickyNote, Save } from 'lucide-react';
+import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw, DollarSign, Palette, Printer, Trash2, StickyNote, Save, Layers } from 'lucide-react';
+import { Link } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import QuoteRequestPricingModal from '@/components/b2c-admin/QuoteRequestPricingModal';
+import { ETIQUETA_COTIZACION_WEB, segmentoCotizacionWebLabel } from '@shared/segmentos-cotizacion-web';
 
 interface QuoteRequestItem {
   sku: string;
@@ -33,6 +35,8 @@ interface QuoteRequest {
   visitorCompany?: string;
   visitorCity?: string;
   visitorRut?: string;
+  segmento?: string;
+  crmSeguimientoId?: string;
   message?: string;
   items: QuoteRequestItem[];
   itemCount: number;
@@ -148,7 +152,8 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
         r.visitorName.toLowerCase().includes(term) ||
         r.visitorEmail.toLowerCase().includes(term) ||
         (r.visitorCompany || '').toLowerCase().includes(term) ||
-        (r.visitorCity || '').toLowerCase().includes(term)
+        (r.visitorCity || '').toLowerCase().includes(term) ||
+        (segmentoCotizacionWebLabel(r.segmento) || '').toLowerCase().includes(term)
       );
     }
     return true;
@@ -285,6 +290,11 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-gray-800 text-sm truncate">{request.visitorName}</span>
+                      {segmentoCotizacionWebLabel(request.segmento) && (
+                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wide">
+                          {segmentoCotizacionWebLabel(request.segmento)}
+                        </span>
+                      )}
                       {request.visitorCompany && (
                         <span className="text-xs text-gray-400 hidden sm:inline">· {request.visitorCompany}</span>
                       )}
@@ -365,7 +375,27 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                               </div>
                             </div>
                           )}
+                          {segmentoCotizacionWebLabel(request.segmento) && (
+                            <div className="flex items-start gap-2">
+                              <Layers className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[10px] text-gray-400 uppercase">Segmento</p>
+                                <p className="text-sm font-semibold text-gray-800">{segmentoCotizacionWebLabel(request.segmento)}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Lead creado automáticamente en el CRM del segmento */}
+                        {request.crmSeguimientoId && (
+                          <Link
+                            href={`/seguimiento-clientes/${request.crmSeguimientoId}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#FF6E23] hover:underline"
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            Ver lead en el CRM · etiqueta {ETIQUETA_COTIZACION_WEB}
+                          </Link>
+                        )}
 
                         {request.message && (
                           <div className="mt-3">
