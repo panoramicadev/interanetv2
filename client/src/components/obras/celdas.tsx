@@ -181,6 +181,49 @@ export function BadgeDesviacion({
   );
 }
 
+/**
+ * Celda de rendimiento: cuánto producto se está yendo por vivienda.
+ *
+ * Antes esta columna era solo la desviación contra el rendimiento declarado, y
+ * como casi nadie alcanza a declararlo mostraba "—" en toda la planilla. Lo que
+ * se necesita saber primero es el número crudo —utilizado ÷ viviendas pintadas—
+ * que sale con lo que ya está cargado. La desviación queda al lado, y solo
+ * aparece cuando además hay un rendimiento declarado contra el cual comparar.
+ */
+export function CeldaRendimiento({
+  real,
+  unidad,
+  desviacion,
+  hayDesviacion,
+  detalle,
+}: {
+  real: number;
+  /** Unidad del producto; en la fila de la obra se omite (mezcla productos). */
+  unidad?: string | null;
+  desviacion: number;
+  hayDesviacion: boolean;
+  detalle?: string;
+}) {
+  if (real <= 0) {
+    return <SinDato title="Faltan viviendas pintadas o consumo cargado para calcularlo" />;
+  }
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <span
+        className="font-bold tabular-nums text-slate-700 dark:text-slate-200"
+        title={
+          detalle ??
+          `Se está usando ${fmtDec(real)}${unidad ? ` ${unidad}` : ""} por vivienda pintada`
+        }
+      >
+        {fmtDec(real)}
+      </span>
+      <span className="text-[10px] text-slate-400">/viv</span>
+      {hayDesviacion && <BadgeDesviacion desviacion={desviacion} hayDato detalle={detalle} />}
+    </div>
+  );
+}
+
 export function BadgeEstado({ estado }: { estado: EstadoObra }) {
   const est = ESTADO_MAP[estado];
   return (
@@ -308,6 +351,74 @@ export function TextoEditable({
       placeholder={placeholder}
       title={title}
       className={`h-6 rounded-md border border-transparent bg-transparent px-1 hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors ${className}`}
+      data-testid={testId}
+    />
+  );
+}
+
+/**
+ * Nombre editable que se ve COMPLETO.
+ *
+ * Los nombres del catálogo son largos ("LATEX CONSTRUCCION BLANCO TINETA 5 GL")
+ * y en un input de ancho fijo se cortaban justo en la parte que distingue un SKU
+ * de otro: en la planilla se leían dos productos idénticos. Fuera de edición es
+ * texto que envuelve en varias líneas; recién al hacer clic se vuelve editable.
+ */
+export function NombreEditable({
+  valor,
+  onGuardar,
+  className = "",
+  testId,
+}: {
+  valor: string;
+  onGuardar: (valor: string) => void;
+  className?: string;
+  testId: string;
+}) {
+  const [texto, setTexto] = useState(valor);
+  const [editando, setEditando] = useState(false);
+
+  useEffect(() => {
+    if (!editando) setTexto(valor);
+  }, [valor, editando]);
+
+  if (!editando) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        title="Clic para editar el nombre"
+        className={`block text-left rounded-md border border-transparent px-1 py-0.5 leading-snug break-words hover:border-slate-200 dark:hover:border-slate-700 transition-colors ${className}`}
+        data-testid={testId}
+      >
+        {valor || <span className="text-slate-400 font-normal">Sin nombre</span>}
+      </button>
+    );
+  }
+
+  return (
+    <textarea
+      autoFocus
+      rows={2}
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() => {
+        setEditando(false);
+        const limpio = texto.trim();
+        if (limpio !== (valor ?? "").trim()) onGuardar(limpio);
+      }}
+      onKeyDown={(e) => {
+        // Enter guarda (el nombre es de una línea aunque se muestre en varias).
+        if (e.key === "Enter") {
+          e.preventDefault();
+          (e.target as HTMLTextAreaElement).blur();
+        }
+        if (e.key === "Escape") {
+          setTexto(valor);
+          setEditando(false);
+        }
+      }}
+      className={`block resize-none rounded-md border border-orange-400 bg-white dark:bg-slate-900 px-1 py-0.5 leading-snug focus:outline-none focus:ring-2 focus:ring-orange-400/20 ${className}`}
       data-testid={testId}
     />
   );

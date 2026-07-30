@@ -19,7 +19,7 @@
 import type { ObraProducto } from "@shared/schema";
 import { fmt, fmtDec, fmtPct, toInt, toNum } from "./formato";
 import type { ObraCalculada, ProductoCalculado, Totales } from "./calculos";
-import { BORDE_GRUPO, BadgeDesviacion, BadgeEstado, BarraAvance, InputCantidad, Numero, SinDato } from "./celdas";
+import { BORDE_GRUPO, BadgeEstado, BarraAvance, CeldaRendimiento, InputCantidad, Numero, SinDato } from "./celdas";
 
 /** Todo lo que una celda de producto necesita para dibujarse y guardarse. */
 export interface CeldaProducto {
@@ -231,21 +231,41 @@ export const COLUMNAS: ColumnaDef[] = [
 
   // ---- Qué hago ----------------------------------------------------------
   {
-    // Reemplaza al viejo "teórico vs real": el número suelto no decía nada, lo
-    // que se necesita saber es si el producto está rindiendo lo prometido.
+    // Cuánto producto se está yendo en cada vivienda (utilizado ÷ pintadas), que
+    // es lo que se va a preguntar en terreno y sale con lo que ya está cargado.
+    // La desviación contra el rendimiento declarado va al lado, cuando lo hay.
     key: "rendimiento",
     label: "Rendimiento",
-    title: "Consumo real vs el declarado (+ = se está gastando de más)",
+    title: "Consumo real por vivienda pintada (y su desviación vs lo declarado)",
     grupo: DECISION,
-    render: (f) => <BadgeDesviacion desviacion={f.desviacion} hayDato={f.consumoTeorico > 0} />,
-    renderProducto: (c) => (
-      <BadgeDesviacion
-        desviacion={c.calc.desviacion}
-        hayDato={c.calc.pintadas > 0 && c.calc.rendimiento > 0}
-        detalle={`Está rindiendo ${fmtDec(c.calc.rendimientoReal)} por vivienda; se declaró ${fmtDec(c.calc.rendimiento)}`}
+    render: (f) => (
+      <CeldaRendimiento
+        real={f.rendimientoReal}
+        desviacion={f.desviacion}
+        hayDesviacion={f.consumoTeorico > 0}
+        detalle={`La obra está usando ${fmtDec(f.rendimientoReal)} por vivienda (${fmtDec(f.usadas)} en ${fmt(f.pintadas)} pintadas, sumando todos sus productos)`}
       />
     ),
-    total: (t) => <BadgeDesviacion desviacion={t.desviacion} hayDato={t.consumoTeorico > 0} />,
+    renderProducto: (c) => (
+      <CeldaRendimiento
+        real={c.calc.rendimientoReal}
+        unidad={c.producto.unidad}
+        desviacion={c.calc.desviacion}
+        hayDesviacion={c.calc.pintadas > 0 && c.calc.rendimiento > 0}
+        detalle={
+          c.calc.rendimiento > 0
+            ? `Está rindiendo ${fmtDec(c.calc.rendimientoReal)} por vivienda; se declaró ${fmtDec(c.calc.rendimiento)}`
+            : `Está rindiendo ${fmtDec(c.calc.rendimientoReal)} por vivienda (${fmtDec(c.calc.utilizada)} en ${fmt(c.calc.pintadas)} pintadas). Declará el rendimiento esperado para compararlo.`
+        }
+      />
+    ),
+    total: (t) => (
+      <CeldaRendimiento
+        real={t.rendimientoReal}
+        desviacion={t.desviacion}
+        hayDesviacion={t.consumoTeorico > 0}
+      />
+    ),
   },
   {
     key: "sugerido",

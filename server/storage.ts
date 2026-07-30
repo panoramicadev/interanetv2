@@ -13495,8 +13495,14 @@ export class DatabaseStorage implements IStorage {
    *
    * Se busca por partes: cada palabra tiene que aparecer en código, nombre,
    * color o familia, así "latex blanco" encuentra el SKU aunque el color vaya
-   * al final del nombre. `products` e `inventory_products` completan la lista
-   * con los SKU que todavía no están en la lista de precios.
+   * al final del nombre.
+   *
+   * Las TRES fuentes se consultan siempre (antes `products` e
+   * `inventory_products` solo corrían si la lista de precios no había llenado el
+   * cupo): en obra se usan productos especiales —tonos de tintometría, formatos
+   * de bodega, insumos— que no están en el apartado comercial, y quedaban
+   * invisibles cada vez que la búsqueda daba muchos resultados comerciales.
+   * Cada ítem viaja con su `origen` para que el buscador muestre de dónde salió.
    */
   async buscarCatalogoObra(termino: string, limite = 20): Promise<CatalogoObraItem[]> {
     const tokens = String(termino || '')
@@ -13520,6 +13526,10 @@ export class DatabaseStorage implements IStorage {
       items.push(fila);
     };
 
+    // Cada fuente trae hasta el cupo completo; el corte final se hace después de
+    // juntarlas para que un producto de bodega no quede afuera por venir último.
+    const cupo = limite;
+
     // 1. Lista de precios + color del catálogo de ecommerce.
     try {
       const res = await db.execute(sql`
@@ -13532,7 +13542,7 @@ export class DatabaseStorage implements IStorage {
         LEFT JOIN ecommerce_products ep ON ep.price_list_id = pl.id
         WHERE ${filtro(sql`(pl.codigo || ' ' || pl.producto || ' ' || COALESCE(ep.color, '') || ' ' || COALESCE(ep.product_family, ''))`)}
         ORDER BY (UPPER(pl.codigo) = ${primerToken}) DESC, pl.producto
-        LIMIT ${limite}
+        LIMIT ${cupo}
       `);
       for (const r of ((res as any).rows || []) as any[]) {
         sumar({
@@ -13542,62 +13552,69 @@ export class DatabaseStorage implements IStorage {
           hex: null,
           familia: r.familia ?? null,
           unidad: r.unidad ?? null,
+          origen: 'precios',
         });
       }
     } catch (error: any) {
       console.error('⚠️ Catálogo de obra: falló la búsqueda en price_list:', error.message);
     }
 
-    // 2. Maestro de productos del ERP, por si el SKU no está en la lista de precios.
-    if (items.length < limite) {
-      try {
-        const res = await db.execute(sql`
-          SELECT kopr AS sku, name AS nombre, ud02pr AS unidad
-          FROM products
-          WHERE ${filtro(sql`(kopr || ' ' || name)`)}
-          ORDER BY (UPPER(kopr) = ${primerToken}) DESC, name
-          LIMIT ${limite}
-        `);
-        for (const r of ((res as any).rows || []) as any[]) {
-          sumar({
-            sku: String(r.sku ?? ''),
-            nombre: String(r.nombre ?? ''),
-            color: null,
-            hex: null,
-            familia: null,
-            unidad: r.unidad ?? null,
-          });
-        }
-      } catch (error: any) {
-        console.error('⚠️ Catálogo de obra: falló la búsqueda en products:', error.message);
+    // 2. Maestro de productos del ERP: los SKU que no están en la lista de precios.
+    try {
+      const res = await db.execute(sql`
+        SELECT kopr AS sku, name AS nombre, ud02pr AS unidad
+        FROM products
+        WHERE ${filtro(sql`(kopr || ' ' || name)`)}
+        ORDER BY (UPPER(kopr) = ${primerToken}) DESC, name
+        LIMIT ${cupo}
+      `);
+      for (const r of ((res as any).rows || []) as any[]) {
+        sumar({
+          sku: String(r.sku ?? ''),
+          nombre: String(r.nombre ?? ''),
+          color: null,
+          hex: null,
+          familia: null,
+          unidad: r.unidad ?? null,
+          origen: 'erp',
+        });
       }
+    } catch (error: any) {
+      console.error('⚠️ Catálogo de obra: falló la búsqueda en products:', error.message);
     }
 
-    // 3. Inventario: última red para SKU que solo existen en bodega.
-    if (items.length < limite) {
-      try {
-        const res = await db.execute(sql`
-          SELECT sku, MAX(nombre) AS nombre, MAX(unidad2) AS unidad
-          FROM inventory_products
-          WHERE ${filtro(sql`(sku || ' ' || nombre)`)}
-          GROUP BY sku
-          ORDER BY MAX(nombre)
-          LIMIT ${limite}
-        `);
-        for (const r of ((res as any).rows || []) as any[]) {
-          sumar({
-            sku: String(r.sku ?? ''),
-            nombre: String(r.nombre ?? ''),
-            color: null,
-            hex: null,
-            familia: null,
-            unidad: r.unidad ?? null,
-          });
-        }
-      } catch (error: any) {
-        console.error('⚠️ Catálogo de obra: falló la búsqueda en inventory_products:', error.message);
+    // 3. Inventario completo: los productos especiales de obra viven acá y en
+    //    muchos casos SOLO acá (no se venden por el canal comercial).
+    try {
+      const res = await db.execute(sql`
+        SELECT sku, MAX(nombre) AS nombre, MAX(unidad2) AS unidad
+        FROM inventory_products
+        WHERE ${filtro(sql`(sku || ' ' || nombre)`)}
+        GROUP BY sku
+        ORDER BY (UPPER(sku) = ${primerToken}) DESC, MAX(nombre)
+        LIMIT ${cupo}
+      `);
+      for (const r of ((res as any).rows || []) as any[]) {
+        sumar({
+          sku: String(r.sku ?? ''),
+          nombre: String(r.nombre ?? ''),
+          color: null,
+          hex: null,
+          familia: null,
+          unidad: r.unidad ?? null,
+          origen: 'inventario',
+        });
       }
+    } catch (error: any) {
+      console.error('⚠️ Catálogo de obra: falló la búsqueda en inventory_products:', error.message);
     }
+
+    // Con las tres fuentes juntas, el corte se hace por relevancia y no por el
+    // orden en que se consultaron: primero el SKU exacto, después alfabético.
+    items.sort((a, b) => {
+      const exacto = (i: CatalogoObraItem) => (i.sku.trim().toUpperCase() === primerToken ? 0 : 1);
+      return exacto(a) - exacto(b) || a.nombre.localeCompare(b.nombre);
+    });
 
     // Hex de la muestra de color. Si la tabla todavía no existe, la lista sale
     // igual y el buscador muestra el color sin punto de color.

@@ -21,34 +21,18 @@
  *  - la columna "Rendimiento" contrasta el consumo contra lo declarado, que es
  *    la revisión que se hace en terreno con el bodeguero.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CatalogoObraItem, ObraProducto, ObraProductoMovimiento } from "@shared/schema";
-import { ChevronDown, ChevronRight, Clock, Loader2, PenLine, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Loader2, Trash2 } from "lucide-react";
 import { fmtDec, toNum } from "./formato";
 import { calcularProducto } from "./calculos";
 import type { CeldaProducto, ColumnaDef } from "./columnas";
-import { InputCantidad, MOV_MAP, TextoEditable, type TipoMovimiento } from "./celdas";
-
-// Unidades de despacho que se usan en obra. La tineta (5 gl) es la unidad de la
-// planilla; el resto aparece cuando la obra lleva sellador, esmalte, diluyente…
-const UNIDADES = ["tineta", "galón", "litro", "kilo", "unidad"];
-
-/** La unidad del catálogo viene como texto libre ("TINETA 5 GL", "GALON"). */
-function unidadDesdeCatalogo(unidad: string | null | undefined): string {
-  const u = (unidad ?? "").toLowerCase();
-  if (u.includes("tineta")) return "tineta";
-  if (u.includes("gal")) return "galón";
-  if (u.includes("lit") || u.startsWith("lt")) return "litro";
-  if (u.includes("kil") || u.startsWith("kg")) return "kilo";
-  return u ? "unidad" : "tineta";
-}
+import { InputCantidad, MOV_MAP, NombreEditable, TextoEditable, type TipoMovimiento } from "./celdas";
+import { BuscadorCatalogo, unidadDeObra } from "./buscador-catalogo";
 
 /** "0,8 galones por vivienda" — el plural a mano, que en español no es solo +s. */
 const PLURAL: Record<string, string> = {
@@ -156,7 +140,7 @@ export function FilasProductos({
       kopr: item.sku || null,
       nombre: item.nombre,
       color: item.color || null,
-      unidad: unidadDesdeCatalogo(item.unidad),
+      unidad: unidadDeObra(item.unidad),
       cantidadProyectada: "0",
       cantidadPedida: "0",
       cantidadEntregada: "0",
@@ -170,6 +154,8 @@ export function FilasProductos({
       kopr: null,
       nombre,
       color: null,
+      // Sin SKU no hay maestro del cual sacar la unidad; la unidad de la
+      // planilla es la tineta, y queda editable en el detalle del producto.
       unidad: "tineta",
       cantidadProyectada: "0",
       cantidadPedida: "0",
@@ -285,20 +271,20 @@ function FilaProducto({
             >
               {abierta ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
-            <div className="min-w-0">
-              {/* Los nombres del catálogo son largos ("LATEX SUPERCUBRIENTE
-                  BLANCO TINETA"): la celda se estira y el título muestra el
-                  nombre completo al pasar por encima. */}
-              <TextoEditable
+            <div className="min-w-0 w-[248px]">
+              {/* El nombre se muestra ENTERO, en varias líneas si hace falta: los
+                  del catálogo son largos ("LATEX CONSTRUCCION BLANCO TINETA 5
+                  GL") y cortados dejaban dos SKU distintos leyéndose igual. */}
+              <NombreEditable
                 valor={producto.nombre}
                 onGuardar={(v) => v && onGuardar({ nombre: v })}
-                title={producto.nombre}
-                className="text-sm font-medium text-slate-700 dark:text-slate-100 w-[205px]"
+                className="text-sm font-medium text-slate-700 dark:text-slate-100 w-full"
                 testId={`input-nombre-${producto.id}`}
               />
               {/* Color, unidad y SKU son la identidad del producto, no números:
-                  van acá y no ocupando columnas de la planilla. */}
-              <div className="flex items-center gap-1 text-[10px] text-slate-400 w-[205px]">
+                  van acá y no ocupando columnas de la planilla. La unidad viene
+                  del maestro junto con el SKU, no se elige a mano. */}
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 w-full">
                 <TextoEditable
                   valor={producto.color ?? ""}
                   onGuardar={(v) => onGuardar({ color: v || null })}
@@ -306,21 +292,17 @@ function FilaProducto({
                   className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 w-[74px] flex-shrink-0"
                   testId={`input-color-${producto.id}`}
                 />
-                <Select value={producto.unidad ?? "tineta"} onValueChange={(v) => onGuardar({ unidad: v })}>
-                  <SelectTrigger
-                    className="h-5 w-[64px] flex-shrink-0 rounded-md border-transparent bg-transparent px-1 text-[10px] hover:border-slate-200 dark:hover:border-slate-700 focus:ring-orange-400/20 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:opacity-40"
-                    data-testid={`select-unidad-${producto.id}`}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[80]">
-                    {UNIDADES.map((u) => (
-                      <SelectItem key={u} value={u}>{u}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <span
+                  className="uppercase tracking-wide truncate max-w-[80px] flex-shrink-0"
+                  title={`Unidad de medida del producto: ${producto.unidad ?? "—"}`}
+                  data-testid={`text-unidad-${producto.id}`}
+                >
+                  {producto.unidad ?? "—"}
+                </span>
                 {producto.kopr ? (
-                  <span className="font-bold tabular-nums truncate">{producto.kopr}</span>
+                  <span className="font-bold tabular-nums truncate" title={producto.kopr}>
+                    {producto.kopr}
+                  </span>
                 ) : (
                   <span className="italic truncate">sin SKU</span>
                 )}
@@ -414,8 +396,20 @@ function DetalleProducto({
             testId={`input-rendimiento-${producto.id}`}
           />
           <span className="text-xs text-slate-400">
-            {PLURAL[producto.unidad ?? "tineta"] ?? "unidades"} por vivienda
+            {PLURAL[producto.unidad ?? ""] ?? producto.unidad ?? "unidades"} por vivienda
           </span>
+        </div>
+        {/* La unidad la trae el maestro junto con el SKU; queda editable acá
+            (y no en la fila) para los productos cargados a mano. */}
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Unidad</span>
+          <TextoEditable
+            valor={producto.unidad ?? ""}
+            onGuardar={(v) => onGuardar({ unidad: v.slice(0, 20) || "unidad" })}
+            placeholder="unidad"
+            className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-[110px]"
+            testId={`input-unidad-${producto.id}`}
+          />
         </div>
       </div>
 
@@ -475,131 +469,5 @@ function DetalleProducto({
         )}
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Buscador del catálogo (SKU / nombre / color)
-// ---------------------------------------------------------------------------
-
-function BuscadorCatalogo({
-  onElegir,
-  onManual,
-  guardando,
-}: {
-  onElegir: (item: CatalogoObraItem) => void;
-  onManual: (nombre: string) => void;
-  guardando: boolean;
-}) {
-  const [texto, setTexto] = useState("");
-  const [termino, setTermino] = useState("");
-  const [abierto, setAbierto] = useState(false);
-
-  // La búsqueda pega contra tres maestros: no vale la pena dispararla en cada tecla.
-  useEffect(() => {
-    const t = setTimeout(() => setTermino(texto.trim()), 250);
-    return () => clearTimeout(t);
-  }, [texto]);
-
-  const { data: resultados = [], isFetching } = useQuery<CatalogoObraItem[]>({
-    queryKey: ["/api/obra-productos/catalogo", termino],
-    queryFn: async () => {
-      const res = await apiRequest(`/api/obra-productos/catalogo?q=${encodeURIComponent(termino)}`);
-      return res.json();
-    },
-    enabled: termino.length >= 2,
-  });
-
-  const elegir = (item: CatalogoObraItem) => {
-    onElegir(item);
-    setTexto("");
-    setTermino("");
-    setAbierto(false);
-  };
-
-  const manual = () => {
-    const nombre = texto.trim();
-    if (!nombre) return;
-    onManual(nombre);
-    setTexto("");
-    setTermino("");
-    setAbierto(false);
-  };
-
-  // El buscador vive dentro de una tabla con scroll horizontal, y un desplegable
-  // posicionado en el flujo queda recortado por ese contenedor (se veía cortado
-  // por abajo). Va en un popover, que se renderiza en un portal fuera de la
-  // tabla; el ancla es el input para que quede pegado y del mismo ancho.
-  return (
-    <Popover open={abierto && texto.trim().length >= 2} onOpenChange={setAbierto}>
-      <PopoverAnchor asChild>
-        <div className="relative">
-          <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-500" />
-          <Input
-            value={texto}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              setAbierto(true);
-            }}
-            onFocus={() => setAbierto(true)}
-            placeholder="Agregar producto por SKU, nombre o color…"
-            className="pl-9 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20"
-            data-testid="input-obra-producto-buscar"
-          />
-          {(isFetching || guardando) && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-300" />
-          )}
-        </div>
-      </PopoverAnchor>
-
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        // El foco se queda en el input: se sigue escribiendo para filtrar.
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-72 overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
-      >
-        {resultados.map((item) => (
-          <button
-            key={item.sku}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => elegir(item)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
-            data-testid={`option-catalogo-${item.sku}`}
-          >
-            <span
-              className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
-              style={{ background: item.hex || "linear-gradient(135deg,#f1f5f9,#cbd5e1)" }}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                {item.nombre}
-              </span>
-              <span className="flex items-center gap-2 text-[10px] text-slate-400">
-                <span className="font-bold tabular-nums">{item.sku}</span>
-                {item.color && <span className="uppercase tracking-wide">{item.color}</span>}
-                {item.unidad && <span className="truncate">{item.unidad}</span>}
-              </span>
-            </span>
-          </button>
-        ))}
-
-        {resultados.length === 0 && !isFetching && (
-          <div className="px-3 py-2.5 text-sm text-slate-400">Sin resultados en el catálogo.</div>
-        )}
-
-        {/* Tonos de tintometría y productos que todavía no están en el maestro. */}
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={manual}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800"
-          data-testid="button-catalogo-manual"
-        >
-          <PenLine className="h-3.5 w-3.5 flex-shrink-0" />
-          Agregar «{texto.trim()}» a mano
-        </button>
-      </PopoverContent>
-    </Popover>
   );
 }
