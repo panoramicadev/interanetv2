@@ -27,6 +27,7 @@ async function ensureQuoteRequestsTable() {
         visitor_company VARCHAR,
         visitor_city VARCHAR,
         visitor_rut VARCHAR,
+        segmento VARCHAR,
         message TEXT,
         items JSONB NOT NULL,
         item_count INTEGER NOT NULL DEFAULT 0,
@@ -41,6 +42,7 @@ async function ensureQuoteRequestsTable() {
         priced_by_user_id VARCHAR,
         valid_until_date TIMESTAMP,
         source VARCHAR DEFAULT 'b2c_cotizador',
+        crm_seguimiento_id VARCHAR,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
@@ -51,6 +53,8 @@ async function ensureQuoteRequestsTable() {
       ['visitor_company', 'VARCHAR'],
       ['visitor_city', 'VARCHAR'],
       ['visitor_rut', 'VARCHAR'],
+      ['segmento', 'VARCHAR'],
+      ['crm_seguimiento_id', 'VARCHAR'],
       ['message', 'TEXT'],
       ['assigned_to_user_id', 'VARCHAR'],
       ['internal_notes', 'TEXT'],
@@ -118,6 +122,7 @@ export async function createQuoteRequest(data: InsertQuoteRequestInput) {
     visitorCompany: data.visitorCompany || null,
     visitorCity: data.visitorCity || null,
     visitorRut: data.visitorRut || null,
+    segmento: data.segmento || null,
     message: data.message || null,
     items: data.items,
     itemCount: data.items.length,

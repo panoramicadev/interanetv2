@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Send, CheckCircle, Loader2, User, Mail, Phone, Building, MapPin, FileText, MessageSquare, Plus, Minus, Trash2 } from 'lucide-react';
+import { X, Send, CheckCircle, Loader2, User, Mail, Phone, Building, MapPin, FileText, MessageSquare, Plus, Minus, Trash2, Layers } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
+import { SEGMENTOS_COTIZACION_WEB } from '@shared/segmentos-cotizacion-web';
 
 interface Props {
   open: boolean;
@@ -19,6 +20,8 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
     visitorCompany: '',
     visitorCity: '',
     visitorRut: '',
+    // Rutea la solicitud al CRM del área correspondiente
+    segmento: '',
     message: '',
   });
 
@@ -31,6 +34,7 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
     if (!form.visitorName.trim()) e.visitorName = 'Nombre es requerido';
     if (!form.visitorEmail.trim()) e.visitorEmail = 'Email es requerido';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.visitorEmail)) e.visitorEmail = 'Email inválido';
+    if (!form.segmento) e.segmento = 'Selecciona tu segmento';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -65,7 +69,7 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
         clearQuote();
         onClose();
         setSubmitted(false);
-        setForm({ visitorName: '', visitorEmail: '', visitorPhone: '', visitorCompany: '', visitorCity: '', visitorRut: '', message: '' });
+        setForm({ visitorName: '', visitorEmail: '', visitorPhone: '', visitorCompany: '', visitorCity: '', visitorRut: '', segmento: '', message: '' });
       }, 3000);
     } catch (err) {
       setErrors({ submit: 'Error al enviar la solicitud. Intenta nuevamente.' });
@@ -176,6 +180,29 @@ export default function CotizadorContactForm({ open, onClose }: Props) {
 
             {/* Form */}
             <div className="p-6 space-y-4">
+              {/* Segmento — define a qué equipo comercial llega la solicitud */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Layers className="w-3 h-3" /> Segmento *
+                </label>
+                <select
+                  value={form.segmento}
+                  onChange={e => handleChange('segmento', e.target.value)}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all ${
+                    errors.segmento ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                  } ${form.segmento ? 'text-slate-800' : 'text-slate-400'}`}
+                  data-testid="select-segmento-cotizacion"
+                >
+                  <option value="">Selecciona tu segmento</option>
+                  {SEGMENTOS_COTIZACION_WEB.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                {errors.segmento
+                  ? <p className="text-xs text-red-500 mt-1">{errors.segmento}</p>
+                  : <p className="text-[11px] text-slate-400 mt-1">Nos permite derivarte al equipo comercial de tu rubro.</p>}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Name */}
                 <div>

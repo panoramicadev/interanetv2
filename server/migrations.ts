@@ -757,6 +757,15 @@ export async function bootstrapDatabase(): Promise<void> {
     console.log('  🏷️  Verificando columna etiquetas en crm_seguimiento_clientes...');
     await db.execute(sql`ALTER TABLE crm_seguimiento_clientes ADD COLUMN IF NOT EXISTS etiquetas TEXT`);
 
+    // 15.1.b Cotizador web: segmento del visitante + lead ruteado al CRM.
+    // Ver migrations/072_quote_requests_segmento.sql — se replica acá porque
+    // Drizzle enumera todas las columnas del schema en cada SELECT y el
+    // cotizador público sirve tráfico desde el primer request. IF EXISTS
+    // porque quote_requests se crea auto-sanándose en su propio service.
+    console.log('  🧾 Verificando columnas segmento/crm en quote_requests...');
+    await db.execute(sql`ALTER TABLE IF EXISTS quote_requests ADD COLUMN IF NOT EXISTS segmento VARCHAR`);
+    await db.execute(sql`ALTER TABLE IF EXISTS quote_requests ADD COLUMN IF NOT EXISTS crm_seguimiento_id VARCHAR`);
+
     // 15.2. Hitos/bitácora agendados en calendario (card Actividad del CRM).
     // Mismo motivo que etiquetas: Drizzle enumera todas las columnas del
     // schema en cada SELECT, así que deben existir antes de servir tráfico.

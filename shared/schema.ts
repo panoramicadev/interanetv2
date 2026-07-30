@@ -7912,6 +7912,9 @@ export const quoteRequests = pgTable("quote_requests", {
   visitorCompany: varchar("visitor_company"),
   visitorCity: varchar("visitor_city"),
   visitorRut: varchar("visitor_rut"),
+  // Segmento declarado por el visitante: rutea la solicitud al CRM del área
+  // (construccion | ferreteria | industrial — ver shared/segmentos-cotizacion-web.ts)
+  segmento: varchar("segmento"),
   message: text("message"),
   // Requested products (JSON array — prices optional, filled when quoted)
   items: jsonb("items").notNull().$type<QuoteRequestItem[]>(),
@@ -7930,6 +7933,8 @@ export const quoteRequests = pgTable("quote_requests", {
   validUntilDate: timestamp("valid_until_date"),
   // Tracking
   source: varchar("source").default("b2c_cotizador"),
+  // Lead creado automáticamente en crm_seguimiento_clientes (FK blanda)
+  crmSeguimientoId: varchar("crm_seguimiento_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -7941,6 +7946,10 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
   visitorCompany: z.string().optional().nullable(),
   visitorCity: z.string().optional().nullable(),
   visitorRut: z.string().optional().nullable(),
+  // Obligatorio en los formularios públicos, opcional acá a propósito: si
+  // llega vacío (frontend cacheado, integración externa) la cotización se
+  // guarda igual y el lead cae al CRM sin área en vez de perderse.
+  segmento: z.enum(['construccion', 'ferreteria', 'industrial']).optional().nullable(),
   message: z.string().optional().nullable(),
   items: z.array(z.object({
     sku: z.string(),
@@ -7964,6 +7973,7 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
   assignedToUserId: true,
   internalNotes: true,
   source: true,
+  crmSeguimientoId: true,
   quoteNumber: true,
   subtotal: true,
   taxAmount: true,
