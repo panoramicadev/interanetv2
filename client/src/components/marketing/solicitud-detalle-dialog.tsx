@@ -94,7 +94,7 @@ export const ESTADO_META: Record<string, { label: string; badge: string; icon: a
   },
 };
 
-const ROL_LABEL: Record<string, string> = {
+export const ROL_LABEL: Record<string, string> = {
   admin: "Administración",
   supervisor: "Supervisor",
   encargado_area: "Encargado de área",

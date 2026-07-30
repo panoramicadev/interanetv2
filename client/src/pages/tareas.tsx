@@ -203,7 +203,6 @@ export default function TareasPage() {
   // "Mis tareas" iban apilados y había que scrollear hasta el fondo para llegar a las
   // tareas. Ahora son dos sub-vistas ('solicitudes' = triage de pedidos del equipo /
   // 'tareas' = sus tareas propias) bajo una barra-resumen fija con los conteos.
-  const [marketingSubView, setMarketingSubView] = useState<'solicitudes' | 'tareas'>('solicitudes');
   // El CRM (Seguimiento de Clientes) vive como pestaña; se muestra a quien tenga el permiso.
   const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
@@ -1225,18 +1224,6 @@ export default function TareasPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t)
   ).length;
 
-  // Marketing: conteos de solicitudes para la barra-resumen de sub-vistas. Comparte el
-  // mismo queryKey que MarketingManagerPanel (react-query dedup: no dispara doble fetch).
-  const { data: mktSolicitudes = [] } = useQuery<SolicitudMarketingItem[]>({
-    queryKey: ["/api/marketing/solicitudes"],
-    enabled: isMarketing,
-  });
-  const mktPendientes = mktSolicitudes.filter((s) => s.estado === "solicitado").length;
-  const mktEnCurso = mktSolicitudes.filter((s) => s.estado === "en_proceso").length;
-  // En la sub-vista de Solicitudes ocultamos el contenido de "Mis tareas" (contador,
-  // barra de grupos, tutorial y lista) para que cada sub-vista ocupe su propia pantalla.
-  const hideMktTasks = isMarketing && activeTab === 'tareas' && marketingSubView === 'solicitudes';
-
   // El detalle de tarea se muestra como PÁGINA dentro del área de contenido
   // (el sidebar del DashboardLayout queda visible a la izquierda), no como modal.
   if (selectedTaskId && selectedTask) {
@@ -1976,58 +1963,6 @@ export default function TareasPage() {
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
 
-          {/* Encargada de Marketing: barra-resumen fija con dos sub-vistas —
-              "Solicitudes" (triage de pedidos del equipo) y "Mis tareas" (sus tareas
-              propias)— para no tener que scrollear hasta el fondo. Los conteos viven en
-              los propios toggles; el panel/tareas se muestran según la sub-vista activa. */}
-          {isMarketing && activeTab === 'tareas' && (
-            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-sm p-1.5 flex flex-col sm:flex-row gap-1.5">
-              {([
-                { key: 'solicitudes' as const, icon: Send, label: 'Solicitudes', sub: mktPendientes > 0 ? `${mktPendientes} por aceptar` : mktEnCurso > 0 ? `${mktEnCurso} en curso` : 'Al día', badge: mktPendientes, badgeTone: 'bg-[#fd6301] text-white' },
-                { key: 'tareas' as const, icon: CheckSquare, label: 'Mis tareas', sub: kpiPendientes > 0 ? `${kpiPendientes} pendiente${kpiPendientes !== 1 ? 's' : ''}` : 'Todo listo', badge: kpiPendientes, badgeTone: 'bg-orange-100 text-[#fd6301] dark:bg-orange-500/15 dark:text-orange-300' },
-              ]).map((t) => {
-                const active = marketingSubView === t.key;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => setMarketingSubView(t.key)}
-                    className={`flex-1 flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
-                      active
-                        ? 'bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white shadow-md shadow-orange-500/25'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? 'bg-white/20' : 'bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 dark:text-orange-400'}`}>
-                      <t.icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1 leading-tight">
-                      <div className="font-bold text-sm">{t.label}</div>
-                      <div className={`text-[11px] ${active ? 'text-white/85' : 'text-slate-400'}`}>{t.sub}</div>
-                    </div>
-                    {t.badge > 0 && (
-                      <span className={`flex-shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold ${active ? 'bg-white text-[#fd6301]' : t.badgeTone}`}>
-                        {t.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Sub-vista Solicitudes: el panel administrativo de la encargada. */}
-          {isMarketing && activeTab === 'tareas' && marketingSubView === 'solicitudes' && (
-            <MarketingManagerPanel />
-          )}
-
-          {/* Encabezado de "Mis tareas" en la sub-vista de tareas propias. */}
-          {isMarketing && activeTab === 'tareas' && marketingSubView === 'tareas' && (
-            <div className="flex items-center gap-2 pt-1">
-              <CheckSquare className="h-4 w-4 text-orange-500" />
-              <h2 className="text-sm font-bold text-slate-800 dark:text-white">Mis tareas</h2>
-            </div>
-          )}
-
           {/* Filters and View Toggle - solo administrador y solo en la pestaña Tareas (Seguimiento no usa estos filtros) */}
           {user.role === 'admin' && activeTab !== 'seguimiento' && (
           // Sin overflow-hidden: el dropdown de sugerencias del buscador debe poder salir de la card
@@ -2205,7 +2140,7 @@ export default function TareasPage() {
           )}
 
           {/* Contador compacto para roles sin filtros (todos menos administrador) — con buscador */}
-          {user.role !== 'admin' && activeTab !== 'seguimiento' && !hideMktTasks && (
+          {user.role !== 'admin' && activeTab !== 'seguimiento' && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {taskSearchBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
@@ -2228,7 +2163,7 @@ export default function TareasPage() {
 
           {/* Group Management Bar */}
           {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
-          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !hideMktTasks && (
+          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
             <div className="flex items-center gap-2 flex-wrap">
               {/* Toggle Tareas / Terminadas — la vista por persona vive ahora en Seguimiento */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
@@ -2330,7 +2265,7 @@ export default function TareasPage() {
           )}
 
           {/* Burbuja tutorial: ¿para qué sirven los grupos? - cerrable */}
-          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !hideMktTasks && (
+          {showGroupsTutorial && !isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
             <div className="relative animate-in fade-in slide-in-from-top-1 duration-300">
               {/* Puntita que apunta al botón "Nuevo Grupo" */}
               <div className="absolute -top-1.5 left-7 w-3 h-3 rotate-45 rounded-[3px] bg-[#fd6301] dark:bg-orange-500" />
@@ -2366,7 +2301,7 @@ export default function TareasPage() {
 
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
-            {hideMktTasks ? null : tasksQuery.isLoading ? (
+            {tasksQuery.isLoading ? (
               <div className="text-center py-16">
                 <div className="animate-spin rounded-full h-10 w-10 border-3 border-orange-200 border-t-orange-600 mx-auto mb-4"></div>
                 <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
@@ -7196,307 +7131,10 @@ function MarketingSolicitudesInbox({ viewer = 'marketing', segmento = null }: { 
   );
 }
 
-// ==================================================================================
-// MarketingManagerPanel — panel administrativo de la encargada de Marketing dentro
-// de su Panel de Trabajo. A diferencia de la bandeja (MarketingSolicitudesInbox),
-// muestra el ciclo COMPLETO de las solicitudes del equipo — pendientes de aceptar,
-// en curso, completadas y rechazadas — y queda siempre visible (con estado vacío):
-// es la vista de gestión del área, no un aviso ocasional.
-// ==================================================================================
-type SeccionPanelMkt = "pendientes" | "en_curso" | "completadas" | "rechazadas";
-
-const URGENCIA_ORDEN: Record<string, number> = { alta: 0, media: 1, baja: 2 };
-
-function MarketingManagerPanel() {
-  const { toast } = useToast();
-  const [seccion, setSeccion] = useState<SeccionPanelMkt>("pendientes");
-  const [aceptar, setAceptar] = useState<SolicitudMarketingItem | null>(null);
-  const [rechazar, setRechazar] = useState<SolicitudMarketingItem | null>(null);
-  const [plazo, setPlazo] = useState("");
-  const [motivo, setMotivo] = useState("");
-  // Ficha con el chat hacia el solicitante (por id, para que siga al estado real).
-  const [detalleId, setDetalleId] = useState<string | null>(null);
-
-  const { data: solicitudes = [], isLoading } = useQuery<SolicitudMarketingItem[]>({
-    queryKey: ["/api/marketing/solicitudes"],
-  });
-
-  const estadoMutation = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: Record<string, any> }) =>
-      apiRequest("POST", `/api/marketing/solicitudes/${id}/estado`, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/marketing/solicitudes"] });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo actualizar la solicitud.", variant: "destructive" }),
-  });
-
-  const tsSolicitud = (s: SolicitudMarketingItem) => new Date(s.fechaSolicitud || 0).getTime();
-  // Pendientes: las urgentes primero (triage); a igual urgencia, la más antigua arriba.
-  const pendientes = solicitudes
-    .filter((s) => s.estado === "solicitado")
-    .sort((a, b) => (URGENCIA_ORDEN[a.urgencia || "baja"] ?? 2) - (URGENCIA_ORDEN[b.urgencia || "baja"] ?? 2) || tsSolicitud(a) - tsSolicitud(b));
-  // En curso: el plazo más próximo arriba; sin plazo, al final.
-  const enCurso = solicitudes
-    .filter((s) => s.estado === "en_proceso")
-    .sort((a, b) => (a.fechaEntrega ? new Date(a.fechaEntrega).getTime() : Infinity) - (b.fechaEntrega ? new Date(b.fechaEntrega).getTime() : Infinity));
-  const completadas = solicitudes
-    .filter((s) => s.estado === "completado")
-    .sort((a, b) => new Date(b.fechaCompletado || b.fechaSolicitud || 0).getTime() - new Date(a.fechaCompletado || a.fechaSolicitud || 0).getTime());
-  const rechazadas = solicitudes
-    .filter((s) => s.estado === "rechazado")
-    .sort((a, b) => tsSolicitud(b) - tsSolicitud(a));
-
-  const plazoVencido = (s: SolicitudMarketingItem) =>
-    !!s.fechaEntrega && new Date(`${s.fechaEntrega}T23:59:59`) < new Date();
-
-  const confirmarAceptar = () => {
-    if (!aceptar) return;
-    estadoMutation.mutate(
-      { id: aceptar.id, body: { estado: "en_proceso", fechaEntrega: plazo || undefined } },
-      {
-        onSuccess: () => {
-          toast({ title: "Solicitud aceptada", description: "Pasó a tus solicitudes en curso." });
-          setAceptar(null); setPlazo("");
-        },
-      },
-    );
-  };
-
-  const confirmarRechazar = () => {
-    if (!rechazar || !motivo.trim()) return;
-    estadoMutation.mutate(
-      { id: rechazar.id, body: { estado: "rechazado", motivoRechazo: motivo.trim() } },
-      {
-        onSuccess: () => {
-          toast({ title: "Solicitud rechazada", description: "Se notificó el motivo al solicitante." });
-          setRechazar(null); setMotivo("");
-        },
-      },
-    );
-  };
-
-  const secciones: Array<{ key: SeccionPanelMkt; label: string; icon: any; items: SolicitudMarketingItem[]; valor: string; chip: string; vacio: string }> = [
-    { key: "pendientes", label: "Pendientes", icon: Send, items: pendientes, valor: "text-[#fd6301]", chip: "bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 dark:text-orange-400", vacio: "No hay solicitudes esperando tu aprobación." },
-    { key: "en_curso", label: "En curso", icon: Play, items: enCurso, valor: "text-amber-600", chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", vacio: "Nada en curso. Acepta una solicitud pendiente para empezar a trabajarla." },
-    { key: "completadas", label: "Completadas", icon: CheckCircle, items: completadas, valor: "text-emerald-600", chip: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", vacio: "Todavía no hay entregas marcadas como completadas." },
-    { key: "rechazadas", label: "Rechazadas", icon: XCircle, items: rechazadas, valor: "text-red-600", chip: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", vacio: "No rechazaste ninguna solicitud." },
-  ];
-  const activa = secciones.find((x) => x.key === seccion)!;
-
-  // Meta compartida de una solicitud: quién la pidió, para qué cliente y cuándo.
-  const renderMeta = (s: SolicitudMarketingItem) => (
-    <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 flex-wrap">
-      <span className="inline-flex items-center gap-1"><User className="h-3 w-3" /> {s.supervisorName || "—"}{s.solicitanteRol && ROL_LABEL[s.solicitanteRol] ? ` · ${ROL_LABEL[s.solicitanteRol]}` : ""}</span>
-      {s.clienteNombre && <span className="inline-flex items-center gap-1 text-slate-500"><Building2 className="h-3 w-3" /> {s.clienteNombre}</span>}
-      {s.fechaSolicitud && <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> Enviada: {formatFechaCorta(s.fechaSolicitud)}</span>}
-    </div>
-  );
-
-  return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-      {/* Banner de sección con el gradiente de marca */}
-      <div className="bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-4 sm:px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-            <Palette className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold leading-tight">Solicitudes de Marketing</h2>
-            <p className="text-xs text-white/85 mt-0.5">Administra los pedidos del equipo: acepta fijando plazo, rechaza con motivo y marca las entregas.</p>
-          </div>
-          {pendientes.length > 0 && (
-            <Badge className="ml-auto flex-shrink-0 bg-white text-[#fd6301] hover:bg-white font-bold rounded-full px-3">{pendientes.length} por aceptar</Badge>
-          )}
-        </div>
-      </div>
-
-      <div className="p-4 sm:p-5 space-y-4">
-        {/* KPIs por estado — también funcionan como selector de sección */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-          {secciones.map((sec) => (
-            <button
-              key={sec.key}
-              onClick={() => setSeccion(sec.key)}
-              className={`rounded-2xl border bg-white dark:bg-slate-900 p-3.5 text-left transition-all ${
-                seccion === sec.key
-                  ? "border-orange-300 ring-1 ring-orange-200 dark:border-orange-700 dark:ring-orange-900 shadow-md"
-                  : "border-slate-200/80 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-orange-200"
-              }`}
-            >
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-lg ${sec.chip}`}><sec.icon className="h-3 w-3" /></span>
-                {sec.label}
-              </div>
-              <div className={`text-2xl font-bold leading-none tabular-nums ${sec.items.length > 0 ? sec.valor : "text-slate-300 dark:text-slate-600"}`}>
-                {sec.items.length}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Contenido de la sección activa */}
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando solicitudes...
-          </div>
-        ) : activa.items.length === 0 ? (
-          <div className="text-center py-10">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${activa.chip}`}>
-              <activa.icon className="h-6 w-6" />
-            </div>
-            <p className="text-sm text-slate-500 max-w-sm mx-auto">{activa.vacio}</p>
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {activa.items.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => setDetalleId(s.id)}
-                data-testid={`card-solicitud-${s.id}`}
-                className={`rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-3.5 shadow-sm cursor-pointer hover:shadow-md hover:border-orange-200 transition-all ${seccion === "completadas" || seccion === "rechazadas" ? "opacity-90" : ""}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-slate-800 dark:text-white truncate">{s.titulo}</span>
-                      {(seccion === "pendientes" || seccion === "en_curso") && s.urgencia && (
-                        <Badge variant="outline" className={`text-[10px] font-semibold border ${URGENCIA_STYLES[s.urgencia] || URGENCIA_STYLES.baja}`}>
-                          {s.urgencia.toUpperCase()}
-                        </Badge>
-                      )}
-                      {seccion === "completadas" && (
-                        <Badge variant="outline" className="text-[10px] font-semibold border bg-emerald-100 text-emerald-700 border-emerald-200 inline-flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3" /> Entregada{s.fechaCompletado ? `: ${formatFechaCorta(s.fechaCompletado)}` : ""}
-                        </Badge>
-                      )}
-                      {seccion === "rechazadas" && (
-                        <Badge variant="outline" className="text-[10px] font-semibold border bg-red-100 text-red-700 border-red-200 inline-flex items-center gap-1">
-                          <XCircle className="h-3 w-3" /> Rechazada
-                        </Badge>
-                      )}
-                      {seccion === "en_curso" && s.fechaEntrega && (
-                        plazoVencido(s) ? (
-                          <Badge variant="outline" className="text-[10px] font-semibold border bg-red-100 text-red-700 border-red-200 inline-flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Plazo vencido: {formatFechaCorta(s.fechaEntrega)}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] font-semibold border bg-amber-50 text-amber-700 border-amber-200 inline-flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3" /> Plazo: {formatFechaCorta(s.fechaEntrega)}
-                          </Badge>
-                        )
-                      )}
-                    </div>
-                    {s.descripcion && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{s.descripcion}</p>}
-                    {renderMeta(s)}
-                    {seccion === "pendientes" && s.fechaEntrega && (
-                      <p className="text-[11px] text-slate-400 mt-1 inline-flex items-center gap-1">
-                        <CalendarIcon className="h-3 w-3" /> Fecha sugerida por el solicitante: {formatFechaCorta(s.fechaEntrega)}
-                      </p>
-                    )}
-                    {seccion === "rechazadas" && s.motivoRechazo && (
-                      <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-lg px-2.5 py-1.5 mt-2">
-                        <span className="font-semibold">Motivo:</span> {s.motivoRechazo}
-                      </p>
-                    )}
-                  </div>
-                  {seccion === "en_curso" && (
-                    <Button
-                      size="sm"
-                      className="h-8 rounded-2xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                      disabled={estadoMutation.isPending}
-                      onClick={(e) => { e.stopPropagation(); estadoMutation.mutate({ id: s.id, body: { estado: "completado" } }, { onSuccess: () => toast({ title: "Solicitud completada", description: "Quedó registrada como entregada." }) }); }}
-                    >
-                      <Check className="h-3.5 w-3.5 mr-1.5" /> Completar
-                    </Button>
-                  )}
-                  {/* Deshacer un "Completar" mal marcado: la devuelve a En curso con su plazo intacto. */}
-                  {seccion === "completadas" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 rounded-2xl text-xs font-semibold border-slate-200 text-slate-600 hover:border-orange-300 hover:text-[#fd6301] hover:bg-orange-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-orange-950/30 shrink-0"
-                      disabled={estadoMutation.isPending}
-                      onClick={(e) => { e.stopPropagation(); estadoMutation.mutate({ id: s.id, body: { estado: "en_proceso" } }, { onSuccess: () => toast({ title: "Solicitud reabierta", description: "Volvió a tus solicitudes en curso." }) }); }}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reabrir
-                    </Button>
-                  )}
-                </div>
-                {seccion === "pendientes" && (
-                  <div className="flex items-center gap-2 mt-3">
-                    <Button
-                      size="sm"
-                      className="h-8 rounded-2xl text-xs font-semibold bg-[#fd6301] hover:bg-[#e35400] text-white flex-1"
-                      onClick={(e) => { e.stopPropagation(); setAceptar(s); setPlazo(s.fechaEntrega || ""); }}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Aceptar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 rounded-2xl text-xs font-semibold border-slate-200 text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 flex-1"
-                      onClick={(e) => { e.stopPropagation(); setRechazar(s); setMotivo(""); }}
-                    >
-                      <XCircle className="h-3.5 w-3.5 mr-1.5" /> Rechazar
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Ficha de la solicitud + chat con el solicitante */}
-      <SolicitudDetalleDialog
-        solicitud={solicitudes.find((s) => s.id === detalleId) ?? null}
-        open={!!detalleId}
-        onOpenChange={(o) => { if (!o) setDetalleId(null); }}
-        canManage
-      />
-
-      {/* Dialog: aceptar + fijar plazo */}
-      <Dialog open={!!aceptar} onOpenChange={(o) => { if (!o) { setAceptar(null); setPlazo(""); } }}>
-        <DialogContent className="sm:max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-[#fd6301]" /> Aceptar solicitud</DialogTitle>
-            <DialogDescription>Definí el plazo final para "{aceptar?.titulo}". Pasará a tus solicitudes en curso.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha límite</Label>
-            <Input type="date" value={plazo} onChange={(e) => setPlazo(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setAceptar(null); setPlazo(""); }}>Cancelar</Button>
-            <Button className="bg-[#fd6301] hover:bg-[#e35400] text-white" disabled={estadoMutation.isPending} onClick={confirmarAceptar}>
-              {estadoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aceptar y agendar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog: rechazar + motivo */}
-      <Dialog open={!!rechazar} onOpenChange={(o) => { if (!o) { setRechazar(null); setMotivo(""); } }}>
-        <DialogContent className="sm:max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><XCircle className="h-5 w-5 text-red-600" /> Rechazar solicitud</DialogTitle>
-            <DialogDescription>Indicá por qué rechazás "{rechazar?.titulo}". El solicitante verá el motivo.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Motivo del rechazo *</Label>
-            <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Ej: No hay presupuesto este mes / falta información…" />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setRechazar(null); setMotivo(""); }}>Cancelar</Button>
-            <Button variant="destructive" disabled={!motivo.trim() || estadoMutation.isPending} onClick={confirmarRechazar}>
-              {estadoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rechazar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+// El panel administrativo de solicitudes de Marketing (antes MarketingManagerPanel,
+// que vivía acá dentro) se movió al módulo Marketing: `pages/marketing/bandeja-
+// solicitudes.tsx`. Era una segunda implementación de la misma bandeja, con otra
+// UX que la del módulo, y sostenerlas en paralelo era la causa del desorden.
 
 // ==================================================================================
 // DateTimePicker — selector de fecha (calendario) + hora en un popover.

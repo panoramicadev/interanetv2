@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -232,9 +232,11 @@ function Router() {
                   window.location.replace('/comisiones');
                   return null;
                 case 'marketing':
-                  // Marketing aterriza en el Panel de Trabajo (tareas); el módulo de
-                  // Marketing sigue accesible desde el sidebar.
-                  return <TareasPage />;
+                  // Todo su trabajo (solicitudes del equipo y tareas propias) vive en el
+                  // módulo Marketing: aterriza en "Hoy", que le arma la lista del día.
+                  // Va por Redirect y no renderizando <Marketing/> acá para que la URL
+                  // sea la de la sección: así el sidebar marca dónde está parada.
+                  return <Redirect to="/marketing/hoy" />;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':
@@ -321,7 +323,10 @@ function Router() {
             <Route path="/cmms/planes-preventivos" component={guarded("cmms.planes_preventivos", CMmsPlanesPreventivos)} />
             <Route path="/cmms/mantenciones-planificadas" component={guarded("cmms.mantenciones_planificadas", CmmsMantencionesPlanificadas)} />
             <Route path="/cmms/calendario" component={guarded("cmms.calendario", CMmsCalendario)} />
+            {/* Las secciones del módulo Marketing son rutas propias: el menú vive en
+                el sidebar de la app y el ítem activo se resuelve por URL. */}
             <Route path="/marketing" component={guarded("marketing", Marketing)} />
+            <Route path="/marketing/:seccion" component={guarded("marketing", Marketing)} />
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={guarded("gastos", GastosEmpresariales)} />
             <Route path="/gestion-fondos" component={() => {

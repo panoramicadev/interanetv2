@@ -119,6 +119,7 @@ function formatFechaHora(value?: string | null) {
 // solo usa el parámetro para acotar los grupos, no las tareas.
 // ==================================================================================
 export function useTareasMarketing() {
+  const { user } = useAuth();
   const { data, isLoading } = useQuery<{
     tasks: TareaMarketingItem[];
     salespeople: Array<{ id: string; fullName?: string; salespersonName?: string }>;
@@ -137,8 +138,12 @@ export function useTareasMarketing() {
     for (const u of [...(data?.salespeople || []), ...(data?.supervisors || [])]) {
       if (u?.id) mapa.set(String(u.id), u.fullName || u.salespersonName || "Usuario");
     }
+    // Los directorios del endpoint salen de `salespeople_users`: quien trabaja en
+    // Marketing no está ahí, así que sus propias tareas se veían "creada por —".
+    const propio = [(user as any)?.firstName, (user as any)?.lastName].filter(Boolean).join(" ").trim();
+    if (user?.id && propio) mapa.set(String(user.id), propio);
     return mapa;
-  }, [data?.salespeople, data?.supervisors]);
+  }, [data?.salespeople, data?.supervisors, user]);
 
   return { tareas, nombrePorId, isLoading };
 }
@@ -302,9 +307,12 @@ export function TareaDetalleDialog({
     user?.role === "encargado_area" ||
     tarea.createdByUserId === user?.id;
 
+  const creador = nombrePorId?.get(String(tarea.createdByUserId));
+  // Solo los asignados distintos del creador: lo habitual es crearse las propias tareas
+  // y repetir el nombre en las dos filas no aporta información.
   const asignados = (tarea.assignments || [])
     .map((a) => nombrePorId?.get(String(a.assigneeId)) || null)
-    .filter(Boolean) as string[];
+    .filter((n): n is string => !!n && n !== creador);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -349,9 +357,11 @@ export function TareaDetalleDialog({
               </div>
 
               <div className="grid gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="inline-flex items-center gap-1.5">
-                  <User className="h-3 w-3" /> Creada por: {nombrePorId?.get(String(tarea.createdByUserId)) || "—"}
-                </span>
+                {creador && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <User className="h-3 w-3" /> Creada por: {creador}
+                  </span>
+                )}
                 {asignados.length > 0 && (
                   <span className="inline-flex items-center gap-1.5"><Users className="h-3 w-3" /> Asignada a: {asignados.join(", ")}</span>
                 )}
