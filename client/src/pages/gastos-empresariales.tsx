@@ -64,6 +64,14 @@ import GastosInformes from "./gastos-informes";
 import GastosViajes from "./gastos-viajes";
 import GastosCatalogos from "./gastos-catalogos";
 import { TABS_LIST_PILL, TAB_PILL } from "@/components/gastos/tabs-pill";
+import {
+  BOTON_MARCA,
+  CategoriaIcono,
+  EstadoChip,
+  EstadoVacio,
+  Monto,
+  formatoMoneda,
+} from "@/components/gastos/ui";
 
 const solicitarFondoSchema = z.object({
   monto: z.string().min(1, "El monto es requerido"),
@@ -536,30 +544,21 @@ export default function GastosEmpresariales() {
     return matchesSearch;
   });
 
-  const getEstadoBadge = (gasto: GastoEmpresarial) => {
-    if (gasto.estadoAprobacion) {
-      switch (gasto.estadoAprobacion) {
-        case 'pendiente_supervisor':
-        case 'pendiente_rrhh':
-          return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap text-[11px] px-2 py-0.5">Pendiente RRHH</Badge>;
-        case 'aprobado':
-          return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap text-[11px] px-2 py-0.5">Aprobado</Badge>;
-        case 'rechazado':
-          return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 whitespace-nowrap text-[11px] px-2 py-0.5">Rechazado</Badge>;
-      }
-    }
+  // Resumen que se muestra en el encabezado del módulo. Los rechazados no suman
+  // al total: no son gasto real de la empresa.
+  const totalPeriodo = filteredGastos
+    .filter((g) => g.estado !== 'rechazado')
+    .reduce((acc, g) => acc + Number(g.monto ?? 0), 0);
+  const gastosPendientesPeriodo = filteredGastos.filter((g) => g.estado === 'pendiente').length;
 
-    switch (gasto.estado) {
-      case 'pendiente':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 whitespace-nowrap text-[11px] px-2 py-0.5">Pendiente</Badge>;
-      case 'aprobado':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap text-[11px] px-2 py-0.5">Aprobado</Badge>;
-      case 'rechazado':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 whitespace-nowrap text-[11px] px-2 py-0.5">Rechazado</Badge>;
-      default:
-        return <Badge variant="outline" className="whitespace-nowrap text-[11px] px-2 py-0.5">{gasto.estado}</Badge>;
-    }
-  };
+  /**
+   * Estado del gasto como pill unificada (ver components/gastos/ui.tsx). El
+   * estado de aprobación manda sobre el estado base porque es más específico:
+   * un gasto "pendiente" puede estar esperando supervisor o RRHH.
+   */
+  const getEstadoBadge = (gasto: GastoEmpresarial) => (
+    <EstadoChip estado={gasto.estadoAprobacion || gasto.estado} />
+  );
 
   const formatCurrency = (amount: string | number) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -579,17 +578,30 @@ export default function GastosEmpresariales() {
   return (
     <>
       <div className="space-y-8 px-2 md:px-4 pb-8">
-        {/* Modern Header with Gradient */}
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
+        {/* Encabezado del módulo. El ícono usa el naranja de marca (antes ámbar
+            sobre white/10) y a la derecha va el total del período visible, para
+            que el número que importa se lea sin entrar al dashboard. */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-7 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
-          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                <Banknote className="h-6 w-6 text-amber-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-[#fd6301] shadow-lg shadow-orange-500/25">
+                <Banknote className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Rendición de Gastos</h1>
-                <p className="text-slate-300 text-sm md:text-base">Gestiona y controla la rendición de gastos y fondos</p>
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Rendición de Gastos</h1>
+                <p className="text-sm text-slate-300 md:text-base">Gestiona y controla la rendición de gastos y fondos</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 sm:justify-end">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Total del período</p>
+                <p className="mt-0.5 text-2xl font-bold tabular-nums">{formatoMoneda(totalPeriodo)}</p>
+              </div>
+              <div className="hidden h-10 w-px bg-white/10 sm:block" />
+              <div className="hidden sm:block">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Por aprobar</p>
+                <p className="mt-0.5 text-2xl font-bold tabular-nums text-amber-300">{gastosPendientesPeriodo}</p>
               </div>
             </div>
           </div>
@@ -731,21 +743,23 @@ export default function GastosEmpresariales() {
 
           <TabsContent value="rendicion" className="mt-4 space-y-5">
 
-            {/* Modern Filters */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row gap-3">
+            {/* Filtros. Buscador y selectores en pastilla, coherentes con las
+                pestañas y con el foco en naranja de marca (antes el focus ring
+                era azul, heredado del default de shadcn). */}
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex flex-col gap-2.5 sm:flex-row">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     placeholder="Buscar por descripción, categoría o proveedor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg h-10 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    className="h-10 rounded-full border-slate-200 bg-slate-50/80 pl-11 transition-all focus-visible:border-[#fd6301] focus-visible:ring-2 focus-visible:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-800/50"
                     data-testid="input-search"
                   />
                 </div>
                 <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg h-10" data-testid="select-estado">
+                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 sm:w-[170px] dark:border-slate-700 dark:bg-slate-800/50" data-testid="select-estado">
                     <SelectValue placeholder="Estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -756,7 +770,7 @@ export default function GastosEmpresariales() {
                   </SelectContent>
                 </Select>
                 <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg h-10" data-testid="select-categoria">
+                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 sm:w-[180px] dark:border-slate-700 dark:bg-slate-800/50" data-testid="select-categoria">
                     <SelectValue placeholder="Categoría" />
                   </SelectTrigger>
                   <SelectContent>
@@ -807,11 +821,11 @@ export default function GastosEmpresariales() {
             </div>
 
             {/* Modern Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800/60 dark:to-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/60 border-b border-gray-200 dark:border-slate-700">
+                    <TableRow className="border-b border-slate-200/70 bg-slate-50/60 hover:bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40 dark:hover:bg-slate-800/40">
                       <TableHead className="min-w-[100px] font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3.5">Fecha</TableHead>
                       <TableHead className="min-w-[150px] font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3.5">Colaborador</TableHead>
                       <TableHead className="min-w-[200px] font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3.5">Descripción</TableHead>
@@ -827,42 +841,41 @@ export default function GastosEmpresariales() {
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-16">
                           <div className="flex flex-col items-center gap-3">
-                            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-gray-500">Cargando gastos...</span>
+                            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#fd6301] border-t-transparent" />
+                            <span className="text-sm text-slate-500">Cargando gastos…</span>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredGastos.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-16">
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-                              <FileText className="h-7 w-7 text-gray-400" />
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-gray-600 dark:text-gray-300 font-medium">No se encontraron gastos</p>
-                              <p className="text-gray-400 dark:text-gray-500 text-sm">en {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} {anio}</p>
-                            </div>
-                            {mesesConGastos.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-gray-400 text-xs mb-2">Meses con gastos registrados:</p>
-                                <div className="flex flex-wrap justify-center gap-1.5">
-                                  {mesesConGastos.slice(0, 6).map(m => (
-                                    <button
-                                      key={`${m.anio}-${m.mes}`}
-                                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-medium transition-all duration-200 hover:shadow-sm border border-blue-100"
-                                      onClick={() => {
-                                        setMes(m.mes.toString());
-                                        setAnio(m.anio.toString());
-                                      }}
-                                    >
-                                      {['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][m.mes]} {m.anio} ({m.cantidad})
-                                    </button>
-                                  ))}
+                          <EstadoVacio
+                            icono={FileText}
+                            titulo="No se encontraron gastos"
+                            descripcion={`No hay gastos registrados en ${['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} ${anio}.`}
+                            className="border-0 py-4"
+                            accion={
+                              mesesConGastos.length > 0 ? (
+                                <div className="mt-1">
+                                  <p className="mb-2 text-xs text-slate-400">Meses con gastos registrados</p>
+                                  <div className="flex flex-wrap justify-center gap-1.5">
+                                    {mesesConGastos.slice(0, 6).map(m => (
+                                      <button
+                                        key={`${m.anio}-${m.mes}`}
+                                        className="rounded-full border border-orange-100 bg-orange-50 px-3 py-1.5 text-xs font-medium text-[#fd6301] transition-all hover:bg-orange-100 hover:shadow-sm dark:border-orange-900/50 dark:bg-orange-950/40"
+                                        onClick={() => {
+                                          setMes(m.mes.toString());
+                                          setAnio(m.anio.toString());
+                                        }}
+                                      >
+                                        {['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][m.mes]} {m.anio} ({m.cantidad})
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
+                              ) : undefined
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -870,31 +883,43 @@ export default function GastosEmpresariales() {
                         <TableRow
                           key={gasto.id}
                           data-testid={`row-gasto-${gasto.id}`}
-                          className="group cursor-pointer hover:bg-gradient-to-r hover:from-amber-50/60 hover:to-orange-50/30 dark:hover:from-amber-950/20 dark:hover:to-orange-950/10 transition-all duration-200 border-b border-gray-50 dark:border-slate-800/50"
+                          className="group cursor-pointer border-b border-slate-100 transition-colors last:border-0 hover:bg-orange-50/50 dark:border-slate-800/60 dark:hover:bg-orange-950/15"
                           onClick={() => {
                             setSelectedGasto(gasto);
                             setShowDetailDialog(true);
                           }}
                         >
-                          <TableCell className="text-sm py-3 whitespace-nowrap">
-                            <span className="text-gray-700 dark:text-gray-300 font-medium">
-                              {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
+                          {/* La fecha que importa en una rendición es la del
+                              documento; la de registro queda como referencia. */}
+                          <TableCell className="whitespace-nowrap py-3 text-sm">
+                            <span className="block font-medium tabular-nums text-slate-700 dark:text-slate-300">
+                              {gasto.fechaEmision
+                                ? format(new Date(`${String(gasto.fechaEmision).slice(0, 10)}T12:00:00`), 'dd/MM/yyyy', { locale: es })
+                                : format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
                             </span>
+                            {gasto.fechaEmision && (
+                              <span className="block text-[11px] tabular-nums text-slate-400">
+                                reg. {format(new Date(gasto.createdAt), 'dd/MM', { locale: es })}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-[#fd6301] text-[10px] font-bold text-white">
                                 {getColaboradorName(gasto.userId).charAt(0).toUpperCase()}
                               </div>
                               <span className="font-medium text-gray-800 dark:text-gray-200 text-sm">{getColaboradorName(gasto.userId)}</span>
                             </div>
                           </TableCell>
                           <TableCell className="py-3">
-                            <div className="max-w-[250px]">
-                              <p className="font-medium text-sm text-gray-800 dark:text-gray-200 truncate" title={gasto.descripcion}>{gasto.descripcion}</p>
-                              {gasto.proveedor && (
-                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={gasto.proveedor}>{gasto.proveedor}</p>
-                              )}
+                            <div className="flex items-center gap-2.5">
+                              <CategoriaIcono categoria={gasto.categoria} className="size-9" />
+                              <div className="min-w-0 max-w-[240px]">
+                                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200" title={gasto.descripcion}>{gasto.descripcion}</p>
+                                {gasto.proveedor && (
+                                  <p className="truncate text-xs text-slate-400" title={gasto.proveedor}>{gasto.proveedor}</p>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="text-sm py-3 whitespace-nowrap">
@@ -915,10 +940,11 @@ export default function GastosEmpresariales() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right py-3 whitespace-nowrap">
-                            <span className="font-bold text-gray-900 dark:text-gray-100 text-sm tabular-nums">
-                              {formatCurrency(gasto.monto)}
-                            </span>
+                          <TableCell className="whitespace-nowrap py-3 text-right">
+                            <Monto
+                              value={gasto.monto}
+                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
+                            />
                           </TableCell>
                           <TableCell className="py-3 whitespace-nowrap">{getEstadoBadge(gasto)}</TableCell>
                           <TableCell className="text-right py-3">
