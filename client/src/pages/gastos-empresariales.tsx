@@ -63,6 +63,7 @@ import GastosFilterBarDashboard from "@/components/gastos-filter-bar-dashboard";
 import GastosInformes from "./gastos-informes";
 import GastosViajes from "./gastos-viajes";
 import GastosCatalogos from "./gastos-catalogos";
+import { TABS_LIST_PILL, TAB_PILL } from "@/components/gastos/tabs-pill";
 
 const solicitarFondoSchema = z.object({
   monto: z.string().min(1, "El monto es requerido"),
@@ -166,6 +167,31 @@ export default function GastosEmpresariales() {
       : "dashboard";
   });
   const dashboardRef = useRef<DashboardExportHandle>(null);
+
+  // La barra de pestañas scrollea horizontalmente en móvil: si la activa queda
+  // fuera de la vista (deep-link a Informes, por ejemplo) no se ve cuál está
+  // seleccionada. La centramos al montar y en cada cambio de pestaña.
+  //
+  // Se ajusta `scrollLeft` de la lista en vez de usar `scrollIntoView`, que
+  // además arrastraría el scroll de la página. El rAF es necesario: en el
+  // montaje las pestañas todavía no están medidas y el cálculo daría 0.
+  const tabsListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const lista = tabsListRef.current;
+    if (!lista) return;
+    const id = requestAnimationFrame(() => {
+      const activa = lista.querySelector<HTMLElement>('[data-state="active"]');
+      if (!activa) return;
+      // `behavior: "auto"` a propósito: con scroll suave, el re-layout que
+      // provoca el contenido de la pestaña al montarse aborta la animación y
+      // la barra se queda al inicio.
+      lista.scrollTo({
+        left: activa.offsetLeft - (lista.clientWidth - activa.offsetWidth) / 2,
+        behavior: "auto",
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [activeMainTab]);
 
   // Categorías administrables (pestaña Catálogos). Reemplazan la lista fija
   // que antes vivía duplicada en el filtro y en el diálogo de edición.
@@ -571,34 +597,34 @@ export default function GastosEmpresariales() {
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:w-auto">
-            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2 flex-shrink-0">
+          <TabsList ref={tabsListRef} className={TABS_LIST_PILL}>
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className={TAB_PILL}>
               <BarChart3 className="h-4 w-4" />
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2 flex-shrink-0">
+            <TabsTrigger value="rendicion" data-testid="tab-rendicion" className={TAB_PILL}>
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
             </TabsTrigger>
-            <TabsTrigger value="informes" data-testid="tab-informes" className="flex items-center gap-2 flex-shrink-0">
+            <TabsTrigger value="informes" data-testid="tab-informes" className={TAB_PILL}>
               <FileText className="h-4 w-4" />
               Informes
             </TabsTrigger>
-            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2 flex-shrink-0 relative">
+            <TabsTrigger value="fondos" data-testid="tab-fondos" className={`${TAB_PILL} relative`}>
               <HandCoins className="h-4 w-4" />
               Gestión de Fondos
               {pendingApprovalsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4.5 w-4.5 min-h-[18px] min-w-[18px] flex items-center justify-center animate-pulse">
                   {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="viajes" data-testid="tab-viajes" className="flex items-center gap-2 flex-shrink-0">
+            <TabsTrigger value="viajes" data-testid="tab-viajes" className={TAB_PILL}>
               <Route className="h-4 w-4" />
               Viajes
             </TabsTrigger>
             {(user?.role === 'admin' || user?.role === 'recursos_humanos') && (
-              <TabsTrigger value="catalogos" data-testid="tab-catalogos" className="flex items-center gap-2 flex-shrink-0">
+              <TabsTrigger value="catalogos" data-testid="tab-catalogos" className={TAB_PILL}>
                 <Settings2 className="h-4 w-4" />
                 Catálogos
               </TabsTrigger>

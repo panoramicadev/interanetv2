@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TABS_LIST_PILL_SOFT, TAB_PILL_SOFT } from "@/components/gastos/tabs-pill";
 
 type TipoCatalogo = "categoria" | "centro_costo" | "proyecto" | "tipo_documento";
 
@@ -220,9 +221,9 @@ export default function GastosCatalogos() {
       </div>
 
       <Tabs value={tipoActivo} onValueChange={(v) => setTipoActivo(v as TipoCatalogo)}>
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto whitespace-nowrap lg:w-auto">
+        <TabsList className={TABS_LIST_PILL_SOFT}>
           {CATALOGOS.map((c) => (
-            <TabsTrigger key={c.tipo} value={c.tipo} className="flex-shrink-0" data-testid={`tab-catalogo-${c.tipo}`}>
+            <TabsTrigger key={c.tipo} value={c.tipo} className={TAB_PILL_SOFT} data-testid={`tab-catalogo-${c.tipo}`}>
               {c.titulo}
             </TabsTrigger>
           ))}
