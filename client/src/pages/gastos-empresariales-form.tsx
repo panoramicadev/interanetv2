@@ -52,7 +52,17 @@ const formSchema = z.object({
   ruta: z.string().optional(),
   clientes: z.string().optional(),
   ciudad: z.string().optional(),
+  centroCostos: z.string().optional(),
+  proyecto: z.string().optional(),
 });
+
+/** Ítem de `gasto_catalogos` — alimenta los selectores del formulario. */
+interface ItemCatalogo {
+  id: string;
+  tipo: 'categoria' | 'centro_costo' | 'proyecto' | 'tipo_documento';
+  nombre: string;
+  requiereRutProveedor: boolean;
+}
 
 interface FundAllocation {
   id: string;
@@ -93,6 +103,16 @@ export default function GastosEmpresarialesForm() {
     queryKey: ['/api/users/salespeople'],
   });
 
+  // Catálogos administrables (antes estaban hardcodeados acá abajo).
+  const { data: catalogos = [] } = useQuery<ItemCatalogo[]>({
+    queryKey: ['/api/gasto-catalogos'],
+  });
+  const porTipo = (tipo: ItemCatalogo['tipo']) => catalogos.filter((c) => c.tipo === tipo);
+  const categorias = porTipo('categoria');
+  const centrosCosto = porTipo('centro_costo');
+  const proyectos = porTipo('proyecto');
+  const tiposDocumento = porTipo('tipo_documento');
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -112,7 +132,8 @@ export default function GastosEmpresarialesForm() {
       ruta: "",
       clientes: "",
       ciudad: "",
-
+      centroCostos: "",
+      proyecto: "",
     },
   });
 
@@ -278,9 +299,14 @@ export default function GastosEmpresarialesForm() {
           form.setValue('tipoDocumento', data.tipoDocumento);
         }
         
+        // El OCR autoevalúa su lectura; bajo 0.6 conviene avisar explícitamente
+        // que hay que revisar campo por campo.
+        const confianzaBaja = typeof data.confianza === 'number' && data.confianza < 0.6;
         toast({
-          title: "Datos extraídos",
-          description: "Los datos del documento han sido detectados automáticamente. Por favor revíselos.",
+          title: confianzaBaja ? "Datos extraídos con baja confianza" : "Datos extraídos",
+          description: confianzaBaja
+            ? "El documento se leyó con dificultad. Revise monto, fecha y folio antes de guardar."
+            : "Los datos del documento han sido detectados automáticamente. Por favor revíselos.",
         });
       } else {
         toast({
@@ -640,11 +666,13 @@ export default function GastosEmpresarialesForm() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Combustibles">Combustibles</SelectItem>
-                            <SelectItem value="Peaje">Peaje</SelectItem>
-                            <SelectItem value="Colación">Colación</SelectItem>
-                            <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
-                            <SelectItem value="Otros">Otros</SelectItem>
+                            {categorias.length === 0 ? (
+                              <SelectItem value="Otros">Otros</SelectItem>
+                            ) : (
+                              categorias.map((c) => (
+                                <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -672,6 +700,63 @@ export default function GastosEmpresarialesForm() {
                   )}
                 />
 
+                {/* Imputación contable — sale de los catálogos administrables.
+                    Ambos campos son opcionales: si el catálogo está vacío el
+                    selector no se muestra. */}
+                {(centrosCosto.length > 0 || proyectos.length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {centrosCosto.length > 0 && (
+                      <FormField
+                        control={form.control}
+                        name="centroCostos"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Centro de Costos</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-centro-costos">
+                                  <SelectValue placeholder="Seleccionar centro de costos" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {centrosCosto.map((c) => (
+                                  <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {proyectos.length > 0 && (
+                      <FormField
+                        control={form.control}
+                        name="proyecto"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Proyecto</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-proyecto">
+                                  <SelectValue placeholder="Seleccionar proyecto" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {proyectos.map((p) => (
+                                  <SelectItem key={p.id} value={p.nombre}>{p.nombre}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                )}
+
               </div>
 
 
@@ -693,10 +778,13 @@ export default function GastosEmpresarialesForm() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Boleta">Boleta</SelectItem>
-                            <SelectItem value="Factura">Factura</SelectItem>
-                            <SelectItem value="Recibo">Recibo</SelectItem>
-                            <SelectItem value="Otro">Otro</SelectItem>
+                            {tiposDocumento.length === 0 ? (
+                              <SelectItem value="Otro">Otro</SelectItem>
+                            ) : (
+                              tiposDocumento.map((t) => (
+                                <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />

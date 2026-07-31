@@ -79,6 +79,10 @@ app.use((req, res, next) => {
   const { startCampaignScheduler } = await import('./services/campaigns');
   startCampaignScheduler();
 
+  // Rendición de gastos v2: informes, catálogos, historial y reportes PDF/Excel
+  const { registerRendicionRoutes } = await import('./routes-rendicion');
+  registerRendicionRoutes(app);
+
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

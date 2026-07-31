@@ -5860,6 +5860,11 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   ruta: text("ruta"), // Ruta donde se realizó el gasto
   clientes: text("clientes"), // Cliente(s) visitados
   ciudad: text("ciudad"), // Ciudad donde se realizó el gasto
+  // Rendición v2 (migración 073)
+  informeId: varchar("informe_id"), // FK a informes_rendicion (null = suelto)
+  proyecto: varchar("proyecto", { length: 160 }), // Catálogo "proyecto"
+  // Detalle del planificador de viajes: { origen, destino, km, peajes[], combustible }
+  viajeDetalle: jsonb("viaje_detalle"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -5867,6 +5872,7 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   fundingModeIdx: index("IDX_gastos_funding_mode").on(table.fundingMode),
   estadoAprobacionIdx: index("IDX_gastos_estado_aprobacion").on(table.estadoAprobacion),
   segmentCodeIdx: index("IDX_gastos_segment_code").on(table.segmentCode),
+  informeIdx: index("IDX_gastos_informe").on(table.informeId),
 }));
 
 // Types
@@ -5914,6 +5920,9 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   ruta: z.string().optional(),
   clientes: z.string().optional(),
   ciudad: z.string().optional(),
+  informeId: z.string().optional().nullable(),
+  proyecto: z.string().optional().nullable(),
+  viajeDetalle: z.any().optional().nullable(),
 });
 
 // Schema para aprobación de supervisor de reembolso
@@ -5944,6 +5953,175 @@ export const rejectReembolsoRrhhSchema = z.object({
   rrhhId: z.string().min(1, "El ID del usuario RRHH es requerido"),
   motivoRechazo: z.string().min(1, "El motivo del rechazo es requerido"),
 });
+
+// ===========================================================================
+// RENDICIÓN DE GASTOS v2 — informes, catálogos e historial de estados
+//
+// Portado desde primerosresultados/rendicion-gastos y adaptado al modelo
+// single-tenant de interanetv2: se EXTIENDE `gastos_empresariales` y
+// `fund_allocations` (que ya tienen datos productivos) en vez de reemplazarlas.
+//
+// Convención de fechas: TIMESTAMPTZ + now() (ver migración 073). Las tablas
+// viejas usan `timestamp` naive, que desfasa 4h contra la hora de Chile.
+// ===========================================================================
+
+/** Estados del informe de rendición: borrador → enviado → aprobado → pagado. */
+export const ESTADOS_INFORME_RENDICION = [
+  "borrador",
+  "enviado",
+  "aprobado",
+  "rechazado",
+  "pagado",
+] as const;
+export type EstadoInformeRendicion = typeof ESTADOS_INFORME_RENDICION[number];
+
+/**
+ * Informe de rendición: agrupa varios gastos del mismo colaborador para
+ * enviarlos a aprobación de una sola vez. Un gasto pertenece a lo sumo a un
+ * informe (`gastos_empresariales.informe_id`).
+ */
+export const informesRendicion = pgTable("informes_rendicion", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 200 }).notNull(),
+  /** Periodo legible YYYY-MM, derivado de los gastos incluidos. */
+  periodo: varchar("periodo", { length: 7 }).notNull(),
+  /** Colaborador que rinde (dueño del informe). */
+  userId: varchar("user_id").notNull(),
+  creadoPorId: varchar("creado_por_id").notNull(),
+  estado: varchar("estado", { length: 20 }).notNull().default("borrador"),
+  observaciones: text("observaciones"),
+  motivoRechazo: text("motivo_rechazo"),
+  comentarioAprobacion: text("comentario_aprobacion"),
+  aprobadorId: varchar("aprobador_id"),
+  fechaEnvio: timestamp("fecha_envio", { withTimezone: true }),
+  fechaAprobacion: timestamp("fecha_aprobacion", { withTimezone: true }),
+  fechaPago: timestamp("fecha_pago", { withTimezone: true }),
+  comprobantePagoUrl: varchar("comprobante_pago_url", { length: 500 }),
+  segmentCode: varchar("segment_code", { length: 50 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdx: index("IDX_informes_rendicion_user").on(table.userId),
+  estadoIdx: index("IDX_informes_rendicion_estado").on(table.estado),
+  periodoIdx: index("IDX_informes_rendicion_periodo").on(table.periodo),
+  createdIdx: index("IDX_informes_rendicion_created").on(table.createdAt),
+}));
+
+export type InformeRendicion = typeof informesRendicion.$inferSelect;
+export type InsertInformeRendicion = typeof informesRendicion.$inferInsert;
+
+export const insertInformeRendicionSchema = createInsertSchema(informesRendicion).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  fechaEnvio: true,
+  fechaAprobacion: true,
+  fechaPago: true,
+  aprobadorId: true,
+}).extend({
+  titulo: z.string().min(1, "El título es requerido"),
+  userId: z.string().min(1, "El usuario es requerido"),
+  creadoPorId: z.string().min(1, "El creador es requerido"),
+  estado: z.enum(ESTADOS_INFORME_RENDICION).default("borrador"),
+});
+
+/** Payload para crear un informe a partir de gastos ya existentes. */
+export const crearInformeRendicionSchema = z.object({
+  titulo: z.string().min(1, "El título es requerido"),
+  observaciones: z.string().optional(),
+  gastoIds: z.array(z.string()).min(1, "Selecciona al menos un gasto"),
+});
+
+/** Payload para las transiciones que requieren comentario/motivo. */
+export const transicionInformeSchema = z.object({
+  comentario: z.string().optional(),
+  motivoRechazo: z.string().optional(),
+  comprobantePagoUrl: z.string().optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Catálogos configurables del módulo de gastos
+// ---------------------------------------------------------------------------
+
+/** Tipos de catálogo soportados. Una tabla polimórfica en vez de cuatro. */
+export const TIPOS_CATALOGO_GASTO = [
+  "categoria",
+  "centro_costo",
+  "proyecto",
+  "tipo_documento",
+] as const;
+export type TipoCatalogoGasto = typeof TIPOS_CATALOGO_GASTO[number];
+
+/**
+ * Valores administrables de los selectores del formulario de gasto. Los gastos
+ * siguen guardando el NOMBRE como texto (columnas `categoria`, `centro_costos`,
+ * `tipo_documento`), así que activar/desactivar un ítem no rompe históricos.
+ */
+export const gastoCatalogos = pgTable("gasto_catalogos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tipo: varchar("tipo", { length: 30 }).notNull(),
+  nombre: varchar("nombre", { length: 160 }).notNull(),
+  codigo: varchar("codigo", { length: 60 }),
+  /** Cuenta contable (solo aplica a categorías). */
+  cuentaContable: varchar("cuenta_contable", { length: 60 }),
+  /** Solo tipo_documento: obliga a informar el RUT del proveedor. */
+  requiereRutProveedor: boolean("requiere_rut_proveedor").notNull().default(false),
+  orden: integer("orden").notNull().default(0),
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tipoIdx: index("IDX_gasto_catalogos_tipo").on(table.tipo, table.orden),
+  tipoNombreUq: uniqueIndex("UQ_gasto_catalogos_tipo_nombre").on(table.tipo, table.nombre),
+}));
+
+export type GastoCatalogo = typeof gastoCatalogos.$inferSelect;
+export type InsertGastoCatalogo = typeof gastoCatalogos.$inferInsert;
+
+export const insertGastoCatalogoSchema = createInsertSchema(gastoCatalogos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  tipo: z.enum(TIPOS_CATALOGO_GASTO),
+  nombre: z.string().min(1, "El nombre es requerido"),
+  codigo: z.string().optional().nullable(),
+  cuentaContable: z.string().optional().nullable(),
+  requiereRutProveedor: z.boolean().default(false),
+  orden: z.number().int().default(0),
+  activo: z.boolean().default(true),
+});
+
+// ---------------------------------------------------------------------------
+// Historial de estados unificado (gastos, informes y fondos)
+// ---------------------------------------------------------------------------
+
+export const ENTIDADES_HISTORIAL_GASTO = ["gasto", "informe", "fondo"] as const;
+export type EntidadHistorialGasto = typeof ENTIDADES_HISTORIAL_GASTO[number];
+
+/**
+ * Append-only. Reemplaza el rastro disperso en columnas sueltas
+ * (`fecha_aprobacion_supervisor`, `comentario_rrhh`, …) por un timeline único
+ * que la UI puede renderizar igual para las tres entidades.
+ */
+export const historialEstadosGasto = pgTable("historial_estados_gasto", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entidad: varchar("entidad", { length: 20 }).notNull(),
+  entidadId: varchar("entidad_id").notNull(),
+  estadoAnterior: varchar("estado_anterior", { length: 50 }),
+  estadoNuevo: varchar("estado_nuevo", { length: 50 }).notNull(),
+  actorId: varchar("actor_id"),
+  actorNombre: varchar("actor_nombre", { length: 255 }),
+  comentario: text("comentario"),
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  entidadIdx: index("IDX_historial_estados_entidad").on(table.entidad, table.entidadId),
+  createdIdx: index("IDX_historial_estados_created").on(table.createdAt),
+}));
+
+export type HistorialEstadoGasto = typeof historialEstadosGasto.$inferSelect;
+export type InsertHistorialEstadoGasto = typeof historialEstadosGasto.$inferInsert;
 
 // Tabla de promesas de compra semanales
 export const promesasCompra = pgTable("promesas_compra", {

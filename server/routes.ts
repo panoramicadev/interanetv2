@@ -31600,6 +31600,12 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // OCR extraction from receipt/invoice image
+  /**
+   * OCR de boletas/facturas. Ver server/services/gastos-ocr.ts: acepta PDF
+   * (lo rasteriza), fuerza salida JSON y cae a un segundo proveedor si el
+   * primero falla. Nunca devuelve error duro: si no logra leer el documento
+   * responde success:false y el formulario sigue permitiendo carga manual.
+   */
   app.post('/api/gastos-empresariales/ocr-extract', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -31612,89 +31618,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
       }
 
-      const file = req.file;
+      const { extraerComprobante } = await import('./services/gastos-ocr');
+      const resultado = await extraerComprobante(req.file);
 
-      // Check if it's an image (not PDF for now)
-      if (!file.mimetype.startsWith('image/')) {
-        return res.json({
-          success: false,
-          message: 'OCR solo disponible para imágenes. Por favor ingrese los datos manualmente.',
-          data: null
-        });
+      if (resultado.success) {
+        console.log(`🔍 [OCR] Extraído con ${resultado.proveedor}:`, resultado.data);
       }
 
-      // Convert image to base64
-      const base64Image = file.buffer.toString('base64');
-      const imageDataUrl = `data:${file.mimetype};base64,${base64Image}`;
-
-      // Use OpenAI Vision to extract data
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analiza esta imagen de un documento comercial chileno (boleta, factura, o recibo) y extrae la siguiente información en formato JSON:
-                
-{
-  "monto": (número, el monto total a pagar, sin símbolo de moneda ni separadores de miles, debe ser un número entero. Busca la palabra TOTAL),
-  "descripcion": (string, una breve descripción del gasto basada en los items o concepto del documento. Si es de peaje, indica que es un peaje),
-  "numeroDocumento": (string, número de folio, número de boleta, factura o nro de ticket),
-  "rutProveedor": (string, RUT del emisor/proveedor en formato XX.XXX.XXX-X. Suele estar en la parte superior),
-  "proveedor": (string, razón social o nombre del emisor/proveedor o Autopista),
-  "fechaEmision": (string, fecha de emisión en formato YYYY-MM-DD. Convierte la fecha del documento a este formato),
-  "tipoDocumento": (string, uno de: "Boleta", "Factura", "Recibo", "Peaje", "Otro")
-}
-
-Instrucciones extra: 
-1. Si el documento es un ticket de peaje, asigna tipoDocumento="Peaje". 
-2. Si no puedes identificar algún campo con total certeza, intenta buscar sinónimos (ej: Folio = numeroDocumento). Si definitivamente no está, déjalo como null. 
-3. Responde SOLO con el JSON válido, sin delimitadores de markdown ni texto adicional.`
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageDataUrl,
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 500,
-      });
-
-      const content = response.choices[0]?.message?.content || '{}';
-
-      // Parse the JSON response
-      let extractedData;
-      try {
-        // Remove markdown code blocks if present
-        const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        extractedData = JSON.parse(jsonStr);
-      } catch (parseError) {
-        console.error('Error parsing OCR response:', content);
-        return res.json({
-          success: false,
-          message: 'No se pudo interpretar el documento',
-          data: null
-        });
-      }
-
-      console.log('🔍 [OCR] Extracted data:', extractedData);
-
-      res.json({
-        success: true,
-        message: 'Datos extraídos correctamente',
-        data: extractedData
-      });
+      res.json(resultado);
     } catch (error: any) {
       console.error('Error in OCR extraction:', error);
       res.json({

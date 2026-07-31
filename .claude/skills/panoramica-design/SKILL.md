@@ -78,6 +78,33 @@ Son dos estilos de tab distintos y ambos son válidos según el contenedor: fond
 sólido naranja cuando la TabsList es blanca/plana; blanco+texto-naranja cuando la
 TabsList es un track gris.
 
+### Tab pastilla (`rounded-full` — Rendición de Gastos)
+Variante ovalada, aprobada por el usuario en jul-2026 al incorporar el sistema de
+`primerosresultados/rendicion-gastos`. La `TabsList` es una **pastilla blanca con
+borde** y el trigger activo va en naranja sólido:
+
+Fuente única: **`client/src/components/gastos/tabs-pill.ts`** (`TABS_LIST_PILL` /
+`TAB_PILL`, más `*_SOFT` para sub-pestañas anidadas). Importar de ahí, no copiar
+las clases.
+
+```
+TabsList  → rounded-full border border-slate-200/70 bg-white p-1 shadow-sm
+TabsTrigger → h-9 rounded-full px-4 + data-[state=active]:bg-[#fd6301] text-white
+sub-tabs  → track bg-slate-100/70 + activo bg-white text-[#fd6301]
+```
+
+Tres detalles que hay que respetar al reusarla:
+- **Duplicar la variante `dark:data-[state=active]:…`.** `dark:` y
+  `data-[state=active]:` tienen la misma especificidad; sin la combinada, el
+  color del tab activo depende del orden en que Tailwind emite las reglas y en
+  oscuro se pierde el contraste.
+- **Ocultar la scrollbar** (`[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`):
+  en móvil la barra del sistema corta el borde inferior de la pastilla.
+- **Centrar el tab activo** al montar y al cambiar de pestaña, ajustando
+  `scrollLeft` de la lista (no `scrollIntoView`, que arrastra el scroll de la
+  página) dentro de un `requestAnimationFrame` y con `behavior: "auto"` — con
+  scroll suave, el re-layout del contenido al montarse aborta la animación.
+
 ### Header de módulo (ícono cuadrado + título)
 ```
 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
