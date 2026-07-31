@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown, Pencil, Calendar } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown, Pencil, Calendar, Route, Settings2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +60,9 @@ import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
 import GastosEmpresarialesDashboard, { type DashboardExportHandle } from "./gastos-empresariales-dashboard";
 import GastosFilterBarDashboard from "@/components/gastos-filter-bar-dashboard";
+import GastosInformes from "./gastos-informes";
+import GastosViajes from "./gastos-viajes";
+import GastosCatalogos from "./gastos-catalogos";
 
 const solicitarFondoSchema = z.object({
   monto: z.string().min(1, "El monto es requerido"),
@@ -154,8 +157,45 @@ export default function GastosEmpresariales() {
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [activeMainTab, setActiveMainTab] = useState("dashboard");
+  // Las notificaciones de informes enlazan a ?tab=informes; respetamos el
+  // deep-link para que el usuario aterrice en la pestaña correcta.
+  const [activeMainTab, setActiveMainTab] = useState(() => {
+    const pedida = new URLSearchParams(window.location.search).get("tab");
+    return ["dashboard", "rendicion", "informes", "fondos", "viajes", "catalogos"].includes(pedida ?? "")
+      ? (pedida as string)
+      : "dashboard";
+  });
   const dashboardRef = useRef<DashboardExportHandle>(null);
+
+  // Categorías administrables (pestaña Catálogos). Reemplazan la lista fija
+  // que antes vivía duplicada en el filtro y en el diálogo de edición.
+  const { data: catalogosGasto = [] } = useQuery<{ id: string; tipo: string; nombre: string }[]>({
+    queryKey: ['/api/gasto-catalogos'],
+  });
+  const categoriasCatalogo = catalogosGasto.filter((c) => c.tipo === 'categoria');
+
+  /**
+   * Reporte server-side (pdfkit / exceljs). Arrastra los filtros visibles del
+   * módulo para que lo descargado coincida con lo que el usuario está viendo.
+   */
+  const descargarReporte = (formato: 'pdf' | 'excel') => {
+    const params = new URLSearchParams();
+    const anioNum = Number(anio);
+    const mesNum = Number(mes);
+    if (Number.isFinite(anioNum) && Number.isFinite(mesNum) && mesNum >= 1 && mesNum <= 12) {
+      const mm = String(mesNum).padStart(2, '0');
+      const ultimoDia = new Date(anioNum, mesNum, 0).getDate();
+      params.set('fechaDesde', `${anioNum}-${mm}-${String(diaDesde || 1).padStart(2, '0')}`);
+      params.set('fechaHasta', `${anioNum}-${mm}-${String(diaHasta || ultimoDia).padStart(2, '0')}`);
+    }
+    if (usuarioFilter && usuarioFilter !== 'all') params.set('userId', usuarioFilter);
+    if (categoriaFilter && categoriaFilter !== 'all') params.set('categoria', categoriaFilter);
+    if (estadoFilter && estadoFilter !== 'all') params.set('estado', estadoFilter);
+    // Las boletas solo tienen sentido en el PDF; en Excel solo pesarían.
+    if (formato === 'pdf') params.set('incluirComprobantes', 'true');
+
+    window.open(`/api/gastos-reportes/${formato}?${params.toString()}`, '_blank');
+  };
   const [, forceUpdate] = useState(0);
   const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);
   const [editFormData, setEditFormData] = useState<Record<string, string>>({});
@@ -531,7 +571,7 @@ export default function GastosEmpresariales() {
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className="flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:w-auto">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2 flex-shrink-0">
               <BarChart3 className="h-4 w-4" />
               Dashboard
@@ -539,6 +579,10 @@ export default function GastosEmpresariales() {
             <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2 flex-shrink-0">
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
+            </TabsTrigger>
+            <TabsTrigger value="informes" data-testid="tab-informes" className="flex items-center gap-2 flex-shrink-0">
+              <FileText className="h-4 w-4" />
+              Informes
             </TabsTrigger>
             <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2 flex-shrink-0 relative">
               <HandCoins className="h-4 w-4" />
@@ -549,9 +593,26 @@ export default function GastosEmpresariales() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="viajes" data-testid="tab-viajes" className="flex items-center gap-2 flex-shrink-0">
+              <Route className="h-4 w-4" />
+              Viajes
+            </TabsTrigger>
+            {(user?.role === 'admin' || user?.role === 'recursos_humanos') && (
+              <TabsTrigger value="catalogos" data-testid="tab-catalogos" className="flex items-center gap-2 flex-shrink-0">
+                <Settings2 className="h-4 w-4" />
+                Catálogos
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pt-3 pb-1 rounded-lg">
+          {/* Los filtros globales (período, segmento, vendedor) solo aplican a
+              Dashboard, Rendición y Fondos. Informes, Viajes y Catálogos tienen
+              su propia navegación y la barra solo agregaba ruido. */}
+          <div
+            className={`sticky top-0 z-10 bg-background/95 backdrop-blur-sm pt-3 pb-1 rounded-lg ${
+              ['informes', 'viajes', 'catalogos'].includes(activeMainTab) ? 'hidden' : ''
+            }`}
+          >
             <GastosFilterBarDashboard
               actions={
                 <>
@@ -584,6 +645,26 @@ export default function GastosEmpresariales() {
                   )}
                   {activeMainTab === 'rendicion' && (
                     <>
+                      {/* Reporte generado en el servidor: incluye los gráficos y
+                          las boletas adjuntas dentro del PDF. */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => descargarReporte('pdf')}
+                        data-testid="button-reporte-pdf"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Reporte PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => descargarReporte('excel')}
+                        data-testid="button-reporte-excel"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Reporte Excel
+                      </Button>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -654,11 +735,9 @@ export default function GastosEmpresariales() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas las categorías</SelectItem>
-                    <SelectItem value="Combustibles">Combustibles</SelectItem>
-                    <SelectItem value="Peaje">Peaje</SelectItem>
-                    <SelectItem value="Colación">Colación</SelectItem>
-                    <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
-                    <SelectItem value="Otros">Otros</SelectItem>
+                    {categoriasCatalogo.map((c) => (
+                      <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -951,6 +1030,20 @@ export default function GastosEmpresariales() {
               onExternalCreateFundClose={() => setShowCrearFondoDialog(false)}
             />
           </TabsContent>
+
+          <TabsContent value="informes" className="mt-4">
+            <GastosInformes />
+          </TabsContent>
+
+          <TabsContent value="viajes" className="mt-4">
+            <GastosViajes />
+          </TabsContent>
+
+          {(user?.role === 'admin' || user?.role === 'recursos_humanos') && (
+            <TabsContent value="catalogos" className="mt-4">
+              <GastosCatalogos />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
       {/* Detail Dialog */}
@@ -1622,11 +1715,9 @@ export default function GastosEmpresariales() {
                     <SelectValue placeholder="Categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Combustibles">Combustibles</SelectItem>
-                    <SelectItem value="Peaje">Peaje</SelectItem>
-                    <SelectItem value="Colación">Colación</SelectItem>
-                    <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
-                    <SelectItem value="Otros">Otros</SelectItem>
+                    {categoriasCatalogo.map((c) => (
+                      <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
