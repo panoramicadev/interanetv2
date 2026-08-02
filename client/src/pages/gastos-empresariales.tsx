@@ -49,6 +49,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown, Pencil, Calendar, Route, Settings2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
 import { format } from "date-fns";
@@ -577,31 +578,34 @@ export default function GastosEmpresariales() {
 
   return (
     <>
-      <div className="space-y-8 px-2 md:px-4 pb-8">
+      <div className="space-y-4 px-2 pb-8 md:space-y-8 md:px-4">
         {/* Encabezado del módulo. El ícono usa el naranja de marca (antes ámbar
             sobre white/10) y a la derecha va el total del período visible, para
             que el número que importa se lea sin entrar al dashboard. */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-7 text-white">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white md:p-7">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-[#fd6301] shadow-lg shadow-orange-500/25">
-                <Banknote className="h-6 w-6 text-white" />
+          <div className="relative flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-5">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] shadow-lg shadow-orange-500/25 md:h-12 md:w-12 md:rounded-2xl">
+                <Banknote className="h-4.5 w-4.5 text-white md:h-6 md:w-6" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Rendición de Gastos</h1>
-                <p className="text-sm text-slate-300 md:text-base">Gestiona y controla la rendición de gastos y fondos</p>
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-bold tracking-tight md:text-3xl">Rendición de Gastos</h1>
+                {/* La bajada solo aporta en escritorio; en móvil se come una
+                    línea de una pantalla que ya es corta. */}
+                <p className="hidden text-slate-300 md:block md:text-base">Gestiona y controla la rendición de gastos y fondos</p>
               </div>
             </div>
-            <div className="flex items-center gap-6 sm:justify-end">
+            {/* En móvil los dos indicadores van en una sola fila compacta. */}
+            <div className="flex items-center gap-4 border-t border-white/10 pt-3 md:gap-6 md:border-0 md:pt-0">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Total del período</p>
-                <p className="mt-0.5 text-2xl font-bold tabular-nums">{formatoMoneda(totalPeriodo)}</p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">{formatoMoneda(totalPeriodo)}</p>
               </div>
-              <div className="hidden h-10 w-px bg-white/10 sm:block" />
-              <div className="hidden sm:block">
+              <div className="h-8 w-px bg-white/10 md:h-10" />
+              <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Por aprobar</p>
-                <p className="mt-0.5 text-2xl font-bold tabular-nums text-amber-300">{gastosPendientesPeriodo}</p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-amber-300 md:text-2xl">{gastosPendientesPeriodo}</p>
               </div>
             </div>
           </div>
@@ -647,7 +651,7 @@ export default function GastosEmpresariales() {
               Dashboard, Rendición y Fondos. Informes, Viajes y Catálogos tienen
               su propia navegación y la barra solo agregaba ruido. */}
           <div
-            className={`sticky top-0 z-10 bg-background/95 backdrop-blur-sm pt-3 pb-1 rounded-lg ${
+            className={`sticky top-0 z-10 rounded-lg bg-background/95 pb-1 pt-2 backdrop-blur-sm md:pt-3 ${
               ['informes', 'viajes', 'catalogos'].includes(activeMainTab) ? 'hidden' : ''
             }`}
           >
@@ -741,14 +745,16 @@ export default function GastosEmpresariales() {
             <GastosEmpresarialesDashboard ref={dashboardRef} embedded={true} onReady={() => forceUpdate(n => n + 1)} />
           </TabsContent>
 
-          <TabsContent value="rendicion" className="mt-4 space-y-5">
+          <TabsContent value="rendicion" className="mt-3 space-y-3 md:mt-4 md:space-y-5">
 
             {/* Filtros. Buscador y selectores en pastilla, coherentes con las
                 pestañas y con el foco en naranja de marca (antes el focus ring
                 era azul, heredado del default de shadcn). */}
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <div className="flex flex-col gap-2.5 sm:flex-row">
-                <div className="relative flex-1">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:p-3">
+              {/* En móvil: buscador arriba y los dos selectores lado a lado.
+                  Apilados ocupaban tres filas completas de una pantalla corta. */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2.5">
+                <div className="relative col-span-2 sm:flex-1">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     placeholder="Buscar por descripción, categoría o proveedor..."
@@ -759,7 +765,7 @@ export default function GastosEmpresariales() {
                   />
                 </div>
                 <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 sm:w-[170px] dark:border-slate-700 dark:bg-slate-800/50" data-testid="select-estado">
+                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/50 sm:w-[170px]" data-testid="select-estado">
                     <SelectValue placeholder="Estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -770,7 +776,7 @@ export default function GastosEmpresariales() {
                   </SelectContent>
                 </Select>
                 <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 sm:w-[180px] dark:border-slate-700 dark:bg-slate-800/50" data-testid="select-categoria">
+                  <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/50 sm:w-[180px]" data-testid="select-categoria">
                     <SelectValue placeholder="Categoría" />
                   </SelectTrigger>
                   <SelectContent>
@@ -821,7 +827,11 @@ export default function GastosEmpresariales() {
             </div>
 
             {/* Modern Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            {/* Escritorio: tabla. En móvil se reemplaza por tarjetas (abajo):
+                ocho columnas obligaban a scroll horizontal y dejaban el monto
+                y el estado fuera de la pantalla, que es lo único que se mira
+                al revisar la rendición desde el teléfono. */}
+            <div className="hidden overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm md:block dark:border-slate-700 dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -1071,6 +1081,57 @@ export default function GastosEmpresariales() {
                   </TableBody>
                 </Table>
               </div>
+            </div>
+
+            {/* Móvil: una tarjeta por gasto, con lo que se necesita para
+                decidir de un vistazo — categoría, descripción, fecha, monto y
+                estado — y el detalle a un toque. */}
+            <div className="space-y-2.5 md:hidden">
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-[86px] w-full rounded-2xl" />
+                  <Skeleton className="h-[86px] w-full rounded-2xl" />
+                  <Skeleton className="h-[86px] w-full rounded-2xl" />
+                </>
+              ) : filteredGastos.length === 0 ? (
+                <EstadoVacio
+                  icono={FileText}
+                  titulo="No se encontraron gastos"
+                  descripcion={`No hay gastos registrados en ${['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} ${anio}.`}
+                />
+              ) : (
+                filteredGastos.map((gasto) => (
+                  <button
+                    key={gasto.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedGasto(gasto);
+                      setShowDetailDialog(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3 text-left shadow-sm transition-all active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900"
+                    data-testid={`card-gasto-${gasto.id}`}
+                  >
+                    <CategoriaIcono categoria={gasto.categoria} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        {gasto.descripcion}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">
+                        {gasto.categoria}
+                        {' · '}
+                        {gasto.fechaEmision
+                          ? format(new Date(`${String(gasto.fechaEmision).slice(0, 10)}T12:00:00`), 'd MMM', { locale: es })
+                          : format(new Date(gasto.createdAt), 'd MMM', { locale: es })}
+                        {gasto.proveedor ? ` · ${gasto.proveedor}` : ''}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Monto value={gasto.monto} className="text-sm font-bold text-slate-900 dark:text-slate-100" />
+                      {getEstadoBadge(gasto)}
+                    </span>
+                  </button>
+                ))
+              )}
             </div>
           </TabsContent>
 

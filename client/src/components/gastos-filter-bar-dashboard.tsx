@@ -92,15 +92,15 @@ export default function GastosFilterBarDashboard({ actions }: Props) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-800 px-3 sm:px-4 lg:px-6 py-4 lg:py-5 rounded-2xl shadow-sm">
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="rounded-2xl border border-gray-200/60 bg-white px-2.5 py-2.5 shadow-sm sm:px-4 sm:py-4 lg:px-6 lg:py-5 dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* Vista */}
         <div className="flex items-center gap-2">
           <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Vista:</span>
+          <span className="hidden text-sm font-medium text-gray-700 sm:inline dark:text-gray-300">Vista:</span>
           <Select value={vista} onValueChange={(v) => handleVistaChange(v as GastosVista)}>
             <SelectTrigger
-              className="h-9 w-48 rounded-lg border-gray-200 dark:border-gray-700 text-sm"
+              className="h-9 w-[11rem] rounded-lg border-gray-200 text-sm sm:w-48 dark:border-gray-700 [&>span]:truncate"
               data-testid="select-gastos-vista"
             >
               <SelectValue />
@@ -260,7 +260,7 @@ export default function GastosFilterBarDashboard({ actions }: Props) {
         {/* Período */}
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-700">Período:</span>
+          <span className="hidden text-sm font-medium text-gray-700 sm:inline">Período:</span>
           <YearMonthSelector
             value={selection}
             onChange={(next) => next && updateGastosFilter({ selection: next })}
@@ -268,7 +268,11 @@ export default function GastosFilterBarDashboard({ actions }: Props) {
         </div>
 
         {actions && (
-          <div className="ml-auto flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          /* En móvil las acciones van en una tira que scrollea en horizontal:
+             apiladas (flex-wrap) ocupaban tres filas y empujaban la lista de
+             gastos fuera de la primera pantalla. La scrollbar se oculta para
+             que no corte los botones. */
+          <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:ml-auto sm:flex-nowrap sm:overflow-visible">
             {actions}
           </div>
         )}
