@@ -105,6 +105,52 @@ Tres detalles que hay que respetar al reusarla:
   página) dentro de un `requestAnimationFrame` y con `behavior: "auto"` — con
   scroll suave, el re-layout del contenido al montarse aborta la animación.
 
+### Kit del módulo de Gastos (`components/gastos/ui.tsx`)
+
+Rendición de Gastos tiene su propio kit, aprobado en ago-2026 al portar el
+sistema de `primerosresultados/rendicion-gastos`. **No dupliques estas clases:
+importa los componentes.**
+
+| Export | Para qué |
+|---|---|
+| `Monto` / `formatoMoneda` | CLP con `tabular-nums`. Todo monto va tabular: sin eso las columnas no alinean al comparar filas. |
+| `EstadoChip` | Pill de estado en MAYÚSCULAS. **Un solo mapa** para gastos, informes y fondos. |
+| `CategoriaIcono` | Círculo naranja con el ícono de la categoría del gasto. |
+| `KpiCard` | Tarjeta de indicador con barra de acento (`tono`: marca/ok/alerta/error/info). |
+| `EstadoVacio` | Estado vacío: chip de ícono + título + bajada + acción. |
+| `EncabezadoSeccion` | Título + bajada + acciones, con el mismo ritmo en todas las pantallas. |
+| `BOTON_MARCA`, `SUPERFICIE` | Clases del botón primario y de la tarjeta base. |
+
+La razón de existir del kit no es estética: antes **cada pantalla tenía su propio
+`getEstadoBadge`**, así que un mismo "aprobado" se veía distinto en gastos que en
+fondos. Si agregas un estado nuevo, va en el mapa de `ui.tsx`, no en la página.
+
+### Móvil: tabla ≠ lista
+
+Regla del módulo de Gastos, extensible al resto: **una tabla de más de ~5 columnas
+no se muestra en móvil**. Se renderiza `hidden md:block` y debajo va una lista de
+tarjetas `md:hidden` con lo mínimo para decidir de un vistazo (ícono, título,
+meta, monto y estado), y el detalle a un toque.
+
+Cuando el chip de estado es largo (p. ej. "EN APROBACIÓN"), en móvil el monto y el
+estado **bajan a su propia fila** dentro de la tarjeta; en línea con el título lo
+truncan. Patrón: contenedor `flex-wrap`, bloque de monto/estado con
+`w-full … sm:w-auto sm:flex-col`.
+
+### Móvil: presupuesto de alto antes del contenido
+
+En un teléfono la primera pantalla se llena con el encabezado y los filtros, y el
+contenido queda a un scroll y medio. Criterios que se aplicaron en Gastos:
+
+- Encabezado: ícono y título más chicos, **la bajada solo en escritorio**
+  (`hidden md:block`), y los indicadores en una fila con separador.
+- Barras de acciones con 3+ botones: tira que scrollea en horizontal
+  (`overflow-x-auto` + ocultar scrollbar), no `flex-wrap`.
+- Etiquetas de texto de un filtro que ya tiene ícono (`Vista:`, `Período:`):
+  `hidden sm:inline`.
+- Selectores cortos de a dos por fila (`grid-cols-2`), no apilados.
+- Ritmo vertical: `space-y-3/4` en móvil contra `md:space-y-5/8`.
+
 ### Header de módulo (ícono cuadrado + título)
 ```
 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
