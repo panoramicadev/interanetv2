@@ -53,6 +53,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { HistorialEstados } from "@/components/gastos/historial-estados";
+import { EstadoChip, EstadoVacio, Monto } from "@/components/gastos/ui";
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -99,37 +100,10 @@ interface InformeDetalle extends InformeResumen {
 
 // ─── Presentación de estados ────────────────────────────────────────────────
 
-const ESTADO_BADGE: Record<EstadoInforme, { label: string; className: string }> = {
-  borrador: {
-    label: "Borrador",
-    className: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
-  },
-  enviado: {
-    label: "En aprobación",
-    className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900",
-  },
-  aprobado: {
-    label: "Aprobado",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900",
-  },
-  rechazado: {
-    label: "Rechazado",
-    className: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900",
-  },
-  pagado: {
-    label: "Pagado",
-    className: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-900",
-  },
-};
-
-function EstadoBadge({ estado }: { estado: EstadoInforme }) {
-  const cfg = ESTADO_BADGE[estado] ?? ESTADO_BADGE.borrador;
-  return (
-    <Badge variant="outline" className={`whitespace-nowrap text-[11px] px-2 py-0.5 ${cfg.className}`}>
-      {cfg.label}
-    </Badge>
-  );
-}
+/** Alias del chip compartido: los estados del informe ya viven en el kit. */
+const EstadoBadge = ({ estado }: { estado: EstadoInforme }) => (
+  <EstadoChip estado={estado} />
+);
 
 // ─── Formato ────────────────────────────────────────────────────────────────
 
@@ -672,13 +646,13 @@ export default function GastosInformes() {
               <button
                 type="button"
                 onClick={() => setSeleccionadoId(informe.id)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 text-left shadow-sm transition-all hover:border-orange-200 hover:shadow dark:border-slate-700 dark:bg-slate-900"
+                className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-slate-200/70 bg-white p-4 text-left shadow-sm transition-all hover:border-orange-200 hover:shadow dark:border-slate-700 dark:bg-slate-900"
                 data-testid={`card-informe-${informe.id}`}
               >
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-orange-50 dark:bg-orange-950/40">
                   <FileText className="h-5 w-5 text-[#fd6301]" />
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-0">
                   <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                     {informe.titulo}
                   </p>
@@ -687,13 +661,14 @@ export default function GastosInformes() {
                     {esAprobador && ` · ${informe.usuario.nombre}`}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <span className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
-                    {plata(informe.total)}
-                  </span>
+                {/* En móvil el monto y el estado bajan a su propia fila: en línea
+                    con el título, el chip largo ("EN APROBACIÓN") lo truncaba. */}
+                <div className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-slate-100 pt-2 sm:w-auto sm:flex-col sm:items-end sm:gap-1.5 sm:border-0 sm:pt-0 dark:border-slate-800">
+                  <Monto value={informe.total} className="text-sm font-bold text-slate-800 dark:text-slate-100" />
                   <EstadoBadge estado={informe.estado} />
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+                {/* El chevron es decorativo: en móvil roba ancho al título. */}
+                <ChevronRight className="hidden h-4 w-4 shrink-0 text-slate-300 sm:block" />
               </button>
             </li>
           ))}

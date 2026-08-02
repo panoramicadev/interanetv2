@@ -25,6 +25,23 @@ El módulo de referencia en código es el **Panel de Trabajo**
 - **Header de página:** título con un ícono-chip naranja cuadrado + subtítulo gris.
 - **Dark mode** siempre contemplado; diseño responsive (los filtros colapsan en móvil).
 
+## Móvil no es "lo mismo más angosto"
+
+- Una **tabla de más de ~5 columnas no se muestra en móvil**: se oculta y en su
+  lugar va una lista de tarjetas con lo justo para decidir de un vistazo (ícono,
+  título, meta, monto, estado) y el detalle a un toque.
+- El encabezado y los filtros no pueden comerse la primera pantalla: la bajada
+  del título solo en escritorio, las barras de 3+ botones scrollean en horizontal
+  (no se apilan), y las etiquetas de un filtro que ya tiene ícono se ocultan.
+
+## Módulo de Gastos: usa su kit
+
+Rendición de Gastos tiene componentes propios en
+`client/src/components/gastos/` (`ui.tsx` y `tabs-pill.ts`): montos, chips de
+estado, KPI, estados vacíos y pestañas. **Impórtalos, no copies las clases** — el
+kit existe justamente porque antes cada pantalla pintaba el mismo estado de un
+color distinto.
+
 ## El diseño está bloqueado
 
 El look ya está definido. Los cambios nuevos **aplican** estos tokens; no
