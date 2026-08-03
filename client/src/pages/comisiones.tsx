@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/table";
 import {
   DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
-  Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, SlidersHorizontal, type LucideIcon,
+  Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, SlidersHorizontal, Search, X,
+  type LucideIcon,
 } from "lucide-react";
 
 // ─── Tipos ───
@@ -24,7 +25,7 @@ interface CommissionItem {
   netCost: number;
   netMargin: number;
   netMarginPct: number;
-  // Regularización del flete (4% que asume la empresa)
+  // Regularización del flete (tasa configurable, 4% por defecto)
   fleteObjetivo: number;
   fleteCobrado: number;
   fleteDeficit: number;
@@ -34,11 +35,13 @@ interface CommissionItem {
   overriddenClientCount: number;
   commissionPct: number;
   commissionAmount: number;
+  // Comisión sin el piso en 0: negativa = las NC se comieron el margen
+  commissionRaw: number;
 }
 interface CommissionTotals {
   netRevenue: number; netMargin: number;
   fleteObjetivo: number; fleteCobrado: number; fleteDeficit: number;
-  marginAdjusted: number; commissionAmount: number;
+  marginAdjusted: number; commissionAmount: number; commissionRaw: number;
 }
 interface CommissionSummary {
   startDate: string;
@@ -50,16 +53,34 @@ interface DetailClient {
   client: string; revenue: number; cost: number; margin: number; lineCount: number;
   fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number;
+  fleteOverridePct: number | null; fleteEffectivePct: number;
 }
 interface DetailDocument {
-  document: string; numero: string; client: string; fecha: string;
+  document: string; numero: string; tido: string; isCreditNote: boolean;
+  client: string; fecha: string;
   revenue: number; cost: number; margin: number; lineCount: number;
   fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number; clientPct: number | null;
+  fleteOverridePct: number | null; fleteClientPct: number | null; fleteEffectivePct: number;
 }
 interface SalespersonDetail {
-  salesperson: string; startDate: string; endDate: string; defaultPct: number;
+  salesperson: string; startDate: string; endDate: string;
+  defaultPct: number; defaultFletePct: number;
   clients: DetailClient[]; documents: DetailDocument[];
+}
+interface ExportLine {
+  fecha: string; tido: string; isCreditNote: boolean; document: string; numero: string;
+  salesperson: string; client: string; sku: string; producto: string;
+  cantidad: number; revenue: number; cost: number; margin: number; esFlete: boolean;
+}
+interface CommissionExport {
+  startDate: string; endDate: string; defaultFletePct: number;
+  summary: CommissionSummary;
+  clients: (DetailClient & { salesperson: string })[];
+  documents: (DetailDocument & { salesperson: string })[];
+  lines: ExportLine[];
+  linesTruncated: boolean;
+  lineLimit: number;
 }
 
 // ─── Helpers de fecha ───
@@ -133,6 +154,20 @@ export default function Comisiones() {
     onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo guardar el %", variant: "destructive" }),
   });
 
+  // Tasa de regularización de flete por cliente o por venta (global, no por
+  // vendedor: el flete depende del destino del despacho).
+  const saveFleteRate = useMutation({
+    mutationFn: async (payload: { scope: "client" | "document"; value: string; fletePct: number | null }) => {
+      const res = await apiRequest("PUT", "/api/hr/commissions/flete-rates", payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/commissions/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/commissions/salesperson"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo guardar la tasa de flete", variant: "destructive" }),
+  });
+
   const items = summary?.items || [];
 
   const commitPct = (salesperson: string, current: number) => {
@@ -148,26 +183,134 @@ export default function Comisiones() {
     savePct.mutate({ salespersonName: salesperson, commissionPct: value });
   };
 
-  const exportCsv = () => {
-    if (!items.length) return;
-    const header = [
-      "Vendedor", "Facturado neto", "Costo neto", "Margen neto",
-      "Flete cobrado", "Flete objetivo 4%", "Regularización flete", "Margen ajustado",
-      "% Comisión", "Comisión a pagar",
-    ];
-    const rows = items.map((it) => [
-      it.salesperson, Math.round(it.netRevenue), Math.round(it.netCost), Math.round(it.netMargin),
-      Math.round(it.fleteCobrado), Math.round(it.fleteObjetivo), Math.round(it.fleteDeficit), Math.round(it.marginAdjusted),
-      it.commissionPct, Math.round(it.commissionAmount),
-    ]);
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `comisiones_${startDate}_${endDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Export a Excel: pide al servidor el volcado completo del período y arma un
+  // libro con Resumen + Clientes + Documentos + Líneas.
+  const [exporting, setExporting] = useState(false);
+  const exportExcel = async () => {
+    if (!items.length || exporting) return;
+    setExporting(true);
+    try {
+      const res = await fetch(
+        `/api/hr/commissions/export?startDate=${startDate}&endDate=${endDate}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error("No se pudo generar la exportación");
+      const data: CommissionExport = await res.json();
+      const XLSX = await import("xlsx");
+      const round = (n: number) => Math.round(n);
+      const wb = XLSX.utils.book_new();
+
+      // Hoja 1 — Resumen por vendedor
+      const resumen = data.summary.items.map((it) => ({
+        "Vendedor": it.salesperson,
+        "Facturado neto (FCV − NCV)": round(it.netRevenue),
+        "Costo neto": round(it.netCost),
+        "Margen neto": round(it.netMargin),
+        "% Margen": Number(it.netMarginPct.toFixed(2)),
+        "Flete cobrado": round(it.fleteCobrado),
+        "Flete objetivo": round(it.fleteObjetivo),
+        "Regularización flete": round(it.fleteDeficit),
+        "Margen ajustado": round(it.marginAdjusted),
+        "% Comisión": it.commissionPct,
+        "Comisión calculada": round(it.commissionRaw),
+        "Comisión a pagar": round(it.commissionAmount),
+      }));
+      const t = data.summary.totals;
+      resumen.push({
+        "Vendedor": "TOTAL",
+        "Facturado neto (FCV − NCV)": round(t.netRevenue),
+        "Costo neto": round(t.netRevenue - t.netMargin),
+        "Margen neto": round(t.netMargin),
+        "% Margen": t.netRevenue !== 0 ? Number(((t.netMargin / t.netRevenue) * 100).toFixed(2)) : 0,
+        "Flete cobrado": round(t.fleteCobrado),
+        "Flete objetivo": round(t.fleteObjetivo),
+        "Regularización flete": round(t.fleteDeficit),
+        "Margen ajustado": round(t.marginAdjusted),
+        "% Comisión": "",
+        "Comisión calculada": round(t.commissionRaw),
+        "Comisión a pagar": round(t.commissionAmount),
+      } as any);
+      const wsResumen = XLSX.utils.json_to_sheet(resumen);
+      wsResumen["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
+        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+      // Hoja 2 — Clientes de cada vendedor
+      const wsClientes = XLSX.utils.json_to_sheet(data.clients.map((c) => ({
+        "Vendedor": c.salesperson,
+        "Cliente": c.client,
+        "Facturado neto": round(c.revenue),
+        "Costo": round(c.cost),
+        "Margen": round(c.margin),
+        "Flete cobrado": round(c.fleteCobrado),
+        "% Flete": c.fleteEffectivePct,
+        "Flete objetivo": round(c.fleteObjetivo),
+        "Regularización flete": round(c.fleteDeficit),
+        "Margen ajustado": round(c.marginAdjusted),
+        "% Comisión": c.effectivePct,
+        "Comisión": round(c.marginAdjusted * c.effectivePct / 100),
+        "Líneas": c.lineCount,
+      })));
+      wsClientes["!cols"] = [{ wch: 28 }, { wch: 34 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+        { wch: 14 }, { wch: 9 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
+      XLSX.utils.book_append_sheet(wb, wsClientes, "Clientes");
+
+      // Hoja 3 — Documento por documento (facturas y notas de crédito)
+      const wsDocs = XLSX.utils.json_to_sheet(data.documents.map((d) => ({
+        "Vendedor": d.salesperson,
+        "Tipo": d.tido,
+        "Documento": d.numero,
+        "Fecha": formatFecha(d.fecha),
+        "Cliente": d.client,
+        "Neto": round(d.revenue),
+        "Costo": round(d.cost),
+        "Margen": round(d.margin),
+        "Flete cobrado": round(d.fleteCobrado),
+        "% Flete": d.fleteEffectivePct,
+        "Flete objetivo": round(d.fleteObjetivo),
+        "Regularización flete": round(d.fleteDeficit),
+        "Margen ajustado": round(d.marginAdjusted),
+        "% Comisión": d.effectivePct,
+        "Comisión": round(d.marginAdjusted * d.effectivePct / 100),
+        "Líneas": d.lineCount,
+      })));
+      wsDocs["!cols"] = [{ wch: 28 }, { wch: 7 }, { wch: 12 }, { wch: 12 }, { wch: 34 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 9 }, { wch: 14 },
+        { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
+      XLSX.utils.book_append_sheet(wb, wsDocs, "Documentos");
+
+      // Hoja 4 — Detalle línea a línea
+      const wsLineas = XLSX.utils.json_to_sheet(data.lines.map((l) => ({
+        "Fecha": formatFecha(l.fecha),
+        "Tipo": l.tido,
+        "Documento": l.numero,
+        "Vendedor": l.salesperson,
+        "Cliente": l.client,
+        "SKU": l.sku,
+        "Producto": l.producto,
+        "Es flete": l.esFlete ? "Sí" : "",
+        "Cantidad": l.cantidad,
+        "Neto": round(l.revenue),
+        "Costo": round(l.cost),
+        "Margen": round(l.margin),
+      })));
+      wsLineas["!cols"] = [{ wch: 12 }, { wch: 7 }, { wch: 12 }, { wch: 28 }, { wch: 34 },
+        { wch: 14 }, { wch: 40 }, { wch: 9 }, { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsLineas, "Líneas");
+
+      XLSX.writeFile(wb, `comisiones_${startDate}_${endDate}.xlsx`);
+
+      if (data.linesTruncated) {
+        toast({
+          title: "Detalle de líneas recortado",
+          description: `El período supera las ${data.lineLimit.toLocaleString("es-CL")} líneas: la hoja "Líneas" trae solo las más recientes. Las otras tres hojas están completas.`,
+        });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "No se pudo exportar", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const activePreset = useMemo(() => {
@@ -189,13 +332,13 @@ export default function Comisiones() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Comisiones de Vendedores</h1>
             <p className="text-sm text-muted-foreground">
-              Comisión sobre el margen de lo facturado (FCV), tras regularizar el 4% de flete que asume la empresa.
+              Comisión sobre el margen de lo facturado neto de devoluciones (FCV − NCV), tras regularizar el flete que asume la empresa.
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCsv} disabled={!items.length}
+        <Button variant="outline" size="sm" onClick={exportExcel} disabled={!items.length || exporting}
           className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
-          <Download className="w-4 h-4 mr-2" /> Exportar CSV
+          <Download className="w-4 h-4 mr-2" /> {exporting ? "Generando…" : "Exportar Excel"}
         </Button>
       </div>
 
@@ -258,7 +401,7 @@ export default function Comisiones() {
                   <TableHead className="text-right">Costo neto</TableHead>
                   <TableHead className="text-right">Margen neto</TableHead>
                   <TableHead className="text-right">Flete cobrado</TableHead>
-                  <TableHead className="text-right">Reg. flete 4%</TableHead>
+                  <TableHead className="text-right">Reg. flete</TableHead>
                   <TableHead className="text-right">Margen ajustado</TableHead>
                   <TableHead className="text-right w-28">% Comisión</TableHead>
                   <TableHead className="text-right">Comisión a pagar</TableHead>
@@ -320,7 +463,7 @@ export default function Comisiones() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCLP(it.netRevenue)}</TableCell>
+                        <TableCell className={`text-right tabular-nums ${it.netRevenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(it.netRevenue)}</TableCell>
                         <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.netCost)}</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCLP(it.netMargin)}
@@ -328,9 +471,7 @@ export default function Comisiones() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.fleteCobrado)}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {it.fleteDeficit > 0
-                            ? <span className="text-rose-600">− {formatCLP(it.fleteDeficit)}</span>
-                            : <span className="text-slate-300">—</span>}
+                          <FleteDeficit value={it.fleteDeficit} />
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {formatCLP(it.marginAdjusted)}
@@ -350,7 +491,26 @@ export default function Comisiones() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums text-emerald-600">
-                          {formatCLP(it.commissionAmount)}
+                          {it.commissionRaw < 0 ? (
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1 cursor-help text-slate-400">
+                                    {formatCLP(0)}
+                                    <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700 text-[10px] px-1.5 py-0 font-medium dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                                      NC
+                                    </Badge>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs text-center">
+                                  <p>
+                                    Las notas de crédito del período superan a las ventas: la comisión calculada da
+                                    {" "}{formatCLP(it.commissionRaw)}. Se paga 0 y no arrastra saldo en contra al mes siguiente.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : formatCLP(it.commissionAmount)}
                         </TableCell>
                       </TableRow>
                       {isOpen && (
@@ -362,6 +522,8 @@ export default function Comisiones() {
                               endDate={endDate}
                               onSaveOverride={(overrideType, value, commissionPct) =>
                                 saveOverride.mutate({ salespersonName: it.salesperson, overrideType, value, commissionPct })}
+                              onSaveFleteRate={(scope, value, fletePct) =>
+                                saveFleteRate.mutate({ scope, value, fletePct })}
                             />
                           </TableCell>
                         </TableRow>
@@ -378,8 +540,8 @@ export default function Comisiones() {
                     <TableCell></TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netMargin)}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums text-slate-500">{formatCLP(summary?.totals.fleteCobrado)}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums text-rose-600">
-                      {(summary?.totals.fleteDeficit || 0) > 0 ? `− ${formatCLP(summary?.totals.fleteDeficit)}` : "—"}
+                    <TableCell className="text-right font-semibold tabular-nums">
+                      <FleteDeficit value={summary?.totals.fleteDeficit || 0} />
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.marginAdjusted)}</TableCell>
                     <TableCell></TableCell>
@@ -472,6 +634,58 @@ function KpiCard({ icon: Icon, label, value, loading, accent = "slate", showMinu
   );
 }
 
+// Regularización de flete: castiga el margen (rojo) en las facturas y lo
+// devuelve (verde) en las notas de crédito.
+function FleteDeficit({ value }: { value: number }) {
+  if (value > 0) return <span className="text-rose-600">− {formatCLP(value)}</span>;
+  if (value < 0) return <span className="text-emerald-600">+ {formatCLP(Math.abs(value))}</span>;
+  return <span className="text-slate-300">—</span>;
+}
+
+// Celda editable de tasa de flete (%) por cliente o por venta. Sin ajuste
+// manual muestra el valor por defecto en gris; con ajuste, resaltado y con
+// botón para volver al default.
+function FletePctCell({ value, isOverride, onSave, onReset }: {
+  value: number; isOverride: boolean;
+  onSave: (pct: number) => void; onReset: () => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft !== null ? draft : String(value);
+  const commit = () => {
+    if (draft === null) return;
+    const raw = draft;
+    setDraft(null);
+    const v = parseFloat(raw.replace(",", "."));
+    if (isNaN(v) || v < 0 || v > 100) return;
+    if (v === value && !isOverride) return;
+    onSave(v);
+  };
+  return (
+    <div className="inline-flex items-center gap-1 justify-end">
+      <div className="relative inline-flex items-center">
+        <Input
+          type="number" min={0} max={100} step={0.1}
+          value={shown}
+          title="Tasa de flete que asume la empresa sobre el neto de este documento"
+          className={`w-16 h-8 text-right pr-5 tabular-nums ${isOverride ? "border-sky-400 text-sky-700 dark:text-sky-400 font-semibold" : "text-slate-500"}`}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+        <Percent className="w-3 h-3 text-slate-400 absolute right-1.5 pointer-events-none" />
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        title="Volver a la tasa de flete por defecto"
+        className={`text-slate-300 hover:text-sky-600 transition-opacity ${isOverride ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      >
+        <RotateCcw className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // Celda editable de % de comisión por fila. `value` es el % efectivo que se
 // aplica; `isOverride` indica si viene de un ajuste manual (para resaltarlo y
 // ofrecer "revertir" al % por defecto). Poner 0 = no paga comisión.
@@ -520,11 +734,13 @@ function PctCell({ value, isOverride, onSave, onReset }: {
   );
 }
 
-function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverride }: {
+function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverride, onSaveFleteRate }: {
   salesperson: string; startDate: string; endDate: string;
   onSaveOverride: (type: "client" | "document", value: string, commissionPct: number | null) => void;
+  onSaveFleteRate: (scope: "client" | "document", value: string, fletePct: number | null) => void;
 }) {
   const [tab, setTab] = useState<"clients" | "documents">("clients");
+  const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery<SalespersonDetail>({
     queryKey: ["/api/hr/commissions/salesperson", salesperson, startDate, endDate],
     queryFn: async () => {
@@ -536,6 +752,25 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
       return res.json();
     },
   });
+
+  // Filtro en vivo: por cliente en ambas pestañas, y además por N° de
+  // documento y tipo (FCV/NCV) en la de ventas.
+  const needle = search.trim().toLowerCase();
+  const clients = useMemo(() => {
+    if (!data) return [];
+    if (!needle) return data.clients;
+    return data.clients.filter((c) => c.client.toLowerCase().includes(needle));
+  }, [data, needle]);
+  const documents = useMemo(() => {
+    if (!data) return [];
+    if (!needle) return data.documents;
+    return data.documents.filter((d) =>
+      d.client.toLowerCase().includes(needle)
+      || d.numero.toLowerCase().includes(needle)
+      || d.tido.toLowerCase().includes(needle));
+  }, [data, needle]);
+  const shownCount = tab === "clients" ? clients.length : documents.length;
+  const totalCount = tab === "clients" ? (data?.clients.length ?? 0) : (data?.documents.length ?? 0);
 
   return (
     <div className="p-4">
@@ -550,9 +785,33 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
             <FileText className="w-4 h-4 mr-1.5" /> Ventas ({data?.documents.length ?? 0})
           </button>
         </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={tab === "clients" ? "Buscar cliente…" : "Buscar cliente o N° de documento…"}
+            className="h-9 pl-8 pr-8 rounded-xl"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              title="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {needle && (
+          <span className="text-xs text-slate-500 tabular-nums">{shownCount} de {totalCount}</span>
+        )}
         {data && (
           <span className="text-xs text-slate-500 ml-auto">
-            % por defecto del vendedor: <span className="font-semibold tabular-nums text-orange-600">{data.defaultPct}%</span> · edítalo por cliente o venta (0 = no paga)
+            % por defecto del vendedor: <span className="font-semibold tabular-nums text-orange-600">{data.defaultPct}%</span>
+            {" "}· flete por defecto: <span className="font-semibold tabular-nums text-sky-600">{data.defaultFletePct}%</span>
+            {" "}· edítalos por cliente o venta (0 = no paga)
           </span>
         )}
       </div>
@@ -568,22 +827,29 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 <TableHead className="text-right">Facturado</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
                 <TableHead className="text-right">Flete cobrado</TableHead>
-                <TableHead className="text-right">Reg. flete 4%</TableHead>
+                <TableHead className="text-right w-28">% Flete</TableHead>
+                <TableHead className="text-right">Reg. flete</TableHead>
                 <TableHead className="text-right">Margen ajustado</TableHead>
                 <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.clients.map((c) => (
+              {clients.map((c) => (
                 <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
                   <TableCell>{c.client}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCLP(c.revenue)}</TableCell>
+                  <TableCell className={`text-right tabular-nums ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.margin)}</TableCell>
                   <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
+                  <TableCell className="text-right">
+                    <FletePctCell
+                      value={c.fleteEffectivePct}
+                      isOverride={c.fleteOverridePct !== null}
+                      onSave={(pct) => onSaveFleteRate("client", c.client, pct)}
+                      onReset={() => onSaveFleteRate("client", c.client, null)}
+                    />
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {c.fleteDeficit > 0
-                      ? <span className="text-rose-600">− {formatCLP(c.fleteDeficit)}</span>
-                      : <span className="text-slate-300">—</span>}
+                    <FleteDeficit value={c.fleteDeficit} />
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium">{formatCLP(c.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
@@ -596,8 +862,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   </TableCell>
                 </TableRow>
               ))}
-              {data && data.clients.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">Sin clientes</TableCell></TableRow>
+              {data && clients.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">
+                  {needle ? `Ningún cliente coincide con "${search}"` : "Sin clientes"}
+                </TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -609,30 +877,46 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Factura</TableHead>
+                <TableHead>Documento</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Facturado</TableHead>
+                <TableHead className="text-right">Neto</TableHead>
                 <TableHead className="text-right">Margen</TableHead>
                 <TableHead className="text-right">Flete cobrado</TableHead>
-                <TableHead className="text-right">Reg. flete 4%</TableHead>
+                <TableHead className="text-right w-28">% Flete</TableHead>
+                <TableHead className="text-right">Reg. flete</TableHead>
                 <TableHead className="text-right">Margen ajustado</TableHead>
                 <TableHead className="text-right w-40">% Comisión</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.documents.map((d) => (
-                <TableRow key={d.document} className={d.effectivePct === 0 ? "opacity-60" : ""}>
-                  <TableCell>N° {d.numero}</TableCell>
+              {documents.map((d) => (
+                <TableRow key={d.document} className={`${d.effectivePct === 0 ? "opacity-60" : ""} ${d.isCreditNote ? "bg-rose-50/40 dark:bg-rose-950/10" : ""}`}>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      {d.isCreditNote && (
+                        <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700 text-[10px] px-1.5 py-0 font-semibold dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                          NC
+                        </Badge>
+                      )}
+                      <span>N° {d.numero}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>{formatFecha(d.fecha)}</TableCell>
                   <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCLP(d.revenue)}</TableCell>
+                  <TableCell className={`text-right tabular-nums ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-slate-500" title={`Objetivo 4%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-slate-500" title={`Objetivo ${d.fleteEffectivePct}%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
+                  <TableCell className="text-right">
+                    <FletePctCell
+                      value={d.fleteEffectivePct}
+                      isOverride={d.fleteOverridePct !== null}
+                      onSave={(pct) => onSaveFleteRate("document", d.document, pct)}
+                      onReset={() => onSaveFleteRate("document", d.document, null)}
+                    />
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {d.fleteDeficit > 0
-                      ? <span className="text-rose-600">− {formatCLP(d.fleteDeficit)}</span>
-                      : <span className="text-slate-300">—</span>}
+                    <FleteDeficit value={d.fleteDeficit} />
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium">{formatCLP(d.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
@@ -645,8 +929,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   </TableCell>
                 </TableRow>
               ))}
-              {data && data.documents.length === 0 && (
-                <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">Sin ventas</TableCell></TableRow>
+              {data && documents.length === 0 && (
+                <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">
+                  {needle ? `Ninguna venta coincide con "${search}"` : "Sin ventas"}
+                </TableCell></TableRow>
               )}
             </TableBody>
           </Table>

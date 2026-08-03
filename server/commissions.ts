@@ -2,31 +2,46 @@
  * Módulo de Comisiones de Vendedores (Recursos Humanos)
  * ---------------------------------------------------------------
  * Calcula la comisión a pagar a cada vendedor sobre el MARGEN de lo
- * FACTURADO (tido = 'FCV') en un período, permitiendo:
+ * facturado NETO de devoluciones en un período, permitiendo:
  *   - fijar un % de comisión individual por vendedor,
- *   - excluir clientes completos o ventas (documentos) puntuales
- *     de la base imponible.
+ *   - fijar un % distinto por cliente o por venta (documento),
+ *   - fijar la tasa de regularización de flete por cliente o por venta.
  *
  * Reglas de negocio (definidas con el usuario):
- *   - Base: solo facturas (FCV). NVV/GDV/NCV no cuentan.
- *   - Cálculo sobre el margen: comisión = margen_neto × % / 100,
- *     donde margen_neto = (venta − costo) de las líneas NO excluidas.
+ *   - Base: facturas (FCV) MENOS notas de crédito (NCV). NVV/GDV no
+ *     cuentan. La NC se imputa al vendedor que trae el documento
+ *     (nokofu) y al mes de su propia emisión (feemdo), no al de la
+ *     factura original: el ERP no guarda el vínculo entre ambas.
+ *   - Signos: el ETL ya graba `monto` en negativo para las NCV, pero
+ *     `caprco2` (cantidad) queda en positivo — por eso el costo se
+ *     invierte explícitamente para NCV (ver COST_EXPR).
+ *   - Cálculo sobre el margen: comisión = margen_ajustado × % / 100.
  *   - Costo unitario: misma cadena COALESCE que el módulo de Margen
  *     (gri_prices_cache → ppprpm → listacost → costo_produccion → 0)
  *     multiplicada por la cantidad (caprco2).
+ *   - Piso en 0 por vendedor: si las NC superan a las ventas la comisión
+ *     del período da negativa; se informa (commissionRaw) pero se paga 0.
+ *     No arrastra saldo en contra al período siguiente.
  *
- * Regularización del flete (4%):
- *   - La empresa asume un 4% de flete sobre el NETO facturado de
+ * Regularización del flete (4% por defecto, configurable):
+ *   - La empresa asume un % de flete sobre el NETO facturado de
  *     mercadería de cada documento. Lo que se le cobra al cliente por
  *     flete (líneas cuyo nombre de producto contiene "flete") muchas
- *     veces NO alcanza ese 4%; el faltante lo absorbe la empresa.
- *   - Por cada documento:  objetivo = neto_mercadería × 4%,
+ *     veces NO alcanza esa tasa; el faltante lo absorbe la empresa.
+ *   - La tasa NO es fija: sale de commission_flete_rates con prioridad
+ *     documento > cliente > DEFAULT_FLETE_RATE (4%). Es global por
+ *     cliente, no por vendedor: el costo de despacho depende del destino.
+ *   - Por cada documento:  objetivo = neto_mercadería × tasa,
  *     déficit = max(0, objetivo − flete_cobrado). El excedente (cuando
- *     el cliente pagó ≥ 4%) NO suma.
+ *     el cliente pagó de más) NO suma.
+ *   - En las NOTAS DE CRÉDITO el piso se espeja: el déficit se calcula
+ *     con LEAST(0, …), de modo que la NC DEVUELVE la regularización en
+ *     vez de castigar de nuevo (su neto es negativo). Sus líneas de
+ *     flete también vienen en negativo y restan el flete cobrado.
  *   - Ese déficit CASTIGA el margen antes de comisionar:
  *     margen_ajustado = margen − déficit_flete, y la comisión se calcula
  *     sobre el margen ajustado. El déficit se computa documento a
- *     documento (con piso en 0) y recién ahí se suma por vendedor.
+ *     documento y recién ahí se suma por vendedor.
  *   - Las líneas de flete traen nokofu (vendedor) en NULL en el ERP, por
  *     eso NO forman parte de la base de mercadería; se recuperan por
  *     idmaeedo para atribuirles el documento/vendedor.
@@ -39,11 +54,20 @@ import type { Express } from "express";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { commissionSettings, commissionOverrides } from "../shared/schema";
+import { commissionSettings, commissionOverrides, commissionFleteRates } from "../shared/schema";
 import { requireAuth } from "./auth";
 import { requirePermission } from "./permissions";
 
-// Costo por línea: misma expresión que getMarginBySalesperson (storage.ts).
+// Documentos que forman la base: facturas menos notas de crédito.
+const BASE_TIDOS = sql`fv."tido" IN ('FCV', 'NCV')`;
+
+// Signo del documento: las NCV llegan con `monto` ya negativo desde el ETL,
+// pero con la cantidad (caprco2) en positivo. Todo lo que se derive de la
+// cantidad —el costo— tiene que invertirse a mano.
+const DOC_SIGN = sql`(CASE WHEN fv."tido" = 'NCV' THEN -1 ELSE 1 END)`;
+
+// Costo por línea: misma expresión que getMarginBySalesperson (storage.ts),
+// con el signo del documento aplicado para que una NC reste costo.
 const COST_EXPR = sql`(
   COALESCE(
     gpc."price",
@@ -51,7 +75,7 @@ const COST_EXPR = sql`(
     NULLIF(fv."listacost", 0),
     pl."costo_produccion",
     0
-  ) * COALESCE(fv."caprco2", 0)
+  ) * COALESCE(fv."caprco2", 0) * ${DOC_SIGN}
 )`;
 
 const FACT_JOINS = sql`
@@ -64,8 +88,21 @@ const FACT_JOINS = sql`
 // producto (nokoprct) y les deja el vendedor (nokofu) en NULL.
 const IS_FLETE = sql`fv."nokoprct" ILIKE '%flete%'`;
 const NOT_FLETE = sql`(fv."nokoprct" IS NULL OR fv."nokoprct" NOT ILIKE '%flete%')`;
-// Fracción de flete que asume la empresa sobre el neto de mercadería.
-const FLETE_RATE = 0.04;
+// Tasa de flete por defecto (%) cuando el cliente no tiene una configurada.
+const DEFAULT_FLETE_RATE = 4;
+
+/**
+ * Déficit de flete de un documento, con el piso espejado para las NC.
+ * Venta (neto ≥ 0): déficit = max(0, objetivo − cobrado) → castiga el margen.
+ * Nota de crédito (neto < 0): déficit = min(0, objetivo − cobrado) → devuelve
+ * la regularización, nunca vuelve a castigar.
+ */
+const fleteDeficitExpr = (revenue: any, objetivo: any, cobrado: any) => sql`(
+  CASE WHEN ${revenue} >= 0
+    THEN GREATEST(0, ${objetivo} - ${cobrado})
+    ELSE LEAST(0, ${objetivo} - ${cobrado})
+  END
+)`;
 
 // ─── Tablas en runtime (deploy de migraciones no confiable) ───
 
@@ -106,6 +143,21 @@ function ensureTables(): Promise<void> {
       await db.execute(sql`
         CREATE UNIQUE INDEX IF NOT EXISTS "UQ_commission_ovr_person_type_value"
         ON commission_overrides (salesperson_name, override_type, value)
+      `);
+      // Tasa de regularización de flete por cliente / por venta.
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS commission_flete_rates (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          scope varchar NOT NULL,
+          value varchar NOT NULL,
+          flete_pct numeric(6,3) NOT NULL DEFAULT 4,
+          updated_by varchar,
+          updated_at timestamp DEFAULT now()
+        )
+      `);
+      await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_commission_flete_scope_value"
+        ON commission_flete_rates (scope, value)
       `);
       // Migración: las exclusiones existentes se conservan como override 0%
       // (misma semántica: no pagan comisión). Solo si la tabla vieja existe.
@@ -167,12 +219,13 @@ function parseDateRange(query: any): { startDate: string; endDate: string } {
 export async function getCommissionSummary(startDate: string, endDate: string) {
   const result = await db.execute(sql`
     WITH flete_doc AS (
-      -- Flete cobrado al cliente por documento (líneas "flete", nokofu NULL)
+      -- Flete cobrado al cliente por documento (líneas "flete", nokofu NULL).
+      -- En las NCV el monto ya viene negativo: resta el flete cobrado.
       SELECT
         fv."idmaeedo"::text AS document,
         SUM(COALESCE(fv."monto", 0)) AS flete_cobrado
       FROM ventas.fact_ventas fv
-      WHERE fv."tido" = 'FCV'
+      WHERE ${BASE_TIDOS}
         AND ${IS_FLETE}
         AND fv."idmaeedo" IS NOT NULL
         AND fv."feemdo" >= ${startDate}::date
@@ -180,7 +233,7 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
       GROUP BY fv."idmaeedo"
     ),
     lineas AS (
-      -- Base de mercadería (sin líneas de flete)
+      -- Base de mercadería (sin líneas de flete): FCV suma, NCV resta
       SELECT
         fv."nokofu" AS salesperson,
         fv."nokoen" AS client,
@@ -188,7 +241,7 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
         fv."monto" AS revenue,
         ${COST_EXPR} AS cost
       FROM ${FACT_JOINS}
-      WHERE fv."tido" = 'FCV'
+      WHERE ${BASE_TIDOS}
         AND fv."nokofu" IS NOT NULL AND fv."nokofu" != ''
         AND fv."monto" IS NOT NULL
         AND fv."idmaeedo" IS NOT NULL
@@ -209,18 +262,32 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
       FROM lineas
       GROUP BY salesperson, client, document
     ),
+    rated AS (
+      -- Tasa de flete efectiva: documento > cliente > default
+      SELECT
+        d.*,
+        COALESCE(fr_doc.flete_pct, fr_cli.flete_pct, ${DEFAULT_FLETE_RATE}) / 100.0 AS flete_rate,
+        COALESCE(fd.flete_cobrado, 0) AS flete_cobrado
+      FROM doc_agg d
+      LEFT JOIN flete_doc fd
+        ON fd.document = d.document
+      LEFT JOIN commission_flete_rates fr_cli
+        ON fr_cli.scope = 'client' AND fr_cli.value = d.client
+      LEFT JOIN commission_flete_rates fr_doc
+        ON fr_doc.scope = 'document' AND fr_doc.value = d.document
+    ),
     priced AS (
       SELECT
-        d.salesperson,
-        d.client,
-        d.revenue,
-        d.cost,
-        d.margin,
-        d.line_count,
-        COALESCE(fd.flete_cobrado, 0) AS flete_cobrado,
-        (d.revenue * ${FLETE_RATE}) AS flete_objetivo,
-        GREATEST(0, d.revenue * ${FLETE_RATE} - COALESCE(fd.flete_cobrado, 0)) AS flete_deficit,
-        (d.margin - GREATEST(0, d.revenue * ${FLETE_RATE} - COALESCE(fd.flete_cobrado, 0))) AS margin_adj,
+        r.salesperson,
+        r.client,
+        r.revenue,
+        r.cost,
+        r.margin,
+        r.line_count,
+        r.flete_cobrado,
+        (r.revenue * r.flete_rate) AS flete_objetivo,
+        ${fleteDeficitExpr(sql`r.revenue`, sql`r.revenue * r.flete_rate`, sql`r.flete_cobrado`)} AS flete_deficit,
+        (r.margin - ${fleteDeficitExpr(sql`r.revenue`, sql`r.revenue * r.flete_rate`, sql`r.flete_cobrado`)}) AS margin_adj,
         COALESCE(
           doc_ovr.commission_pct,
           cli_ovr.commission_pct,
@@ -228,19 +295,17 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
           0
         ) AS eff_pct,
         (doc_ovr.value IS NOT NULL OR cli_ovr.value IS NOT NULL) AS overridden
-      FROM doc_agg d
-      LEFT JOIN flete_doc fd
-        ON fd.document = d.document
+      FROM rated r
       LEFT JOIN commission_settings cs
-        ON cs.salesperson_name = d.salesperson
+        ON cs.salesperson_name = r.salesperson
       LEFT JOIN commission_overrides cli_ovr
-        ON cli_ovr.salesperson_name = d.salesperson
+        ON cli_ovr.salesperson_name = r.salesperson
        AND cli_ovr.override_type = 'client'
-       AND cli_ovr.value = d.client
+       AND cli_ovr.value = r.client
       LEFT JOIN commission_overrides doc_ovr
-        ON doc_ovr.salesperson_name = d.salesperson
+        ON doc_ovr.salesperson_name = r.salesperson
        AND doc_ovr.override_type = 'document'
-       AND doc_ovr.value = d.document
+       AND doc_ovr.value = r.document
     )
     SELECT
       salesperson,
@@ -255,7 +320,6 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
       COUNT(DISTINCT CASE WHEN overridden THEN client END) AS overridden_client_count
     FROM priced
     GROUP BY salesperson
-    HAVING SUM(revenue) > 0
     ORDER BY SUM(revenue) DESC
   `);
 
@@ -275,7 +339,10 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
     const fleteDeficit = num(r.flete_deficit);
     const marginAdjusted = num(r.margin_adj);
     const commissionPct = pctByName.get(r.salesperson) ?? 0;
-    const commissionAmount = num(r.commission_amount);
+    // Piso en 0: si las NC del período superan a las ventas la comisión da
+    // negativa; se informa el valor crudo pero se paga 0 (no arrastra saldo).
+    const commissionRaw = num(r.commission_amount);
+    const commissionAmount = Math.max(0, commissionRaw);
     return {
       salesperson: r.salesperson as string,
       netRevenue,
@@ -294,9 +361,13 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
       overriddenClientCount: num(r.overridden_client_count),
       commissionPct,
       commissionAmount,
+      // Valor sin el piso en 0 (negativo = las NC se comieron la comisión)
+      commissionRaw,
     };
   });
 
+  // El total a pagar suma comisiones ya pisadas en 0: un vendedor en negativo
+  // no le descuenta comisión a los demás.
   const totals = items.reduce(
     (acc, it) => {
       acc.netRevenue += it.netRevenue;
@@ -306,9 +377,10 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
       acc.fleteDeficit += it.fleteDeficit;
       acc.marginAdjusted += it.marginAdjusted;
       acc.commissionAmount += it.commissionAmount;
+      acc.commissionRaw += it.commissionRaw;
       return acc;
     },
-    { netRevenue: 0, netMargin: 0, fleteObjetivo: 0, fleteCobrado: 0, fleteDeficit: 0, marginAdjusted: 0, commissionAmount: 0 },
+    { netRevenue: 0, netMargin: 0, fleteObjetivo: 0, fleteCobrado: 0, fleteDeficit: 0, marginAdjusted: 0, commissionAmount: 0, commissionRaw: 0 },
   );
 
   return { startDate, endDate, items, totals };
@@ -321,9 +393,9 @@ export async function getCommissionSummary(startDate: string, endDate: string) {
  * (override si existe, si no el % por defecto del vendedor / del cliente).
  */
 export async function getSalespersonDetail(salesperson: string, startDate: string, endDate: string) {
-  // Base de mercadería del vendedor (sin líneas de flete)
+  // Base de mercadería del vendedor (sin líneas de flete): FCV menos NCV
   const commonWhere = sql`
-    WHERE fv."tido" = 'FCV'
+    WHERE ${BASE_TIDOS}
       AND fv."nokofu" = ${salesperson}
       AND fv."monto" IS NOT NULL
       AND fv."idmaeedo" IS NOT NULL
@@ -333,14 +405,15 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
   `;
 
   // Flete cobrado por documento en el período (líneas "flete", nokofu NULL).
-  // Se une por idmaeedo para atribuirlo al documento del vendedor.
+  // Se une por idmaeedo para atribuirlo al documento del vendedor. Las líneas
+  // de flete de una NCV vienen en negativo, así que restan el flete cobrado.
   const fleteDocCte = sql`
     flete_doc AS (
       SELECT
         fv."idmaeedo"::text AS document,
         SUM(COALESCE(fv."monto", 0)) AS flete_cobrado
       FROM ventas.fact_ventas fv
-      WHERE fv."tido" = 'FCV'
+      WHERE ${BASE_TIDOS}
         AND ${IS_FLETE}
         AND fv."idmaeedo" IS NOT NULL
         AND fv."feemdo" >= ${startDate}::date
@@ -357,7 +430,8 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     .limit(1);
   const defaultPct = settingRow.length ? num(settingRow[0].pct) : 0;
 
-  // Clientes: el flete se calcula por documento (piso en 0) y se suma al cliente.
+  // Clientes: el flete se calcula documento a documento (con su propia tasa
+  // y su propio piso según sea factura o NC) y recién ahí se suma al cliente.
   const clientsResult = await db.execute(sql`
     WITH ${fleteDocCte},
     doc_base AS (
@@ -370,24 +444,41 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
       FROM ${FACT_JOINS}
       ${commonWhere}
       GROUP BY COALESCE(fv."nokoen", 'SIN CLIENTE'), fv."idmaeedo"
+    ),
+    doc_rated AS (
+      SELECT
+        d.client,
+        d.document,
+        d.revenue,
+        d.cost,
+        d.line_count,
+        COALESCE(fd.flete_cobrado, 0) AS flete_cobrado,
+        COALESCE(fr_doc.flete_pct, fr_cli.flete_pct, ${DEFAULT_FLETE_RATE}) / 100.0 AS flete_rate
+      FROM doc_base d
+      LEFT JOIN flete_doc fd ON fd.document = d.document
+      LEFT JOIN commission_flete_rates fr_cli
+        ON fr_cli.scope = 'client' AND fr_cli.value = d.client
+      LEFT JOIN commission_flete_rates fr_doc
+        ON fr_doc.scope = 'document' AND fr_doc.value = d.document
     )
     SELECT
       d.client,
       SUM(d.revenue) AS revenue,
       SUM(d.cost) AS cost,
       SUM(d.line_count) AS line_count,
-      SUM(COALESCE(fd.flete_cobrado, 0)) AS flete_cobrado,
-      SUM(d.revenue * ${FLETE_RATE}) AS flete_objetivo,
-      SUM(GREATEST(0, d.revenue * ${FLETE_RATE} - COALESCE(fd.flete_cobrado, 0))) AS flete_deficit,
-      MAX(ovr.commission_pct) AS override_pct
-    FROM doc_base d
-    LEFT JOIN flete_doc fd ON fd.document = d.document
+      SUM(d.flete_cobrado) AS flete_cobrado,
+      SUM(d.revenue * d.flete_rate) AS flete_objetivo,
+      SUM(${fleteDeficitExpr(sql`d.revenue`, sql`d.revenue * d.flete_rate`, sql`d.flete_cobrado`)}) AS flete_deficit,
+      MAX(ovr.commission_pct) AS override_pct,
+      MAX(fr.flete_pct) AS flete_override_pct
+    FROM doc_rated d
     LEFT JOIN commission_overrides ovr
       ON ovr.salesperson_name = ${salesperson}
      AND ovr.override_type = 'client'
      AND ovr.value = d.client
+    LEFT JOIN commission_flete_rates fr
+      ON fr.scope = 'client' AND fr.value = d.client
     GROUP BY d.client
-    HAVING SUM(d.revenue) <> 0
     ORDER BY SUM(d.revenue) DESC
   `);
 
@@ -396,6 +487,7 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     SELECT
       fv."idmaeedo"::text AS document,
       MAX(fv."nudo"::text) AS numero,
+      MAX(fv."tido") AS tido,
       MAX(fv."nokoen") AS client,
       MAX(fv."feemdo") AS fecha,
       SUM(fv."monto") AS revenue,
@@ -403,7 +495,9 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
       COUNT(*) AS line_count,
       MAX(COALESCE(fd.flete_cobrado, 0)) AS flete_cobrado,
       MAX(doc_ovr.commission_pct) AS override_pct,
-      MAX(cli_ovr.commission_pct) AS client_pct
+      MAX(cli_ovr.commission_pct) AS client_pct,
+      MAX(fr_doc.flete_pct) AS flete_override_pct,
+      MAX(fr_cli.flete_pct) AS flete_client_pct
     FROM ${FACT_JOINS}
     LEFT JOIN flete_doc fd
       ON fd.document = fv."idmaeedo"::text
@@ -415,9 +509,12 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
       ON cli_ovr.salesperson_name = ${salesperson}
      AND cli_ovr.override_type = 'client'
      AND cli_ovr.value = fv."nokoen"
+    LEFT JOIN commission_flete_rates fr_doc
+      ON fr_doc.scope = 'document' AND fr_doc.value = fv."idmaeedo"::text
+    LEFT JOIN commission_flete_rates fr_cli
+      ON fr_cli.scope = 'client' AND fr_cli.value = fv."nokoen"
     ${commonWhere}
     GROUP BY fv."idmaeedo"
-    HAVING SUM(fv."monto") <> 0
     ORDER BY MAX(fv."feemdo") DESC
   `);
 
@@ -429,6 +526,7 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     const fleteObjetivo = num(r.flete_objetivo);
     const fleteDeficit = num(r.flete_deficit);
     const overridePct = r.override_pct == null ? null : num(r.override_pct);
+    const fleteOverridePct = r.flete_override_pct == null ? null : num(r.flete_override_pct);
     return {
       client: r.client as string,
       revenue,
@@ -441,6 +539,9 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
       lineCount: num(r.line_count),
       overridePct,
       effectivePct: overridePct ?? defaultPct,
+      // Tasa de flete: fijada para este cliente (null = usa el 4% por defecto)
+      fleteOverridePct,
+      fleteEffectivePct: fleteOverridePct ?? DEFAULT_FLETE_RATE,
     };
   });
 
@@ -449,13 +550,23 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     const cost = num(r.cost);
     const margin = revenue - cost;
     const fleteCobrado = num(r.flete_cobrado);
-    const fleteObjetivo = revenue * FLETE_RATE;
-    const fleteDeficit = Math.max(0, fleteObjetivo - fleteCobrado);
+    const fleteOverridePct = r.flete_override_pct == null ? null : num(r.flete_override_pct);
+    const fleteClientPct = r.flete_client_pct == null ? null : num(r.flete_client_pct);
+    // Tasa efectiva: documento > cliente > default (mismo orden que el SQL)
+    const fleteEffectivePct = fleteOverridePct ?? fleteClientPct ?? DEFAULT_FLETE_RATE;
+    const fleteObjetivo = revenue * (fleteEffectivePct / 100);
+    const isCreditNote = r.tido === "NCV";
+    // Piso espejado: la factura nunca acredita flete, la NC nunca lo castiga
+    const fleteDeficit = isCreditNote
+      ? Math.min(0, fleteObjetivo - fleteCobrado)
+      : Math.max(0, fleteObjetivo - fleteCobrado);
     const overridePct = r.override_pct == null ? null : num(r.override_pct);
     const clientPct = r.client_pct == null ? null : num(r.client_pct);
     return {
       document: r.document as string,
       numero: (r.numero as string) || r.document,
+      tido: (r.tido as string) || "FCV",
+      isCreditNote,
       client: (r.client as string) || "SIN CLIENTE",
       fecha: r.fecha as string,
       revenue,
@@ -471,10 +582,122 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
       effectivePct: overridePct ?? clientPct ?? defaultPct,
       // heredado del cliente (para mostrar de dónde viene el valor por defecto)
       clientPct,
+      // Tasa de flete fijada para esta venta puntual (null = hereda)
+      fleteOverridePct,
+      fleteClientPct,
+      fleteEffectivePct,
     };
   });
 
-  return { salesperson, startDate, endDate, defaultPct, clients, documents };
+  return { salesperson, startDate, endDate, defaultPct, defaultFletePct: DEFAULT_FLETE_RATE, clients, documents };
+}
+
+// Tope de líneas del export: un período muy largo puede traer cientos de
+// miles de filas y reventar el Excel. Se avisa al usuario si se recorta.
+const EXPORT_LINE_LIMIT = 50000;
+
+/**
+ * Volcado completo del período para el Excel: el resumen, el desglose por
+ * cliente y por documento de todos los vendedores, y el detalle línea a línea.
+ * Reutiliza getSalespersonDetail para que los números del Excel sean
+ * exactamente los mismos que muestra la pantalla.
+ */
+export async function getCommissionExport(startDate: string, endDate: string) {
+  const summary = await getCommissionSummary(startDate, endDate);
+
+  // De a 4 vendedores en paralelo: en serie son ~3 consultas por vendedor y
+  // con 20 vendedores el export se hace eterno; sin límite, satura el pool.
+  const clients: any[] = [];
+  const documents: any[] = [];
+  const CONCURRENCY = 4;
+  for (let i = 0; i < summary.items.length; i += CONCURRENCY) {
+    const batch = summary.items.slice(i, i + CONCURRENCY);
+    const details = await Promise.all(
+      batch.map((item) => getSalespersonDetail(item.salesperson, startDate, endDate)),
+    );
+    for (const detail of details) {
+      for (const c of detail.clients) clients.push({ salesperson: detail.salesperson, ...c });
+      for (const d of detail.documents) documents.push({ salesperson: detail.salesperson, ...d });
+    }
+  }
+
+  // Líneas: incluye las de flete (que vienen sin vendedor) atribuyéndolas al
+  // vendedor del documento, para que el detalle cuadre con las otras hojas.
+  const linesResult = await db.execute(sql`
+    WITH doc_vendor AS (
+      SELECT
+        fv."idmaeedo"::text AS document,
+        MAX(fv."nokofu") AS salesperson
+      FROM ventas.fact_ventas fv
+      WHERE ${BASE_TIDOS}
+        AND fv."nokofu" IS NOT NULL AND fv."nokofu" != ''
+        AND fv."feemdo" >= ${startDate}::date
+        AND fv."feemdo" <= ${endDate}::date
+      GROUP BY fv."idmaeedo"
+    )
+    SELECT
+      fv."feemdo" AS fecha,
+      fv."tido" AS tido,
+      fv."idmaeedo"::text AS document,
+      fv."nudo"::text AS numero,
+      COALESCE(fv."nokofu", dv.salesperson) AS salesperson,
+      COALESCE(fv."nokoen", 'SIN CLIENTE') AS client,
+      fv."koprct" AS sku,
+      fv."nokoprct" AS producto,
+      (COALESCE(fv."caprco2", 0) * ${DOC_SIGN}) AS cantidad,
+      fv."monto" AS revenue,
+      ${COST_EXPR} AS cost,
+      ${IS_FLETE} AS es_flete
+    FROM ${FACT_JOINS}
+    LEFT JOIN doc_vendor dv ON dv.document = fv."idmaeedo"::text
+    WHERE ${BASE_TIDOS}
+      AND fv."monto" IS NOT NULL
+      AND fv."idmaeedo" IS NOT NULL
+      AND fv."feemdo" >= ${startDate}::date
+      AND fv."feemdo" <= ${endDate}::date
+    ORDER BY fv."feemdo" DESC, fv."idmaeedo", fv."idmaeddo"
+    LIMIT ${EXPORT_LINE_LIMIT + 1}
+  `);
+
+  const lineRows = (linesResult.rows || []) as any[];
+  const linesTruncated = lineRows.length > EXPORT_LINE_LIMIT;
+  if (linesTruncated) {
+    console.warn(
+      `[comisiones] export ${startDate}..${endDate}: más de ${EXPORT_LINE_LIMIT} líneas, se recorta la hoja de detalle`,
+    );
+  }
+  const lines = lineRows.slice(0, EXPORT_LINE_LIMIT).map((r) => {
+    const revenue = num(r.revenue);
+    const cost = num(r.cost);
+    return {
+      fecha: r.fecha as string,
+      tido: (r.tido as string) || "FCV",
+      isCreditNote: r.tido === "NCV",
+      document: r.document as string,
+      numero: (r.numero as string) || r.document,
+      salesperson: (r.salesperson as string) || "SIN VENDEDOR",
+      client: r.client as string,
+      sku: (r.sku as string) || "",
+      producto: (r.producto as string) || "",
+      cantidad: num(r.cantidad),
+      revenue,
+      cost,
+      margin: revenue - cost,
+      esFlete: r.es_flete === true,
+    };
+  });
+
+  return {
+    startDate,
+    endDate,
+    defaultFletePct: DEFAULT_FLETE_RATE,
+    summary,
+    clients,
+    documents,
+    lines,
+    linesTruncated,
+    lineLimit: EXPORT_LINE_LIMIT,
+  };
 }
 
 // ─── Endpoints ───
@@ -583,6 +806,60 @@ export function registerCommissionRoutes(app: Express) {
     } catch (error: any) {
       console.error("Error guardando % de comisión por cliente/venta:", error);
       res.status(500).json({ message: "Error guardando el porcentaje: " + (error?.message || "desconocido") });
+    }
+  });
+
+  // Fijar/quitar la tasa de regularización de flete de un cliente o una venta.
+  // fletePct = número → fija esa tasa; null → vuelve al 4% por defecto.
+  // Es global (no por vendedor): el flete depende del destino, no de quién vende.
+  app.put("/api/hr/commissions/flete-rates", requireAuth, guard, async (req: any, res) => {
+    try {
+      const parsed = z.object({
+        scope: z.enum(["client", "document"]),
+        value: z.string().trim().min(1).max(255),
+        fletePct: z.number().min(0).max(100).nullable(),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Formato inválido", errors: parsed.error.flatten() });
+      }
+      await ensureTables();
+      const { scope, value, fletePct } = parsed.data;
+      if (fletePct === null) {
+        await db.delete(commissionFleteRates).where(
+          and(eq(commissionFleteRates.scope, scope), eq(commissionFleteRates.value, value)),
+        );
+      } else {
+        await db.insert(commissionFleteRates)
+          .values({
+            scope,
+            value,
+            fletePct: String(fletePct),
+            updatedBy: req.user?.id || null,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [commissionFleteRates.scope, commissionFleteRates.value],
+            set: { fletePct: String(fletePct), updatedBy: req.user?.id || null, updatedAt: new Date() },
+          });
+      }
+      res.json({ scope, value, fletePct });
+    } catch (error: any) {
+      console.error("Error guardando la tasa de flete:", error);
+      res.status(500).json({ message: "Error guardando la tasa de flete: " + (error?.message || "desconocido") });
+    }
+  });
+
+  // Volcado completo del período para exportar a Excel: resumen + detalle por
+  // cliente y por documento de TODOS los vendedores + líneas.
+  app.get("/api/hr/commissions/export", requireAuth, guard, async (req: any, res) => {
+    try {
+      await ensureTables();
+      const { startDate, endDate } = parseDateRange(req.query);
+      const data = await getCommissionExport(startDate, endDate);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error armando la exportación de comisiones:", error);
+      res.status(500).json({ message: "Error armando la exportación: " + (error?.message || "desconocido") });
     }
   });
 }
