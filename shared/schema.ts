@@ -1371,6 +1371,27 @@ export const commissionOverrides = pgTable("commission_overrides", {
 export type CommissionOverride = typeof commissionOverrides.$inferSelect;
 export type InsertCommissionOverride = typeof commissionOverrides.$inferInsert;
 
+// Tasa de regularización de flete. El 4% es solo el valor por defecto: cada
+// cliente puede tener la suya (el costo de despacho depende del destino, no
+// del vendedor, por eso la tasa NO se guarda por vendedor) y una venta
+// puntual puede llevar una tasa distinta a la de su cliente.
+// scope = 'client'   → value = nokoen (nombre del cliente)
+// scope = 'document' → value = idmaeedo (id del documento)
+// Prioridad al calcular un documento: documento > cliente > 4% por defecto.
+export const commissionFleteRates = pgTable("commission_flete_rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scope: varchar("scope").notNull(), // 'client' | 'document'
+  value: varchar("value").notNull(),
+  fletePct: numeric("flete_pct", { precision: 6, scale: 3 }).notNull().default("4"),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueFleteRate: uniqueIndex("UQ_commission_flete_scope_value").on(table.scope, table.value),
+}));
+
+export type CommissionFleteRate = typeof commissionFleteRates.$inferSelect;
+export type InsertCommissionFleteRate = typeof commissionFleteRates.$inferInsert;
+
 // Tabla de unión: asignación de usuarios a múltiples sucursales (relación muchos-a-muchos)
 export const userBranchAssignments = pgTable("user_branch_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
