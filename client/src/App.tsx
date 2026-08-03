@@ -102,6 +102,7 @@ import AyudaMemoriaPage from "@/pages/ayuda-memoria";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import SeguimientoPublico from "@/pages/seguimiento-publico";
+import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import CotizacionesB2C from "@/pages/cotizaciones-b2c";
 import MailingPage from "@/pages/mailing";
 import CampanasPage from "@/pages/campanas";
@@ -271,6 +272,10 @@ function Router() {
             <Route path="/colores-paleta" component={guarded("productos", ColoresPaleta)} />
             <Route path="/ecommerce" component={guarded("market.configuracion", EcommerceAdmin)} />
             <Route path="/ecommerce-pedidos" component={guarded("market.pedidos", EcommercePedidos)} />
+            {/* Sin entrada en el sidebar: la administración de sucursales (descuento de
+                convenio, credenciales) todavía no está migrada a la ficha unificada de
+                cliente, así que esta pantalla se entra por URL directa mientras tanto. */}
+            <Route path="/ecommerce-usuarios" component={guarded("market.configuracion", EcommerceUsuarios)} />
             <Route path="/logistica" component={guarded("market.logistica", Logistica)} />
             <Route path="/logistica-tms" component={guarded("market.logistica", LogisticaTms)} />
             <Route path="/logistica-rutas" component={guarded("market.logistica", LogisticaRutas)} />
