@@ -18,7 +18,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { db } from './db';
 import { storage } from './storage';
-import { oauthClients, oauthAuthCodes, oauthTokens, users } from '@shared/schema';
+import { oauthClients, oauthAuthCodes, oauthTokens } from '@shared/schema';
 import { eq, and, lt, sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
@@ -429,21 +429,8 @@ export async function resolverAccessToken(token: string): Promise<{
   if (!token) return null;
 
   const [fila] = await db
-    .select({
-      id: oauthTokens.id,
-      userId: oauthTokens.userId,
-      clientId: oauthTokens.clientId,
-      scope: oauthTokens.scope,
-      resource: oauthTokens.resource,
-      expiresAt: oauthTokens.expiresAt,
-      revokedAt: oauthTokens.revokedAt,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-    })
+    .select()
     .from(oauthTokens)
-    .innerJoin(users, eq(users.id, oauthTokens.userId))
     .where(and(eq(oauthTokens.tokenHash, sha256(token)), eq(oauthTokens.kind, 'access')))
     .limit(1);
 
@@ -451,8 +438,15 @@ export async function resolverAccessToken(token: string): Promise<{
   if (fila.revokedAt) return null;
   if (fila.expiresAt.getTime() < Date.now()) return null;
 
+  // storage.getUser y NO un join contra `users`: las cuentas de vendedores y
+  // supervisores viven en salespeople_users, así que un join directo dejaba sus
+  // tokens inválidos apenas emitidos. getUser resuelve las dos tablas, igual que
+  // el login del SPA.
+  const usuario = await storage.getUser(fila.userId);
+  if (!usuario) return null;
+
   // Si al usuario le sacaron el permiso después de conectar, el token deja de servir.
-  if (!ROLES_CON_ACCESO_MCP.has(fila.role ?? '')) return null;
+  if (!ROLES_CON_ACCESO_MCP.has(usuario.role ?? '')) return null;
 
   db.update(oauthTokens)
     .set({ lastUsedAt: new Date() })
@@ -460,7 +454,10 @@ export async function resolverAccessToken(token: string): Promise<{
     .then(() => {})
     .catch((err) => console.error('[oauth] no se pudo actualizar last_used_at:', err?.message));
 
-  const rolApi = rolEfectivo(mapRolIntranetARolApi(fila.role), fila.scope);
+  const rolApi = rolEfectivo(mapRolIntranetARolApi(usuario.role), fila.scope);
+  const nombre = (usuario as { salespersonName?: string }).salespersonName
+    || [usuario.firstName, usuario.lastName].filter(Boolean).join(' ')
+    || usuario.email;
 
   return {
     tokenId: fila.id,
@@ -468,9 +465,9 @@ export async function resolverAccessToken(token: string): Promise<{
     clientId: fila.clientId,
     scope: fila.scope,
     resource: fila.resource,
-    email: fila.email,
-    nombre: [fila.firstName, fila.lastName].filter(Boolean).join(' ') || fila.email,
-    rolIntranet: fila.role ?? 'user',
+    email: usuario.email,
+    nombre,
+    rolIntranet: usuario.role ?? 'user',
     rolApi,
   };
 }
@@ -894,7 +891,9 @@ export function registerOAuthRoutes(app: Express) {
           return errorToken(res, 400, 'invalid_grant', 'El refresh token expiró');
         }
 
-        const [usuario] = await db.select().from(users).where(eq(users.id, registro.userId)).limit(1);
+        // storage.getUser, no la tabla `users` a secas: los vendedores y
+        // supervisores viven en salespeople_users.
+        const usuario = await storage.getUser(registro.userId);
         if (!usuario || !ROLES_CON_ACCESO_MCP.has(usuario.role ?? '')) {
           return errorToken(res, 400, 'invalid_grant', 'El usuario ya no tiene acceso');
         }
