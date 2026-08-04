@@ -169,6 +169,7 @@ export function KpiCard({
   tono = "marca",
   icono: Icono,
   className,
+  testId,
 }: {
   label: string;
   value: React.ReactNode;
@@ -176,6 +177,8 @@ export function KpiCard({
   tono?: "marca" | "ok" | "alerta" | "error" | "info" | "neutro";
   icono?: LucideIcon;
   className?: string;
+  /** Va sobre el valor, que es lo que verifican las pruebas. */
+  testId?: string;
 }) {
   const acento = {
     marca: "bg-[#fd6301]",
@@ -195,7 +198,10 @@ export function KpiCard({
         </p>
         {Icono && <Icono className="size-4 shrink-0 text-slate-300 dark:text-slate-600" />}
       </div>
-      <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-800 dark:text-slate-100">
+      <p
+        className="mt-1.5 text-2xl font-bold tabular-nums text-slate-800 dark:text-slate-100"
+        data-testid={testId}
+      >
         {value}
       </p>
       {sub && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
