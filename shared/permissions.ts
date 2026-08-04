@@ -115,6 +115,24 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Ver costos, márgenes y simulador dentro de Productos (sin esto se muestra la vista de vendedor)",
     group: "comercial",
   },
+  // Lista de Precios e Inventario tienen permiso propio porque el vendedor
+  // entra a las dos SIN tener el módulo Productos: su menú las lleva como
+  // ítems de primer nivel (/lista-precios y /inventario), no como pestañas
+  // de Productos. Los roles que ya tenían "productos" las conservan.
+  {
+    key: "lista_precios",
+    label: "Lista de Precios",
+    description: "Lista de precios comercial (sin costos ni márgenes si falta productos.costos)",
+    group: "comercial",
+    href: "/lista-precios",
+  },
+  {
+    key: "inventario",
+    label: "Inventarios",
+    description: "Stock por bodega y disponibilidad de productos",
+    group: "comercial",
+    href: "/inventario",
+  },
   {
     key: "clientes",
     label: "Clientes",
@@ -192,6 +210,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Rendición de gastos empresariales",
     group: "finanzas",
     href: "/gastos-empresariales",
+  },
+  {
+    key: "solicitud_credito",
+    label: "Solicitud de Crédito",
+    description: "Pedir crédito para un cliente y seguir su resolución",
+    group: "finanzas",
+    href: "/solicitud-credito",
   },
 
   // ── Post-Venta ───────────────────────────────────────────────
@@ -455,6 +480,12 @@ export const CONFIGURABLE_ROLES: string[] = [
 
 // Bloques reutilizables para defaults
 const TINTOMETRIA_ALL = ["tintometria.admin", "tintometria.calculadora", "tintometria.selector"];
+/**
+ * Consulta de catálogo: acompaña SIEMPRE al permiso "productos".
+ * Antes /lista-precios se cubría con "productos" y /inventario no tenía guard;
+ * al darles clave propia, los roles que ya entraban las mantienen.
+ */
+const CATALOGO_CONSULTA = ["lista_precios", "inventario"];
 const MARKET_ALL = [
   "market.pedidos",
   "market.logistica",
@@ -496,8 +527,10 @@ const CONFIG_TABS_GESTION = [
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   supervisor: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
+    ...CATALOGO_CONSULTA,
     "productos.costos",
     "clientes",
     "finanzas",
@@ -513,8 +546,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   encargado_area: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
+    ...CATALOGO_CONSULTA,
     "productos.costos",
     "clientes",
     "finanzas",
@@ -522,17 +557,24 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
     ...CONFIG_TABS_GESTION,
   ],
+  // Menú estandarizado del vendedor: Dashboard → Tomador de Pedidos → Panel de
+  // Trabajo → Lista de Precios → Inventarios → Rendición de Gastos → Solicitud
+  // de Crédito → Reclamos → Pedidos. Sale el módulo Productos (entra solo a
+  // Lista de Precios e Inventario), sale Marketing y sale el ítem Clientes.
+  //
+  // "clientes" SE CONSERVA como permiso aunque no esté en el menú: el vendedor
+  // llega a la ficha del cliente desde su Panel de Trabajo (Obras), y de ahí
+  // cuelgan la bitácora y la cobranza. El ítem de primer nivel se oculta en
+  // client/src/lib/sidebar-permissions.ts (EXTRAS_OCULTOS_POR_ROL).
   salesperson: [
     "dashboard",
-    "productos",
+    "solicitud_credito",
     "clientes",
-    "marketing",
+    ...CATALOGO_CONSULTA,
     "seguimiento_pedidos",
     "tomador_pedidos",
-    "mis_pedidos",
     "postventa.reclamos",
     "gastos",
-    "mi_catalogo",
   ],
   tecnico_obra: [
     "postventa.visitas",
@@ -544,6 +586,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard",
     ...MARKET_ALL,
     "productos",
+    ...CATALOGO_CONSULTA,
     "clientes",
     "finanzas",
     "gastos",
@@ -553,6 +596,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "postventa.visitas",
     "postventa.reclamos",
     "productos",
+    ...CATALOGO_CONSULTA,
     ...CMMS_FULL,
     ...TINTOMETRIA_ALL,
     "gastos",
@@ -569,6 +613,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "postventa.reclamos",
     "postventa.visitas",
     "productos",
+    ...CATALOGO_CONSULTA,
     ...TINTOMETRIA_ALL,
     "gastos",
   ],
@@ -576,12 +621,14 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "postventa.reclamos",
     ...CMMS_BASICO,
     "productos",
+    ...CATALOGO_CONSULTA,
     "gastos",
   ],
   logistica_bodega: [
     "dashboard",
     "finanzas",
     "productos",
+    ...CATALOGO_CONSULTA,
     "postventa.reclamos",
     ...CMMS_BASICO,
     "gastos",
@@ -589,7 +636,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   planificacion: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["postventa.reclamos", "gastos"],
-  recursos_humanos: ["rrhh.comisiones", "gastos"],
+  recursos_humanos: ["rrhh.comisiones", "gastos", "solicitud_credito"],
   marketing: ["marketing", "market.campanas", "gastos"],
   area_produccion: ["postventa.reclamos", "gastos"],
   area_logistica: ["postventa.reclamos", "gastos"],

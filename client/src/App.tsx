@@ -72,6 +72,7 @@ import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
 import GastosEmpresariales from "@/pages/gastos-empresariales";
+import SolicitudCredito from "@/pages/solicitud-credito";
 import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
 import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
 import GestionFondos from "@/pages/gestion-fondos";
@@ -268,7 +269,7 @@ function Router() {
             <Route path="/donde-comprar-admin" component={guarded("market.donde_comprar", RetailLocationsAdmin)} />
             <Route path="/productos" component={guarded("productos", Products)} />
             <Route path="/productos/:codigo" component={guarded("productos", ProductCatalogDetail)} />
-            <Route path="/lista-precios" component={guarded("productos", ListaPrecios)} />
+            <Route path="/lista-precios" component={guarded("lista_precios", ListaPrecios)} />
             <Route path="/colores-paleta" component={guarded("productos", ColoresPaleta)} />
             <Route path="/ecommerce" component={guarded("market.configuracion", EcommerceAdmin)} />
             <Route path="/ecommerce-pedidos" component={guarded("market.pedidos", EcommercePedidos)} />
@@ -332,8 +333,9 @@ function Router() {
                 el sidebar de la app y el ítem activo se resuelve por URL. */}
             <Route path="/marketing" component={guarded("marketing", Marketing)} />
             <Route path="/marketing/:seccion" component={guarded("marketing", Marketing)} />
-            <Route path="/inventario" component={Inventario} />
+            <Route path="/inventario" component={guarded("inventario", Inventario)} />
             <Route path="/gastos-empresariales" component={guarded("gastos", GastosEmpresariales)} />
+            <Route path="/solicitud-credito" component={guarded("solicitud_credito", SolicitudCredito)} />
             <Route path="/gestion-fondos" component={() => {
               window.location.replace('/gastos-empresariales');
               return null;
