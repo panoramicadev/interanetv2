@@ -87,6 +87,21 @@ export const marketingSidebarItem = (extra: Partial<SidebarItem> = {}): SidebarI
   ...extra,
 });
 
+/**
+ * Mantención (CMMS) salió del sidebar de TODOS los roles.
+ *
+ * El módulo está marcado para eliminarse: se oculta primero el acceso —el ítem
+ * "Mantención" y todo su desplegable— y recién después se borra el código, para
+ * poder volver atrás con un solo commit si alguien todavía lo estaba usando.
+ *
+ * Lo que NO cambió: las rutas `/mantenciones` y `/cmms/*` siguen registradas en
+ * App.tsx, los permisos `cmms.*` siguen gobernando el acceso y las tablas siguen
+ * en la base. Quien tenga el link entra igual; solo desaparece el acceso del menú.
+ *
+ * El inventario completo de lo que hay que borrar cuando se confirme la baja está
+ * en DEPRECAR-MANTENCION.md (raíz del repo).
+ */
+
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
     {
@@ -226,59 +241,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     // ── Resto de módulos del admin (fuera del orden pedido, van al final) ──
     // Visitas Técnicas salió del sidebar: su acceso vive como pestaña del Panel
     // de Trabajo en el área Construcción (la ruta /visitas-tecnicas sigue activa).
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
-          href: "/cmms/mantenciones-planificadas",
-          label: "Mantenciones Planificadas",
-          icon: TrendingUp,
-        },
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/equipos",
-          label: "Equipos Críticos",
-          icon: Settings,
-        },
-        {
-          href: "/cmms/proveedores",
-          label: "Proveedores",
-          icon: Users,
-        },
-        {
-          href: "/cmms/presupuesto",
-          label: "Presupuesto",
-          icon: DollarSign,
-        },
-        {
-          href: "/cmms/gastos-materiales",
-          label: "Gastos de Materiales",
-          icon: Receipt,
-        },
-        {
-          href: "/cmms/planes-preventivos",
-          label: "Planes Preventivos",
-          icon: Calendar,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
-
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
     {
       href: "/configuracion",
       label: "Configuración",
@@ -298,58 +262,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
-          href: "/cmms/mantenciones-planificadas",
-          label: "Mantenciones Planificadas",
-          icon: TrendingUp,
-        },
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/equipos",
-          label: "Equipos Críticos",
-          icon: Settings,
-        },
-        {
-          href: "/cmms/proveedores",
-          label: "Proveedores",
-          icon: Users,
-        },
-        {
-          href: "/cmms/presupuesto",
-          label: "Presupuesto",
-          icon: DollarSign,
-        },
-        {
-          href: "/cmms/gastos-materiales",
-          label: "Gastos de Materiales",
-          icon: Receipt,
-        },
-        {
-          href: "/cmms/planes-preventivos",
-          label: "Planes Preventivos",
-          icon: Calendar,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
     {
       href: "/productos",
       label: "Productos",
@@ -381,40 +295,12 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   ],
 
-  mantencion: [
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/mantenciones-planificadas",
-          label: "Mantenciones Planificadas",
-          icon: TrendingUp,
-        },
-        {
-          href: "/cmms/planes-preventivos",
-          label: "Planes Preventivos",
-          icon: Calendar,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
-  ],
+  // El rol `mantencion` no tenía otro módulo que el CMMS, así que al ocultarlo su
+  // menú queda solo con "Rendición de Gastos" (el ítem que se agrega abajo a todos
+  // los roles). Sigue aterrizando en Órdenes de Trabajo al entrar (App.tsx), o sea
+  // que puede trabajar; lo que perdió es el menú. Cuando se confirme la baja del
+  // módulo hay que decidir qué pasa con el rol: ver DEPRECAR-MANTENCION.md.
+  mantencion: [],
 
   supervisor: [
     {
@@ -505,59 +391,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
-          href: "/cmms/mantenciones-planificadas",
-          label: "Mantenciones Planificadas",
-          icon: TrendingUp,
-        },
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/equipos",
-          label: "Equipos Críticos",
-          icon: Settings,
-        },
-        {
-          href: "/cmms/proveedores",
-          label: "Proveedores",
-          icon: Users,
-        },
-        {
-          href: "/cmms/presupuesto",
-          label: "Presupuesto",
-          icon: DollarSign,
-        },
-        {
-          href: "/cmms/gastos-materiales",
-          label: "Gastos de Materiales",
-          icon: Receipt,
-        },
-        {
-          href: "/cmms/planes-preventivos",
-          label: "Planes Preventivos",
-          icon: Calendar,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
-
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
     {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
@@ -928,29 +763,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
   ],
 
-  // Roles organizacionales - Acceso a Reclamos Generales y Mantención
+  // Roles organizacionales - Acceso a Reclamos Generales
+  // (tenían también Mantención, oculto: módulo a eliminar, ver nota arriba y
+  // DEPRECAR-MANTENCION.md).
   produccion: [
     {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
-    },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
     },
     {
       href: "/productos",
@@ -981,23 +801,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
   ],
 
   planificacion: [
@@ -1006,23 +811,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
   ],
 
   bodega_materias_primas: [
@@ -1031,23 +821,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
-    {
-      href: "/mantenciones",
-      label: "Mantención",
-      icon: Wrench,
-      children: [
-        {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
-          href: "/cmms/calendario",
-          label: "Calendario",
-          icon: Calendar,
-        },
-      ],
-    },
+    // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
+    // DEPRECAR-MANTENCION.md).
   ],
 
   prevencion_riesgos: [
