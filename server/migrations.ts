@@ -1295,6 +1295,33 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS viviendas_pintadas INTEGER NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS tipo_vivienda_id VARCHAR REFERENCES obra_tipos_vivienda(id) ON DELETE SET NULL`);
 
+    // Estructura Cliente → Obra (migración 076). Ver
+    // migrations/076_obras_bitacora_vendedor_cotizacion.sql — se replica acá
+    // porque el runner de .sql corre DESPUÉS del bootstrap y la planilla de obras
+    // consulta estas columnas apenas arranca el server.
+    console.log('  📓 Verificando bitácora y dueño de las obras...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_bitacora (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        obra_id VARCHAR NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+        texto TEXT NOT NULL,
+        autor_id VARCHAR,
+        autor_nombre TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_bitacora_obra" ON obra_bitacora (obra_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_bitacora_created" ON obra_bitacora (created_at)`);
+    // La obra queda vinculada sola a quien la crea y a su supervisor.
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS vendedor_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE obras ADD COLUMN IF NOT EXISTS supervisor_id VARCHAR`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obras_vendedor" ON obras (vendedor_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obras_supervisor" ON obras (supervisor_id)`);
+    // La cotización sabe a qué obra es (una constructora cotiza por proyecto).
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS obra_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS obra_nombre TEXT`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_obra" ON quotes (obra_id)`);
+
     // Rendición de gastos v2 (migración 073). Ver migrations/073_rendicion_gastos_v2.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas de gastos consultan estas tablas apenas arranca el server.

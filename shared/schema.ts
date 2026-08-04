@@ -2191,6 +2191,12 @@ export const quotes = pgTable("quotes", {
   quoteNumber: varchar("quote_number").notNull().unique(), // Auto-generated quote number
   clientName: text("client_name").notNull(), // Client name
   clientId: varchar("client_id"), // Optional FK to clients.id
+  // Obra a la que se cotiza. En Construcción una constructora pide por proyecto,
+  // no "para la empresa": sin esto, tres cotizaciones del mismo cliente no se
+  // podían distinguir. El nombre se guarda al lado del id para que la cotización
+  // siga diciendo a qué obra era aunque la obra después se borre.
+  obraId: varchar("obra_id"), // Optional FK to obras.id
+  obraNombre: text("obra_nombre"),
   clientRut: varchar("client_rut"), // Client RUT for new clients
   clientEmail: varchar("client_email"), // Client email
   clientPhone: varchar("client_phone"), // Client phone
@@ -3380,15 +3386,26 @@ export const obras = pgTable("obras", {
   tinetasEntregadas: integer("tinetas_entregadas").notNull().default(0),
   fechaInicio: date("fecha_inicio"), // Fecha de inicio opcional
   fechaEstimadaFin: date("fecha_estimada_fin"), // Fecha estimada de fin
+  // --- A quién pertenece la obra ---
+  // Se estampan SOLOS al crearla, con quien la crea y su supervisor de ese
+  // momento: antes había que vincularla a mano y, cuando se hacía dos veces, la
+  // obra sumaba dos veces en los totales del supervisor. No son editables desde
+  // la UI; para cambiarlas hay que reasignar al vendedor.
+  vendedorId: varchar("vendedor_id"), // FK a salespeople_users.id
+  supervisorId: varchar("supervisor_id"), // FK a salespeople_users.id
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Insert schema for obras
+// Insert schema for obras.
+// vendedorId/supervisorId quedan fuera: los pone el servidor con quien crea la
+// obra, no viajan en el body (si no, cualquiera podría colgarle una obra a otro).
 export const insertObraSchema = createInsertSchema(obras).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  vendedorId: true,
+  supervisorId: true,
 });
 
 // Export Obra types
@@ -3432,6 +3449,35 @@ export const obraTiposViviendaPayloadSchema = z.array(
     metrosCuadrados: z.union([z.string(), z.number()]).nullable().optional(),
   }),
 );
+
+// Bitácora de una obra — lo que pasa en terreno y no es un número.
+//
+// Es UNA POR OBRA, no una del cliente: una constructora con cinco proyectos
+// tiene cinco historias distintas ("en Los Robles el maestro pintó dos manos",
+// "en Alerce está parado por lluvia"), y mezclarlas hacía la nota inútil. La
+// escribe quien visita la obra, así que el vendedor tiene que poder anotar.
+//
+// Solo texto y quién lo escribió: el nombre del autor se guarda junto al id
+// porque la nota tiene que seguir diciendo quién la escribió aunque después esa
+// persona salga del sistema.
+export const obraBitacora = pgTable("obra_bitacora", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  obraId: varchar("obra_id").notNull(), // FK to obras.id
+  texto: text("texto").notNull(),
+  autorId: varchar("autor_id"), // FK a users.id / salespeople_users.id
+  autorNombre: text("autor_nombre"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  obraIdx: index("IDX_obra_bitacora_obra").on(table.obraId),
+  createdIdx: index("IDX_obra_bitacora_created").on(table.createdAt),
+}));
+
+export const insertObraBitacoraSchema = createInsertSchema(obraBitacora)
+  .omit({ id: true, createdAt: true, autorId: true, autorNombre: true })
+  .extend({ texto: z.string().trim().min(1, "La nota está vacía").max(2000) });
+
+export type ObraBitacora = typeof obraBitacora.$inferSelect;
+export type InsertObraBitacora = z.infer<typeof insertObraBitacoraSchema>;
 
 // Catálogo de etapas constructivas, editable desde el propio selector de la
 // obra. Arranca con las tres que usa Construcción (fundaciones, obra gruesa,
