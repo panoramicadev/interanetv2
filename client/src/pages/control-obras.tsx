@@ -47,7 +47,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilasProductos } from "@/components/obras/panel-productos";
+import { BitacoraObra } from "@/components/obras/bitacora";
 import { BuscadorCatalogo, unidadDeObra } from "@/components/obras/buscador-catalogo";
+import { UNIDAD_POR_DEFECTO, etiquetaCortaUnidad } from "@/components/obras/unidades";
 import { fmt, fmtDec, fmtPct, normalizar, toInt } from "@/components/obras/formato";
 import {
   calcularObra,
@@ -1083,7 +1085,14 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   </div>
 
                   <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-                    <BannerStat label="Viviendas" valor={fmt(totales.viviendas)} />
+                    {/* El total del cliente, no el de una obra: suma las viviendas
+                        de TODAS sus obras, que es el número con el que se habla
+                        con una constructora que tiene varios proyectos. */}
+                    <BannerStat
+                      label="Viviendas"
+                      valor={fmt(totales.viviendas)}
+                      sufijo={`en ${fmt(filas.length)} ${filas.length === 1 ? "obra" : "obras"}`}
+                    />
                     <BannerStat label="Proyectadas" valor={fmtDec(totales.proyectadas)} />
                     <BannerStat
                       label="Pintadas"
@@ -1770,12 +1779,12 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                     kopr: item.sku || null,
                     nombre: item.nombre,
                     color: item.color || null,
-                    unidad: unidadDeObra(item.unidad),
+                    unidad: unidadDeObra(item),
                     hex: item.hex,
                   })
                 }
                 onManual={(nombre) =>
-                  agregarProducto({ kopr: null, nombre, color: null, unidad: "tineta", hex: null })
+                  agregarProducto({ kopr: null, nombre, color: null, unidad: UNIDAD_POR_DEFECTO, hex: null })
                 }
               />
 
@@ -1794,7 +1803,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                         {p.nombre}
                       </span>
                       <span className="text-[10px] uppercase tracking-wide text-slate-400 flex-shrink-0">
-                        {p.unidad}
+                        {etiquetaCortaUnidad(p.unidad)}
                       </span>
                     </div>
                   ))}
@@ -2137,13 +2146,23 @@ function FilaObra({
       {/* Los productos son filas de esta misma tabla: cada número cae en la
           columna del total al que suma. */}
       {expandida && (
-        <FilasProductos
-          obraId={fila.obra.id}
-          viviendas={fila.viviendas}
-          productos={productos}
-          columnas={columnas}
-          sticky
-        />
+        <>
+          <FilasProductos
+            obraId={fila.obra.id}
+            viviendas={fila.viviendas}
+            productos={productos}
+            columnas={columnas}
+            sticky
+          />
+          {/* La bitácora cierra la obra: los números arriba, lo que pasó abajo. */}
+          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
+            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky left-0 w-full max-w-[720px] pl-6">
+                <BitacoraObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} />
+              </div>
+            </td>
+          </tr>
+        </>
       )}
     </>
   );
@@ -2225,12 +2244,21 @@ function FilaObraGlobal({
       </tr>
 
       {expandida && (
-        <FilasProductos
-          obraId={fila.obra.id}
-          viviendas={fila.viviendas}
-          productos={productos}
-          columnas={columnas}
-        />
+        <>
+          <FilasProductos
+            obraId={fila.obra.id}
+            viviendas={fila.viviendas}
+            productos={productos}
+            columnas={columnas}
+          />
+          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
+            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <div className="w-full max-w-[720px] pl-6">
+                <BitacoraObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} />
+              </div>
+            </td>
+          </tr>
+        </>
       )}
     </>
   );

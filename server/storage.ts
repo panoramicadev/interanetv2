@@ -58,6 +58,9 @@ import {
   obraEtapas,
   type ObraEtapa,
   type InsertObraEtapa,
+  obraBitacora,
+  type ObraBitacora,
+  type InsertObraBitacora,
   obraProductos,
   type ObraProducto,
   type InsertObraProducto,
@@ -1246,9 +1249,18 @@ export interface IStorage {
   // Obras operations
   getObras(clienteId?: string): Promise<ObraConCliente[]>;
   getObra(id: string): Promise<Obra | undefined>;
-  createObra(obra: InsertObra): Promise<Obra>;
+  // El dueño (vendedor + supervisor) NO viaja en el body: lo pone la ruta con
+  // quien está creando la obra. Ver POST /api/obras.
+  createObra(obra: InsertObra & { vendedorId?: string | null; supervisorId?: string | null }): Promise<Obra>;
   updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra>;
   deleteObra(id: string): Promise<void>;
+  /** Supervisor a cargo de un vendedor, para vincularle sola su obra. */
+  getSupervisorIdDeVendedor(vendedorId: string): Promise<string | null>;
+  // Bitácora de la obra (una por obra, no una general del cliente)
+  getObraBitacora(obraId: string): Promise<ObraBitacora[]>;
+  getObraBitacoraNota(id: string): Promise<ObraBitacora | undefined>;
+  createObraBitacora(nota: InsertObraBitacora & { autorId?: string | null; autorNombre?: string | null }): Promise<ObraBitacora>;
+  deleteObraBitacora(id: string): Promise<void>;
   // Los tipos de vivienda se guardan como bloque junto con su obra.
   reemplazarTiposVivienda(
     obraId: string,
@@ -13365,12 +13377,48 @@ export class DatabaseStorage implements IStorage {
     return obra;
   }
 
-  async createObra(obra: InsertObra): Promise<Obra> {
+  async createObra(obra: InsertObra & { vendedorId?: string | null; supervisorId?: string | null }): Promise<Obra> {
     const [newObra] = await db
       .insert(obras)
       .values(obra)
       .returning();
     return newObra;
+  }
+
+  async getSupervisorIdDeVendedor(vendedorId: string): Promise<string | null> {
+    if (!vendedorId) return null;
+    const [fila] = await db
+      .select({ supervisorId: salespeopleUsers.supervisorId })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, vendedorId));
+    return fila?.supervisorId ?? null;
+  }
+
+  // --- Bitácora de la obra ---
+  // Lo último arriba: en terreno se lee lo que pasó recién, no el historial
+  // completo desde el principio.
+  async getObraBitacora(obraId: string): Promise<ObraBitacora[]> {
+    return await db
+      .select()
+      .from(obraBitacora)
+      .where(eq(obraBitacora.obraId, obraId))
+      .orderBy(desc(obraBitacora.createdAt));
+  }
+
+  async getObraBitacoraNota(id: string): Promise<ObraBitacora | undefined> {
+    const [nota] = await db.select().from(obraBitacora).where(eq(obraBitacora.id, id));
+    return nota;
+  }
+
+  async createObraBitacora(
+    nota: InsertObraBitacora & { autorId?: string | null; autorNombre?: string | null },
+  ): Promise<ObraBitacora> {
+    const [nueva] = await db.insert(obraBitacora).values(nota).returning();
+    return nueva;
+  }
+
+  async deleteObraBitacora(id: string): Promise<void> {
+    await db.delete(obraBitacora).where(eq(obraBitacora.id, id));
   }
 
   async updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra> {

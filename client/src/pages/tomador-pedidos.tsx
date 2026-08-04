@@ -107,6 +107,12 @@ interface QuoteFormData {
   validUntil?: string;
   paymentCondition?: string;
   notes?: string;
+  // Obra a la que se cotiza. Una constructora pide por proyecto, no "para la
+  // empresa": sin esto, tres cotizaciones del mismo cliente no se distinguen.
+  // El nombre viaja junto al id para que la cotización siga diciendo a qué obra
+  // era aunque la obra se borre después.
+  obraId?: string;
+  obraNombre?: string;
 }
 
 const PAYMENT_CONDITIONS: { value: string; label: string }[] = [
@@ -140,6 +146,8 @@ const INITIAL_QUOTE_FORM: QuoteFormData = {
   validUntil: "",
   paymentCondition: "",
   notes: "",
+  obraId: undefined,
+  obraNombre: "",
 };
 
 const INITIAL_CUSTOM_PRODUCT: CustomProductData = {
@@ -857,12 +865,15 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
       // Populate form with quote data
       setQuoteForm({
         clientName: quote.clientName,
+        clientId: (quote as any).clientId || undefined,
         clientRut: quote.clientRut || '',
         clientEmail: quote.clientEmail || '',
         clientPhone: quote.clientPhone || '',
         clientAddress: quote.clientAddress || '',
         validUntil: quote.validUntil || '',
         notes: quote.notes || '',
+        obraId: (quote as any).obraId || undefined,
+        obraNombre: (quote as any).obraNombre || '',
       });
 
       // Convert quote items to cart items, re-hydrating tierPrices from price_list
@@ -1778,6 +1789,18 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
   });
   const builderClients = builderClientsData?.clients || [];
 
+  // Obras del cliente elegido, para colgarle la cotización a una. Solo tiene
+  // sentido con un cliente de la base: sin id no hay obras que ofrecer.
+  const { data: obrasDelCliente = [] } = useQuery<Array<{ id: string; nombre: string; ciudad: string | null; estado: string }>>({
+    queryKey: ['/api/obras', { clienteId: quoteForm.clientId }],
+    queryFn: async () => {
+      const response = await fetch(`/api/obras?clienteId=${encodeURIComponent(quoteForm.clientId!)}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch obras');
+      return response.json();
+    },
+    enabled: !!quoteForm.clientId,
+  });
+
   // Fetch existing orders
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<Order[]>({
     queryKey: ['/api/orders'],
@@ -1893,6 +1916,9 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
       clientEmail: client.email || "",
       clientPhone: client.foen || "",
       clientAddress: `${client.dien || ""} ${client.comuna || ""}`.trim(),
+      // Cambiar de cliente invalida la obra elegida: era de otra constructora.
+      obraId: undefined,
+      obraNombre: "",
     }));
     setBuilderClientSearch("");
     setDebouncedBuilderClientSearch("");
@@ -3628,7 +3654,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                 style={inputStyle}
                 value={quoteForm.clientName}
                 autoComplete="off"
-                onChange={(e) => { const val = e.target.value; setQuoteForm((p) => ({ ...p, clientName: val, clientId: undefined })); setBuilderClientSearch(val); setShowBuilderClientResults(true); }}
+                onChange={(e) => { const val = e.target.value; setQuoteForm((p) => ({ ...p, clientName: val, clientId: undefined, obraId: undefined, obraNombre: "" })); setBuilderClientSearch(val); setShowBuilderClientResults(true); }}
                 onFocus={() => { if ((quoteForm.clientName || "").length >= 2) { setBuilderClientSearch(quoteForm.clientName); setShowBuilderClientResults(true); } }}
                 onBlur={() => setTimeout(() => setShowBuilderClientResults(false), 150)}
                 placeholder="Buscar cliente por nombre..."
@@ -3647,6 +3673,36 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                   ))}
                 </div>
               )}
+            </div>
+            {/* Obra — al lado del cliente porque en Construcción se cotiza a un
+                proyecto, no "a la empresa". Sale de las obras cargadas del
+                cliente elegido; sin cliente de la base no hay obras que ofrecer. */}
+            <div>
+              <div style={lbl("")}>Obra</div>
+              <select
+                style={{ ...inputStyle, opacity: quoteForm.clientId ? 1 : 0.6 }}
+                value={quoteForm.obraId ?? ""}
+                disabled={!quoteForm.clientId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const obra = obrasDelCliente.find((o) => o.id === id);
+                  setQuoteForm((p) => ({ ...p, obraId: id || undefined, obraNombre: obra?.nombre ?? "" }));
+                }}
+                data-testid="select-quote-obra"
+              >
+                <option value="">
+                  {!quoteForm.clientId
+                    ? "Elegí primero el cliente"
+                    : obrasDelCliente.length === 0
+                      ? "Este cliente no tiene obras cargadas"
+                      : "Sin obra"}
+                </option>
+                {obrasDelCliente.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.nombre}{o.ciudad ? ` · ${o.ciudad}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div><div style={lbl("")}>RUT</div><input style={inputStyle} value={quoteForm.clientRut ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientRut: e.target.value }))} placeholder="12345678-9" /></div>
             <div><div style={lbl("")}>Email</div><input style={inputStyle} value={quoteForm.clientEmail ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="cliente@email.com" /></div>

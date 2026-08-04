@@ -2816,9 +2816,16 @@ export default function TareasPage() {
                   );
                 };
 
-                // Métricas de equipo.
-                const teamTotal = people.reduce((s, [, g]) => s + g.tasks.length, 0);
-                const teamDone = people.reduce((s, [, g]) => s + g.tasks.filter(isTaskDone).length, 0);
+                // Métricas de equipo — POR TAREA, no por tarjeta.
+                //
+                // Un seguimiento asignado al vendedor y también a su supervisor
+                // aparece en las dos tarjetas, que es correcto: los dos lo
+                // tienen. Sumar los largos de cada tarjeta lo contaba dos veces
+                // y el total del supervisor salía inflado.
+                const tareasDelEquipo = new Map<string, typeof filteredTasks[number]>();
+                people.forEach(([, g]) => g.tasks.forEach((t) => tareasDelEquipo.set(t.id, t)));
+                const teamTotal = tareasDelEquipo.size;
+                const teamDone = Array.from(tareasDelEquipo.values()).filter(isTaskDone).length;
                 const teamPct = teamTotal > 0 ? Math.round((teamDone / teamTotal) * 100) : 0;
 
                 return (
