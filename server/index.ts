@@ -65,6 +65,11 @@ app.use((req, res, next) => {
 
   const server = registerRoutes(app);
 
+  // OAuth 2.1 para el MCP. Va después de registerRoutes porque necesita la
+  // sesión y passport que arma setupAuth(), y antes del catch-all de Vite.
+  const { registerOAuthRoutes } = await import('./routes-oauth');
+  registerOAuthRoutes(app);
+
   // Register B2C public quotation routes (isolated from B2B)
   const { registerB2CRoutes } = await import('./routes-b2c');
   registerB2CRoutes(app);
