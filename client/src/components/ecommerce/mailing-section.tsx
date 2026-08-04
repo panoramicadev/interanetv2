@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mail, Search, Send, Loader2, RefreshCw, AlertCircle, CheckCircle2, XCircle, User as UserIcon,
-  Receipt, AlertTriangle, Users, History, Zap, ShoppingBag, FileText,
+  Receipt, AlertTriangle, Users, History, Zap, ShoppingBag, FileText, Palette,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -661,6 +661,13 @@ const AUTO_TYPES = [
     icon: FileText,
     color: "blue",
   },
+  {
+    type: "ecommerce_color_personalizado",
+    title: "Color personalizado cotizado (Tienda)",
+    desc: "Cuando el equipo le asigna precio a un color personalizado, le avisamos al cliente que ya tiene precio y le mandamos un enlace que le deja el producto cargado en el carrito, listo para pedir.",
+    icon: Palette,
+    color: "fuchsia",
+  },
 ];
 
 function AutomationsCard() {
@@ -764,6 +771,7 @@ function AutomationItem({
   const colorMap: Record<string, string> = {
     emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
     blue: "bg-blue-500/10 text-blue-600 border-blue-200",
+    fuchsia: "bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-200",
   };
 
   return (

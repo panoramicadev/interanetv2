@@ -6,12 +6,27 @@ API REST de la intranet Panorámica. Pensada para integraciones externas y para 
 
 ## Autenticación
 
-Todas las peticiones requieren un header con un API Key válido:
+Hay dos formas de autenticarse. Ambas terminan en un **rol** (`readonly`, `read_write` o `admin`) que decide qué endpoints se pueden usar.
+
+### 1. API Key — para integraciones (Make, Zapier, scripts)
 
 ```
 X-API-Key: mk_<role>_<token>
 Content-Type: application/json
 ```
+
+Es una credencial compartida, sin dueño: quien la tenga opera con su rol.
+
+### 2. Token OAuth — para asistentes IA (MCP)
+
+```
+Authorization: Bearer pnr_mcp_<token>
+Content-Type: application/json
+```
+
+El token pertenece a **un usuario de la intranet**, así que la API lo trata con el rol de esa persona y lo que hace queda a su nombre. Es lo que usa el servidor MCP (repo `mcp-panoramica-v2`): ver [Conectar un asistente por OAuth](#conectar-un-asistente-por-oauth).
+
+Si falta cualquiera de los dos headers, la respuesta es `401` con `WWW-Authenticate: Bearer`.
 
 ### Generar un API Key
 
@@ -46,7 +61,60 @@ GET /api/external/help          → catálogo JSON con endpoints, filtros y body
 GET /api/external/openapi.json  → spec OpenAPI 3.0 (Claude / ChatGPT / Postman)
 ```
 
-> **MCP:** existe un servidor MCP oficial (`mcp-panoramica`) que expone esta API como 51 tools para Claude Desktop / Claude Code / Cursor, en stdio o HTTP (Railway). Ver el repo `mcp-panoramica-v2` (README + TOOLS.md).
+> **MCP:** existe un servidor MCP oficial (`mcp-panoramica`) que expone esta API como 219 tools para Claude Desktop / Claude Code / Cursor, en stdio o HTTP (Railway). Ver el repo `mcp-panoramica-v2` (README + TOOLS.md).
+
+---
+
+## Conectar un asistente por OAuth
+
+La intranet es también un **Authorization Server OAuth 2.1**: emite tokens de usuario para clientes MCP. El código vive en `server/routes-oauth.ts`.
+
+### Endpoints
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /.well-known/oauth-authorization-server` | Metadata de descubrimiento (RFC 8414). |
+| `POST /oauth/register` | Registro dinámico de clientes (RFC 7591). Abierto: el cliente se auto-registra. |
+| `GET /oauth/authorize` | Login + pantalla de consentimiento. Exige **PKCE S256**. |
+| `POST /oauth/token` | Canje del código y refresco (con rotación). |
+| `POST /oauth/revoke` | Revocación (RFC 7009). Revocar cualquiera de los dos tokens mata la sesión entera. |
+| `GET /oauth/userinfo` | Resuelve un access token a su usuario. Lo usa el MCP para validar antes de abrir sesión. |
+
+### Cómo funciona
+
+1. El cliente pega a un MCP protegido, recibe **401** y descubre este Authorization Server.
+2. Se auto-registra en `/oauth/register` — por eso el connector de Claude no pide Client ID ni Secret.
+3. El usuario entra en `/oauth/authorize` con **su** correo y contraseña de la intranet, y ve qué va a poder hacer el asistente antes de autorizar.
+4. El cliente canjea el código en `/oauth/token` y recibe un access token (**1 hora**) y un refresh token (**60 días**, rotativo).
+5. Cada llamada a `/api/external` con ese Bearer se resuelve al usuario y **aplica su rol**.
+
+### Vida útil y corte de acceso
+
+| | Duración |
+|---|---|
+| Código de autorización | 5 minutos, un solo uso |
+| Access token | 1 hora |
+| Refresh token | 60 días, rota en cada uso |
+
+Reusar un código o un refresh token ya usado se toma como robo: se revoca toda la familia de tokens de esa autorización.
+
+Para cortarle el acceso a alguien, alcanza con bajarle el usuario o cambiarle el rol en la intranet — el token deja de resolver.
+
+### Scopes y roles
+
+Scopes: `mcp:read` y `mcp:write`. El scope **recorta** el rol, nunca lo amplía: un token con solo `mcp:read` es `readonly` aunque su dueño sea admin.
+
+Mapeo de rol de intranet → rol de API:
+
+| Rol en la intranet | Rol de API |
+|---|---|
+| `admin` | `admin` |
+| `supervisor`, `encargado_area`, `salesperson`, `jefe_planta`, `marketing`, `mantencion`, `laboratorio`, `produccion`, `logistica_bodega`, `planificacion`, `bodega_materias_primas` | `read_write` |
+| `client`, `tecnico_obra` y cualquier otro | sin acceso — no pueden conectar asistentes |
+
+### Variables de entorno
+
+`PUBLIC_BASE_URL` — URL pública de la intranet (`https://ai.pinturaspanoramica.cl`). Se usa para armar las URLs de la metadata OAuth. Si falta, se deduce del header `Host`, lo que detrás de un proxy puede quedar mal.
 
 ---
 

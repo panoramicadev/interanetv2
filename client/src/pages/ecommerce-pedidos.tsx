@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle, FileText,
   Search, Filter, ChevronRight, Eye, Download,
-  DollarSign, Loader2, Database, Inbox, Package,
+  DollarSign, Loader2, Database, Inbox, Package, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +63,11 @@ export default function EcommercePedidos() {
 
 // ==================== VISTA PRINCIPAL (admin/supervisor/encargado) ====================
 // Dos pestañas: el listado ERP y las Solicitudes que llegan desde el sitio web.
+// El admin suma una tercera, "Vista Recepción", que embebe la misma pantalla que
+// ve el rol reception para poder revisarla y operarla sin cambiar de usuario.
 function DefaultPedidosView() {
+  const { user } = useAuth();
+  const canSeeReceptionView = user?.role === 'admin';
   const { total: solicitudesTotal, pending: solicitudesPending } = useSolicitudesPendientes();
 
   return (
@@ -74,7 +78,7 @@ function DefaultPedidosView() {
       </div>
 
       <Tabs defaultValue="pedidos" className="w-full space-y-6">
-        <TabsList className="grid grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
+        <TabsList className={`grid ${canSeeReceptionView ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full`}>
           <TabsTrigger
             value="pedidos"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
@@ -104,6 +108,20 @@ function DefaultPedidosView() {
               <div className="text-xs text-gray-500 font-normal truncate">{solicitudesTotal} solicitud{solicitudesTotal !== 1 ? "es" : ""} desde la web</div>
             </div>
           </TabsTrigger>
+          {canSeeReceptionView && (
+            <TabsTrigger
+              value="recepcion"
+              className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
+            >
+              <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
+                <ClipboardCheck className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Vista Recepción</div>
+                <div className="text-xs text-gray-500 font-normal truncate">Tal como la ve recepción</div>
+              </div>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="pedidos" className="mt-0 space-y-6">
@@ -113,13 +131,28 @@ function DefaultPedidosView() {
         <TabsContent value="solicitudes" className="mt-0 space-y-6">
           <SolicitudesWebPanel embedded />
         </TabsContent>
+
+        {canSeeReceptionView && (
+          <TabsContent value="recepcion" className="mt-0 space-y-6">
+            <div className="flex items-start gap-3 rounded-2xl border border-orange-200 bg-orange-50/60 px-4 py-3">
+              <ClipboardCheck className="h-5 w-5 text-[#FF6E23] flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-orange-900">
+                <strong>Vista de Recepción.</strong> Es exactamente la pantalla de Pedidos que ve el rol
+                recepción, con las mismas pestañas y acciones. Todo lo que hagas acá impacta los datos reales.
+              </p>
+            </div>
+            <ReceptionPedidosView embedded />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
 }
 
-// ==================== RECEPTION VIEW (3 pestañas) ====================
-function ReceptionPedidosView() {
+// ==================== RECEPTION VIEW (4 pestañas) ====================
+// `embedded` la monta dentro de otra página (la pestaña "Vista Recepción" del admin):
+// omite el contenedor de página y el encabezado propio, el contenido es idéntico.
+function ReceptionPedidosView({ embedded = false }: { embedded?: boolean }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
@@ -168,7 +201,7 @@ function ReceptionPedidosView() {
 
   if (selectedOrder) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
+      <div className={embedded ? "" : "max-w-6xl mx-auto p-6"}>
         <OrderDetailView
           order={selectedOrder}
           onBack={() => setSelectedOrder(null)}
@@ -179,13 +212,15 @@ function ReceptionPedidosView() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pedidos eCommerce</h1>
-          <p className="text-sm text-gray-500 mt-1">Gestiona los pedidos recibidos desde la tienda</p>
+    <div className={embedded ? "space-y-6" : "max-w-7xl mx-auto p-6 space-y-6"}>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Pedidos eCommerce</h1>
+            <p className="text-sm text-gray-500 mt-1">Gestiona los pedidos recibidos desde la tienda</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <Tabs defaultValue="tienda" className="w-full space-y-6">
         <TabsList className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">

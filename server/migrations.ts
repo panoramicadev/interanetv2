@@ -1369,6 +1369,48 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_estado" ON solicitudes_credito (estado)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_created" ON solicitudes_credito (created_at)`);
 
+    // Colores personalizados cotizados (migración 078). Ver
+    // migrations/078_custom_color_variants.sql — se replica acá porque el runner
+    // de .sql corre DESPUÉS del bootstrap y el endpoint público del enlace mágico
+    // consulta la tabla apenas arranca el server.
+    console.log('  🎨 Verificando variantes de color personalizado...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS custom_color_variants (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        quote_request_id VARCHAR,
+        quote_number VARCHAR(60),
+        token VARCHAR(64) NOT NULL UNIQUE,
+        client_email VARCHAR(160) NOT NULL,
+        client_name VARCHAR(200),
+        client_user_id VARCHAR,
+        base_sku VARCHAR(60),
+        base_product_name TEXT NOT NULL,
+        generic_name TEXT,
+        format_unit VARCHAR(60),
+        image_url TEXT,
+        color_code VARCHAR(120) NOT NULL,
+        color_brand VARCHAR(120),
+        color_hex VARCHAR(9),
+        color_notes TEXT,
+        color_label VARCHAR(240) NOT NULL,
+        unit_price NUMERIC(15, 2) NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        min_unit INTEGER NOT NULL DEFAULT 1,
+        step_size INTEGER NOT NULL DEFAULT 1,
+        estado VARCHAR(20) NOT NULL DEFAULT 'active',
+        claimed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_email" ON custom_color_variants (client_email)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_quote" ON custom_color_variants (quote_request_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_estado" ON custom_color_variants (estado)`);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_custom_color_variants_quote_item"
+        ON custom_color_variants (quote_request_id, base_sku, color_code, format_unit)
+    `);
+
     // Rendición de gastos v2 (migración 073). Ver migrations/073_rendicion_gastos_v2.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas de gastos consultan estas tablas apenas arranca el server.
@@ -1817,6 +1859,81 @@ export async function uploadLocalImagesToObjectStorage(): Promise<{ uploaded: nu
  * - Ejecuta en orden numérico
  * - Registra migraciones ejecutadas en tabla de control
  */
+/**
+ * Tablas del Authorization Server OAuth (MCP).
+ *
+ * Van acá y no solo en migrations/078_oauth_mcp.sql porque runProductionMigrations
+ * corta el bucle en la primera migración que falla: si una anterior queda trabada,
+ * la 078 no se ejecuta nunca y el login de los asistentes muere con 500. Es el mismo
+ * criterio que ya se usa con `sessions` en bootstrapDatabase: lo que hace falta para
+ * autenticar se crea de forma idempotente y aparte de la cadena numerada.
+ */
+export async function ensureOAuthTables(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id VARCHAR NOT NULL UNIQUE,
+      client_secret_hash VARCHAR,
+      client_name VARCHAR NOT NULL,
+      client_uri VARCHAR,
+      logo_uri VARCHAR,
+      redirect_uris JSONB NOT NULL,
+      grant_types JSONB NOT NULL DEFAULT '["authorization_code","refresh_token"]'::jsonb,
+      token_endpoint_auth_method VARCHAR NOT NULL DEFAULT 'none',
+      scope TEXT NOT NULL DEFAULT 'mcp:read mcp:write',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_used_at TIMESTAMP
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_clients_client_id" ON oauth_clients (client_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_auth_codes (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      code_hash VARCHAR NOT NULL UNIQUE,
+      client_id VARCHAR NOT NULL,
+      user_id VARCHAR NOT NULL,
+      redirect_uri VARCHAR NOT NULL,
+      scope TEXT NOT NULL,
+      code_challenge VARCHAR NOT NULL,
+      code_challenge_method VARCHAR NOT NULL DEFAULT 'S256',
+      resource VARCHAR,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      grant_id VARCHAR,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_auth_codes_hash" ON oauth_auth_codes (code_hash)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_auth_codes_expires" ON oauth_auth_codes (expires_at)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      token_hash VARCHAR NOT NULL UNIQUE,
+      kind VARCHAR NOT NULL,
+      grant_id VARCHAR NOT NULL,
+      client_id VARCHAR NOT NULL,
+      user_id VARCHAR NOT NULL,
+      scope TEXT NOT NULL,
+      resource VARCHAR,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP,
+      last_used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_hash" ON oauth_tokens (token_hash)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_grant" ON oauth_tokens (grant_id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_user" ON oauth_tokens (user_id)`);
+
+  // La 078 puede haber creado la tabla sin esta columna si corrió una versión previa.
+  await db.execute(sql`ALTER TABLE oauth_auth_codes ADD COLUMN IF NOT EXISTS grant_id VARCHAR`);
+
+  console.log('🔐 Tablas OAuth verificadas');
+}
+
 export async function runProductionMigrations() {
   console.log('🔄 Verificando migraciones de base de datos...');
   

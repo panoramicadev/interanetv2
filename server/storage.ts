@@ -384,24 +384,24 @@ import {
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
+import { normalizeRut } from "@shared/rut";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
-import { getComunaRegion } from "./chile-regions";
-import { comunaRegionService } from "./comunaRegionService";
+import { SIN_COMUNA, SIN_REGION, regionDeComuna, resolveComuna } from "@shared/chile-geo";
 import { generateTrackingCode } from "./utils/tracking-code";
 import { fuzzyRank } from "./utils/fuzzy-match";
 import mssql from 'mssql';
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-// Utility function to normalize comuna names for consistent regional mapping
+// Nombre de comuna para reportes: resuelve contra el catálogo canónico de Chile
+// (@shared/chile-geo) para que "LAS CONDES", "Las condes" y "las  condes" caigan
+// todas en la misma barra del gráfico. Lo que no resuelve se muestra tal cual
+// vino, en vez de descartarse.
 function normalizeComunaName(name: string | null): string | null {
   if (!name) return null;
-  return name.trim().toUpperCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-    .replace(/\s+/g, ' '); // collapse spaces
+  return resolveComuna(name)?.nombre ?? name.trim().replace(/\s+/g, ' ');
 }
 
 // Utility function to extract packaging type from product names
@@ -1917,6 +1917,7 @@ export interface IStorage {
   getInventory(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]>;
 
   getInventoryWithPrices(filters?: {
@@ -6451,8 +6452,6 @@ export class DatabaseStorage implements IStorage {
         email: clients.email,
         foen: clients.foen,
         comuna: clients.comuna,
-        // Campos extra para pre-rellenar el alta del CRM desde la base de clientes
-        region: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('cliente_region'),
         cpen: clients.cpen,
         purchasingContactName: clients.purchasingContactName,
         cnen: clients.cnen,
@@ -6465,7 +6464,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(clients.nokoen))
       .limit(50);
 
-    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>;
+    // Comuna y región canónicas para pre-rellenar el alta del CRM ya normalizada.
+    return result.map((c) => {
+      const comuna = resolveComuna(c.comuna);
+      return {
+        ...c,
+        comuna: comuna?.nombre ?? c.comuna ?? undefined,
+        region: comuna ? regionDeComuna(comuna.nombre)?.nombreCorto : undefined,
+      };
+    }) as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>;
   }
 
   // Sales data for goals comparison
@@ -12010,7 +12017,7 @@ export class DatabaseStorage implements IStorage {
     const normalizedMap = new Map<string, { totalSales: number; transactionCount: number }>();
 
     for (const result of results) {
-      const normalizedComuna = normalizeComunaName(result.rawComuna) || 'Sin comuna';
+      const normalizedComuna = normalizeComunaName(result.rawComuna) || SIN_COMUNA;
       const existing = normalizedMap.get(normalizedComuna) || { totalSales: 0, transactionCount: 0 };
 
       normalizedMap.set(normalizedComuna, {
@@ -12099,26 +12106,18 @@ export class DatabaseStorage implements IStorage {
         'Sin comuna'
       )`);
 
-    // Map comunas to regions using the new intelligent matching service (parallel processing)
+    // Agrupar por región usando el catálogo canónico. Antes esto resolvía comuna
+    // por comuna contra la tabla comuna_region_mapping con distancia de
+    // Levenshtein: una query por comuna, y con un umbral de confianza que dejaba
+    // pasar matches equivocados. El catálogo es exacto y en memoria.
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
     let unknownRegionSales = 0;
     let unknownRegionCount = 0;
 
-    // Process all comunas in parallel for better performance
-    const regionMatches = await Promise.all(
-      comunaResults.map(async (comunaData) => {
-        const regionMatch = await comunaRegionService.findRegion(comunaData.rawComuna);
-        return { comunaData, regionMatch };
-      })
-    );
+    for (const comunaData of comunaResults) {
+      const finalRegion = regionDeComuna(comunaData.rawComuna)?.nombreCorto ?? SIN_REGION;
 
-    for (const { comunaData, regionMatch } of regionMatches) {
-      // Map regions with confidence-based handling
-      const finalRegion = regionMatch.region === 'Sin región' || regionMatch.confidence < 0.6
-        ? 'Sin región'
-        : regionMatch.region;
-
-      if (finalRegion === 'Sin región') {
+      if (finalRegion === SIN_REGION) {
         unknownRegionSales += Number(comunaData.totalSales);
         unknownRegionCount += Number(comunaData.transactionCount);
       }
@@ -12143,7 +12142,7 @@ export class DatabaseStorage implements IStorage {
 
     // Log unknown region stats for observability
     if (unknownRegionSales > 0) {
-      console.log(`📊 Regional analysis: ${unknownRegionCount} transactions (${(unknownRegionSales / totalSales * 100).toFixed(2)}%) mapped to 'Sin región'`);
+      console.log(`📊 Regional analysis: ${unknownRegionCount} transactions (${(unknownRegionSales / totalSales * 100).toFixed(2)}%) mapped to '${SIN_REGION}'`);
     }
 
     return regionResults;
@@ -12225,6 +12224,40 @@ export class DatabaseStorage implements IStorage {
         LENGTH(nokoen),
         id
     )`;
+  }
+
+  // Búsqueda libre del listado de clientes: nombre, RUT o código.
+  //
+  // El RUT se compara TAMBIÉN en forma normalizada (sin puntos, guion ni espacios)
+  // porque en la tabla conviven los dos formatos: el ETL guarda el RUT tal como
+  // viene del ERP y el alta manual lo guarda como "12.345.678-9" (formatRut).
+  // Con un LIKE literal, buscar "77454264" no encuentra "77.454.264-7", así que
+  // las fichas duplicadas bajo un mismo RUT quedaban invisibles según cómo se
+  // tipeara el término.
+  //
+  // La comparación normalizada se aplica solo cuando el término parece un RUT
+  // (dígitos, puntos, guion y un dígito verificador opcional) para no ensuciar
+  // las búsquedas por nombre que contienen números.
+  private clientSearchCondition(rawTerm: string) {
+    const term = rawTerm.trim();
+
+    // Insensible a tildes: "jose" encuentra "José" y viceversa.
+    const parts = [
+      accentInsensitiveContains(clients.nokoen, term),
+      accentInsensitiveContains(clients.rten, term),
+      accentInsensitiveContains(clients.koen, term),
+    ];
+
+    const rutTerm = normalizeRut(term);
+    if (/^[\d.\-\s]+[kK]?$/.test(term) && rutTerm.length >= 6) {
+      const stripped = (col: AnyColumn) =>
+        sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${col}, '')), '.', ''), '-', ''), ' ', '')`;
+      const pattern = `%${rutTerm}%`;
+      parts.push(sql`${stripped(clients.rten)} LIKE ${pattern}`);
+      parts.push(sql`${stripped(clients.koen)} LIKE ${pattern}`);
+    }
+
+    return sql`(${sql.join(parts, sql` OR `)})`;
   }
 
   // Agrupación de estados de pedido eCommerce para el filtro del listado de clientes.
@@ -12378,11 +12411,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
 
     if (filters?.search) {
-      // Insensible a tildes: "jose" encuentra "José" y viceversa.
-      const term = filters.search.trim();
-      conditions.push(
-        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
-      );
+      conditions.push(this.clientSearchCondition(filters.search));
     }
 
     if (filters?.segment) {
@@ -12703,11 +12732,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.search) {
-      // Insensible a tildes: "jose" encuentra "José" y viceversa.
-      const term = filters.search.trim();
-      conditions.push(
-        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
-      );
+      conditions.push(this.clientSearchCondition(filters.search));
     }
 
     if (filters?.segment) {
@@ -14033,7 +14058,63 @@ export class DatabaseStorage implements IStorage {
       }
     });
 
-    return Array.from(taskMap.values());
+    const allTasks = Array.from(taskMap.values());
+    await this.enrichSeguimientoTasks(allTasks);
+    return allTasks;
+  }
+
+  // El supervisor necesita ver, sin abrir cada cliente, cuáles tienen tareas
+  // internas (actividades) pendientes y hace cuánto que no pasa nada con ellos.
+  // Se resuelve con dos agregados sobre TODOS los seguimientos de la respuesta
+  // (no una consulta por tarjeta): actividades y comentarios del hilo.
+  private async enrichSeguimientoTasks(tasksList: Array<Task & { assignments: TaskAssignment[] }>): Promise<void> {
+    const seguimientos = tasksList.filter((t) => (t.payload as any)?.kind === 'seguimiento_cliente');
+    if (seguimientos.length === 0) return;
+
+    const idList = sql.join(seguimientos.map((t) => sql`${t.id}`), sql`, `);
+    let actRows: any[] = [];
+    let comRows: any[] = [];
+    try {
+      const [actRes, comRes]: any[] = await Promise.all([
+        db.execute(sql`
+          SELECT task_id,
+                 COUNT(*)::int AS total,
+                 SUM(CASE WHEN estado <> 'completada' THEN 1 ELSE 0 END)::int AS pendientes,
+                 MAX(GREATEST(updated_at, created_at)) AS ultima
+          FROM task_actividades
+          WHERE task_id IN (${idList})
+          GROUP BY task_id
+        `),
+        db.execute(sql`
+          SELECT a.task_id AS task_id, MAX(c.created_at) AS ultima
+          FROM task_comments c
+          JOIN task_assignments a ON a.id = c.assignment_id
+          WHERE a.task_id IN (${idList})
+          GROUP BY a.task_id
+        `),
+      ]);
+      actRows = (Array.isArray(actRes) ? actRes : actRes?.rows) || [];
+      comRows = (Array.isArray(comRes) ? comRes : comRes?.rows) || [];
+    } catch (err: any) {
+      // Los contadores son informativos: si el agregado falla, el panel sigue
+      // funcionando sin los badges en vez de caerse entero.
+      console.error('Error calculando pendientes de seguimiento:', err?.message || err);
+      return;
+    }
+
+    const actMap = new Map<string, any>(actRows.map((r: any) => [String(r.task_id), r]));
+    const comMap = new Map<string, any>(comRows.map((r: any) => [String(r.task_id), r]));
+
+    for (const task of seguimientos) {
+      const act = actMap.get(task.id);
+      const com = comMap.get(task.id);
+      const marcas = [task.updatedAt, act?.ultima, com?.ultima]
+        .map((d) => (d ? new Date(d as any).getTime() : 0))
+        .filter((n) => n > 0);
+      (task as any).actividadesTotal = Number(act?.total ?? 0);
+      (task as any).actividadesPendientes = Number(act?.pendientes ?? 0);
+      (task as any).ultimaInteraccion = marcas.length > 0 ? new Date(Math.max(...marcas)).toISOString() : null;
+    }
   }
 
   async getTask(id: string): Promise<Task & { assignments: TaskAssignment[] } | undefined> {
@@ -17123,13 +17204,16 @@ export class DatabaseStorage implements IStorage {
         )`)
         .orderBy(sql`COUNT(*) DESC`); // Sort by transaction count
 
-      // Return only the raw data without normalization
-      // The actual region matching will be done by the ComunaRegionService
-      return comunaResults.map(result => ({
-        comuna: result.rawComuna,
-        transactionCount: Number(result.transactionCount),
-        totalSales: Number(result.totalSales)
-      }));
+      // Solo las que NO resuelven contra el catálogo canónico: son las que hay
+      // que corregir en el ERP o agregar como alias en @shared/chile-geo.
+      // (Antes esto devolvía TODAS las comunas, no las no-matcheadas.)
+      return comunaResults
+        .filter(result => !resolveComuna(result.rawComuna))
+        .map(result => ({
+          comuna: result.rawComuna,
+          transactionCount: Number(result.transactionCount),
+          totalSales: Number(result.totalSales)
+        }));
     } catch (error) {
       console.error('Error getting unmatched comunas:', error);
       return [];
@@ -22291,54 +22375,22 @@ export class DatabaseStorage implements IStorage {
   // INVENTORY operations
   // ==================================================================================
 
+  /**
+   * Inventario sin valorización. Es la misma fuente que `getInventoryWithPrices`
+   * (la tabla `inventory_products` que llena el ETL), solo que sin precio medio
+   * ni valor de inventario, para los roles que no ven costos.
+   *
+   * Antes leía `product_stock`, una tabla que ningún ETL escribe: devolvía
+   * siempre una lista vacía y con eso rompía /api/inventory, su resumen y el
+   * inventario que expone la API externa al MCP.
+   */
   async getInventory(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]> {
-    let query = db
-      .select({
-        id: productStock.id,
-        productSku: productStock.productSku,
-        productName: products.name,
-        warehouseCode: productStock.warehouseCode,
-        warehouseName: warehouses.name,
-        quantity: productStock.physicalStock1,
-        reservedQuantity: productStock.committedStock1,
-        availableQuantity: productStock.availableStock1,
-        lastUpdated: productStock.lastUpdated,
-      })
-      .from(productStock)
-      .leftJoin(products, eq(productStock.productSku, products.kopr))
-      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.kobo));
-
-    const conditions = [];
-
-    if (filters?.search) {
-      const searchTerm = `%${filters.search.toLowerCase()}%`;
-      conditions.push(
-        or(
-          ilike(productStock.productSku, searchTerm),
-          ilike(products.nokopr, searchTerm)
-        )
-      );
-    }
-
-    if (filters?.warehouse) {
-      conditions.push(eq(productStock.warehouseCode, filters.warehouse));
-    }
-
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    const results = await query.orderBy(asc(productStock.productSku));
-
-    return results.map(row => ({
-      ...row,
-      quantity: parseFloat(row.quantity as any) || 0,
-      reservedQuantity: parseFloat(row.reservedQuantity as any) || 0,
-      availableQuantity: parseFloat(row.availableQuantity as any) || 0,
-    }));
+    const rows = await this.getInventoryWithPrices(filters);
+    return rows.map(({ averagePrice, totalValue, ...stock }) => stock);
   }
 
   async getInventorySummary(filters?: {

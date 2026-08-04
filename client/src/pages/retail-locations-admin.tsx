@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Plus, Pencil, Trash2, Search, Loader2, ExternalLink, Download, CheckCircle2, XCircle, Code, Copy, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { ComunaSelect } from "@/components/shared/comuna-select";
+import { regionDeComuna } from "@shared/chile-geo";
 
 type RetailLocation = {
   id: string;
@@ -385,23 +387,18 @@ export default function RetailLocationsAdmin() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Comuna</Label>
-                  <Input
-                    value={editing.comuna || ""}
-                    onChange={(e) => setEditing({ ...editing, comuna: e.target.value })}
-                    placeholder="Maipú"
-                  />
-                </div>
-                <div>
-                  <Label>Región</Label>
-                  <Input
-                    value={editing.region || ""}
-                    onChange={(e) => setEditing({ ...editing, region: e.target.value })}
-                    placeholder="Metropolitana"
-                  />
-                </div>
+              {/* Comuna del catálogo oficial; la región se deriva de ella y se
+                  guarda junto, para que el buscador de "Dónde Comprar" agrupe. */}
+              <div>
+                <Label>Comuna</Label>
+                <ComunaSelect
+                  value={editing.comuna}
+                  onChange={(comuna) => setEditing({
+                    ...editing,
+                    comuna,
+                    region: comuna ? regionDeComuna(comuna)?.nombreCorto ?? null : null,
+                  })}
+                />
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg space-y-3">

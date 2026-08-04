@@ -17,7 +17,7 @@ import { Readable } from "stream";
 import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { LocalImageStorage } from "./localImageStorage";
-import { comunaRegionService } from "./comunaRegionService";
+import { COMUNAS_CHILE, REGIONES_CHILE, normalizarGeoCrm, ubicacionCanonicaDe } from "@shared/chile-geo";
 import {
   parseFichaOverrides,
   effectivePriceList,
@@ -7184,7 +7184,10 @@ export function registerRoutes(app: Express): Server {
     if (!validation.success) {
       return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
     }
-    const [created] = await db.insert(retailLocations).values(validation.data).returning();
+    // Comuna/región canónicas: es el mismo catálogo que usa el buscador público.
+    const [created] = await db.insert(retailLocations)
+      .values({ ...validation.data, ...normalizarGeoCrm(validation.data) })
+      .returning();
     res.status(201).json(created);
   }));
 
@@ -7194,8 +7197,22 @@ export function registerRoutes(app: Express): Server {
     if (!validation.success) {
       return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
     }
+    // Sólo si el patch toca comuna o región: se recalculan juntas y sobre los
+    // valores actuales, para que un patch que trae sólo una no borre la otra.
+    let geo: { comuna: string | null; region: string | null } | {} = {};
+    if (validation.data.comuna !== undefined || validation.data.region !== undefined) {
+      const [actual] = await db
+        .select({ comuna: retailLocations.comuna, region: retailLocations.region })
+        .from(retailLocations)
+        .where(eq(retailLocations.id, id))
+        .limit(1);
+      geo = normalizarGeoCrm({
+        comuna: validation.data.comuna !== undefined ? validation.data.comuna : actual?.comuna,
+        region: validation.data.region !== undefined ? validation.data.region : actual?.region,
+      });
+    }
     const [updated] = await db.update(retailLocations)
-      .set({ ...validation.data, updatedAt: new Date() })
+      .set({ ...validation.data, ...geo, updatedAt: new Date() })
       .where(eq(retailLocations.id, id))
       .returning();
     if (!updated) return res.status(404).json({ message: 'No encontrado' });
@@ -7354,12 +7371,13 @@ export function registerRoutes(app: Express): Server {
           if (geo) { lat = geo.lat; lon = geo.lon; result.withCoords++; }
         }
 
+        const geoCandidato = normalizarGeoCrm({ comuna: c.comuna, region: c.region });
         await db.insert(retailLocations).values({
           name: c.name,
           type: 'ferreteria',
           address: c.address,
-          comuna: c.comuna || null,
-          region: c.region || null,
+          comuna: geoCandidato.comuna,
+          region: geoCandidato.region,
           latitude: lat,
           longitude: lon,
           phone: c.phone || null,
@@ -23606,142 +23624,32 @@ export function registerRoutes(app: Express): Server {
     res.json(chartData);
   }));
 
-  // Region Management Endpoints
-  // Load Comuna-Region mapping from CSV
-  app.post('/api/admin/regions/load', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    try {
-      console.log('🗺️ Loading comuna-region mapping from CSV...');
-      await comunaRegionService.initialize();
+  // GET /api/admin/regions/diagnostics — Comunas del ERP que no resuelven.
+  //
+  // Reemplaza a los cuatro endpoints /api/admin/regions/* que administraban la
+  // tabla comuna_region_mapping (cargarla desde CSV, recargarla, ver stats,
+  // probar comunas sueltas). Esa tabla era un segundo catálogo que se
+  // desincronizaba del resto; hoy el único es @shared/chile-geo, que al ser
+  // código no necesita carga ni recarga.
+  //
+  // Lo que aparece acá se corrige de una de dos formas: arreglando el dato en el
+  // ERP, o sumando un alias en ALIAS_COMUNA si es una forma legítima de
+  // escribir una comuna real.
+  app.get('/api/admin/regions/diagnostics', requireAdminOrSupervisor, asyncHandler(async (_req: any, res: any) => {
+    const unmatched = await storage.getUnmatchedComunas();
+    unmatched.sort((a, b) => b.transactionCount - a.transactionCount);
 
-      const stats = await comunaRegionService.getMappingStats();
-      res.json({
-        success: true,
-        message: 'Comuna-region mapping loaded successfully',
-        stats
-      });
-    } catch (error: any) {
-      console.error('❌ Failed to load comuna-region mapping:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to load comuna-region mapping',
-        error: error.message
-      });
-    }
-  }));
-
-  // Reload Comuna-Region mapping from CSV
-  app.post('/api/admin/regions/reload', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    try {
-      console.log('🔄 Reloading comuna-region mapping...');
-      await comunaRegionService.reloadMapping();
-
-      const stats = await comunaRegionService.getMappingStats();
-      res.json({
-        success: true,
-        message: 'Comuna-region mapping reloaded successfully',
-        stats
-      });
-    } catch (error: any) {
-      console.error('❌ Failed to reload comuna-region mapping:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to reload comuna-region mapping',
-        error: error.message
-      });
-    }
-  }));
-
-  // Get Comuna-Region mapping statistics
-  app.get('/api/admin/regions/stats', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    try {
-      const stats = await comunaRegionService.getMappingStats();
-      res.json(stats);
-    } catch (error: any) {
-      console.error('❌ Failed to get mapping stats:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get mapping statistics',
-        error: error.message
-      });
-    }
-  }));
-
-  // Test Comuna region mapping for specific comunas
-  app.post('/api/admin/regions/test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    try {
-      const { comunas } = req.body;
-
-      if (!Array.isArray(comunas)) {
-        return res.status(400).json({
-          success: false,
-          message: 'comunas parameter must be an array'
-        });
-      }
-
-      const results = [];
-      for (const comuna of comunas) {
-        const result = await comunaRegionService.findRegion(comuna);
-        results.push({
-          input: comuna,
-          ...result
-        });
-      }
-
-      res.json({
-        success: true,
-        results
-      });
-    } catch (error: any) {
-      console.error('❌ Failed to test comuna mapping:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to test comuna mapping',
-        error: error.message
-      });
-    }
-  }));
-
-  // Get diagnostics about unmatched comunas from actual transaction data
-  app.get('/api/admin/regions/diagnostics', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    try {
-      // Get unique comunas from current transaction data
-      const unmatchedComunas = await storage.getUnmatchedComunas();
-
-      // Test each one with the mapping service
-      const diagnostics = [];
-      for (const comunaData of unmatchedComunas) {
-        const result = await comunaRegionService.findRegion(comunaData.comuna);
-        diagnostics.push({
-          comuna: comunaData.comuna,
-          transactionCount: comunaData.transactionCount,
-          totalSales: comunaData.totalSales,
-          mappingResult: result
-        });
-      }
-
-      // Sort by transaction count (highest impact first)
-      diagnostics.sort((a, b) => b.transactionCount - a.transactionCount);
-
-      const stats = await comunaRegionService.getMappingStats();
-
-      res.json({
-        success: true,
-        diagnostics,
-        summary: {
-          totalUnmatchedComunas: diagnostics.length,
-          totalUnmatchedTransactions: diagnostics.reduce((sum, d) => sum + d.transactionCount, 0),
-          totalUnmatchedSales: diagnostics.reduce((sum, d) => sum + d.totalSales, 0),
-          mappingStats: stats
-        }
-      });
-    } catch (error: any) {
-      console.error('❌ Failed to get region diagnostics:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get region diagnostics',
-        error: error.message
-      });
-    }
+    res.json({
+      success: true,
+      diagnostics: unmatched,
+      summary: {
+        totalComunasCatalogo: COMUNAS_CHILE.length,
+        totalRegionesCatalogo: REGIONES_CHILE.length,
+        totalUnmatchedComunas: unmatched.length,
+        totalUnmatchedTransactions: unmatched.reduce((sum, d) => sum + d.transactionCount, 0),
+        totalUnmatchedSales: unmatched.reduce((sum, d) => sum + d.totalSales, 0),
+      },
+    });
   }));
 
   // ==============================================
@@ -24533,6 +24441,7 @@ export function registerRoutes(app: Express): Server {
       await ensure('ecommerce_sale_auto', 'Auto: Venta recibida (tienda)', 'Cuando un cliente realiza un pedido en Panorámica Market, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       await ensure('ecommerce_quote_auto', 'Auto: Cotización recibida (tienda)', 'Cuando un visitante envía una solicitud de cotización pública, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       await ensure('pedido_modificado', 'Auto: Pedido modificado (tienda)', 'Cuando el equipo modifica un pedido (precios, items o estado), se envía un correo al cliente con el nuevo total y un recordatorio para actualizar el comprobante si paga por transferencia. CC: copias internas opcionales.');
+      await ensure('ecommerce_color_personalizado', 'Auto: Color personalizado cotizado (tienda)', 'Cuando se le asigna precio a un color personalizado, se avisa al cliente que ya tiene precio y se le manda un enlace que le deja el producto cargado en el carrito. CC: copias internas opcionales.');
       res.json({ success: true });
     } catch (error: any) {
       console.error('❌ Error inicializando settings de mailing:', error);
@@ -30168,11 +30077,12 @@ export function registerRoutes(app: Express): Server {
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse } = req.query;
+      const { search, warehouse, branch } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
+      if (branch) filters.branch = branch;
 
       const inventory = await storage.getInventory(filters);
       res.json(inventory);
@@ -37653,26 +37563,18 @@ export function registerRoutes(app: Express): Server {
     return user?.role !== 'salesperson';
   };
 
-  // GET /api/crm/comunas — List unique comunas used in CRM for autocomplete
-  app.get('/api/crm/comunas', requireAuth, requireCrmSeguimiento, asyncHandler(async (req: any, res: any) => {
-    try {
-      // Get unique comunas from CRM seguimiento records + comuna_region_mapping
-      const crmComunas = await db.execute(sql`
-        SELECT DISTINCT comuna FROM (
-          SELECT TRIM(comuna) as comuna FROM crm_seguimiento_clientes 
-          WHERE comuna IS NOT NULL AND TRIM(comuna) != '' AND active = true
-          UNION
-          SELECT TRIM(comuna) as comuna FROM comuna_region_mapping 
-          WHERE is_active = true AND comuna IS NOT NULL AND TRIM(comuna) != ''
-        ) combined
-        ORDER BY comuna
-      `);
-      const comunas = (crmComunas.rows || []).map((r: any) => r.comuna);
-      res.json(comunas);
-    } catch (e: any) {
-      console.error('Error fetching comunas:', e.message);
-      res.json([]);
-    }
+  // GET /api/geo/chile — Catálogo geográfico canónico (16 regiones, 346 comunas).
+  //
+  // Reemplaza a /api/crm/comunas, que armaba la lista con un UNION de lo que
+  // hubiera escrito a mano en la base y por eso devolvía duplicados y basura.
+  // Es estático (sale de @shared/chile-geo), así que se cachea fuerte. El front
+  // importa el catálogo directo; este endpoint queda para integraciones.
+  app.get('/api/geo/chile', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.json({
+      regiones: REGIONES_CHILE,
+      comunas: COMUNAS_CHILE,
+    });
   }));
 
   // GET /api/crm/seguimiento/segmentos — Available segments from stg_tabru
@@ -37856,7 +37758,6 @@ export function registerRoutes(app: Express): Server {
         ultimaCompraDate: clients.feultr,
         linkedComuna: clients.comuna,
         linkedProvincia: clients.provincia,
-        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region'),
         linkedCpen: clients.cpen,
         linkedOben: clients.oben,
         linkedFoen: clients.foen,
@@ -37910,6 +37811,7 @@ export function registerRoutes(app: Express): Server {
 
     const enriched = results.map(r => ({
       ...r,
+      ...ubicacionCanonicaDe(r),
       ultimoHito: hitosMap[r.id] || null,
       hasProblema: problemaSet.has(r.id) || (!!r.clienteId && problemaSet.has(r.clienteId)),
     }));
@@ -38035,9 +37937,12 @@ export function registerRoutes(app: Express): Server {
     ];
     const lines = [csvRow(headers)];
     for (const r of rows as any[]) {
+      // Exportar canónico: el CSV que sale tiene que poder volver a entrar por
+      // el importador sin ensuciar nada.
+      const geo = normalizarGeoCrm({ comuna: r.comuna, region: r.region });
       lines.push(csvRow([
         r.nombre || '', r.empresa || '', r.rut || '', r.telefono || '', r.email || '',
-        r.region || '', r.comuna || '', r.contactoEncargado || '', r.segmento || '', r.condicionPago || '',
+        geo.region || '', geo.comuna || '', r.contactoEncargado || '', r.segmento || '', r.condicionPago || '',
         CRM_ESTADO_LABELS[normalizeEstadoImport(r.estado)] || r.estado || '',
         CRM_PRIORIDAD_LABELS[r.prioridad] || r.prioridad || '',
         CRM_ORIGEN_LABELS[r.origen || 'manual'] || r.origen || '',
@@ -38236,7 +38141,6 @@ export function registerRoutes(app: Express): Server {
         ultimaCompraDate: clients.feultr,
         linkedComuna: clients.comuna,
         linkedProvincia: clients.provincia,
-        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region_detail'),
         linkedCpen: clients.cpen,
         linkedOben: clients.oben,
         linkedFoen: clients.foen,
@@ -38298,6 +38202,7 @@ export function registerRoutes(app: Express): Server {
 
     res.json({
       ...cliente,
+      ...ubicacionCanonicaDe(cliente),
       ultimaCompraDate: ultimoPedidoReal,
       hitos,
       clienteVinculado,
@@ -38365,8 +38270,11 @@ export function registerRoutes(app: Express): Server {
       proximoContacto: req.body.proximoContacto ? new Date(req.body.proximoContacto) : null,
       montoEstimado: req.body.montoEstimado || null,
       origen: req.body.origen || 'manual',
-      region: req.body.region || null,
-      comuna: req.body.comuna || null,
+      // La comuna se guarda canónica y la región se deriva de ella: son los dos
+      // campos que después alimentan filtros y reportes, así que no entra texto
+      // libre. Si la comuna no resuelve, se conserva lo que vino (para no perder
+      // el dato) y la región queda en null.
+      ...normalizarGeoCrm({ comuna: req.body.comuna, region: req.body.region }),
       contactoEncargado: req.body.contactoEncargado || null,
       condicionPago: req.body.condicionPago || null,
       segmento: req.body.segmento || null,
@@ -38463,6 +38371,15 @@ export function registerRoutes(app: Express): Server {
           updateData[field] = req.body[field];
         }
       }
+    }
+
+    // Mismo criterio que el alta: comuna canónica y región derivada de ella.
+    // Si el patch toca cualquiera de los dos, se recalculan juntos.
+    if (req.body.comuna !== undefined || req.body.region !== undefined) {
+      Object.assign(updateData, normalizarGeoCrm({
+        comuna: req.body.comuna !== undefined ? req.body.comuna : existing.comuna,
+        region: req.body.region !== undefined ? req.body.region : existing.region,
+      }));
     }
 
     // Handle vendedor reassignment: admin (o supervisor/encargado sin vínculo)

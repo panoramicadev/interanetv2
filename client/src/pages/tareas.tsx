@@ -68,7 +68,6 @@ import {
   Palette,
   HardHat,
   FileCheck,
-  Banknote,
   RotateCcw
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -76,13 +75,12 @@ import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
-import { RutasComercialesContent } from "@/pages/rutas-comerciales";
+import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
-import { SolicitudCreditoContent } from "@/pages/solicitud-credito";
 import { CreditoPanel } from "@/components/clients/credito-panel";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
-import SeguimientoClientes from "@/pages/seguimiento-clientes";
+import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
 import { PanelChangesBell } from "@/components/panel/PanelChangesBell";
@@ -95,6 +93,24 @@ const SEGMENTOS = [
   { value: "digital", label: "Industrial" },
   { value: "marketing", label: "Marketing" },
 ] as const;
+
+// Segmento del usuario: el valor del ERP puede llegar por distintos campos
+// según de dónde salga el usuario (assignedSegment del panel de usuarios, o el
+// `noruen`/`segmento` de ventas), igual que en el header del layout.
+const segmentoDeUsuario = (u: unknown): string | null => {
+  const raw = (u as any)?.assignedSegment ?? (u as any)?.segmento ?? (u as any)?.noruen;
+  return typeof raw === 'string' && raw.trim() ? raw : null;
+};
+
+// ¿Ese segmento es Construcción? Se compara por el token distintivo y sin
+// acentos porque la grafía del ERP varía ("CONSTRUCCION", "Construcción",
+// "CONSTRUCTORAS"). Ningún otro segmento (Ferreterías, Industrial, MCT,
+// Digital, Marketing) usa esa raíz, así que el match es seguro.
+const esSegmentoConstruccion = (raw: string | null | undefined): boolean => {
+  if (!raw) return false;
+  const s = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return s.includes('construc');
+};
 
 // Tipos de actividad (subtareas) dentro de un seguimiento de cliente
 const ACTIVIDAD_TIPOS = [
@@ -117,6 +133,43 @@ const FILTERS_STORAGE_KEY = "tareas-panel-filtros";
 // que "López" calce con "lopez" y viceversa.
 const normalizeSearchText = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// ─── Seguimiento: pendientes y "sin movimiento" ───────────────────────
+// El backend enriquece cada seguimiento de cliente con `actividadesPendientes`,
+// `actividadesTotal` y `ultimaInteraccion` (ver enrichSeguimientoTasks en
+// server/storage.ts). Estos helpers los traducen a lo que ve el supervisor.
+const DIAS_SIN_MOVIMIENTO_ALERTA = 7;    // ámbar: mismo umbral que "sin interacción" del CRM
+const DIAS_SIN_MOVIMIENTO_CRITICO = 30;  // rojo
+
+/** Tareas internas pendientes del cliente (0 si el seguimiento no tiene ninguna). */
+const pendientesDeCliente = (task: any): number => Number(task?.actividadesPendientes ?? 0);
+
+/** Días enteros desde la última interacción; null si nunca hubo ninguna. */
+const diasSinMovimiento = (task: any): number | null => {
+  const raw = task?.ultimaInteraccion;
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24)));
+};
+
+/** "Hoy" · "Ayer" · "Hace 4 días" · "Hace 3 sem." · "Hace 2 meses" */
+const etiquetaMovimiento = (dias: number | null): string => {
+  if (dias === null) return "Sin movimientos";
+  if (dias === 0) return "Hoy";
+  if (dias === 1) return "Ayer";
+  if (dias < 7) return `Hace ${dias} días`;
+  if (dias < 30) return `Hace ${Math.floor(dias / 7)} sem.`;
+  const meses = Math.floor(dias / 30);
+  return `Hace ${meses} ${meses === 1 ? "mes" : "meses"}`;
+};
+
+/** Verde / ámbar / rojo según hace cuánto que no pasa nada con el cliente. */
+const tonoMovimiento = (dias: number | null): string => {
+  if (dias === null || dias >= DIAS_SIN_MOVIMIENTO_CRITICO) return "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400";
+  if (dias >= DIAS_SIN_MOVIMIENTO_ALERTA) return "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400";
+  return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400";
+};
 
 type TareasFiltrosPersistidos = {
   status: string;
@@ -220,9 +273,8 @@ export default function TareasPage() {
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
   // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
   const canVerVisitas = can("postventa.visitas");
-  // Solicitud de Crédito vive como pestaña además de su ítem del sidebar: el
-  // vendedor la pide desde el mismo panel donde trabaja al cliente.
-  const showCreditoTab = !isMarketing && can("solicitud_credito");
+  // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
+  // propio en el sidebar (/solicitud-credito).
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
@@ -345,7 +397,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "solicitud-credito", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -414,6 +466,23 @@ export default function TareasPage() {
   >([]);
   const [addMemberSearch, setAddMemberSearch] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
+  // Seguimiento: las cards de colaborador arrancan CERRADAS (vista general del
+  // equipo primero, el detalle a un clic). Por eso se guarda lo abierto, no lo
+  // colapsado como en los grupos de Tareas.
+  const [expandedSeguimientoPeople, setExpandedSeguimientoPeople] = useState<Set<string>>(new Set());
+  const togglePersonExpanded = (id: string) => {
+    setExpandedSeguimientoPeople((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  // Orden de la vista de equipo para tomar acción rápido: por pendientes o por
+  // tiempo sin movimiento. Ordena tanto los clientes dentro de cada card como
+  // las cards entre sí. 'default' = el orden histórico (más clientes primero).
+  const [seguimientoOrden, setSeguimientoOrden] = useState<'default' | 'pendientes' | 'sin-movimiento'>('default');
+  const toggleSeguimientoOrden = (orden: 'pendientes' | 'sin-movimiento') =>
+    setSeguimientoOrden((prev) => (prev === orden ? 'default' : orden));
 
   // Selección múltiple / eliminación masiva (solo administrador)
   const [selectionMode, setSelectionMode] = useState(false);
@@ -732,15 +801,14 @@ export default function TareasPage() {
     if (segmentoFilter === 'construccion') {
       return true;
     }
-    // Si el usuario tiene segmento asignado directamente
-    if ((user as any)?.assignedSegment?.toLowerCase()?.includes('construcc')) {
+    // Si el usuario tiene segmento asignado directamente (en cualquiera de los
+    // campos por los que puede llegar el segmento del ERP).
+    if (esSegmentoConstruccion(segmentoDeUsuario(user))) {
       return true;
     }
     // Si es supervisor, verificar los segmentos de sus vendedores
     if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
-      return supervisorSalespeople.some(sp =>
-        sp.assignedSegment?.toLowerCase()?.includes('construcc')
-      );
+      return supervisorSalespeople.some(sp => esSegmentoConstruccion(sp.assignedSegment));
     }
     return false;
   })();
@@ -776,7 +844,7 @@ export default function TareasPage() {
   const showRutasTab = !esConstruccion;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0) + (showCreditoTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
   const tabsGridClass =
     ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7', 8: 'sm:grid-cols-8' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
@@ -803,14 +871,6 @@ export default function TareasPage() {
       setSeguimientoVista("clientes");
     }
   }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab, seguimientoVista]);
-
-  // Igual que CRM: el permiso llega asíncrono, así que solo se saca de la
-  // pestaña de crédito cuando los permisos ya están resueltos.
-  useEffect(() => {
-    if (user && permissionsReady && !showCreditoTab && activeTab === "solicitud-credito") {
-      setActiveTab("tareas");
-    }
-  }, [user, permissionsReady, showCreditoTab, activeTab]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -888,6 +948,11 @@ export default function TareasPage() {
   // El alta de obra vive dentro de la pestaña Obras; el (+) del header la abre
   // desde afuera cuando esa pestaña es la activa (ver `accionNueva`).
   const obrasRef = useRef<ControlObrasHandle>(null);
+  // Mismo mecanismo para el alta de ruta comercial y de cliente del CRM: cada
+  // pestaña resuelve qué hace el (+) del header (ver `accionNueva`).
+  const rutasRef = useRef<RutasComercialesHandle>(null);
+  const crmRef = useRef<SeguimientoClientesHandle>(null);
+  const puedeCrearRutas = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area';
 
   // "Añadir obra" desde la sub-vista de obras del Seguimiento: la pestaña Obras
   // todavía no está montada (Radix desmonta el contenido inactivo), así que el
@@ -1348,6 +1413,15 @@ export default function TareasPage() {
         };
       }
       return { label: 'Añadir seguimiento', onClick: () => openNuevoSeguimiento() };
+    }
+    if (activeTab === 'crm') {
+      return { label: 'Nuevo cliente', onClick: () => crmRef.current?.nuevoCliente() };
+    }
+    // Crear rutas es de supervisor/encargado/admin (mismo `canManage` que usa el
+    // módulo): al vendedor no le ofrecemos una acción que no puede hacer y el
+    // (+) vuelve a ser la tarea.
+    if (activeTab === 'rutas-comerciales' && puedeCrearRutas) {
+      return { label: 'Nueva ruta', onClick: () => rutasRef.current?.nuevaRuta() };
     }
     return {
       label: 'Añadir tarea',
@@ -2048,13 +2122,8 @@ export default function TareasPage() {
                 Visitas Técnicas
               </TabsTrigger>
             )}
-            {/* Solicitud de Crédito — el mismo módulo del sidebar, embebido acá */}
-            {showCreditoTab && (
-              <TabsTrigger value="solicitud-credito" data-testid="tab-solicitud-credito" className={tabTriggerClass}>
-                <Banknote className={tabIconClass} />
-                Solicitud de Crédito
-              </TabsTrigger>
-            )}
+            {/* Solicitud de Crédito ya NO es pestaña del panel: vive solo en su
+                ítem del sidebar (/solicitud-credito). */}
             <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
               <CalendarIcon className={tabIconClass} />
               Calendario
@@ -2517,6 +2586,9 @@ export default function TareasPage() {
                 // En seguimiento la fecha es una revisión programada del cliente, no una
                 // fecha límite: no aplica la lógica de "vencida" (borde/badge rojos).
                 const isSeguimientoCard = (task as any).payload?.kind === 'seguimiento_cliente';
+                // Seguimiento: tareas internas sin completar y tiempo sin interacción.
+                const pendientes = isSeguimientoCard ? pendientesDeCliente(task) : 0;
+                const dias = isSeguimientoCard ? diasSinMovimiento(task) : null;
                 const isOverdue = !isSeguimientoCard && task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
                 const lockedByGroup = !!(task as any).groupId && selectedGroupIds.has((task as any).groupId);
                 const isTaskSelected = selectedTaskIds.has(task.id) || lockedByGroup;
@@ -2673,11 +2745,47 @@ export default function TareasPage() {
                       </Button>
                     )}
 
-                    {/* Right badges - show on hover */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {getPriorityBadge(task.priority ?? 'medium')}
-                      {getStatusBadge(task.status ?? 'pendiente')}
-                    </div>
+                    {/* Estado del cliente (seguimiento): SIEMPRE visible.
+                        El estado/prioridad de la tarea no aplican acá —un seguimiento
+                        no se "completa"—; lo que importa es si tiene tareas internas
+                        pendientes y hace cuánto que no pasa nada con el cliente. */}
+                    {isSeguimientoCard ? (
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {pendientes > 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] dark:bg-orange-500/15 dark:text-orange-400 px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
+                            title={`${pendientes} tarea${pendientes !== 1 ? 's' : ''} interna${pendientes !== 1 ? 's' : ''} sin completar`}
+                            data-testid={`badge-pendiente-${task.id}`}
+                          >
+                            <Clock className="h-3 w-3" />
+                            {pendientes === 1 ? 'Pendiente' : `${pendientes} pendientes`}
+                          </span>
+                        ) : (task as any).actividadesTotal > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">
+                            <Check className="h-3 w-3" />
+                            Al día
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
+                            Sin tareas
+                          </span>
+                        )}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${tonoMovimiento(dias)}`}
+                          title="Última interacción registrada con el cliente"
+                          data-testid={`badge-movimiento-${task.id}`}
+                        >
+                          <AlertCircle className="h-3 w-3" />
+                          {etiquetaMovimiento(dias)}
+                        </span>
+                      </div>
+                    ) : (
+                      /* Right badges - show on hover */
+                      <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {getPriorityBadge(task.priority ?? 'medium')}
+                        {getStatusBadge(task.status ?? 'pendiente')}
+                      </div>
+                    )}
                   </div>
                 );
               };
@@ -2780,9 +2888,55 @@ export default function TareasPage() {
                   extraSeguimientoMembers.forEach((m) => ensureMember(m.id, m.name, m.type));
                 }
 
+                // Resumen accionable de un colaborador: cuántos de sus clientes
+                // tienen tareas internas pendientes y cuántos llevan demasiado
+                // tiempo sin ninguna interacción.
+                // Se calcula UNA vez por colaborador: el orden de las cards lo consulta
+                // en cada comparación y recalcularlo ahí es cuadrático.
+                const resumenCache = new Map<string, { conPendientes: number; pendientesTotal: number; frenados: number }>();
+                const resumenPersona = (personaId: string, g: PersonGroup) => {
+                  const hit = resumenCache.get(personaId);
+                  if (hit) return hit;
+                  const resumen = {
+                    conPendientes: g.tasks.filter((t) => pendientesDeCliente(t) > 0).length,
+                    pendientesTotal: g.tasks.reduce((n, t) => n + pendientesDeCliente(t), 0),
+                    frenados: g.tasks.filter((t) => {
+                      const d = diasSinMovimiento(t);
+                      return d === null || d >= DIAS_SIN_MOVIMIENTO_ALERTA;
+                    }).length,
+                  };
+                  resumenCache.set(personaId, resumen);
+                  return resumen;
+                };
+
+                // Orden de los clientes dentro de una card, según el botón activo.
+                const ordenarClientes = (lista: PersonGroup['tasks']) => {
+                  if (seguimientoOrden === 'default') return lista;
+                  return [...lista].sort((a, b) => {
+                    if (seguimientoOrden === 'pendientes') {
+                      return pendientesDeCliente(b) - pendientesDeCliente(a);
+                    }
+                    // Sin movimientos primero: los que nunca tuvieron interacción arriba.
+                    const da = diasSinMovimiento(a), db = diasSinMovimiento(b);
+                    if (da === null && db === null) return 0;
+                    if (da === null) return -1;
+                    if (db === null) return 1;
+                    return db - da;
+                  });
+                };
+
                 const people = Object.entries(byPerson)
                   .filter(([, g]) => !searching || g.tasks.length > 0)
-                  .sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+                  .sort((a, b) => {
+                    if (seguimientoOrden === 'pendientes') {
+                      const diff = resumenPersona(b[0], b[1]).pendientesTotal - resumenPersona(a[0], a[1]).pendientesTotal;
+                      if (diff !== 0) return diff;
+                    } else if (seguimientoOrden === 'sin-movimiento') {
+                      const diff = resumenPersona(b[0], b[1]).frenados - resumenPersona(a[0], a[1]).frenados;
+                      if (diff !== 0) return diff;
+                    }
+                    return b[1].tasks.length - a[1].tasks.length;
+                  });
 
                 // Pool del buscador "agregar puntual": cualquier usuario del sistema no listado aún.
                 const alreadyIn = new Set(Object.keys(byPerson));
@@ -2793,14 +2947,18 @@ export default function TareasPage() {
 
                 // Card de colaborador — foco en la persona y sus clientes en seguimiento.
                 const renderPersonRow = (id: string, grp: PersonGroup) => {
-                  const completed = grp.tasks.filter(isTaskDone).length;
                   const total = grp.tasks.length;
-                  const pct = total > 0 ? (completed / total) * 100 : 0;
-                  // Buscando, las cards se abren solas para mostrar las coincidencias.
-                  const isCollapsed = collapsedGroups.has(id) && !searching;
-                  const done = total > 0 && pct === 100;
+                  const resumen = resumenPersona(id, grp);
+                  // El anillo mide clientes SIN tareas internas pendientes: un seguimiento
+                  // nunca se completa, así que "avance" acá es "cuántos están al día".
+                  const alDia = total - resumen.conPendientes;
+                  const pct = total > 0 ? (alDia / total) * 100 : 0;
+                  // Arrancan cerradas; buscando, se abren solas para mostrar las coincidencias.
+                  const isCollapsed = !expandedSeguimientoPeople.has(id) && !searching;
+                  const done = total > 0 && resumen.conPendientes === 0;
                   const isSupervisor = grp.role === 'supervisor';
                   const isNone = id === '__none__';
+                  const clientesOrdenados = ordenarClientes(grp.tasks);
                   const R = 20, C = 2 * Math.PI * R;
                   return (
                     <div
@@ -2812,8 +2970,9 @@ export default function TareasPage() {
                       }`}
                     >
                       <button
-                        onClick={() => toggleGroupCollapsed(id)}
+                        onClick={() => togglePersonExpanded(id)}
                         className="w-full flex items-center gap-3.5 px-3.5 sm:px-4 py-3.5 hover:bg-slate-50/70 transition-colors text-left"
+                        data-testid={`button-toggle-persona-${id}`}
                       >
                         {/* Avatar con anillo de progreso */}
                         <div className="relative flex-shrink-0 w-[52px] h-[52px]">
@@ -2846,17 +3005,46 @@ export default function TareasPage() {
                               <span className="text-[9px] font-bold text-slate-500 bg-slate-100 uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0">Supervisor</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-400">
-                            <Building2 className="h-3 w-3" />
-                            {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} en seguimiento`}
+                          <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                              <Building2 className="h-3 w-3" />
+                              {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} en seguimiento`}
+                            </span>
+                            {/* Radiografía del colaborador sin abrir su card */}
+                            {resumen.conPendientes > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] px-2 py-0.5 text-[10px] font-bold"
+                                data-testid={`chip-pendientes-${id}`}
+                              >
+                                <Clock className="h-3 w-3" />
+                                {resumen.conPendientes} con pendientes
+                              </span>
+                            )}
+                            {resumen.frenados > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[10px] font-bold"
+                                title={`Sin interacción hace ${DIAS_SIN_MOVIMIENTO_ALERTA} días o más`}
+                                data-testid={`chip-frenados-${id}`}
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                {resumen.frenados} sin movimiento
+                              </span>
+                            )}
+                            {total > 0 && resumen.conPendientes === 0 && resumen.frenados === 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold">
+                                <Check className="h-3 w-3" />
+                                Todo al día
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        {/* Métrica de avance */}
+                        {/* Métrica: clientes al día sobre el total de su cartera */}
                         {total > 0 && (
                           <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                            <span className={`text-[13px] font-bold tabular-nums ${done ? 'text-emerald-600' : 'text-slate-700'}`}>
-                              {completed}<span className="text-slate-300 font-medium">/{total}</span>
+                            <span className={`text-[13px] font-bold tabular-nums ${done ? 'text-emerald-600' : 'text-slate-700'}`} title="Clientes sin tareas internas pendientes">
+                              {alDia}<span className="text-slate-300 font-medium">/{total}</span>
+                              <span className="ml-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">al día</span>
                             </span>
                             <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                               <div
@@ -2871,8 +3059,8 @@ export default function TareasPage() {
                       </button>
                       {!isCollapsed && (
                         <div className="px-1.5 sm:px-2.5 pb-2.5 pt-0.5 space-y-1 sm:space-y-1.5 border-t border-slate-100/80 bg-slate-50/30">
-                          {grp.tasks.length > 0 ? (
-                            grp.tasks.map(renderTaskCard)
+                          {clientesOrdenados.length > 0 ? (
+                            clientesOrdenados.map(renderTaskCard)
                           ) : (
                             <div className="px-3 py-4 text-center">
                               <p className="text-xs text-slate-400 mb-2.5">Todavía no tiene clientes en seguimiento.</p>
@@ -2910,8 +3098,13 @@ export default function TareasPage() {
                 const tareasDelEquipo = new Map<string, typeof filteredTasks[number]>();
                 people.forEach(([, g]) => g.tasks.forEach((t) => tareasDelEquipo.set(t.id, t)));
                 const teamTotal = tareasDelEquipo.size;
-                const teamDone = Array.from(tareasDelEquipo.values()).filter(isTaskDone).length;
-                const teamPct = teamTotal > 0 ? Math.round((teamDone / teamTotal) * 100) : 0;
+                const clientesDelEquipo = Array.from(tareasDelEquipo.values());
+                const teamConPendientes = clientesDelEquipo.filter((t) => pendientesDeCliente(t) > 0).length;
+                const teamPendientesTotal = clientesDelEquipo.reduce((n, t) => n + pendientesDeCliente(t), 0);
+                const teamFrenados = clientesDelEquipo.filter((t) => {
+                  const d = diasSinMovimiento(t);
+                  return d === null || d >= DIAS_SIN_MOVIMIENTO_ALERTA;
+                }).length;
 
                 return (
                   <div className="space-y-4">
@@ -2926,6 +3119,54 @@ export default function TareasPage() {
                           {teamTotal} resultado{teamTotal !== 1 ? 's' : ''}
                           {teamTotal > 0 && <span className="text-slate-400 font-medium"> en {people.length} colaborador{people.length !== 1 ? 'es' : ''}</span>}
                         </span>
+                      )}
+                    </div>
+
+                    {/* Prioridad de la vista: qué mirar primero. Ordena los clientes
+                        dentro de cada colaborador y también los colaboradores entre sí. */}
+                    <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 whitespace-nowrap hidden sm:inline">Ver primero</span>
+                      <button
+                        onClick={() => toggleSeguimientoOrden('pendientes')}
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-2xl px-3 py-1.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
+                          seguimientoOrden === 'pendientes'
+                            ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-sm shadow-orange-500/25'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-orange-200 hover:text-orange-600'
+                        }`}
+                        data-testid="button-orden-pendientes"
+                      >
+                        <Clock className="h-3.5 w-3.5" /> Pendientes primero
+                      </button>
+                      <button
+                        onClick={() => toggleSeguimientoOrden('sin-movimiento')}
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-2xl px-3 py-1.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
+                          seguimientoOrden === 'sin-movimiento'
+                            ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-sm shadow-orange-500/25'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-orange-200 hover:text-orange-600'
+                        }`}
+                        data-testid="button-orden-sin-movimiento"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" /> Sin movimientos primero
+                      </button>
+                      {seguimientoOrden !== 'default' && (
+                        <button
+                          onClick={() => setSeguimientoOrden('default')}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap flex-shrink-0"
+                          data-testid="button-orden-limpiar"
+                        >
+                          <X className="h-3.5 w-3.5" /> Quitar orden
+                        </button>
+                      )}
+                      {people.length > 0 && (
+                        <button
+                          onClick={() => setExpandedSeguimientoPeople((prev) =>
+                            prev.size > 0 ? new Set() : new Set(people.map(([pid]) => pid)))}
+                          className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-orange-600 transition-colors whitespace-nowrap flex-shrink-0"
+                          data-testid="button-expandir-todo"
+                        >
+                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedSeguimientoPeople.size > 0 ? 'rotate-180' : ''}`} />
+                          {expandedSeguimientoPeople.size > 0 ? 'Contraer todo' : 'Expandir todo'}
+                        </button>
                       )}
                     </div>
 
@@ -3004,8 +3245,8 @@ export default function TareasPage() {
 
                     {people.length > 0 ? (
                       <>
-                        {/* Resumen del equipo */}
-                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                        {/* Resumen del equipo — lo que el supervisor mira de un vistazo */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                               <Users className="h-3 w-3" /> Equipo
@@ -3020,12 +3261,25 @@ export default function TareasPage() {
                             <div className="text-2xl font-bold text-slate-800 leading-none">{teamTotal}</div>
                             <div className="text-[11px] text-slate-400 mt-1">en seguimiento</div>
                           </div>
+                          {/* Un seguimiento no se "completa": lo accionable es cuántos
+                              clientes tienen tareas internas abiertas y cuántos están frenados. */}
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              <Check className="h-3 w-3" /> Avance
+                              <Clock className="h-3 w-3" /> Con pendientes
                             </div>
-                            <div className={`text-2xl font-bold leading-none ${teamPct === 100 ? 'text-emerald-600' : 'text-orange-600'}`}>{teamPct}%</div>
-                            <div className="text-[11px] text-slate-400 mt-1">{teamDone}/{teamTotal} listo{teamDone !== 1 ? 's' : ''}</div>
+                            <div className={`text-2xl font-bold leading-none ${teamConPendientes > 0 ? 'text-[#fd6301]' : 'text-slate-800'}`} data-testid="kpi-con-pendientes">
+                              {teamConPendientes}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1">{teamPendientesTotal} tarea{teamPendientesTotal !== 1 ? 's' : ''} abierta{teamPendientesTotal !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <AlertTriangle className="h-3 w-3" /> Sin movimiento
+                            </div>
+                            <div className={`text-2xl font-bold leading-none ${teamFrenados > 0 ? 'text-amber-600' : 'text-emerald-600'}`} data-testid="kpi-sin-movimiento">
+                              {teamFrenados}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1">hace {DIAS_SIN_MOVIMIENTO_ALERTA}+ días</div>
                           </div>
                         </div>
 
@@ -3468,7 +3722,7 @@ export default function TareasPage() {
         {/* Rutas Comerciales — el supervisor crea rutas y asigna clientes; el vendedor ve las suyas */}
         {showRutasTab && (
           <TabsContent value="rutas-comerciales" className="space-y-6">
-            <RutasComercialesContent />
+            <RutasComercialesContent ref={rutasRef} />
           </TabsContent>
         )}
 
@@ -3482,15 +3736,7 @@ export default function TareasPage() {
         {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
         {showCrmTab && (
           <TabsContent value="crm" className="space-y-6">
-            <SeguimientoClientes segmentoArea={segmentoFilter} />
-          </TabsContent>
-        )}
-
-        {/* Solicitud de Crédito — el vendedor la pide sin salir del panel; el
-            módulo sigue existiendo en el sidebar con la misma pantalla. */}
-        {showCreditoTab && (
-          <TabsContent value="solicitud-credito" className="space-y-6">
-            <SolicitudCreditoContent embedded />
+            <SeguimientoClientes ref={crmRef} segmentoArea={segmentoFilter} />
           </TabsContent>
         )}
 

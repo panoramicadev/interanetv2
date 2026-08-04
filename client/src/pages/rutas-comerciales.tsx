@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -67,12 +67,19 @@ export default function RutasComerciales() {
   );
 }
 
+// Handle imperativo para que el (+) del header del Panel de Trabajo abra el
+// alta de ruta cuando la pestaña activa es Rutas Comerciales.
+export interface RutasComercialesHandle {
+  nuevaRuta: () => void;
+  puedeCrear: boolean;
+}
+
 /**
  * Contenido reutilizable de Rutas Comerciales.
  * Se usa como página standalone (envuelto en el container de arriba) y
  * embebido como pestaña dentro del Panel de Trabajo (tareas.tsx).
  */
-export function RutasComercialesContent() {
+export const RutasComercialesContent = forwardRef<RutasComercialesHandle>(function RutasComercialesContent(_props, ref) {
   const { user } = useAuth();
   const { toast } = useToast();
   const canManage = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
@@ -111,6 +118,11 @@ export function RutasComercialesContent() {
     },
     onError: (e: any) => toast({ title: "Error", description: e.message || "No se pudo crear la ruta.", variant: "destructive" }),
   });
+
+  useImperativeHandle(ref, () => ({
+    nuevaRuta: () => { if (canManage) setShowCreate(true); },
+    puedeCrear: canManage,
+  }), [canManage]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/rutas/${id}`),
@@ -280,7 +292,7 @@ export function RutasComercialesContent() {
       )}
     </div>
   );
-}
+});
 
 function RutaClientesPanel({ rutaId, canManage }: { rutaId: string; canManage: boolean }) {
   const { toast } = useToast();

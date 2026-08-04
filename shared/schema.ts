@@ -2898,6 +2898,17 @@ export interface CartItem {
   isPalletPurchase?: boolean;     // True si la línea fue agregada vía botón "Pallet completo"
   palletDiscountPct?: number;     // 0..100; descuento aplicado (sólo para UI/badge)
 
+  // Color personalizado ya cotizado (ver tabla custom_color_variants).
+  // La línea entra al carrito desde el enlace del correo o desde los pendientes
+  // del cliente logueado, nunca eligiendo una variante del catálogo público.
+  // unitPrice es el precio que fijó el equipo comercial y no se recalcula.
+  isCustomColor?: boolean;
+  customColorToken?: string;   // Token de la variante; viaja al pedido para trazar el origen
+  customColorCode?: string;    // Código del color pedido (ej "SW 7008")
+  customColorBrand?: string;   // Marca de la carta de color (ej "Sherwin Williams")
+  customColorHex?: string;     // Hex aproximado, para el swatch en la UI
+  customColorNotes?: string;   // Notas que dejó el cliente al pedirlo
+
   // Metadata
   addedAt: string; // ISO timestamp when added to cart
   updatedAt: string; // ISO timestamp when last modified
@@ -3020,6 +3031,14 @@ export const cartItemSchema = z.object({
   category: z.string().optional(),
   isPalletPurchase: z.boolean().optional(),
   palletDiscountPct: z.number().min(0).max(100).optional(),
+  // Color personalizado — sin estos campos acá, zod los descarta al releer el
+  // carrito desde localStorage y la línea pierde el swatch, el código y el token.
+  isCustomColor: z.boolean().optional(),
+  customColorToken: z.string().optional(),
+  customColorCode: z.string().optional(),
+  customColorBrand: z.string().optional(),
+  customColorHex: z.string().optional(),
+  customColorNotes: z.string().optional(),
   addedAt: z.string(),
   updatedAt: z.string(),
   minQuantity: z.number().int().min(1),
@@ -7636,6 +7655,95 @@ export const insertApiKeySchema = createInsertSchema(apiKeys, {
 export type InsertApiKeyInput = z.infer<typeof insertApiKeySchema>;
 
 // ================================
+// OAUTH 2.1 — Authorization Server para el MCP
+// ================================
+// La intranet emite tokens de usuario para clientes MCP (Claude, Cursor, ChatGPT).
+// A diferencia de api_keys —una credencial compartida sin dueño— cada token acá
+// pertenece a un usuario de `users`, así que el MCP opera con el rol de quien lo
+// conectó y queda trazabilidad de quién hizo qué.
+
+// Clientes registrados, normalmente vía Dynamic Client Registration (RFC 7591):
+// el connector de Claude se auto-registra la primera vez que alguien lo conecta.
+export const oauthClients = pgTable("oauth_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  clientId: varchar("client_id").notNull().unique(),
+  // Hash del client_secret. NULL = cliente público: se autentica solo con PKCE
+  // (es el caso del connector de Claude, que corre en el navegador del usuario).
+  clientSecretHash: varchar("client_secret_hash"),
+  clientName: varchar("client_name").notNull(),
+  clientUri: varchar("client_uri"),
+  logoUri: varchar("logo_uri"),
+
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  grantTypes: jsonb("grant_types").$type<string[]>().notNull().default(sql`'["authorization_code","refresh_token"]'::jsonb`),
+  tokenEndpointAuthMethod: varchar("token_endpoint_auth_method").notNull().default("none"),
+  scope: text("scope").notNull().default("mcp:read mcp:write"),
+
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+}, (table) => ({
+  clientIdIdx: index("IDX_oauth_clients_client_id").on(table.clientId),
+}));
+
+// Códigos de autorización: viven ~5 minutos entre el consentimiento y el canje.
+export const oauthAuthCodes = pgTable("oauth_auth_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  codeHash: varchar("code_hash").notNull().unique(), // sha256 del código
+  clientId: varchar("client_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  redirectUri: varchar("redirect_uri").notNull(),
+  scope: text("scope").notNull(),
+
+  // PKCE (RFC 7636) — obligatorio en OAuth 2.1, siempre S256.
+  codeChallenge: varchar("code_challenge").notNull(),
+  codeChallengeMethod: varchar("code_challenge_method").notNull().default("S256"),
+
+  // Resource indicator (RFC 8707): a qué MCP server queda atado el token.
+  resource: varchar("resource"),
+
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"), // un código se canjea una sola vez
+  // Grant emitido al canjearlo. Si el código reaparece, sabemos exactamente
+  // qué tokens matar sin tocar otras sesiones del mismo usuario.
+  grantId: varchar("grant_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  codeHashIdx: index("IDX_oauth_auth_codes_hash").on(table.codeHash),
+  expiresAtIdx: index("IDX_oauth_auth_codes_expires").on(table.expiresAt),
+}));
+
+// Access y refresh tokens. `grantId` agrupa el par emitido por una misma
+// autorización (y sus rotaciones), para poder revocar todo de una.
+export const oauthTokens = pgTable("oauth_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  tokenHash: varchar("token_hash").notNull().unique(), // sha256 del token
+  kind: varchar("kind").notNull(), // access | refresh
+  grantId: varchar("grant_id").notNull(),
+
+  clientId: varchar("client_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  scope: text("scope").notNull(),
+  resource: varchar("resource"),
+
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  tokenHashIdx: index("IDX_oauth_tokens_hash").on(table.tokenHash),
+  grantIdx: index("IDX_oauth_tokens_grant").on(table.grantId),
+  userIdx: index("IDX_oauth_tokens_user").on(table.userId),
+}));
+
+export type OauthClient = typeof oauthClients.$inferSelect;
+export type OauthAuthCode = typeof oauthAuthCodes.$inferSelect;
+export type OauthToken = typeof oauthTokens.$inferSelect;
+
+// ================================
 // META ADS INTEGRATIONS
 // ================================
 
@@ -8350,6 +8458,84 @@ export const insertQuoteRequestSchema = createInsertSchema(quoteRequests, {
 export type QuoteRequest = typeof quoteRequests.$inferSelect;
 export type InsertQuoteRequest = typeof quoteRequests.$inferInsert;
 export type InsertQuoteRequestInput = z.infer<typeof insertQuoteRequestSchema>;
+
+// ════════════════════════════════════════════════════════════
+// COLORES PERSONALIZADOS YA COTIZADOS
+// ════════════════════════════════════════════════════════════
+//
+// Cuando el equipo comercial le pone precio a un ítem itemType='custom_color'
+// de una cotización web, el color se materializa acá como una variante privada
+// del producto: comprable sólo por quien tiene el token (que llega por correo)
+// o por el cliente logueado con ese mismo email. No entra al catálogo público
+// porque el precio de un color a medida es negociado.
+//
+// El token existe porque el carrito vive en localStorage del navegador
+// (ver client/src/contexts/CartContext.tsx): el servidor no puede dejar nada en
+// el carrito por su cuenta, el enlace del correo es lo que lo inyecta.
+export const customColorVariants = pgTable("custom_color_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Origen: la cotización que le puso precio (FK blanda)
+  quoteRequestId: varchar("quote_request_id"),
+  quoteNumber: varchar("quote_number", { length: 60 }),
+  // Token del enlace mágico: /tienda?colorPersonalizado=<token>
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  // Dueño de la variante. clientUserId se llena si el email calza con una cuenta.
+  clientEmail: varchar("client_email", { length: 160 }).notNull(),
+  clientName: varchar("client_name", { length: 200 }),
+  clientUserId: varchar("client_user_id"),
+  // Producto base sobre el que se pidió el color
+  baseSku: varchar("base_sku", { length: 60 }),
+  baseProductName: text("base_product_name").notNull(),
+  genericName: text("generic_name"),
+  formatUnit: varchar("format_unit", { length: 60 }),
+  imageUrl: text("image_url"),
+  // El color en sí
+  colorCode: varchar("color_code", { length: 120 }).notNull(),
+  colorBrand: varchar("color_brand", { length: 120 }),
+  colorHex: varchar("color_hex", { length: 9 }),
+  colorNotes: text("color_notes"),
+  // Descriptor legible que se muestra como "color" de la variante
+  colorLabel: varchar("color_label", { length: 240 }).notNull(),
+  // Precio unitario asignado por el equipo comercial (CLP)
+  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
+  // Cantidad cotizada; se usa como cantidad inicial en el carrito
+  quantity: integer("quantity").notNull().default(1),
+  minUnit: integer("min_unit").notNull().default(1),
+  stepSize: integer("step_size").notNull().default(1),
+  // active: comprable | ordered: ya se pidió | disabled: dado de baja a mano
+  estado: varchar("estado", { length: 20 }).notNull().default("active"),
+  // Cuándo el cliente abrió el enlace por primera vez
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  emailIdx: index("IDX_custom_color_variants_email").on(table.clientEmail),
+  quoteIdx: index("IDX_custom_color_variants_quote").on(table.quoteRequestId),
+  estadoIdx: index("IDX_custom_color_variants_estado").on(table.estado),
+}));
+
+export type CustomColorVariant = typeof customColorVariants.$inferSelect;
+export type InsertCustomColorVariant = typeof customColorVariants.$inferInsert;
+
+/** Lo que la tienda necesita para meter la variante al carrito. Sin datos internos. */
+export interface CustomColorVariantPublic {
+  token: string;
+  baseSku: string | null;
+  baseProductName: string;
+  formatUnit: string | null;
+  imageUrl: string | null;
+  colorCode: string;
+  colorBrand: string | null;
+  colorHex: string | null;
+  colorNotes: string | null;
+  colorLabel: string;
+  unitPrice: number;
+  quantity: number;
+  minUnit: number;
+  stepSize: number;
+  quoteNumber: string | null;
+  estado: string;
+}
 
 // ==================================================
 // Retail Locations - "Dónde Comprar" público

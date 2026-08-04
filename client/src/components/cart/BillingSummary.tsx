@@ -465,6 +465,19 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
         imageUrl: item.imageUrl || null,
         selectedColor: item.selectedColor || null,
         selectedPackaging: item.selectedPackaging || null,
+        // Color a medida: el SKU es sintético (CUSTOM-…) y no existe en el ERP,
+        // así que estos campos son lo único que le dice a producción qué tono
+        // preparar. Sin ellos el pedido llega sin color.
+        ...(item.isCustomColor
+          ? {
+              isCustomColor: true,
+              customColorToken: item.customColorToken || null,
+              customColorCode: item.customColorCode || null,
+              customColorBrand: item.customColorBrand || null,
+              customColorHex: item.customColorHex || null,
+              customColorNotes: item.customColorNotes || null,
+            }
+          : {}),
       }));
 
       // AÑADIR FLETE COMO PUNTO DE FACTURACIÓN

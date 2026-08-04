@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -61,9 +61,21 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error crítico en migraciones:', error.message);
     }
+    // Aparte del bucle de migraciones a propósito: si una migración anterior
+    // falla, ese bucle corta y sin esto el login de los asistentes queda roto.
+    try {
+      await ensureOAuthTables();
+    } catch (error: any) {
+      console.error('❌ Error al verificar las tablas OAuth:', error.message);
+    }
   }
 
   const server = registerRoutes(app);
+
+  // OAuth 2.1 para el MCP. Va después de registerRoutes porque necesita la
+  // sesión y passport que arma setupAuth(), y antes del catch-all de Vite.
+  const { registerOAuthRoutes } = await import('./routes-oauth');
+  registerOAuthRoutes(app);
 
   // Register B2C public quotation routes (isolated from B2B)
   const { registerB2CRoutes } = await import('./routes-b2c');

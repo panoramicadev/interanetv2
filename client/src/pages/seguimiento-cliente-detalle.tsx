@@ -42,7 +42,6 @@ import {
   getHitoConfig,
   formatHoraAgendada,
   SEGMENTOS_CRM,
-  REGIONES_CHILE,
   CONDICIONES_PAGO,
   timeAgo,
   formatDate,
@@ -52,6 +51,7 @@ import {
   getInitials,
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
+import { ComunaSelect } from "@/components/shared/comuna-select";
 
 // Constructor de presupuesto del Tomador 2, en modo modal embebido (se
 // abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
@@ -183,9 +183,6 @@ export default function SeguimientoClienteDetalle() {
   const [rutInput, setRutInput] = useState("");
   const [detectedPurchases, setDetectedPurchases] = useState<any[] | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
-  const comunaInputRef = useRef<HTMLInputElement>(null);
-  const comunaDropdownRef = useRef<HTMLDivElement>(null);
   // Borrador de la card "Notas" (null = sin cambios locales)
   const [notasDraft, setNotasDraft] = useState<string | null>(null);
   const [etiquetaInput, setEtiquetaInput] = useState("");
@@ -218,16 +215,6 @@ export default function SeguimientoClienteDetalle() {
       return res.json();
     },
     enabled: isAdminOrSupervisor,
-  });
-
-  // Comunas existentes (autocomplete del formulario)
-  const { data: comunasSugeridas = [] } = useQuery<string[]>({
-    queryKey: ["/api/crm/comunas"],
-    queryFn: async () => {
-      const res = await fetch("/api/crm/comunas");
-      if (!res.ok) return [];
-      return res.json();
-    },
   });
 
   // ─── Bitácora ───────────────────────────────────────────────────
@@ -314,15 +301,10 @@ export default function SeguimientoClienteDetalle() {
       });
       return { previousClient };
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       toast({ title: "✅ Datos actualizados" });
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ["/api/crm/seguimiento"] });
-      // El autocomplete de comunas solo cambia si se editó la comuna;
-      // invalidarlo en cada PATCH (estado, prioridad…) es trabajo inútil.
-      if (variables?.comuna !== undefined) {
-        queryClient.invalidateQueries({ queryKey: ["/api/crm/comunas"] });
-      }
     },
     onError: (err: Error, _data, context) => {
       // Rollback al snapshot anterior si falla
@@ -670,7 +652,6 @@ export default function SeguimientoClienteDetalle() {
       telefono: client.telefono || "",
       email: client.email || "",
       notas: client.notas || "",
-      region: client.region || "",
       segmento: client.segmento || "",
       contactoEncargado: client.contactoEncargado || "",
       comuna: client.comuna || "",
@@ -687,7 +668,6 @@ export default function SeguimientoClienteDetalle() {
       telefono: editForm.telefono,
       email: editForm.email,
       notas: editForm.notas,
-      region: editForm.region,
       segmento: editForm.segmento,
       contactoEncargado: editForm.contactoEncargado,
       comuna: editForm.comuna,
@@ -789,8 +769,9 @@ export default function SeguimientoClienteDetalle() {
   const cv = client.clienteVinculado;
   const isStaleContact = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
   const displayPhone = cv?.foen || client.linkedFoen || client.telefono || "—";
-  const displayComuna = fixEncoding(client.comuna || cv?.comuna || client.linkedComuna || client.ciudad);
-  const displayRegion = client.region || fixEncoding(client.linkedRegion || cv?.provincia || client.linkedProvincia);
+  // comunaCanonica/regionCanonica las resuelve el server con @shared/chile-geo.
+  const displayComuna = client.comunaCanonica || fixEncoding(client.comuna || cv?.comuna || client.linkedComuna || client.ciudad);
+  const displayRegion = client.regionCanonica || "";
   const displayContacto = fixEncoding(client.contactoEncargado || cv?.purchasingContactName || client.linkedPurchasingContact);
   const displayEmail = client.email || cv?.email || "—";
   const displayCondicionPago = client.condicionPago || (cv?.cpen || client.linkedCpen || "")?.trim() || "—";
@@ -1148,64 +1129,15 @@ export default function SeguimientoClienteDetalle() {
                         className="h-9"
                       />
                     </div>
-                    <div className="relative">
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Comuna</label>
-                      <Input
-                        ref={comunaInputRef}
-                        value={editForm.comuna}
-                        onChange={e => {
-                          setEditForm((f: any) => ({ ...f, comuna: e.target.value }));
-                          setShowComunaSuggestions(true);
-                        }}
-                        onFocus={() => setShowComunaSuggestions(true)}
-                        onBlur={() => { setTimeout(() => setShowComunaSuggestions(false), 200); }}
-                        placeholder={fixEncoding(cv?.comuna || client.linkedComuna) || "Escribir o seleccionar comuna..."}
-                        className="h-9"
-                        autoComplete="off"
-                      />
-                      {showComunaSuggestions && (() => {
-                        const filtered = comunasSugeridas.filter((c: string) =>
-                          c.toLowerCase().includes((editForm.comuna || "").toLowerCase())
-                        );
-                        if (filtered.length === 0) return null;
-                        // No mostrar si ya se escribió el match exacto
-                        if (filtered.length === 1 && filtered[0].toLowerCase() === (editForm.comuna || "").toLowerCase()) return null;
-                        return (
-                          <div
-                            ref={comunaDropdownRef}
-                            className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg"
-                          >
-                            {filtered.slice(0, 15).map((c: string) => (
-                              <button
-                                key={c}
-                                type="button"
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer"
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  setEditForm((f: any) => ({ ...f, comuna: c }));
-                                  setShowComunaSuggestions(false);
-                                }}
-                              >
-                                <MapPin className="w-3 h-3 inline mr-2 text-muted-foreground" />
-                                {fixEncoding(c)}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                    {/* Comuna del catálogo oficial; la región sale de ella y no
+                        se edita aparte (antes se podían guardar en desacuerdo). */}
                     <div>
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Región</label>
-                      <select
-                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 h-9 cursor-pointer hover:border-indigo-400 transition-colors"
-                        value={editForm.region || ""}
-                        onChange={(e) => setEditForm((f: any) => ({ ...f, region: e.target.value }))}
-                      >
-                        <option value="">Seleccionar región...</option>
-                        {REGIONES_CHILE.map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
+                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Comuna</label>
+                      <ComunaSelect
+                        value={editForm.comuna}
+                        onChange={(comuna) => setEditForm((f: any) => ({ ...f, comuna: comuna ?? "" }))}
+                        placeholder={cv?.comuna || client.linkedComuna || "Seleccionar comuna..."}
+                      />
                     </div>
                     <div>
                       <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Segmento</label>

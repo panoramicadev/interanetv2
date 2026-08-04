@@ -525,6 +525,17 @@ const CONFIG_TABS_GESTION = [
  * `admin` no aparece: siempre tiene todo (hard-coded en server y client).
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  // El menú del supervisor es el mismo del administrador
+  // (SUPERVISOR_SIDEBAR_POR_SEGMENTO), así que necesita los permisos de los
+  // módulos que ese menú muestra: por eso entran "margen" —que el módulo
+  // documenta como de admin y supervisor— y "market.campanas", el Email
+  // Marketing que vive como sub-sección del módulo Marketing.
+  //
+  // "rrhh.comisiones" entra por decisión explícita: el menú tiene que quedar
+  // igual al del admin, Comisiones incluido. Es información sensible
+  // (comisión por vendedor sobre margen facturado), así que si más adelante se
+  // quiere cerrar, se desactiva para el rol en Configuración → Roles y
+  // Permisos sin tocar código.
   supervisor: [
     "dashboard",
     "solicitud_credito",
@@ -534,7 +545,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "productos.costos",
     "clientes",
     "finanzas",
+    "margen",
     "marketing",
+    "market.campanas",
+    "rrhh.comisiones",
     "tomador_pedidos",
     "postventa.visitas",
     "postventa.reclamos",

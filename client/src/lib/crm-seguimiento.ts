@@ -152,24 +152,10 @@ export const SEGMENTOS_CRM = [
   "Industrial",
 ];
 
-export const REGIONES_CHILE = [
-  "Arica y Parinacota",
-  "Tarapacá",
-  "Antofagasta",
-  "Atacama",
-  "Coquimbo",
-  "Valparaíso",
-  "Metropolitana de Santiago",
-  "O'Higgins",
-  "Maule",
-  "Ñuble",
-  "Biobío",
-  "La Araucanía",
-  "Los Ríos",
-  "Los Lagos",
-  "Aysén",
-  "Magallanes y la Antártica Chilena",
-];
+// Las regiones y comunas viven en @shared/chile-geo (REGIONES_CHILE /
+// COMUNAS_CHILE), único catálogo de la app. Acá había una lista propia que
+// escribía "Metropolitana de Santiago" y "Magallanes y la Antártica Chilena",
+// distinto de como lo escribían el ERP y el servicio de comunas.
 
 export const CONDICIONES_PAGO = [
   "CONTADO",

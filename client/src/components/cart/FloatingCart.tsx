@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
-import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package, Truck, Store } from "lucide-react";
+import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package, Truck, Store, Palette } from "lucide-react";
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,10 +40,22 @@ function ModernCartItem({ item }: { item: any }) {
   };
 
   return (
-    <div className="flex gap-3 p-3 hover:bg-gray-50/50 transition-colors group">
-      {/* Product Image */}
-      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 overflow-hidden border border-gray-100">
-        {item.imageUrl ? (
+    <div
+      className={`flex gap-3 p-3 transition-colors group ${
+        item.isCustomColor
+          ? 'bg-fuchsia-50/60 hover:bg-fuchsia-50 border-l-2 border-fuchsia-400'
+          : 'hover:bg-gray-50/50'
+      }`}
+    >
+      {/* Product Image — en un color a medida no hay foto del tono, así que la
+          muestra es el swatch del hex cotizado */}
+      <div
+        className="w-16 h-16 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 overflow-hidden border border-gray-100 flex items-center justify-center"
+        style={item.isCustomColor && item.customColorHex ? { background: item.customColorHex } : undefined}
+      >
+        {item.isCustomColor ? (
+          <Palette className="w-6 h-6 text-white drop-shadow" />
+        ) : item.imageUrl ? (
           <img
             src={item.imageUrl}
             alt={item.productName}
@@ -56,15 +68,26 @@ function ModernCartItem({ item }: { item: any }) {
           </div>
         )}
       </div>
-      
+
       {/* Details */}
       <div className="flex-1 min-w-0">
         <h4 className="text-xs font-bold text-gray-800 line-clamp-1 uppercase">
           {item.productName}
         </h4>
+        {item.isCustomColor && (
+          <span
+            className="inline-flex items-center gap-1 mt-0.5 text-[9px] bg-fuchsia-600 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+            title={`Color a medida ${item.customColorCode || ''}${item.customColorBrand ? ` (${item.customColorBrand})` : ''} — precio cotizado para ti`}
+          >
+            <Palette className="w-2.5 h-2.5" />
+            Personalizado
+          </span>
+        )}
         <div className="flex items-center gap-1.5 mt-0.5">
           {item.selectedColor && (
-            <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full font-medium">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+              item.isCustomColor ? 'bg-fuchsia-100 text-fuchsia-700' : 'bg-orange-50 text-orange-600'
+            }`}>
               {item.selectedColor}
             </span>
           )}

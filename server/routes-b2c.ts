@@ -17,6 +17,11 @@ import {
 } from './services/quote-request.service';
 import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
 import { linkQuoteRequestToCrm } from './services/crm-web-lead.service';
+import {
+  upsertCustomColorVariant,
+  getVariantByToken,
+  getVariantsForClient,
+} from './services/custom-color.service';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
 import { segmentoCotizacionWebLabel } from '@shared/segmentos-cotizacion-web';
 import { db } from './db';
@@ -346,6 +351,15 @@ export function registerB2CRoutes(app: Express) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
 
+      // Los colores personalizados que acaban de recibir precio se materializan
+      // como variante privada del producto y se le avisa al cliente. Nunca puede
+      // tumbar el PATCH: la cotización ya quedó guardada con sus precios.
+      try {
+        await publishPricedCustomColors(updated);
+      } catch (ccErr) {
+        console.warn('[B2C] custom color publish failed:', ccErr);
+      }
+
       res.json(updated);
     } catch (error: any) {
       console.error('[B2C] Error assigning pricing:', error);
@@ -506,5 +520,105 @@ export function registerB2CRoutes(app: Express) {
     }
   });
 
+  // ═══════════════════════════════════════════════
+  // COLORES PERSONALIZADOS YA COTIZADOS
+  // ═══════════════════════════════════════════════
+
+  /**
+   * GET /api/b2c/custom-color/:token — Variante privada del enlace del correo.
+   *
+   * Público a propósito: el visitante que pidió el color puede no tener cuenta.
+   * El token de 128 bits es la credencial, y sólo expone ese color — no habilita
+   * ver otras cotizaciones ni el resto del catálogo con precios.
+   */
+  app.get('/api/b2c/custom-color/:token', async (req: any, res: any) => {
+    try {
+      const variant = await getVariantByToken(String(req.params.token || ''));
+      if (!variant) {
+        return res.status(404).json({ message: 'Este color personalizado ya no está disponible' });
+      }
+      res.set('Cache-Control', 'no-store');
+      res.json(variant);
+    } catch (error) {
+      console.error('[B2C] Error fetching custom color variant:', error);
+      res.status(500).json({ message: 'Error al cargar el color personalizado' });
+    }
+  });
+
+  /**
+   * GET /api/b2c/my-custom-colors — Colores personalizados del cliente logueado,
+   * para que la tienda los deje en el carrito sin tener que abrir el correo.
+   */
+  app.get('/api/b2c/my-custom-colors', requireAuth, async (req: any, res: any) => {
+    try {
+      const variants = await getVariantsForClient({
+        email: req.user?.email ?? null,
+        userId: req.user?.id ? String(req.user.id) : null,
+      });
+      res.set('Cache-Control', 'no-store');
+      res.json({ variants });
+    } catch (error) {
+      console.error('[B2C] Error fetching client custom colors:', error);
+      res.status(500).json({ message: 'Error al cargar tus colores personalizados' });
+    }
+  });
+
   console.log('[B2C] Public quotation routes registered (/api/b2c/*)');
+}
+
+/**
+ * Publica los colores personalizados de una cotización recién valorizada:
+ * crea/actualiza la variante privada y le manda al cliente el correo con el
+ * enlace que se la deja en el carrito.
+ *
+ * Reasignar precio reutiliza el token existente, así que un correo viejo sigue
+ * llevando al carrito — con el precio nuevo.
+ */
+async function publishPricedCustomColors(quote: any) {
+  const items: QuoteRequestItem[] = (quote?.items as QuoteRequestItem[]) || [];
+  const customItems = items.filter(
+    it => it.itemType === 'custom_color' && Number(it.unitPrice) > 0,
+  );
+  if (customItems.length === 0) return;
+
+  const clientEmail = String(quote.visitorEmail || '').trim();
+  if (!clientEmail) {
+    console.warn('[B2C] cotización sin email, no se publica el color personalizado');
+    return;
+  }
+
+  const { sendAutoCustomerEmail } = await import('./notifications-helper');
+  const { buildCustomColorPricedEmail } = await import('./email-templates');
+
+  for (const item of customItems) {
+    const variant = await upsertCustomColorVariant({
+      quoteRequestId: String(quote.id),
+      quoteNumber: quote.quoteNumber ?? null,
+      clientEmail,
+      clientName: quote.visitorName ?? null,
+      item,
+    });
+    if (!variant) continue;
+
+    const built = buildCustomColorPricedEmail({
+      clientName: quote.visitorName || 'Hola',
+      productName: item.productName || 'Producto',
+      format: item.format ?? null,
+      colorCode: variant.colorCode,
+      colorBrand: variant.colorBrand,
+      colorHex: variant.colorHex,
+      colorNotes: variant.colorNotes,
+      unitPrice: Number(variant.unitPrice) || 0,
+      quantity: Number(variant.quantity) || 1,
+      token: variant.token,
+      quoteNumber: quote.quoteNumber ?? null,
+    });
+
+    await sendAutoCustomerEmail({
+      notificationType: 'ecommerce_color_personalizado',
+      to: clientEmail,
+      subject: built.subject,
+      html: built.html,
+    });
+  }
 }
