@@ -1817,6 +1817,81 @@ export async function uploadLocalImagesToObjectStorage(): Promise<{ uploaded: nu
  * - Ejecuta en orden numérico
  * - Registra migraciones ejecutadas en tabla de control
  */
+/**
+ * Tablas del Authorization Server OAuth (MCP).
+ *
+ * Van acá y no solo en migrations/078_oauth_mcp.sql porque runProductionMigrations
+ * corta el bucle en la primera migración que falla: si una anterior queda trabada,
+ * la 078 no se ejecuta nunca y el login de los asistentes muere con 500. Es el mismo
+ * criterio que ya se usa con `sessions` en bootstrapDatabase: lo que hace falta para
+ * autenticar se crea de forma idempotente y aparte de la cadena numerada.
+ */
+export async function ensureOAuthTables(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id VARCHAR NOT NULL UNIQUE,
+      client_secret_hash VARCHAR,
+      client_name VARCHAR NOT NULL,
+      client_uri VARCHAR,
+      logo_uri VARCHAR,
+      redirect_uris JSONB NOT NULL,
+      grant_types JSONB NOT NULL DEFAULT '["authorization_code","refresh_token"]'::jsonb,
+      token_endpoint_auth_method VARCHAR NOT NULL DEFAULT 'none',
+      scope TEXT NOT NULL DEFAULT 'mcp:read mcp:write',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_used_at TIMESTAMP
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_clients_client_id" ON oauth_clients (client_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_auth_codes (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      code_hash VARCHAR NOT NULL UNIQUE,
+      client_id VARCHAR NOT NULL,
+      user_id VARCHAR NOT NULL,
+      redirect_uri VARCHAR NOT NULL,
+      scope TEXT NOT NULL,
+      code_challenge VARCHAR NOT NULL,
+      code_challenge_method VARCHAR NOT NULL DEFAULT 'S256',
+      resource VARCHAR,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      grant_id VARCHAR,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_auth_codes_hash" ON oauth_auth_codes (code_hash)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_auth_codes_expires" ON oauth_auth_codes (expires_at)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      token_hash VARCHAR NOT NULL UNIQUE,
+      kind VARCHAR NOT NULL,
+      grant_id VARCHAR NOT NULL,
+      client_id VARCHAR NOT NULL,
+      user_id VARCHAR NOT NULL,
+      scope TEXT NOT NULL,
+      resource VARCHAR,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP,
+      last_used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_hash" ON oauth_tokens (token_hash)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_grant" ON oauth_tokens (grant_id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_oauth_tokens_user" ON oauth_tokens (user_id)`);
+
+  // La 078 puede haber creado la tabla sin esta columna si corrió una versión previa.
+  await db.execute(sql`ALTER TABLE oauth_auth_codes ADD COLUMN IF NOT EXISTS grant_id VARCHAR`);
+
+  console.log('🔐 Tablas OAuth verificadas');
+}
+
 export async function runProductionMigrations() {
   console.log('🔄 Verificando migraciones de base de datos...');
   
