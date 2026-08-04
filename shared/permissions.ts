@@ -193,6 +193,13 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/gastos-empresariales",
   },
+  {
+    key: "solicitud_credito",
+    label: "Solicitud de Crédito",
+    description: "Pedir crédito para un cliente y seguir su resolución",
+    group: "finanzas",
+    href: "/solicitud-credito",
+  },
 
   // ── Post-Venta ───────────────────────────────────────────────
   {
@@ -496,6 +503,7 @@ const CONFIG_TABS_GESTION = [
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   supervisor: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
     "productos.costos",
@@ -513,6 +521,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   encargado_area: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
     "productos.costos",
@@ -524,6 +533,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   salesperson: [
     "dashboard",
+    "solicitud_credito",
     "productos",
     "clientes",
     "marketing",
@@ -589,7 +599,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   planificacion: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["postventa.reclamos", "gastos"],
-  recursos_humanos: ["rrhh.comisiones", "gastos"],
+  recursos_humanos: ["rrhh.comisiones", "gastos", "solicitud_credito"],
   marketing: ["marketing", "market.campanas", "gastos"],
   area_produccion: ["postventa.reclamos", "gastos"],
   area_logistica: ["postventa.reclamos", "gastos"],

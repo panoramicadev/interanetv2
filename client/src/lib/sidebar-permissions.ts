@@ -164,6 +164,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
+  { key: "solicitud_credito", item: { href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck } },
   // Visitas Técnicas oculto del sidebar para todos los roles: su acceso vive como
   // pestaña del Panel de Trabajo en el área Construcción (la ruta /visitas-tecnicas
   // sigue activa y el permiso postventa.visitas sigue gobernando el acceso).
