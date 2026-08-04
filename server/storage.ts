@@ -1918,6 +1918,7 @@ export interface IStorage {
   getInventory(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]>;
 
   getInventoryWithPrices(filters?: {
@@ -22318,54 +22319,22 @@ export class DatabaseStorage implements IStorage {
   // INVENTORY operations
   // ==================================================================================
 
+  /**
+   * Inventario sin valorización. Es la misma fuente que `getInventoryWithPrices`
+   * (la tabla `inventory_products` que llena el ETL), solo que sin precio medio
+   * ni valor de inventario, para los roles que no ven costos.
+   *
+   * Antes leía `product_stock`, una tabla que ningún ETL escribe: devolvía
+   * siempre una lista vacía y con eso rompía /api/inventory, su resumen y el
+   * inventario que expone la API externa al MCP.
+   */
   async getInventory(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]> {
-    let query = db
-      .select({
-        id: productStock.id,
-        productSku: productStock.productSku,
-        productName: products.name,
-        warehouseCode: productStock.warehouseCode,
-        warehouseName: warehouses.name,
-        quantity: productStock.physicalStock1,
-        reservedQuantity: productStock.committedStock1,
-        availableQuantity: productStock.availableStock1,
-        lastUpdated: productStock.lastUpdated,
-      })
-      .from(productStock)
-      .leftJoin(products, eq(productStock.productSku, products.kopr))
-      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.kobo));
-
-    const conditions = [];
-
-    if (filters?.search) {
-      const searchTerm = `%${filters.search.toLowerCase()}%`;
-      conditions.push(
-        or(
-          ilike(productStock.productSku, searchTerm),
-          ilike(products.nokopr, searchTerm)
-        )
-      );
-    }
-
-    if (filters?.warehouse) {
-      conditions.push(eq(productStock.warehouseCode, filters.warehouse));
-    }
-
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    const results = await query.orderBy(asc(productStock.productSku));
-
-    return results.map(row => ({
-      ...row,
-      quantity: parseFloat(row.quantity as any) || 0,
-      reservedQuantity: parseFloat(row.reservedQuantity as any) || 0,
-      availableQuantity: parseFloat(row.availableQuantity as any) || 0,
-    }));
+    const rows = await this.getInventoryWithPrices(filters);
+    return rows.map(({ averagePrice, totalValue, ...stock }) => stock);
   }
 
   async getInventorySummary(filters?: {

@@ -23,6 +23,7 @@ import { desc, eq, and, or, sql, ilike, inArray, getTableColumns } from 'drizzle
 import { renderQuoteHtml } from '@shared/quote-pdf-template';
 import { renderQuotePdf } from './utils/quote-pdf-renderer';
 import { signPdfToken } from './utils/pdf-signed-url';
+import { accentInsensitiveContains } from './utils/sql-search';
 // ─── CRUD extendido: imports adicionales (8 módulos) ───
 import {
   priceListOffers, priceListOfferClients, insertPriceListOffersSchema, insertCustomPriceListItemSchema, colorPalette,
@@ -60,6 +61,36 @@ function parseLimit(raw: unknown, def = 500, max = 5000): number {
 function parseOffset(raw: unknown): number {
   const n = parseInt((raw as string) ?? '', 10);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+// ─── Pipeline CRM: vocabulario canónico ───
+// Espeja client/src/lib/crm-seguimiento.ts, que es la fuente única del pipeline.
+// El esquema viejo (nuevo/contactado/…) sigue vivo en filas antiguas, así que un
+// filtro por estado se traduce antes de consultar: pedir "contactado" tiene que
+// devolver lo mismo que muestra el panel bajo "Seguimiento".
+const ESTADOS_CRM = ['prospecto', 'seguimiento', 'cotizacion', 'venta', 'perdido'] as const;
+
+const ESTADOS_CRM_LEGACY: Record<string, (typeof ESTADOS_CRM)[number]> = {
+  nuevo: 'prospecto',
+  contactado: 'seguimiento',
+  completado: 'venta',
+  despacho: 'venta',
+};
+
+function normalizeEstadoCrm(estado: string): string {
+  const v = estado.trim().toLowerCase();
+  return ESTADOS_CRM_LEGACY[v] ?? v;
+}
+
+// El segmento es texto libre y cada origen lo escribe distinto ("Ferretería" en
+// el CRM, "FERRETERIAS" en el catálogo del ERP), así que se compara por raíz.
+const SEGMENTO_RAICES = ['ferreter', 'construc', 'industria', 'digital', 'retail', 'mercado publico', 'mct'];
+
+function segmentoRaiz(valor: string): string {
+  const limpio = valor.trim().toLowerCase()
+    .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+    .replace(/[óòöôõ]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n');
+  return SEGMENTO_RAICES.find((raiz) => limpio.startsWith(raiz) || raiz.startsWith(limpio)) ?? limpio;
 }
 
 // ============================================
@@ -1515,14 +1546,15 @@ const OPENAPI_SPEC = {
     },
     '/inventario': {
       get: {
-        summary: 'Stock de productos por bodega',
+        summary: 'Stock de productos por bodega (misma fuente que el módulo de Inventario)',
         parameters: [
-          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'SKU o nombre' },
           { name: 'bodega', in: 'query', schema: { type: 'string' } },
+          { name: 'sucursal', in: 'query', schema: { type: 'string' } },
           { $ref: '#/components/parameters/limit' },
           { $ref: '#/components/parameters/offset' },
         ],
-        responses: { '200': { description: '{ total, items }' } },
+        responses: { '200': { description: '{ total, offset, limit, items }. Cada item trae stock1/stock2, unidades y bodega; averagePrice y totalValue solo para roles con acceso a valorización.' } },
       },
     },
     '/notificaciones': {
@@ -1684,9 +1716,10 @@ const OPENAPI_SPEC = {
         operationId: 'listSeguimientoClientes',
         summary: 'Lista clientes en seguimiento del Pipeline CRM',
         parameters: [
-          { name: 'vendedor', in: 'query', schema: { type: 'string' }, description: 'Filtra por vendedorId (salespeople_users.id)' },
-          { name: 'estado', in: 'query', schema: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'] } },
+          { name: 'vendedor', in: 'query', schema: { type: 'string' }, description: 'Filtra por vendedorId (salespeople_users.id). Ojo: el vendedor de un lead puede tener rol supervisor o encargado_area, así que resolvelo con GET /usuarios?source=salespeople SIN filtrar por role.' },
+          { name: 'estado', in: 'query', schema: { type: 'string', enum: ['prospecto', 'seguimiento', 'cotizacion', 'venta', 'perdido'] }, description: 'Etapas canónicas del pipeline. Los valores viejos (nuevo, contactado, completado, despacho) se aceptan y se traducen.' },
           { name: 'prioridad', in: 'query', schema: { type: 'string', enum: ['baja', 'media', 'alta'] } },
+          { name: 'segmento', in: 'query', schema: { type: 'string' }, description: 'Construcción | Ferretería | Digital | Industrial. Compara por raíz, sin tildes ni mayúsculas, y cae al segmento del cliente del ERP si el CRM no lo tiene.' },
           { name: 'busqueda', in: 'query', schema: { type: 'string' }, description: 'Búsqueda por nombre/empresa/rut/email (ILIKE)' },
           { $ref: '#/components/parameters/limit' },
           { $ref: '#/components/parameters/offset' },
@@ -1702,7 +1735,7 @@ const OPENAPI_SPEC = {
             nombre: { type: 'string' },
             vendedorId: { type: 'string', description: 'salespeople_users.id (resolver con GET /usuarios?source=salespeople)' },
             telefono: { type: 'string' }, email: { type: 'string' }, empresa: { type: 'string' }, rut: { type: 'string' },
-            estado: { type: 'string', enum: ['nuevo', 'contactado', 'cotizacion', 'venta', 'despacho', 'completado', 'perdido'], default: 'cotizacion' },
+            estado: { type: 'string', enum: ['prospecto', 'seguimiento', 'cotizacion', 'venta', 'perdido'], default: 'prospecto' },
             prioridad: { type: 'string', enum: ['baja', 'media', 'alta'], default: 'media' },
             origen: { type: 'string', enum: ['manual', 'digital_organico', 'digital_pagado', 'referido', 'web', 'llamada'], default: 'manual' },
             notas: { type: 'string' }, montoEstimado: { type: 'number' },
@@ -2151,15 +2184,15 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'POST /tareas': { body: ['title*', 'type* (texto|formulario|visita)', 'createdByUserId*', 'description', 'status', 'priority', 'progress', 'dueDate', 'assignedToUserId', 'clienteId', 'clienteNombre', 'segmento', 'groupId', 'payload', 'assignments[]'] },
       'PATCH /tareas/:id': { body: ['status', 'notes', '...'] },
       'DELETE /tareas/:id': {},
-      'GET /inventario': { filters: ['search', 'bodega', 'limit', 'offset'], note: 'returns { total, offset, limit, items }' },
+      'GET /inventario': { filters: ['search', 'bodega', 'sucursal', 'limit', 'offset'], note: 'returns { total, offset, limit, items }. Misma fuente que el módulo de Inventario (inventory_products, que llena el ETL).' },
       'GET /ecommerce/orders': { filters: ['status', 'clientId', 'salespersonId', 'limit', 'offset'] },
       'PATCH /ecommerce/orders/:id': { body: ['status*'] },
-      'GET /crm/leads': { filters: ['stage', 'salespersonId', 'supervisorId', 'segment', 'limit', 'offset'] },
+      'GET /crm/leads': { filters: ['stage', 'salespersonId', 'supervisorId', 'segment', 'limit', 'offset'], note: 'LEGACY: tabla crm_leads, sin pantalla en la intranet y sin datos nuevos. El CRM que usa la gente es /crm/seguimiento.' },
       'POST /crm/leads': { body: ['clientName*', 'salespersonId*', 'clientPhone', 'clientEmail', 'clientType', 'estimatedValue', 'notes', 'stage', 'segment'] },
       'PATCH /crm/leads/:id': { body: ['stage', 'notes', '...'] },
       'DELETE /crm/leads/:id': {},
       // Pipeline panel "Seguimiento de Clientes" (control total)
-      'GET /crm/seguimiento': { filters: ['vendedor (vendedorId)', 'estado (nuevo|contactado|cotizacion|venta|despacho|completado|perdido)', 'prioridad (baja|media|alta)', 'busqueda (nombre|empresa|rut|email)', 'limit', 'offset'] },
+      'GET /crm/seguimiento': { filters: ['vendedor (vendedorId)', 'estado (prospecto|seguimiento|cotizacion|venta|perdido)', 'prioridad (baja|media|alta)', 'segmento (Construcción|Ferretería|Digital|Industrial)', 'busqueda (nombre|empresa|rut|email)', 'limit', 'offset'], note: 'Estados viejos (nuevo/contactado/completado/despacho) se aceptan y se traducen. El segmento compara por raíz sin tildes y cae al del cliente del ERP.' },
       'POST /crm/seguimiento': { body: ['nombre*', 'vendedorId*', 'telefono', 'email', 'empresa', 'rut', 'estado', 'prioridad', 'origen', 'notas', 'montoEstimado', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado'], note: 'Si se entrega rut, vincula automáticamente al cliente del ERP' },
       'GET /crm/seguimiento/:id': { note: 'Detalle + hitos[] (timeline)' },
       'PATCH /crm/seguimiento/:id': { body: ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'proximoContacto', 'region', 'comuna', 'contactoEncargado', 'segmento', 'condicionPago', 'destacado', 'vendedorId'], note: 'Cambios de estado/vendedor generan hitos automáticos' },
@@ -2680,23 +2713,32 @@ router.delete('/tareas/:id', requireApiRole(['read_write', 'admin']), async (req
 // Inventory (Read only)
 // ============================================
 
+// El stock real lo llena el ETL en `inventory_products` (misma fuente que el
+// módulo de Inventario de la intranet). La tabla `product_stock` que se usaba
+// acá antes quedó huérfana —ningún ETL la escribe— y devolvía siempre 0 items.
 router.get('/inventario', async (req: ApiAuthRequest, res) => {
   try {
-    const { bodega, search } = req.query;
+    const { bodega, sucursal, search } = req.query;
     const lim = parseLimit(req.query.limit);
     const off = parseOffset(req.query.offset);
 
-    const all = await storage.getInventory({
+    const all = await storage.getInventoryWithPrices({
       search: search as string | undefined,
       warehouse: bodega as string | undefined,
+      branch: sucursal as string | undefined,
     });
 
-    res.json({
-      total: all.length,
-      offset: off,
-      limit: lim,
-      items: all.slice(off, off + lim),
+    // El costo (precio medio y valorización) se acota igual que en la UI: los
+    // vendedores ven stock, no valorización.
+    const rol = req.oauthUser?.rolIntranet ?? req.apiKey?.role ?? '';
+    const verValorizacion = !['salesperson', 'client'].includes(rol);
+
+    const items = all.slice(off, off + lim).map((item) => {
+      const { averagePrice, totalValue, ...stock } = item;
+      return verValorizacion ? { ...stock, averagePrice, totalValue } : stock;
     });
+
+    res.json({ total: all.length, offset: off, limit: lim, items });
   } catch (error) {
     console.error('Error fetching inventory:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2887,14 +2929,27 @@ router.get('/crm/seguimiento/stats', async (req: ApiAuthRequest, res) => {
 // GET /crm/seguimiento — List tracked clients (enriched with ERP data)
 router.get('/crm/seguimiento', async (req: ApiAuthRequest, res) => {
   try {
-    const { vendedor, estado, prioridad, busqueda } = req.query;
+    const { vendedor, estado, prioridad, busqueda, segmento } = req.query;
     const lim = parseLimit(req.query.limit, 100);
     const off = parseOffset(req.query.offset);
 
     const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
     if (vendedor) conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
-    if (estado) conditions.push(eq(crmSeguimientoClientes.estado, estado as string));
+    if (estado) conditions.push(eq(crmSeguimientoClientes.estado, normalizeEstadoCrm(estado as string)));
     if (prioridad) conditions.push(eq(crmSeguimientoClientes.prioridad, prioridad as string));
+    // El segmento es texto libre y conviven variantes ("Ferretería" del CRM vs
+    // "FERRETERIAS" del ERP), así que se compara sin acentos ni mayúsculas y
+    // cayendo al segmento del cliente vinculado cuando el CRM no lo tiene.
+    if (segmento) {
+      const seg = segmentoRaiz(segmento as string);
+      conditions.push(or(
+        accentInsensitiveContains(crmSeguimientoClientes.segmento, seg),
+        accentInsensitiveContains(
+          sql`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`,
+          seg,
+        ),
+      )!);
+    }
     if (busqueda) {
       const search = `%${busqueda}%`;
       conditions.push(or(
@@ -2991,7 +3046,7 @@ router.post('/crm/seguimiento', requireApiRole(['read_write', 'admin']), async (
       rut: body.rut || null,
       vendedorId: vendedor.id,
       vendedorNombre: vendedor.salespersonName,
-      estado: body.estado || 'cotizacion',
+      estado: body.estado ? normalizeEstadoCrm(body.estado) : 'prospecto',
       prioridad: body.prioridad || 'media',
       notas: body.notas || null,
       proximoContacto: body.proximoContacto ? new Date(body.proximoContacto) : null,
@@ -3039,6 +3094,8 @@ router.patch('/crm/seguimiento/:id', requireApiRole(['read_write', 'admin']), as
           updateData[field] = new Date(req.body[field]);
         } else if (field === 'montoEstimado' && req.body[field] != null) {
           updateData[field] = String(req.body[field]);
+        } else if (field === 'estado' && req.body[field]) {
+          updateData[field] = normalizeEstadoCrm(req.body[field]);
         } else {
           updateData[field] = req.body[field];
         }

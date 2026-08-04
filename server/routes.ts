@@ -29896,11 +29896,12 @@ export function registerRoutes(app: Express): Server {
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse } = req.query;
+      const { search, warehouse, branch } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
+      if (branch) filters.branch = branch;
 
       const inventory = await storage.getInventory(filters);
       res.json(inventory);
