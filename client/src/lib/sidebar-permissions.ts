@@ -126,22 +126,28 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
       { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },
     ],
   },
-  {
-    href: "/mantenciones",
-    label: "Mantención",
-    icon: Wrench,
-    children: [
-      { key: "cmms.dashboard", href: "/cmms", label: "Dashboard CMMS", icon: LayoutDashboard },
-      { key: "cmms.mantenciones_planificadas", href: "/cmms/mantenciones-planificadas", label: "Mantenciones Planificadas", icon: TrendingUp },
-      { key: "cmms.ordenes", href: "/mantenciones", label: "Órdenes de Trabajo", icon: Wrench },
-      { key: "cmms.equipos", href: "/cmms/equipos", label: "Equipos Críticos", icon: Settings },
-      { key: "cmms.proveedores", href: "/cmms/proveedores", label: "Proveedores", icon: Users },
-      { key: "cmms.presupuesto", href: "/cmms/presupuesto", label: "Presupuesto", icon: DollarSign },
-      { key: "cmms.gastos_materiales", href: "/cmms/gastos-materiales", label: "Gastos de Materiales", icon: Receipt },
-      { key: "cmms.planes_preventivos", href: "/cmms/planes-preventivos", label: "Planes Preventivos", icon: Calendar },
-      { key: "cmms.calendario", href: "/cmms/calendario", label: "Calendario", icon: Calendar },
-    ],
-  },
+  // Mantención (CMMS) oculto del sidebar para todos los roles: el módulo está
+  // marcado para eliminarse. Tiene que quedar fuera también acá, no solo del
+  // sidebar base: si no, los "extras" le reponen el grupo a cualquier rol que
+  // conserve permisos cmms.*, que es justamente lo que se quiere esconder. Las
+  // rutas /mantenciones y /cmms/* y los permisos cmms.* siguen activos.
+  // Ver DEPRECAR-MANTENCION.md.
+  // {
+  //   href: "/mantenciones",
+  //   label: "Mantención",
+  //   icon: Wrench,
+  //   children: [
+  //     { key: "cmms.dashboard", href: "/cmms", label: "Dashboard CMMS", icon: LayoutDashboard },
+  //     { key: "cmms.mantenciones_planificadas", href: "/cmms/mantenciones-planificadas", label: "Mantenciones Planificadas", icon: TrendingUp },
+  //     { key: "cmms.ordenes", href: "/mantenciones", label: "Órdenes de Trabajo", icon: Wrench },
+  //     { key: "cmms.equipos", href: "/cmms/equipos", label: "Equipos Críticos", icon: Settings },
+  //     { key: "cmms.proveedores", href: "/cmms/proveedores", label: "Proveedores", icon: Users },
+  //     { key: "cmms.presupuesto", href: "/cmms/presupuesto", label: "Presupuesto", icon: DollarSign },
+  //     { key: "cmms.gastos_materiales", href: "/cmms/gastos-materiales", label: "Gastos de Materiales", icon: Receipt },
+  //     { key: "cmms.planes_preventivos", href: "/cmms/planes-preventivos", label: "Planes Preventivos", icon: Calendar },
+  //     { key: "cmms.calendario", href: "/cmms/calendario", label: "Calendario", icon: Calendar },
+  //   ],
+  // },
 ];
 
 const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
