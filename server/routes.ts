@@ -24313,6 +24313,37 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Resumen de la bitácora de TODAS las obras, en una sola consulta.
+  //
+  // El listado de la pestaña Obras del Seguimiento muestra, en cada fila, cuánta
+  // bitácora tiene la obra y cuál fue la última nota —es lo que dice si la obra
+  // está siendo seguida—. Sin este endpoint sería una llamada a
+  // /api/obras/:id/bitacora por cada obra de la cartera.
+  //
+  // Va ANTES de /api/obras/:id para que 'bitacora-resumen' no se tome como un id.
+  app.get('/api/obras/bitacora-resumen', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    try {
+      const resultado = await db.execute(sql`
+        SELECT obra_id AS "obraId",
+               total::int AS "total",
+               texto AS "ultimaNota",
+               autor_nombre AS "ultimoAutor",
+               created_at AS "ultimaFecha"
+        FROM (
+          SELECT obra_id, texto, autor_nombre, created_at,
+                 COUNT(*) OVER (PARTITION BY obra_id) AS total,
+                 ROW_NUMBER() OVER (PARTITION BY obra_id ORDER BY created_at DESC) AS rn
+          FROM obra_bitacora
+        ) ultimas
+        WHERE rn = 1
+      `);
+      res.json((resultado as any).rows ?? []);
+    } catch (error: any) {
+      console.error('❌ Error al obtener el resumen de bitácora de obras:', error);
+      res.status(500).json({ message: 'Error al obtener la bitácora de las obras', error: error.message });
+    }
+  }));
+
   // Get obra by ID
   app.get('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {

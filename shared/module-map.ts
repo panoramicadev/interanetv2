@@ -227,7 +227,7 @@ export const MODULE_MAP: ModuleDef[] = [
     whoUses: "Vendedores y supervisores todos los días; marketing para sus tareas; admin para supervisar.",
     sections: [
       { label: "Tareas", tab: "tareas", what: "Tus tareas y las que te asignaron: crear, completar, filtrar y buscar." },
-      { label: "Seguimiento", tab: "seguimiento", what: "Seguimiento comercial de la cartera: qué clientes hay que contactar y qué se les prometió." },
+      { label: "Seguimiento", tab: "seguimiento", what: "Seguimiento comercial de la cartera: qué clientes hay que contactar y qué se les prometió. En Construcción se abre en dos vistas: Clientes y Obras (el resumen de cada obra con su ficha y su bitácora)." },
       { label: "Estimación", tab: "estimacion", what: "Estimación de venta del período por cliente." },
       { label: "Obras", tab: "obras", what: "Control de obras de construcción: pedidos y avances por producto." },
       { label: "CRM", tab: "crm", what: "Ficha de seguimiento de clientes. Es el único acceso al CRM: no está en el menú lateral." },
@@ -238,6 +238,7 @@ export const MODULE_MAP: ModuleDef[] = [
     keyTerms: [
       { term: "Promesa de compra", meaning: "Compromiso de compra registrado sobre un cliente, con monto y fecha. Alimenta la estimación del período." },
       { term: "Obra", meaning: "Proyecto de construcción al que se le hace seguimiento de pedidos y avances por producto." },
+      { term: "Bitácora de la obra", meaning: "El relato de lo que pasa en terreno: visitas, avances, pedidos comprometidos y problemas. Es una por obra, no del cliente. Se escribe en la pestaña Obras (debajo de los productos de la obra) o en Seguimiento → Obras, al abrir una." },
     ],
     gotchas: [
       "CRM y Visitas Técnicas ya no están en el menú lateral: se entra por las pestañas de este panel. Si un usuario los busca en el menú, no los va a encontrar.",

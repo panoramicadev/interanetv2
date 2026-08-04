@@ -88,6 +88,13 @@ export function BitacoraObra({ obraId, obraNombre }: { obraId: string; obraNombr
 
   const clave = ["/api/obras", obraId, "bitacora"];
 
+  // Escribir o borrar cambia además la última nota y el contador que muestra el
+  // listado de Seguimiento → Obras (que los pide todos juntos, no obra por obra).
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: clave });
+    queryClient.invalidateQueries({ queryKey: ["/api/obras/bitacora-resumen"] });
+  };
+
   const { data: notas = [], isLoading } = useQuery<ObraBitacora[]>({
     queryKey: clave,
     queryFn: async () => {
@@ -103,7 +110,7 @@ export function BitacoraObra({ obraId, obraNombre }: { obraId: string; obraNombr
     },
     onSuccess: () => {
       setTexto("");
-      queryClient.invalidateQueries({ queryKey: clave });
+      refrescar();
     },
     onError: (error: any) => {
       toast({ title: "No se pudo guardar la nota", description: error?.message, variant: "destructive" });
@@ -114,7 +121,7 @@ export function BitacoraObra({ obraId, obraNombre }: { obraId: string; obraNombr
     mutationFn: async (id: string) => {
       await apiRequest(`/api/obras/bitacora/${id}`, { method: "DELETE" });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: clave }),
+    onSuccess: refrescar,
     onError: (error: any) => {
       toast({ title: "No se pudo borrar la nota", description: error?.message, variant: "destructive" });
     },

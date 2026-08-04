@@ -78,6 +78,7 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
+import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
@@ -341,6 +342,12 @@ export default function TareasPage() {
     const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
+
+  // Sub-pestaña del Seguimiento. En Construcción no alcanza con seguir clientes:
+  // lo que se sigue es la obra, así que la pestaña se abre en dos vistas —los
+  // clientes en seguimiento de siempre y el resumen de obras, donde cada una
+  // tiene su ficha y su bitácora (ver pages/obras-seguimiento.tsx).
+  const [seguimientoVista, setSeguimientoVista] = useState<"clientes" | "obras">("clientes");
 
   // Buscador de la pestaña Tareas: filtra en vivo por cliente, palabra clave,
   // descripción o asignado (con debounce, mismo patrón que el CRM).
@@ -784,7 +791,12 @@ export default function TareasPage() {
     if (!showVisitasTab && activeTab === "visitas-tecnicas") {
       setActiveTab("tareas");
     }
-  }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab]);
+    // La sub-vista de obras del Seguimiento existe solo donde existe la pestaña
+    // Obras: cambiando de área vuelve a los clientes en seguimiento.
+    if (!showObrasTab && seguimientoVista === "obras") {
+      setSeguimientoVista("clientes");
+    }
+  }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab, seguimientoVista]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -862,6 +874,17 @@ export default function TareasPage() {
   // El alta de obra vive dentro de la pestaña Obras; el (+) del header la abre
   // desde afuera cuando esa pestaña es la activa (ver `accionNueva`).
   const obrasRef = useRef<ControlObrasHandle>(null);
+
+  // "Añadir obra" desde la sub-vista de obras del Seguimiento: la pestaña Obras
+  // todavía no está montada (Radix desmonta el contenido inactivo), así que el
+  // handle recién existe después de cambiar de pestaña. Queda pendiente y el
+  // efecto abre el formulario cuando ya hay a quién pedírselo.
+  const [altaObraPendiente, setAltaObraPendiente] = useState(false);
+  useEffect(() => {
+    if (!altaObraPendiente || activeTab !== 'obras') return;
+    obrasRef.current?.nuevaObra();
+    setAltaObraPendiente(false);
+  }, [altaObraPendiente, activeTab]);
 
   // Selector "Nueva Tarea": seguimiento de cliente / solicitud de marketing / otras tareas
   const [showChooser, setShowChooser] = useState(false);
@@ -1301,6 +1324,15 @@ export default function TareasPage() {
       return { label: 'Añadir obra', onClick: () => obrasRef.current?.nuevaObra() };
     }
     if (activeTab === 'seguimiento') {
+      // La sub-vista de obras es de lectura y bitácora; el alta sigue viviendo
+      // en la pestaña Obras, así que el (+) salta para allá y abre el formulario
+      // cuando esa pestaña ya se montó (ver `altaObraPendiente`).
+      if (seguimientoVista === 'obras') {
+        return {
+          label: 'Añadir obra',
+          onClick: () => { setAltaObraPendiente(true); setActiveTab('obras'); },
+        };
+      }
       return { label: 'Añadir seguimiento', onClick: () => openNuevoSeguimiento() };
     }
     return {
@@ -2009,7 +2041,39 @@ export default function TareasPage() {
           </TabsList>
         </div>
 
-        {(activeTab === 'tareas' || activeTab === 'seguimiento') && (
+        {/* Seguimiento en Construcción: clientes u obras. La obra es la unidad
+            que se sigue en el área (avanza, se queda sin material y hay que ir a
+            verla), así que tiene su propia vista con ficha y bitácora. */}
+        {activeTab === 'seguimiento' && showObrasTab && (
+          <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 w-max">
+            {([
+              { key: "clientes", label: "Clientes", icon: Users },
+              { key: "obras", label: "Obras", icon: HardHat },
+            ] as const).map((v) => (
+              <button
+                key={v.key}
+                onClick={() => setSeguimientoVista(v.key)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+                  seguimientoVista === v.key
+                    ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+                data-testid={`button-seguimiento-vista-${v.key}`}
+              >
+                <v.icon className="h-3.5 w-3.5" />
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Obras del Seguimiento: resumen de la cartera y, al abrir una, su
+            ficha completa con la bitácora. */}
+        {activeTab === 'seguimiento' && showObrasTab && seguimientoVista === 'obras' && (
+          <SeguimientoObrasContent onIrAObras={() => setActiveTab('obras')} />
+        )}
+
+        {(activeTab === 'tareas' || (activeTab === 'seguimiento' && seguimientoVista === 'clientes')) && (
         <div className="space-y-6">
 
           {/* El selector de Área (antes pestañas de segmento) vive ahora arriba, junto al botón "Nueva Tarea". */}
