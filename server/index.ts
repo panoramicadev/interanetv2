@@ -83,6 +83,10 @@ app.use((req, res, next) => {
   const { registerRendicionRoutes } = await import('./routes-rendicion');
   registerRendicionRoutes(app);
 
+  // Solicitud de crédito: el vendedor pide, Finanzas resuelve
+  const { registerSolicitudesCreditoRoutes } = await import('./routes-solicitudes-credito');
+  registerSolicitudesCreditoRoutes(app);
+
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

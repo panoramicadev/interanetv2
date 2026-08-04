@@ -721,6 +721,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
+      href: "/solicitud-credito",
+      label: "Solicitud de Crédito",
+      icon: FileCheck,
+    },
+    {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,

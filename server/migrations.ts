@@ -1295,6 +1295,53 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS viviendas_pintadas INTEGER NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS tipo_vivienda_id VARCHAR REFERENCES obra_tipos_vivienda(id) ON DELETE SET NULL`);
 
+    // Solicitud de crédito (migración 077). Ver migrations/077_solicitudes_credito.sql
+    // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
+    // rutas del módulo consultan la tabla apenas arranca el server.
+    console.log('  💳 Verificando solicitudes de crédito...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solicitudes_credito (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        cliente_id VARCHAR,
+        razon_social TEXT NOT NULL,
+        rut VARCHAR(20) NOT NULL,
+        direccion TEXT NOT NULL,
+        ciudad VARCHAR(120) NOT NULL,
+        telefono VARCHAR(40) NOT NULL,
+        giro TEXT,
+        correo VARCHAR(160),
+        socio1_nombre TEXT,
+        socio1_direccion TEXT,
+        socio2_nombre TEXT,
+        socio2_direccion TEXT,
+        representante_nombre TEXT,
+        representante_cedula VARCHAR(20),
+        banco1 VARCHAR(120),
+        cuenta1 VARCHAR(60),
+        sucursal1 VARCHAR(120),
+        banco2 VARCHAR(120),
+        cuenta2 VARCHAR(60),
+        sucursal2 VARCHAR(120),
+        credito_solicitado NUMERIC(15, 2) NOT NULL,
+        credito_aprobado NUMERIC(15, 2),
+        carpeta_tributaria_url TEXT,
+        carpeta_tributaria_nombre TEXT,
+        estado VARCHAR(20) NOT NULL DEFAULT 'enviada',
+        observaciones TEXT,
+        solicitante_id VARCHAR,
+        solicitante_nombre TEXT,
+        supervisor_id VARCHAR,
+        resuelta_por_id VARCHAR,
+        resuelta_por_nombre TEXT,
+        resuelta_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_solicitante" ON solicitudes_credito (solicitante_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_estado" ON solicitudes_credito (estado)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_created" ON solicitudes_credito (created_at)`);
+
     // Rendición de gastos v2 (migración 073). Ver migrations/073_rendicion_gastos_v2.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas de gastos consultan estas tablas apenas arranca el server.

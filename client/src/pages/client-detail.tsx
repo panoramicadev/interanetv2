@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
@@ -313,6 +313,44 @@ export default function ClientDetail() {
   });
 
   const ficha = accountStatus?.ficha;
+
+  /**
+   * Cobranza del cliente, cuadrada contra la MISMA lista de documentos que se
+   * muestra debajo.
+   *
+   * El panel mostraba los números de la ficha y la lista de cuentas por cobrar
+   * como dos cosas separadas, y aunque salen del mismo cálculo del servidor no
+   * había forma de verlo: cualquier diferencia de redondeo o de momento de
+   * carga se leía como "no calzan". Ahora la deuda, el vencido y el por vencer
+   * se derivan de los documentos listados; la ficha del ERP queda de respaldo
+   * para cuando el detalle todavía no cargó.
+   *
+   * Disponible = límite − deuda. Sin línea de crédito asignada no hay
+   * disponible que calcular, y se dice en vez de mostrar un guión.
+   */
+  const cobranza = useMemo(() => {
+    const hayDetalle = carteraDocs.length > 0;
+    const suma = (filtro: (d: CarteraDoc) => boolean) =>
+      carteraDocs.filter(filtro).reduce((total, d) => total + (Number(d.saldo) || 0), 0);
+
+    const deuda = hayDetalle ? suma(() => true) : ficha?.creditUsed ?? null;
+    const vencido = hayDetalle ? suma((d) => d.vencida) : ficha?.creditOverdue ?? null;
+    const porVencer = hayDetalle ? suma((d) => !d.vencida) : ficha?.creditUpcoming ?? null;
+    const limite = ficha?.creditLimit ?? null;
+
+    return {
+      limite,
+      deuda,
+      vencido,
+      porVencer,
+      documentos: carteraDocs.length,
+      disponible: limite != null ? limite - (deuda ?? 0) : null,
+      // Un disponible negativo no es un número más: es crédito excedido.
+      excedido: limite != null && (deuda ?? 0) > limite,
+      derivadoDelDetalle: hayDetalle,
+    };
+  }, [carteraDocs, ficha]);
+
   const ecommerceUserId = accountStatus?.ecommerceUserId || null;
   const fichaIdForActivation = accountStatus?.ficha?.id || accountStatus?.clientId || null;
 
@@ -1102,13 +1140,41 @@ export default function ClientDetail() {
                       { label: "Condición de Pago", value: ficha?.paymentCondition },
                       { label: "Vendedor", value: vendedor },
                       { label: "Lista de Precios", value: ficha?.priceList },
-                      { label: "Límite de Crédito", value: ficha?.creditLimit != null ? formatCurrency(ficha.creditLimit) : null },
-                      { label: "Crédito Usado", value: ficha?.creditUsed != null ? formatCurrency(ficha.creditUsed) : null },
-                      { label: "Vencido", value: ficha?.creditOverdue != null ? formatCurrency(ficha.creditOverdue) : null, valueClassName: (ficha?.creditOverdue ?? 0) > 0 ? "text-red-600 font-semibold" : undefined },
+                      // Los cinco números de cobranza, en el orden en que se leen:
+                      // cuánto se le dio, cuánto debe, cuánto de eso está vencido,
+                      // cuánto está por vencer y cuánto le queda.
+                      {
+                        label: "Límite de Crédito",
+                        value: cobranza.limite != null ? formatCurrency(cobranza.limite) : "Sin línea asignada",
+                        valueClassName: cobranza.limite == null ? "text-slate-400 font-normal" : undefined,
+                      },
+                      {
+                        label: "Deuda (saldo total)",
+                        value: cobranza.deuda != null ? formatCurrency(cobranza.deuda) : null,
+                        valueClassName: (cobranza.deuda ?? 0) > 0 ? "font-semibold" : undefined,
+                      },
+                      {
+                        label: "Vencido",
+                        value: cobranza.vencido != null ? formatCurrency(cobranza.vencido) : null,
+                        valueClassName: (cobranza.vencido ?? 0) > 0 ? "text-red-600 font-semibold" : undefined,
+                      },
                       { label: "Vencido desde", value: ficha?.overdueSince ? formatDate(ficha.overdueSince) : null, valueClassName: ficha?.overdueSince ? "text-red-600" : undefined },
-                      { label: "Por vencer", value: ficha?.creditUpcoming != null ? formatCurrency(ficha.creditUpcoming) : null },
+                      { label: "Por vencer", value: cobranza.porVencer != null ? formatCurrency(cobranza.porVencer) : null },
                       { label: "Próximo vencimiento", value: ficha?.nextDueDate ? formatDate(ficha.nextDueDate) : null },
-                      { label: "Crédito Disponible", value: ficha?.creditAvailable != null ? formatCurrency(ficha.creditAvailable) : null },
+                      {
+                        label: "Crédito Disponible",
+                        value:
+                          cobranza.disponible != null
+                            ? formatCurrency(cobranza.disponible)
+                            : cobranza.limite == null
+                              ? "Sin línea asignada"
+                              : null,
+                        valueClassName: cobranza.excedido
+                          ? "text-red-600 font-semibold"
+                          : cobranza.limite == null
+                            ? "text-slate-400 font-normal"
+                            : undefined,
+                      },
                     ] as { label: string; value: any; valueClassName?: string }[]).map(({ label, value, valueClassName }) => (
                       <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-muted/50 last:border-0">
                         <span className="text-sm text-muted-foreground shrink-0">{label}</span>
@@ -1137,6 +1203,16 @@ export default function ClientDetail() {
                         )}
                       </div>
                     ))}
+
+                    {/* De dónde salen los números: son la suma de los documentos
+                        de la tarjeta de al lado, no otra fuente. */}
+                    {cobranza.derivadoDelDetalle && (
+                      <p className="pt-2 text-[11px] text-muted-foreground" data-testid="text-cobranza-origen">
+                        Deuda, vencido y por vencer suman los {cobranza.documentos}{" "}
+                        {cobranza.documentos === 1 ? "documento pendiente" : "documentos pendientes"} de Cuentas por Cobrar.
+                        {cobranza.excedido && <span className="text-red-600 font-semibold"> Crédito excedido.</span>}
+                      </p>
+                    )}
 
                     {canManage && (
                       <div className="pt-3 mt-1 border-t border-muted/50">

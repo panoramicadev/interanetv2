@@ -169,11 +169,19 @@ export default function GastosEmpresariales() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   // Las notificaciones de informes enlazan a ?tab=informes; respetamos el
   // deep-link para que el usuario aterrice en la pestaña correcta.
+  //
+  // El formato vigente es el INFORME: quien rinde entra directo ahí, no a la
+  // lista de gastos sueltos, que es el formato anterior y queda solo para ver
+  // lo que todavía no está dentro de un informe. Admin y RR.HH. siguen
+  // aterrizando en el Dashboard porque su trabajo acá es mirar el total del
+  // área, no rendir.
   const [activeMainTab, setActiveMainTab] = useState(() => {
     const pedida = new URLSearchParams(window.location.search).get("tab");
-    return ["dashboard", "rendicion", "informes", "fondos", "viajes", "catalogos"].includes(pedida ?? "")
-      ? (pedida as string)
-      : "dashboard";
+    if (["dashboard", "rendicion", "informes", "fondos", "viajes", "catalogos"].includes(pedida ?? "")) {
+      return pedida as string;
+    }
+    const supervisaElArea = user?.role === "admin" || user?.role === "recursos_humanos";
+    return supervisaElArea ? "dashboard" : "informes";
   });
   const dashboardRef = useRef<DashboardExportHandle>(null);
 
@@ -746,6 +754,24 @@ export default function GastosEmpresariales() {
           </TabsContent>
 
           <TabsContent value="rendicion" className="mt-3 space-y-3 md:mt-4 md:space-y-5">
+
+            {/* El formato vigente es el informe. Esta pestaña queda como la vista
+                de los gastos sueltos —los que todavía no entraron a ninguno—,
+                no como una segunda forma de rendir. */}
+            <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <FileText className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+                <strong>Las rendiciones se hacen desde Informes.</strong> Acá quedan tus gastos sueltos:
+                cárgalos y después agrúpalos en un informe para enviarlos a aprobación como un bloque.
+                <button
+                  onClick={() => setActiveMainTab("informes")}
+                  className="ml-1.5 font-bold underline underline-offset-2 hover:text-amber-700"
+                  data-testid="button-ir-a-informes"
+                >
+                  Ir a Informes
+                </button>
+              </p>
+            </div>
 
             {/* Filtros. Buscador y selectores en pastilla, coherentes con las
                 pestañas y con el foco en naranja de marca (antes el focus ring

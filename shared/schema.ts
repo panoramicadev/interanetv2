@@ -4216,6 +4216,112 @@ export const emailNotificationSettings = pgTable("email_notification_settings", 
 export type EmailNotificationSetting = typeof emailNotificationSettings.$inferSelect;
 export type InsertEmailNotificationSetting = typeof emailNotificationSettings.$inferInsert;
 
+// ==================================================================================
+// SOLICITUD DE CRÉDITO
+// ==================================================================================
+//
+// El vendedor pide crédito para un cliente y Finanzas resuelve. Antes esto era
+// un formulario maqueta dentro de /facturas: al enviarlo hacía console.log y
+// limpiaba los campos, así que la solicitud no llegaba a ninguna parte.
+//
+// La carpeta tributaria va como URL, no como binario: los archivos ya se suben
+// por /api/upload (Supabase/Object Storage/local según el deploy) y acá se
+// guarda dónde quedó, igual que el resto de los adjuntos del sistema.
+export const solicitudesCredito = pgTable("solicitudes_credito", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // A quién se le pide el crédito
+  clienteId: varchar("cliente_id"), // FK a clients.id cuando el cliente ya existe
+  razonSocial: text("razon_social").notNull(),
+  rut: varchar("rut", { length: 20 }).notNull(),
+  direccion: text("direccion").notNull(),
+  ciudad: varchar("ciudad", { length: 120 }).notNull(),
+  telefono: varchar("telefono", { length: 40 }).notNull(),
+  giro: text("giro"),
+  correo: varchar("correo", { length: 160 }),
+
+  // Socios y representante legal
+  socio1Nombre: text("socio1_nombre"),
+  socio1Direccion: text("socio1_direccion"),
+  socio2Nombre: text("socio2_nombre"),
+  socio2Direccion: text("socio2_direccion"),
+  representanteNombre: text("representante_nombre"),
+  representanteCedula: varchar("representante_cedula", { length: 20 }),
+
+  // Bancos
+  banco1: varchar("banco1", { length: 120 }),
+  cuenta1: varchar("cuenta1", { length: 60 }),
+  sucursal1: varchar("sucursal1", { length: 120 }),
+  banco2: varchar("banco2", { length: 120 }),
+  cuenta2: varchar("cuenta2", { length: 60 }),
+  sucursal2: varchar("sucursal2", { length: 120 }),
+
+  // Montos
+  creditoSolicitado: numeric("credito_solicitado", { precision: 15, scale: 2 }).notNull(),
+  creditoAprobado: numeric("credito_aprobado", { precision: 15, scale: 2 }),
+
+  // Carpeta tributaria (el adjunto que pide Finanzas para evaluar)
+  carpetaTributariaUrl: text("carpeta_tributaria_url"),
+  carpetaTributariaNombre: text("carpeta_tributaria_nombre"),
+
+  // Flujo: la crea el vendedor y la resuelve Finanzas
+  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | aprobada | rechazada
+  observaciones: text("observaciones"),
+  solicitanteId: varchar("solicitante_id"),
+  solicitanteNombre: text("solicitante_nombre"),
+  supervisorId: varchar("supervisor_id"), // el del vendedor al momento de enviarla
+  resueltaPorId: varchar("resuelta_por_id"),
+  resueltaPorNombre: text("resuelta_por_nombre"),
+  resueltaAt: timestamp("resuelta_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitanteIdx: index("IDX_solicitudes_credito_solicitante").on(table.solicitanteId),
+  estadoIdx: index("IDX_solicitudes_credito_estado").on(table.estado),
+  createdIdx: index("IDX_solicitudes_credito_created").on(table.createdAt),
+}));
+
+export const ESTADOS_SOLICITUD_CREDITO = ["enviada", "aprobada", "rechazada"] as const;
+export type EstadoSolicitudCredito = (typeof ESTADOS_SOLICITUD_CREDITO)[number];
+
+// Lo que manda el vendedor. Todo lo del flujo (estado, quién la envió, quién la
+// resolvió) lo pone el servidor: son datos de auditoría, no del formulario.
+export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredito)
+  .omit({
+    id: true,
+    estado: true,
+    creditoAprobado: true,
+    observaciones: true,
+    solicitanteId: true,
+    solicitanteNombre: true,
+    supervisorId: true,
+    resueltaPorId: true,
+    resueltaPorNombre: true,
+    resueltaAt: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    razonSocial: z.string().trim().min(1, "La razón social es obligatoria"),
+    rut: z.string().trim().min(1, "El RUT es obligatorio"),
+    direccion: z.string().trim().min(1, "La dirección es obligatoria"),
+    ciudad: z.string().trim().min(1, "La ciudad es obligatoria"),
+    telefono: z.string().trim().min(1, "El teléfono es obligatorio"),
+    correo: z.string().trim().email("Correo inválido").optional().or(z.literal("")).or(z.null()),
+    creditoSolicitado: z.coerce.number().positive("El crédito solicitado tiene que ser mayor que cero"),
+  });
+
+/** Resolución de Finanzas: aprobar (con monto) o rechazar (con motivo). */
+export const resolverSolicitudCreditoSchema = z.object({
+  estado: z.enum(["aprobada", "rechazada"]),
+  creditoAprobado: z.coerce.number().min(0).optional().nullable(),
+  observaciones: z.string().trim().max(2000).optional().nullable(),
+});
+
+export type SolicitudCredito = typeof solicitudesCredito.$inferSelect;
+export type InsertSolicitudCredito = z.infer<typeof insertSolicitudCreditoSchema>;
+
 // Suscripciones Web Push (PWA): una fila por dispositivo/navegador suscrito.
 // El endpoint es único por dispositivo; si otro usuario inicia sesión en el
 // mismo dispositivo, la suscripción se reasigna (upsert por endpoint).

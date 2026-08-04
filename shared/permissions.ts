@@ -211,6 +211,13 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/gastos-empresariales",
   },
+  {
+    key: "solicitud_credito",
+    label: "Solicitud de Crédito",
+    description: "Pedir crédito para un cliente y seguir su resolución",
+    group: "finanzas",
+    href: "/solicitud-credito",
+  },
 
   // ── Post-Venta ───────────────────────────────────────────────
   {
@@ -520,6 +527,7 @@ const CONFIG_TABS_GESTION = [
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   supervisor: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
     ...CATALOGO_CONSULTA,
@@ -538,6 +546,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   encargado_area: [
     "dashboard",
+    "solicitud_credito",
     ...MARKET_ALL,
     "productos",
     ...CATALOGO_CONSULTA,
@@ -549,9 +558,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...CONFIG_TABS_GESTION,
   ],
   // Menú estandarizado del vendedor: Dashboard → Tomador de Pedidos → Panel de
-  // Trabajo → Lista de Precios → Inventarios → Rendición de Gastos → Reclamos →
-  // Pedidos. Sale el módulo Productos (entra solo a Lista de Precios e
-  // Inventario), sale Marketing y sale el ítem Clientes.
+  // Trabajo → Lista de Precios → Inventarios → Rendición de Gastos → Solicitud
+  // de Crédito → Reclamos → Pedidos. Sale el módulo Productos (entra solo a
+  // Lista de Precios e Inventario), sale Marketing y sale el ítem Clientes.
   //
   // "clientes" SE CONSERVA como permiso aunque no esté en el menú: el vendedor
   // llega a la ficha del cliente desde su Panel de Trabajo (Obras), y de ahí
@@ -559,6 +568,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // client/src/lib/sidebar-permissions.ts (EXTRAS_OCULTOS_POR_ROL).
   salesperson: [
     "dashboard",
+    "solicitud_credito",
     "clientes",
     ...CATALOGO_CONSULTA,
     "seguimiento_pedidos",
@@ -626,7 +636,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   planificacion: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["postventa.reclamos", "gastos"],
-  recursos_humanos: ["rrhh.comisiones", "gastos"],
+  recursos_humanos: ["rrhh.comisiones", "gastos", "solicitud_credito"],
   marketing: ["marketing", "market.campanas", "gastos"],
   area_produccion: ["postventa.reclamos", "gastos"],
   area_logistica: ["postventa.reclamos", "gastos"],
