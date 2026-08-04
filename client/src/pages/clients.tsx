@@ -51,6 +51,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { apiRequest } from "@/lib/queryClient";
 
+/**
+ * Registro de una empresa que no tiene ficha en la tabla de clientes: una cuenta
+ * del Market todavía sin vincular o una solicitud de acceso pendiente. Se muestra
+ * junto al listado para que un RUT con más de un registro no aparezca como si
+ * tuviera uno solo.
+ */
+interface RelatedClientRecord {
+  source: 'market-account' | 'solicitud';
+  id: string;
+  name: string;
+  rut: string | null;
+  email: string | null;
+  contacto: string | null;
+  createdAt: string | null;
+  status: string | null;
+  sharesRutWithFicha: boolean;
+}
+
 interface Client {
   id: string;
   koen: string | null;
@@ -284,6 +302,7 @@ export default function Clients() {
       const response = await apiRequest(`/api/clients?${params}`);
       return response.json() as Promise<{
         clients: Client[];
+        relatedRecords?: RelatedClientRecord[];
         totalCount: number;
         currentPage: number;
         totalPages: number;
@@ -293,6 +312,7 @@ export default function Clients() {
   });
 
   const clients = clientsData?.clients;
+  const relatedRecords = clientsData?.relatedRecords || [];
   const totalCount = clientsData?.totalCount || 0;
   const totalPages = clientsData?.totalPages || 1;
 
@@ -1065,6 +1085,67 @@ export default function Clients() {
               ))}
             </div>
           </div>
+
+          {/* Registros de la misma empresa que NO tienen ficha propia y por eso no
+              salen en la tabla: cuentas del Market sin vincular y solicitudes de
+              acceso pendientes. Sin esto, buscar un RUT que además tiene una
+              solicitud esperando decisión mostraba una sola fila. */}
+          {relatedRecords.length > 0 && (
+            <Card className="border border-amber-200/70 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm rounded-2xl">
+              <div className="flex items-start gap-3 p-4 sm:p-5">
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301]/10 text-[#fd6301] shrink-0">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Otros registros sin ficha ({relatedRecords.length})
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Coinciden con tu búsqueda pero no existen como cliente, así que no salen en la tabla.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {relatedRecords.map((record) => (
+                      <div
+                        key={`${record.source}-${record.id}`}
+                        className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2.5"
+                        data-testid={`related-record-${record.id}`}
+                      >
+                        <Badge
+                          className={
+                            record.source === 'solicitud'
+                              ? "rounded-full border-0 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 whitespace-nowrap"
+                              : "rounded-full border-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200 whitespace-nowrap"
+                          }
+                        >
+                          {record.source === 'solicitud' ? 'Solicitud pendiente' : 'Cuenta Market sin vincular'}
+                        </Badge>
+                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">
+                          {record.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {record.rut || 'Sin RUT'}
+                        </span>
+                        {record.email && (
+                          <span className="text-xs text-muted-foreground truncate">{record.email}</span>
+                        )}
+                        {record.sharesRutWithFicha && (
+                          <Badge
+                            variant="outline"
+                            className="rounded-full border-[#fd6301]/30 bg-[#fd6301]/10 text-[#fd6301] whitespace-nowrap"
+                          >
+                            Mismo RUT que un cliente de la tabla
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Desktop: Clients Table */}
           <Card className="hidden sm:block border border-muted/60 shadow-sm rounded-2xl overflow-hidden">

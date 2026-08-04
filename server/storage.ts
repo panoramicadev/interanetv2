@@ -454,6 +454,26 @@ export interface NvvFilters {
   maxAmount?: number;
 }
 
+/**
+ * Registro de una empresa que NO tiene ficha propia en la tabla `clients` y que
+ * por eso es invisible en el listado de Clientes: una cuenta del Market sin
+ * vincular, o una solicitud de acceso pendiente. Se devuelve junto al listado
+ * para que, al buscar un RUT, se vea TODO lo que cuelga de ese RUT y se pueda
+ * decidir a cuál darle acceso.
+ */
+export interface RelatedClientRecord {
+  source: 'market-account' | 'solicitud';
+  id: string;
+  name: string;
+  rut: string | null;
+  email: string | null;
+  contacto: string | null;
+  createdAt: string | null;
+  status: string | null;
+  /** Comparte RUT normalizado con alguna ficha de `clients`. */
+  sharesRutWithFicha: boolean;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -1240,6 +1260,7 @@ export interface IStorage {
   getClientByUserId(userId: string): Promise<Client | undefined>;
   getClientByRut(rut: string): Promise<Client | undefined>;
   getClientsByRut(rut: string): Promise<Client[]>;
+  getRelatedClientRecords(term: string): Promise<RelatedClientRecord[]>;
   insertClient(client: InsertClient): Promise<Client>;
   insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
   // SIMPLE and RELIABLE client import - identical to order system
@@ -12260,6 +12281,128 @@ export class DatabaseStorage implements IStorage {
     }
 
     return sql`(${sql.join(parts, sql` OR `)})`;
+  }
+
+  /**
+   * Registros de la misma empresa que viven FUERA de la tabla `clients` y que el
+   * listado de Clientes nunca mostró: cuentas del Market sin vincular a una ficha
+   * y solicitudes de acceso pendientes.
+   *
+   * Se excluyen las cuentas ya vinculadas a una ficha (client_id no nulo): esas ya
+   * se ven en su propia fila con el badge "Con acceso", repetirlas sería ruido.
+   *
+   * `sharesRutWithFicha` marca los casos en que el registro comparte RUT con una
+   * ficha existente: es justamente la señal para decidir si hay que crear un
+   * cliente nuevo o darle acceso al que ya está.
+   */
+  async getRelatedClientRecords(rawTerm: string): Promise<RelatedClientRecord[]> {
+    const term = (rawTerm || '').trim();
+    if (term.length < 3) return [];
+
+    const rutTerm = normalizeRut(term);
+    const isRutTerm = /^[\d.\-\s]+[kK]?$/.test(term) && rutTerm.length >= 6;
+    const like = `%${term.toLowerCase()}%`;
+    const rutLike = `%${rutTerm}%`;
+    const records: RelatedClientRecord[] = [];
+
+    // 1) Cuentas del Market (salespeople_users role='client') todavía sin ficha.
+    try {
+      const res: any = await db.execute(sql`
+        SELECT id, salesperson_name, email, client_rut, created_at
+        FROM salespeople_users
+        WHERE role = 'client'
+          AND client_id IS NULL
+          AND (
+            lower(salesperson_name) LIKE ${like}
+            OR lower(COALESCE(email, '')) LIKE ${like}
+            ${isRutTerm
+              ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(COALESCE(client_rut, '')), '.', ''), '-', ''), ' ', '') LIKE ${rutLike}`
+              : sql``}
+          )
+        ORDER BY created_at DESC NULLS LAST
+        LIMIT 20
+      `);
+      for (const row of (Array.isArray(res) ? res : res.rows) || []) {
+        records.push({
+          source: 'market-account',
+          id: String(row.id),
+          name: row.salesperson_name || 'Sin nombre',
+          rut: row.client_rut || null,
+          email: row.email || null,
+          contacto: null,
+          createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+          status: null,
+          sharesRutWithFicha: false,
+        });
+      }
+    } catch (e) {
+      console.warn('[getRelatedClientRecords] cuentas Market:', e);
+    }
+
+    // 2) Solicitudes de acceso pendientes (JSON en app_config).
+    try {
+      const res: any = await db.execute(
+        sql`SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'`
+      );
+      const rows = (Array.isArray(res) ? res : res.rows) || [];
+      if (rows.length > 0) {
+        const raw = rows[0].value;
+        let requests: any[] = [];
+        try {
+          requests = typeof raw === 'string' ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+        } catch {}
+
+        const lowerTerm = term.toLowerCase();
+        for (const r of requests) {
+          if ((r?.status || '').toLowerCase() !== 'pendiente') continue;
+          const matches =
+            (r.empresa || '').toLowerCase().includes(lowerTerm) ||
+            (r.email || '').toLowerCase().includes(lowerTerm) ||
+            (r.contacto || '').toLowerCase().includes(lowerTerm) ||
+            (isRutTerm && normalizeRut(r.rut).includes(rutTerm));
+          if (!matches) continue;
+
+          records.push({
+            source: 'solicitud',
+            id: String(r.id || `${r.rut}-${r.email}`),
+            name: r.empresa || 'Sin empresa',
+            rut: r.rut || null,
+            email: r.email || null,
+            contacto: r.contacto || null,
+            createdAt: r.createdAt || null,
+            status: r.status || null,
+            sharesRutWithFicha: false,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[getRelatedClientRecords] solicitudes:', e);
+    }
+
+    if (records.length === 0) return [];
+
+    // 3) ¿Alguno comparte RUT con una ficha existente? Una sola consulta.
+    const ruts = Array.from(new Set(records.map((r) => normalizeRut(r.rut)).filter(Boolean)));
+    if (ruts.length > 0) {
+      try {
+        const res: any = await db.execute(sql`
+          SELECT DISTINCT REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') AS rut
+          FROM clients
+          WHERE REPLACE(REPLACE(REPLACE(UPPER(COALESCE(rten, '')), '.', ''), '-', ''), ' ', '')
+                IN (${sql.join(ruts.map((r) => sql`${r}`), sql`, `)})
+        `);
+        const withFicha = new Set(
+          ((Array.isArray(res) ? res : res.rows) || []).map((row: any) => String(row.rut))
+        );
+        for (const rec of records) {
+          rec.sharesRutWithFicha = withFicha.has(normalizeRut(rec.rut));
+        }
+      } catch (e) {
+        console.warn('[getRelatedClientRecords] cruce con fichas:', e);
+      }
+    }
+
+    return records;
   }
 
   // Agrupación de estados de pedido eCommerce para el filtro del listado de clientes.
