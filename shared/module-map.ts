@@ -1301,7 +1301,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/mantenciones",
     permission: "cmms.ordenes",
     group: "Mantención (CMMS)",
-    nav: { label: "Órdenes de Trabajo", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose:
       "Órdenes de trabajo de mantención: se solicita el trabajo, se asigna, se ejecuta (iniciar, pausar, reanudar), se cargan gastos de materiales y se cierra con su resolución.",
     whoUses: "Mantención, jefe de planta, producción, logística y bodega.",
@@ -1382,7 +1383,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms",
     permission: "cmms.dashboard",
     group: "Mantención (CMMS)",
-    nav: { label: "Dashboard CMMS", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Métricas y estado general de mantención: OT abiertas, atrasos, cumplimiento del plan.",
     whoUses: "Jefe de planta, mantención, supervisor.",
     guides: [],
@@ -1394,7 +1396,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/mantenciones-planificadas",
     permission: "cmms.mantenciones_planificadas",
     group: "Mantención (CMMS)",
-    nav: { label: "Mantenciones Planificadas", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Planificación de las mantenciones del período y su avance.",
     whoUses: "Mantención y jefe de planta.",
     guides: [],
@@ -1406,7 +1409,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/planes-preventivos",
     permission: "cmms.planes_preventivos",
     group: "Mantención (CMMS)",
-    nav: { label: "Planes Preventivos", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Definición de los planes de mantención preventiva por equipo y su frecuencia.",
     whoUses: "Mantención y jefe de planta.",
     guides: [],
@@ -1418,7 +1422,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/equipos",
     permission: "cmms.equipos",
     group: "Mantención (CMMS)",
-    nav: { label: "Equipos Críticos", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Catastro de equipos de planta, con su criticidad e historial de intervenciones.",
     whoUses: "Mantención y jefe de planta.",
     guides: [],
@@ -1430,7 +1435,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/proveedores",
     permission: "cmms.proveedores",
     group: "Mantención (CMMS)",
-    nav: { label: "Proveedores", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Proveedores y servicios externos de mantención.",
     whoUses: "Mantención y jefe de planta.",
     guides: [],
@@ -1442,7 +1448,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/presupuesto",
     permission: "cmms.presupuesto",
     group: "Mantención (CMMS)",
-    nav: { label: "Presupuesto", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Presupuesto del área de mantención y cuánto se ha consumido.",
     whoUses: "Jefe de planta y admin.",
     guides: [],
@@ -1454,7 +1461,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/gastos-materiales",
     permission: "cmms.gastos_materiales",
     group: "Mantención (CMMS)",
-    nav: { label: "Gastos de Materiales", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Materiales y repuestos consumidos por las órdenes de trabajo.",
     whoUses: "Mantención y jefe de planta.",
     guides: [],
@@ -1466,7 +1474,8 @@ export const MODULE_MAP: ModuleDef[] = [
     href: "/cmms/calendario",
     permission: "cmms.calendario",
     group: "Mantención (CMMS)",
-    nav: { label: "Calendario", parentLabel: "Mantención" },
+    // Sin ítem en el menú: el módulo está oculto a la espera de eliminarse (DEPRECAR-MANTENCION.md).
+    nav: null,
     purpose: "Calendario de mantenciones programadas.",
     whoUses: "Todo el equipo de planta.",
     guides: [],
