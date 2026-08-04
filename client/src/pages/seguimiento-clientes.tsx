@@ -9,7 +9,7 @@
  * con el detalle). Las pestañas de documentos ERP del detalle viven en
  * @/components/crm/pedidos-nvv-tabs.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -106,7 +106,16 @@ const AREA_TO_SEGMENTO_CRM: Record<string, string> = {
 // Trabajo: sincroniza el filtro de Segmento con la pestaña superior de Área
 // (y oculta el dropdown propio para evitar el doble filtro). Sin la prop, el
 // CRM funciona standalone con su dropdown de Segmento habitual.
-export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: string } = {}) {
+// Handle imperativo para que el (+) del header del Panel de Trabajo abra el
+// alta de cliente cuando la pestaña activa es CRM.
+export interface SeguimientoClientesHandle {
+  nuevoCliente: () => void;
+}
+
+function SeguimientoClientesInner(
+  { segmentoArea }: { segmentoArea?: string },
+  ref: React.Ref<SeguimientoClientesHandle>,
+) {
   const embedded = segmentoArea !== undefined;
   const segmentoDesdeArea = embedded ? (AREA_TO_SEGMENTO_CRM[segmentoArea!] ?? "todos") : undefined;
 
@@ -132,6 +141,8 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
   const [view, setView] = useState<ViewMode>(loadViewPreference);
   // Cliente objetivo del dialog "Registrar hito" (null = cerrado)
   const [hitoCliente, setHitoCliente] = useState<any>(null);
+
+  useImperativeHandle(ref, () => ({ nuevoCliente: () => setShowCreateModal(true) }), []);
 
   const isAdminOrSupervisor = user?.role === "admin" || (user?.role === "supervisor" || user?.role === "encargado_area");
 
@@ -821,6 +832,9 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
     </div>
   );
 }
+
+const SeguimientoClientes = forwardRef<SeguimientoClientesHandle, { segmentoArea?: string }>(SeguimientoClientesInner);
+export default SeguimientoClientes;
 
 // ─── KPI card ─────────────────────────────────────────────────────────
 function KpiCard({ icon: Icon, label, shortLabel, value, iconBox, valueClass = "" }: {

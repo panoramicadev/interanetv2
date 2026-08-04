@@ -546,7 +546,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       // Solo la lista COMERCIAL y en solo lectura: sin el permiso
-      // "productos.costos" la página esconde costos, márgenes y edición.
+      // "productos.costos" la página muestra costos, márgenes y simulador,
+      // pero esconde la edición (editar, importar, ajuste masivo).
       href: "/lista-precios",
       label: "Lista de Precios",
       icon: FileSpreadsheet,
