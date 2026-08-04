@@ -345,12 +345,18 @@ export default function ReclamosGeneralesPage() {
       const params = new URLSearchParams();
       // Técnico de obra, laboratorio, admin, supervisor, jefe_planta y roles organizacionales ven todos los reclamos
       // Roles de área también ven todos para poder filtrar por su área
+      //
+      // El vendedor también: un reclamo de obra lo levanta quien esté en terreno,
+      // pero el seguimiento lo hace el que atiende a la constructora, así que
+      // limitarlo a los propios dejaba casos ciegos. Sus pestañas siguen
+      // separando "Mis reclamos" de la cola completa.
       const rolesQueVenTodos = [
         'tecnico_obra',
         'laboratorio',
         'admin',
         'supervisor',
         'encargado_area',
+        'salesperson',
         'jefe_planta',
         'produccion',
         'logistica_bodega',

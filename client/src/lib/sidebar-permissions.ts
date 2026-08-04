@@ -176,6 +176,19 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
 ];
 
 /**
+ * Módulos que un rol TIENE por permiso pero que su menú no muestra como ítem
+ * de primer nivel. Sin esto, los "extras" reponen al final justo lo que el
+ * sidebar base sacó a propósito.
+ *
+ * El vendedor entra a la ficha del cliente desde su Panel de Trabajo (la obra
+ * cuelga del cliente), no desde un ítem "Clientes": el permiso sigue haciendo
+ * falta para que la ficha cargue, pero el menú queda como se estandarizó.
+ */
+const EXTRAS_OCULTOS_POR_ROL: Record<string, Set<string>> = {
+  salesperson: new Set(["clientes"]),
+};
+
+/**
  * Construye el sidebar final del rol: base filtrado por permisos +
  * módulos extra otorgados que el base no contempla.
  */
@@ -189,10 +202,13 @@ export function buildSidebarItems(role: string | undefined, can: Can): SidebarIt
   if (role === "admin") return filterMarketingByRole(items, role);
 
   const covered = collectCoveredKeys(base);
+  const ocultos = EXTRAS_OCULTOS_POR_ROL[role || ""] ?? new Set<string>();
 
   // Grupos extra: fusionar dentro del grupo existente si el rol ya lo tiene
   for (const group of EXTRA_GROUPS) {
-    const missingChildren = group.children.filter((child) => !covered.has(child.key) && can(child.key));
+    const missingChildren = group.children.filter(
+      (child) => !covered.has(child.key) && !ocultos.has(child.key) && can(child.key),
+    );
     if (missingChildren.length === 0) continue;
 
     const newChildren: SidebarItem[] = missingChildren.map(({ key: _key, ...child }) => ({ ...child }));
@@ -212,7 +228,7 @@ export function buildSidebarItems(role: string | undefined, can: Can): SidebarIt
 
   // Módulos sueltos extra
   for (const { key, item } of EXTRA_TOP_LEVEL) {
-    if (covered.has(key) || !can(key)) continue;
+    if (covered.has(key) || ocultos.has(key) || !can(key)) continue;
     if (items.some((existing) => existing.href === item.href && !existing.children)) continue;
     items.push({ ...item, ...(item.children ? { children: item.children.map((c) => ({ ...c })) } : {}) });
   }
