@@ -14077,9 +14077,12 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Admin, supervisor, tecnico_obra and marketing can create tasks
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area') && user.role !== 'tecnico_obra' && user.role !== 'marketing') {
-        return res.status(403).json({ message: "Only administrators, supervisors and technical staff can create tasks" });
+      // Quién puede crear tareas. El vendedor entró acá al estandarizarse su
+      // Panel de Trabajo: crea, edita y marca las suyas (el front se las asigna
+      // a él mismo; ver `asignaSoloASiMismo` en client/src/pages/tareas.tsx).
+      const ROLES_CREAN_TAREAS = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'tecnico_obra', 'marketing'];
+      if (!ROLES_CREAN_TAREAS.includes(user.role)) {
+        return res.status(403).json({ message: "Tu rol no puede crear tareas" });
       }
 
       // SECURITY: Use discriminated union validation with assignments

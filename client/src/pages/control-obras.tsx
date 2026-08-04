@@ -36,7 +36,7 @@
  * cliente; en la base solo viven los datos ingresados (ver `obras`,
  * `obra_tipos_vivienda` y `obra_productos` en shared/schema.ts).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -222,7 +222,16 @@ const vocab = (tipoObra: string) => VOCABULARIO[tipoObra === "edificios" ? "edif
 // Componente
 // ---------------------------------------------------------------------------
 
-export function ControlObrasContent() {
+/**
+ * Lo que el Panel de Trabajo puede pedirle a esta pestaña desde afuera.
+ * El botón (+) del header cambia según la pestaña activa, y en "Obras" tiene
+ * que abrir el alta de obra, que vive acá adentro.
+ */
+export interface ControlObrasHandle {
+  nuevaObra: () => void;
+}
+
+export const ControlObrasContent = forwardRef<ControlObrasHandle>(function ControlObrasContent(_props, ref) {
   const { toast } = useToast();
   const { user } = useAuth();
   // Las etapas quedan disponibles para todas las obras, así que solo las suman
@@ -551,6 +560,11 @@ export function ControlObrasContent() {
     });
     setDialogAbierto(true);
   };
+
+  // Sin lista de dependencias a propósito: `abrirNueva` se recrea en cada render
+  // y cierra sobre la temporada filtrada, así el (+) del header abre el
+  // formulario con lo que hay en pantalla ahora.
+  useImperativeHandle(ref, () => ({ nuevaObra: abrirNueva }));
 
   const abrirEdicion = (obra: ObraConCliente) => {
     totalTocado.current = true;
@@ -1935,7 +1949,7 @@ export function ControlObrasContent() {
 
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Piezas de UI
