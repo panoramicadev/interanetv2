@@ -2277,8 +2277,18 @@ export function registerRoutes(app: Express): Server {
         storage.getClientsCount(filters)
       ]);
 
+      // Registros de la misma empresa que NO viven en la tabla `clients` y que por
+      // eso nunca aparecían en este listado: cuentas del Market y solicitudes de
+      // acceso. Sin esto, buscar un RUT que tiene ficha en el ERP y además una
+      // solicitud pendiente devolvía una sola fila, sin ninguna señal de que había
+      // otro registro con ese mismo RUT esperando decisión.
+      const relatedRecords = hasSearch
+        ? await storage.getRelatedClientRecords(search as string)
+        : [];
+
       res.json({
         clients,
+        relatedRecords,
         totalCount,
         currentPage: Math.floor((filters.offset || 0) / (filters.limit || 50)) + 1,
         totalPages: Math.ceil(totalCount / (filters.limit || 50))
