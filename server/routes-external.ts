@@ -4,6 +4,7 @@ import { validateApiKey, requireApiRole, type ApiAuthRequest } from './middlewar
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { db } from './db';
+import { ubicacionCanonicaDe } from '@shared/chile-geo';
 import {
   users,
   notifications,
@@ -2965,7 +2966,7 @@ router.get('/crm/seguimiento', async (req: ApiAuthRequest, res) => {
         ciudad: clients.cmen,
         ultimaCompraDate: clients.feultr,
         linkedComuna: clients.comuna,
-        linkedRegion: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('linked_region'),
+        linkedProvincia: clients.provincia,
         linkedCpen: clients.cpen,
         linkedFoen: clients.foen,
         linkedRuen: clients.ruen,
@@ -2978,7 +2979,7 @@ router.get('/crm/seguimiento', async (req: ApiAuthRequest, res) => {
       .limit(lim)
       .offset(off);
 
-    res.json(results);
+    res.json(results.map((r) => ({ ...r, ...ubicacionCanonicaDe(r) })));
   } catch (error) {
     console.error('Error listing seguimiento:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2993,6 +2994,7 @@ router.get('/crm/seguimiento/:id', async (req: ApiAuthRequest, res) => {
         ...getTableColumns(crmSeguimientoClientes),
         ciudad: clients.cmen,
         linkedComuna: clients.comuna,
+        linkedProvincia: clients.provincia,
         linkedCpen: clients.cpen,
         linkedFoen: clients.foen,
         linkedRuen: clients.ruen,
@@ -3010,7 +3012,7 @@ router.get('/crm/seguimiento/:id', async (req: ApiAuthRequest, res) => {
       .where(eq(crmSeguimientoHitos.seguimientoId, id))
       .orderBy(desc(crmSeguimientoHitos.createdAt));
 
-    res.json({ ...cliente, hitos });
+    res.json({ ...cliente, ...ubicacionCanonicaDe(cliente), hitos });
   } catch (error) {
     console.error('Error fetching seguimiento detail:', error);
     res.status(500).json({ error: 'Internal server error' });
