@@ -117,10 +117,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   // Sidebar dinámico: base del rol filtrado por permisos efectivos
-  // (configurables desde Configuración → Roles y Permisos)
+  // (configurables desde Configuración → Roles y Permisos).
+  //
+  // El segmento va aparte del rol porque el supervisor tiene un menú por área
+  // (Construcción / Ferretería); para el resto de los roles se ignora.
+  const assignedSegment = ((user as any)?.assignedSegment as string | null | undefined) ?? null;
   const sidebarItems = useMemo(
-    () => buildSidebarItems(user?.role || undefined, can),
-    [user?.role, can, permissions],
+    () => buildSidebarItems(user?.role || undefined, can, { assignedSegment }),
+    [user?.role, assignedSegment, can, permissions],
   );
 
   const { data: unreadCount = 0 } = useQuery<number>({
