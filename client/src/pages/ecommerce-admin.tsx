@@ -660,6 +660,8 @@ function BannerForm({ onSuccess, existingBanner, type = 'hero' }: { onSuccess: (
             <SelectContent>
               <SelectItem value="hero">Principal (Cabecera)</SelectItem>
               <SelectItem value="footer">Pie de Página (Footer)</SelectItem>
+              <SelectItem value="ad">Publicitario (entre productos)</SelectItem>
+              <SelectItem value="cotizador">Cotizador (Cabecera)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1027,7 +1029,10 @@ function BannerList({ type = 'hero' }: { type?: string }) {
                 {banner.activo ? 'Activo' : 'Inactivo'}
               </div>
               <div className="text-[9px] px-2 py-0.5 rounded-full font-bold w-max bg-blue-500 text-white">
-                {banner.tipoVisualizacion === 'footer' ? 'Footer' : 'Principal'}
+                {banner.tipoVisualizacion === 'footer' ? 'Footer'
+                  : banner.tipoVisualizacion === 'ad' ? 'Publicitario'
+                  : banner.tipoVisualizacion === 'cotizador' ? 'Cotizador'
+                  : 'Principal'}
               </div>
             </div>
             
@@ -2280,6 +2285,7 @@ export default function EcommerceAdmin() {
              <TabsTrigger value="cupones" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Cupones</TabsTrigger>
              <TabsTrigger value="catalogos" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Catálogos de Vendedores</TabsTrigger>
              <TabsTrigger value="tracking" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Catálogo (Ads &amp; SEO)</TabsTrigger>
+             <TabsTrigger value="cotizador" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Cotizador</TabsTrigger>
              <TabsTrigger value="mailing" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Mailing</TabsTrigger>
           </TabsList>
         </div>
@@ -2658,6 +2664,64 @@ export default function EcommerceAdmin() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 Solo los administradores pueden configurar los códigos de tracking.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="cotizador" className="space-y-6">
+          {isAdmin ? (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Banners del Cotizador</CardTitle>
+                      <p className="text-sm text-muted-foreground">Imágenes de la cabecera del cotizador público. Sube una versión para escritorio y otra para móvil.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="outline" className="gap-2" asChild>
+                      <a href="/cotizador" target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                        Ver Cotizador
+                      </a>
+                    </Button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button className="bg-foreground text-background hover:bg-foreground/90 gap-2">
+                          <Plus className="h-4 w-4" />
+                          Nuevo Banner
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                          <DialogTitle>Crear Banner del Cotizador</DialogTitle>
+                          <DialogDescription>Sube imágenes para escritorio y móvil</DialogDescription>
+                        </DialogHeader>
+                        <BannerForm
+                          type="cotizador"
+                          onSuccess={() => {
+                            queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
+                            toast({ title: 'Banner creado', description: 'El banner del cotizador se creó correctamente' });
+                          }}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <BannerList type="cotizador" />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Solo los administradores pueden configurar el cotizador.
               </CardContent>
             </Card>
           )}
