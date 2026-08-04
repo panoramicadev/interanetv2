@@ -7636,6 +7636,95 @@ export const insertApiKeySchema = createInsertSchema(apiKeys, {
 export type InsertApiKeyInput = z.infer<typeof insertApiKeySchema>;
 
 // ================================
+// OAUTH 2.1 — Authorization Server para el MCP
+// ================================
+// La intranet emite tokens de usuario para clientes MCP (Claude, Cursor, ChatGPT).
+// A diferencia de api_keys —una credencial compartida sin dueño— cada token acá
+// pertenece a un usuario de `users`, así que el MCP opera con el rol de quien lo
+// conectó y queda trazabilidad de quién hizo qué.
+
+// Clientes registrados, normalmente vía Dynamic Client Registration (RFC 7591):
+// el connector de Claude se auto-registra la primera vez que alguien lo conecta.
+export const oauthClients = pgTable("oauth_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  clientId: varchar("client_id").notNull().unique(),
+  // Hash del client_secret. NULL = cliente público: se autentica solo con PKCE
+  // (es el caso del connector de Claude, que corre en el navegador del usuario).
+  clientSecretHash: varchar("client_secret_hash"),
+  clientName: varchar("client_name").notNull(),
+  clientUri: varchar("client_uri"),
+  logoUri: varchar("logo_uri"),
+
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  grantTypes: jsonb("grant_types").$type<string[]>().notNull().default(sql`'["authorization_code","refresh_token"]'::jsonb`),
+  tokenEndpointAuthMethod: varchar("token_endpoint_auth_method").notNull().default("none"),
+  scope: text("scope").notNull().default("mcp:read mcp:write"),
+
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+}, (table) => ({
+  clientIdIdx: index("IDX_oauth_clients_client_id").on(table.clientId),
+}));
+
+// Códigos de autorización: viven ~5 minutos entre el consentimiento y el canje.
+export const oauthAuthCodes = pgTable("oauth_auth_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  codeHash: varchar("code_hash").notNull().unique(), // sha256 del código
+  clientId: varchar("client_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  redirectUri: varchar("redirect_uri").notNull(),
+  scope: text("scope").notNull(),
+
+  // PKCE (RFC 7636) — obligatorio en OAuth 2.1, siempre S256.
+  codeChallenge: varchar("code_challenge").notNull(),
+  codeChallengeMethod: varchar("code_challenge_method").notNull().default("S256"),
+
+  // Resource indicator (RFC 8707): a qué MCP server queda atado el token.
+  resource: varchar("resource"),
+
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"), // un código se canjea una sola vez
+  // Grant emitido al canjearlo. Si el código reaparece, sabemos exactamente
+  // qué tokens matar sin tocar otras sesiones del mismo usuario.
+  grantId: varchar("grant_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  codeHashIdx: index("IDX_oauth_auth_codes_hash").on(table.codeHash),
+  expiresAtIdx: index("IDX_oauth_auth_codes_expires").on(table.expiresAt),
+}));
+
+// Access y refresh tokens. `grantId` agrupa el par emitido por una misma
+// autorización (y sus rotaciones), para poder revocar todo de una.
+export const oauthTokens = pgTable("oauth_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  tokenHash: varchar("token_hash").notNull().unique(), // sha256 del token
+  kind: varchar("kind").notNull(), // access | refresh
+  grantId: varchar("grant_id").notNull(),
+
+  clientId: varchar("client_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  scope: text("scope").notNull(),
+  resource: varchar("resource"),
+
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  tokenHashIdx: index("IDX_oauth_tokens_hash").on(table.tokenHash),
+  grantIdx: index("IDX_oauth_tokens_grant").on(table.grantId),
+  userIdx: index("IDX_oauth_tokens_user").on(table.userId),
+}));
+
+export type OauthClient = typeof oauthClients.$inferSelect;
+export type OauthAuthCode = typeof oauthAuthCodes.$inferSelect;
+export type OauthToken = typeof oauthTokens.$inferSelect;
+
+// ================================
 // META ADS INTEGRATIONS
 // ================================
 

@@ -5,20 +5,40 @@ import { apiKeys } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 
 export interface ApiAuthRequest extends Request {
+  // `apiKey` es la identidad del llamador. Con X-API-Key es la key compartida;
+  // con un Bearer de OAuth es el usuario que conectó el asistente, y entonces
+  // `id` es su user_id, así que todo lo que la API atribuye al llamador
+  // (createdBy, bitácoras, historial de precios) queda a nombre de la persona.
   apiKey?: {
     id: string;
     role: string;
     name: string;
   };
+  // Solo presente en llamadas autenticadas por OAuth.
+  oauthUser?: {
+    userId: string;
+    email: string;
+    nombre: string;
+    rolIntranet: string;
+    scope: string;
+    clientId: string;
+  };
 }
 
 export async function validateApiKey(req: ApiAuthRequest, res: Response, next: NextFunction) {
   const apiKeyHeader = req.headers['x-api-key'] as string;
+  const authHeader = req.headers['authorization'] as string | undefined;
+
+  // Camino OAuth: el MCP reenvía el access token del usuario que lo conectó.
+  if (!apiKeyHeader && authHeader?.startsWith('Bearer ')) {
+    return validateOAuthToken(req, res, next, authHeader.slice(7).trim());
+  }
 
   if (!apiKeyHeader) {
+    res.setHeader('WWW-Authenticate', 'Bearer realm="panoramica"');
     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'X-API-Key header is required'
+      message: 'Se requiere el header X-API-Key o Authorization: Bearer <token OAuth>'
     });
   }
 
@@ -75,6 +95,52 @@ export async function validateApiKey(req: ApiAuthRequest, res: Response, next: N
     next();
   } catch (error) {
     console.error('API authentication error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Authentication failed'
+    });
+  }
+}
+
+// Autenticación por token OAuth (emitido en server/routes-oauth.ts).
+// A diferencia de la API key, acá el rol sale del usuario dueño del token y el
+// scope puede recortarlo: un token con solo `mcp:read` es readonly aunque quien
+// lo pidió sea admin.
+async function validateOAuthToken(
+  req: ApiAuthRequest,
+  res: Response,
+  next: NextFunction,
+  token: string,
+) {
+  try {
+    const { resolverAccessToken } = await import('../routes-oauth');
+    const info = await resolverAccessToken(token);
+
+    if (!info) {
+      res.setHeader('WWW-Authenticate', 'Bearer realm="panoramica", error="invalid_token"');
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Token OAuth inválido, expirado o revocado'
+      });
+    }
+
+    req.apiKey = {
+      id: info.userId,
+      role: info.rolApi,
+      name: info.nombre,
+    };
+    req.oauthUser = {
+      userId: info.userId,
+      email: info.email,
+      nombre: info.nombre,
+      rolIntranet: info.rolIntranet,
+      scope: info.scope,
+      clientId: info.clientId,
+    };
+
+    next();
+  } catch (error) {
+    console.error('OAuth authentication error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Authentication failed'

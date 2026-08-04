@@ -78,6 +78,9 @@ const OPENAPI_SPEC = {
   components: {
     securitySchemes: {
       ApiKeyAuth: { type: 'apiKey' as const, in: 'header' as const, name: 'X-API-Key' },
+      // Token de usuario emitido por el Authorization Server de la intranet
+      // (ver server/routes-oauth.ts). Es lo que usa el MCP.
+      OAuthUser: { type: 'http' as const, scheme: 'bearer' as const, bearerFormat: 'opaque' },
     },
     parameters: {
       limit: { name: 'limit', in: 'query', schema: { type: 'integer', default: 500, maximum: 5000 } },
@@ -172,7 +175,7 @@ const OPENAPI_SPEC = {
       },
     },
   },
-  security: [{ ApiKeyAuth: [] }],
+  security: [{ ApiKeyAuth: [] }, { OAuthUser: [] }],
   paths: {
     // ═══ CRUD extendido (8 módulos) ═══
 '/productos/{codigo}/precio': {
@@ -3142,7 +3145,7 @@ router.post('/crm/seguimiento/:id/hito', requireApiRole(['read_write', 'admin'])
 });
 
 // GET /crm/seguimiento/:id/bitacora — List bitácora entries for a CRM client
-router.get('/crm/seguimiento/:id/bitacora', requireApiRole(['read_only', 'read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+router.get('/crm/seguimiento/:id/bitacora', requireApiRole(['readonly', 'read_write', 'admin']), async (req: ApiAuthRequest, res) => {
   try {
     const { id } = req.params;
     const limit = parseLimit(req.query.limit, 100, 500);
