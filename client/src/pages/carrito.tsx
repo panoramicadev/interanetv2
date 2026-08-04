@@ -4,7 +4,7 @@ import { useCart } from "@/hooks/useCart";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ShoppingBag, ArrowLeft, Trash2, Minus, Plus, Package, FileDown } from "lucide-react";
+import { ShoppingBag, ArrowLeft, Trash2, Minus, Plus, Package, FileDown, Palette } from "lucide-react";
 import { BillingSummary } from "@/components/cart";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -169,10 +169,16 @@ export default function Carrito() {
 
     const productRows = state.items.map(item => {
       const color = item.selectedColor || extractColor(item.productCode);
+      // En un color a medida el SKU no identifica el tono: el código de color va
+      // explícito para que el documento impreso sirva en producción.
+      const customLine = item.isCustomColor
+        ? `<div class="product-code" style="color: #a21caf; font-weight: 600;">COLOR PERSONALIZADO: ${escapeHtml(item.customColorCode || '')}${item.customColorBrand ? ` (${escapeHtml(item.customColorBrand)})` : ''}${item.customColorHex ? ` • ${escapeHtml(item.customColorHex)}` : ''}</div>`
+        : '';
       return `<tr>
         <td>
           <div class="product-name">${escapeHtml(item.productName)}</div>
           <div class="product-code">SKU: ${escapeHtml(item.productCode)}${color ? ` • ${color}` : ''}</div>
+          ${customLine}
         </td>
         <td class="text-center">${escapeHtml(item.unit) || 'UN'}</td>
         <td class="text-center">${item.quantity}</td>
@@ -405,15 +411,25 @@ export default function Carrito() {
                   return (
                     <div
                       key={item.id}
-                      className="group hover:bg-gray-50/50 dark:hover:bg-gray-750/50 transition-colors"
+                      className={`group transition-colors ${
+                        item.isCustomColor
+                          ? 'bg-fuchsia-50/50 hover:bg-fuchsia-50 border-l-2 border-fuchsia-400'
+                          : 'hover:bg-gray-50/50 dark:hover:bg-gray-750/50'
+                      }`}
                       data-testid={`cart-page-item-${item.productId}`}
                     >
                       {/* Desktop Row */}
                       <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-2.5">
                         {/* Product Info */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden border border-gray-200">
-                            {item.imageUrl ? (
+                          <div
+                            className="w-9 h-9 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden border border-gray-200 flex items-center justify-center"
+                            style={item.isCustomColor && item.customColorHex ? { background: item.customColorHex } : undefined}
+                            title={item.isCustomColor ? item.customColorHex || undefined : undefined}
+                          >
+                            {item.isCustomColor ? (
+                              <Palette className="h-4 w-4 text-white drop-shadow" />
+                            ) : item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
@@ -422,13 +438,27 @@ export default function Carrito() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate" data-testid={`text-cart-page-item-name-${item.productId}`}>
-                              {item.productName}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate" data-testid={`text-cart-page-item-name-${item.productId}`}>
+                                {item.productName}
+                              </p>
+                              {item.isCustomColor && (
+                                <span
+                                  className="flex-shrink-0 text-[9px] bg-fuchsia-600 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+                                  title={`Color a medida ${item.customColorCode || ''}${item.customColorBrand ? ` (${item.customColorBrand})` : ''} — precio cotizado para ti`}
+                                >
+                                  Personalizado
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[11px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{item.productCode}</span>
                               {item.unit && <span className="text-[11px] text-gray-400">{item.unit}</span>}
-                              {color && <span className="text-[11px] text-gray-400">• {color}</span>}
+                              {color && (
+                                <span className={`text-[11px] ${item.isCustomColor ? 'text-fuchsia-700 font-medium' : 'text-gray-400'}`}>
+                                  • {color}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -513,8 +543,13 @@ export default function Carrito() {
                       <div className="md:hidden px-2.5 py-2">
                         <div className="flex items-center gap-2">
                           {/* Small thumbnail */}
-                          <div className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200">
-                            {item.imageUrl ? (
+                          <div
+                            className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200 flex items-center justify-center"
+                            style={item.isCustomColor && item.customColorHex ? { background: item.customColorHex } : undefined}
+                          >
+                            {item.isCustomColor ? (
+                              <Palette className="h-5 w-5 text-white drop-shadow" />
+                            ) : item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
@@ -522,15 +557,24 @@ export default function Carrito() {
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-1">
                               <div className="min-w-0">
                                 <p className="text-[13px] font-semibold text-gray-900 truncate leading-tight">{item.productName}</p>
+                                {item.isCustomColor && (
+                                  <span className="inline-block mt-0.5 text-[9px] bg-fuchsia-600 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                    Personalizado
+                                  </span>
+                                )}
                                 <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                   <span className="text-[10px] font-mono text-gray-500 bg-gray-100 px-1 py-0.5 rounded">{item.productCode}</span>
                                   {item.unit && <span className="text-[10px] text-gray-400">{item.unit}</span>}
-                                  {color && <span className="text-[10px] text-gray-400">• {color}</span>}
+                                  {color && (
+                                    <span className={`text-[10px] ${item.isCustomColor ? 'text-fuchsia-700 font-medium' : 'text-gray-400'}`}>
+                                      • {color}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                               <button
