@@ -3476,7 +3476,11 @@ export const obraProductos = pgTable("obra_productos", {
   kopr: varchar("kopr", { length: 60 }),
   nombre: text("nombre").notNull(), // Nombre mostrado (del catálogo o escrito a mano)
   color: varchar("color", { length: 80 }), // Color/tono, cuando aplica
-  unidad: varchar("unidad", { length: 20 }).notNull().default("tineta"), // tineta, galón, litro, unidad…
+  // Formato en que se pide el producto, de una lista cerrada de cuatro:
+  // tineta_4gl | tineta_5gl | galon | litro (ver client/src/components/obras/unidades.ts).
+  // Antes era texto libre copiado del ERP y no distinguía la tineta de 4 de la
+  // de 5, que es justo lo que cambia el consumo por vivienda.
+  unidad: varchar("unidad", { length: 20 }).notNull().default("tineta_4gl"),
   cantidadProyectada: numeric("cantidad_proyectada", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadPedida: numeric("cantidad_pedida", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadEntregada: numeric("cantidad_entregada", { precision: 12, scale: 2 }).notNull().default("0"),

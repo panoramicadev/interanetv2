@@ -20,6 +20,7 @@ import type { ObraProducto } from "@shared/schema";
 import { fmt, fmtDec, fmtPct, toInt, toNum } from "./formato";
 import type { ObraCalculada, ProductoCalculado, Totales } from "./calculos";
 import { BORDE_GRUPO, BadgeEstado, BarraAvance, CeldaRendimiento, InputCantidad, Numero, SinDato } from "./celdas";
+import { etiquetaCortaUnidad } from "./unidades";
 
 /** Todo lo que una celda de producto necesita para dibujarse y guardarse. */
 export interface CeldaProducto {
@@ -183,6 +184,19 @@ export const COLUMNAS: ColumnaDef[] = [
     total: (t) => fmtDec(t.pedidas),
   },
   {
+    // Proyectado − pedido, sin descontar nada más: es el "todavía no se le
+    // compró" que se lee de corrido con las dos columnas de al lado (proyectado
+    // 100, pedido 20 → por pedir 80). No confundir con "Próx. pedido", que
+    // además descuenta lo que ya está en la bodega de la obra.
+    key: "porPedir",
+    label: "Por pedir",
+    title: "Proyectado − pedido: lo que falta comprarle a la obra",
+    grupo: MATERIAL,
+    render: (f) => <Numero valor={f.faltantePorPedir} />,
+    renderProducto: (c) => <Numero valor={c.calc.porPedir} />,
+    total: (t) => fmtDec(t.faltante),
+  },
+  {
     key: "entregadas",
     label: "Entregadas",
     title: "Lo que llegó a la obra",
@@ -249,7 +263,7 @@ export const COLUMNAS: ColumnaDef[] = [
     renderProducto: (c) => (
       <CeldaRendimiento
         real={c.calc.rendimientoReal}
-        unidad={c.producto.unidad}
+        unidad={etiquetaCortaUnidad(c.producto.unidad)}
         desviacion={c.calc.desviacion}
         hayDesviacion={c.calc.pintadas > 0 && c.calc.rendimiento > 0}
         detalle={

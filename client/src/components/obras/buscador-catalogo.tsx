@@ -23,20 +23,23 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import type { CatalogoObraItem } from "@shared/schema";
 import { Loader2, PenLine, Plus } from "lucide-react";
+import { etiquetaCortaUnidad, unidadDesdeCatalogo } from "./unidades";
 
 /**
  * La unidad de medida con la que entra un producto a la obra.
  *
- * Se toma TAL CUAL viene del maestro ("TINETA 5 GL", "GALON", "KG"): antes se
- * normalizaba a una lista corta y después había que corregirla a mano en la
- * fila, que es justamente lo que no corresponde — la unidad es un dato del
- * producto, no una decisión de quien carga la obra. Se recorta a 20 caracteres
- * porque esa es la columna `obra_productos.unidad`.
+ * En obra se pide en cuatro formatos (tineta de 4 o de 5 galones, galón y
+ * litro), así que la unidad del maestro se traduce a uno de ellos en vez de
+ * copiarse cruda: `ud02pr` trae la presentación genérica ("GL") y no distingue
+ * la tineta de 4 de la de 5, que es lo que cambia el consumo por vivienda. El
+ * nombre del producto sí lo dice, y por eso pesa más que el código.
  */
-export function unidadDeObra(unidad: string | null | undefined): string {
-  const u = (unidad ?? "").trim();
-  return u ? u.slice(0, 20) : "unidad";
+export function unidadDeObra(item: Pick<CatalogoObraItem, "nombre" | "unidad">): string {
+  return unidadDesdeCatalogo(item.nombre, item.unidad);
 }
+
+/** Cuántas opciones muestra el desplegable. Ver el comentario de la query. */
+const MAX_RESULTADOS = 6;
 
 export function BuscadorCatalogo({
   onElegir,
@@ -63,10 +66,15 @@ export function BuscadorCatalogo({
     return () => clearTimeout(t);
   }, [texto]);
 
+  // Se piden pocos resultados a propósito: el desplegable tiene que quedar
+  // compacto y no taparle media pantalla a la planilla. Si lo que se busca no
+  // sale en estos, se afina el texto —que es más rápido que scrollear 20.
   const { data: resultados = [], isFetching } = useQuery<CatalogoObraItem[]>({
     queryKey: ["/api/obra-productos/catalogo", termino],
     queryFn: async () => {
-      const res = await apiRequest(`/api/obra-productos/catalogo?q=${encodeURIComponent(termino)}`);
+      const res = await apiRequest(
+        `/api/obra-productos/catalogo?q=${encodeURIComponent(termino)}&limit=${MAX_RESULTADOS}`,
+      );
       return res.json();
     },
     enabled: termino.length >= 2,
@@ -127,7 +135,7 @@ export function BuscadorCatalogo({
       <div className="space-y-2">
         {campo}
         {desplegado && (
-          <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="max-h-[172px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             {lista}
           </div>
         )}
@@ -139,16 +147,23 @@ export function BuscadorCatalogo({
   // posicionado en el flujo queda recortado por ese contenedor (se veía cortado
   // por abajo). Va en un popover, que se renderiza en un portal fuera de la
   // tabla; el ancla es el input para que quede pegado y del mismo ancho.
+  //
+  // La altura la manda el espacio que hay en pantalla, no una constante: Radix
+  // publica el alto disponible y el desplegable nunca pasa de eso, así que ni se
+  // corta por abajo ni se come la vista. El tope propio lo deja compacto igual
+  // cuando sobra pantalla.
   return (
     <Popover open={abierto && desplegado} onOpenChange={setAbierto}>
       <PopoverAnchor asChild>{campo}</PopoverAnchor>
       <PopoverContent
         align="start"
         sideOffset={6}
+        collisionPadding={12}
+        avoidCollisions
         // El foco se queda en el input: se sigue escribiendo para filtrar.
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-72 overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
+        className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[280px] max-h-[min(212px,var(--radix-popover-content-available-height))] overflow-y-auto rounded-2xl border-slate-200/80 dark:border-slate-700 z-[80]"
       >
         {lista}
       </PopoverContent>
@@ -178,21 +193,22 @@ function Resultados({
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onElegir(item)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
           data-testid={`option-catalogo-${item.sku}`}
         >
           <span
-            className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
+            className="w-3 h-3 rounded-full border border-slate-200 dark:border-slate-600 flex-shrink-0"
             style={{ background: item.hex || "linear-gradient(135deg,#f1f5f9,#cbd5e1)" }}
           />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+            {/* Una línea por producto: el nombre, y debajo solo el SKU con el
+                formato en que entra a la obra. El color ya se ve en el punto. */}
+            <span className="block text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-200 truncate">
               {item.nombre}
             </span>
-            <span className="flex items-center gap-2 text-[10px] text-slate-400">
+            <span className="flex items-center gap-1.5 text-[10px] leading-tight text-slate-400">
               <span className="font-bold tabular-nums">{item.sku}</span>
-              {item.color && <span className="uppercase tracking-wide">{item.color}</span>}
-              {item.unidad && <span className="truncate">{item.unidad}</span>}
+              <span className="truncate">{etiquetaCortaUnidad(unidadDeObra(item))}</span>
             </span>
           </span>
         </button>

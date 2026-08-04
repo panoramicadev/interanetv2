@@ -31,17 +31,9 @@ import { ChevronDown, ChevronRight, Clock, Loader2, Trash2 } from "lucide-react"
 import { fmtDec, toNum } from "./formato";
 import { calcularProducto } from "./calculos";
 import type { CeldaProducto, ColumnaDef } from "./columnas";
-import { InputCantidad, MOV_MAP, NombreEditable, TextoEditable, type TipoMovimiento } from "./celdas";
+import { InputCantidad, MOV_MAP, NombreEditable, SelectorUnidad, TextoEditable, type TipoMovimiento } from "./celdas";
 import { BuscadorCatalogo, unidadDeObra } from "./buscador-catalogo";
-
-/** "0,8 galones por vivienda" — el plural a mano, que en español no es solo +s. */
-const PLURAL: Record<string, string> = {
-  tineta: "tinetas",
-  "galón": "galones",
-  litro: "litros",
-  kilo: "kilos",
-  unidad: "unidades",
-};
+import { UNIDAD_POR_DEFECTO, etiquetaCortaUnidad, etiquetaUnidad, pluralUnidad } from "./unidades";
 
 const fmtFecha = (valor: string | Date | null | undefined) => {
   if (!valor) return "—";
@@ -79,6 +71,34 @@ export function FilasProductos({
     queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
   };
 
+  // Marcar una entrega o un consumo se sentía lento: la celda esperaba el
+  // round-trip y recién ahí invalidaba, lo que además refetchea los productos de
+  // TODAS las obras de la cartera (la query no va filtrada por obra). Ahora el
+  // número cambia en el acto sobre la caché y el fetch queda de fondo; si el
+  // servidor falla, se revierte y la celda vuelve al valor de la base.
+  const CAMPO_POR_MOVIMIENTO: Record<TipoMovimiento, keyof ObraProducto> = {
+    pedido: "cantidadPedida",
+    entrega: "cantidadEntregada",
+    consumo: "cantidadUtilizada",
+  };
+
+  /** Aplica un cambio sobre el producto en la caché y devuelve cómo estaba. */
+  const parchearEnCache = (id: string, cambios: (p: ObraProducto) => Partial<ObraProducto>) => {
+    const anteriores = queryClient.getQueriesData<ObraProducto[]>({ queryKey: ["/api/obra-productos"] });
+    for (const [key, datos] of anteriores) {
+      if (!Array.isArray(datos)) continue;
+      queryClient.setQueryData<ObraProducto[]>(
+        key,
+        datos.map((p) => (p.id === id ? { ...p, ...cambios(p) } : p)),
+      );
+    }
+    return anteriores;
+  };
+
+  const revertir = (anteriores: ReturnType<typeof parchearEnCache> | undefined) => {
+    for (const [key, datos] of anteriores ?? []) queryClient.setQueryData(key, datos);
+  };
+
   const agregar = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await apiRequest("/api/obra-productos", { method: "POST", data });
@@ -98,8 +118,13 @@ export function FilasProductos({
       const res = await apiRequest(`/api/obra-productos/${id}`, { method: "PUT", data });
       return res.json();
     },
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/obra-productos"] });
+      return { anteriores: parchearEnCache(id, () => data as Partial<ObraProducto>) };
+    },
     onSuccess: invalidar,
-    onError: (error: any) => {
+    onError: (error: any, _vars, context) => {
+      revertir(context?.anteriores);
       toast({ title: "No se pudo guardar el cambio", description: error?.message, variant: "destructive" });
       invalidar(); // devuelve la celda al valor de la base
     },
@@ -123,13 +148,25 @@ export function FilasProductos({
       const res = await apiRequest(`/api/obra-productos/${id}/movimientos`, { method: "POST", data });
       return res.json();
     },
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/obra-productos"] });
+      // El movimiento suma en el acumulado del producto (lo mismo que hace el
+      // servidor en la misma transacción); acá se adelanta esa suma.
+      const campo = CAMPO_POR_MOVIMIENTO[data.tipo as TipoMovimiento];
+      const cantidad = toNum(data.cantidad as string);
+      if (!campo || cantidad <= 0) return { anteriores: undefined };
+      return {
+        anteriores: parchearEnCache(id, (p) => ({ [campo]: String(toNum(p[campo] as any) + cantidad) })),
+      };
+    },
     onSuccess: (_data, vars) => {
       invalidar();
       queryClient.invalidateQueries({ queryKey: ["/api/obra-productos/movimientos"] });
       const mov = MOV_MAP[vars.data.tipo as TipoMovimiento];
       toast({ title: `${mov?.label ?? "Movimiento"} registrado` });
     },
-    onError: (error: any) => {
+    onError: (error: any, _vars, context) => {
+      revertir(context?.anteriores);
       toast({ title: "No se pudo registrar el movimiento", description: error?.message, variant: "destructive" });
     },
   });
@@ -140,7 +177,7 @@ export function FilasProductos({
       kopr: item.sku || null,
       nombre: item.nombre,
       color: item.color || null,
-      unidad: unidadDeObra(item.unidad),
+      unidad: unidadDeObra(item),
       cantidadProyectada: "0",
       cantidadPedida: "0",
       cantidadEntregada: "0",
@@ -154,9 +191,9 @@ export function FilasProductos({
       kopr: null,
       nombre,
       color: null,
-      // Sin SKU no hay maestro del cual sacar la unidad; la unidad de la
-      // planilla es la tineta, y queda editable en el detalle del producto.
-      unidad: "tineta",
+      // Sin SKU no hay maestro del cual deducir el formato; entra con el de la
+      // planilla y se corrige en el selector del detalle del producto.
+      unidad: UNIDAD_POR_DEFECTO,
       cantidadProyectada: "0",
       cantidadPedida: "0",
       cantidadEntregada: "0",
@@ -293,11 +330,11 @@ function FilaProducto({
                   testId={`input-color-${producto.id}`}
                 />
                 <span
-                  className="uppercase tracking-wide truncate max-w-[80px] flex-shrink-0"
-                  title={`Unidad de medida del producto: ${producto.unidad ?? "—"}`}
+                  className="uppercase tracking-wide truncate max-w-[92px] flex-shrink-0"
+                  title={`Formato en que se pide este producto: ${etiquetaUnidad(producto.unidad)}`}
                   data-testid={`text-unidad-${producto.id}`}
                 >
-                  {producto.unidad ?? "—"}
+                  {etiquetaCortaUnidad(producto.unidad)}
                 </span>
                 {producto.kopr ? (
                   <span className="font-bold tabular-nums truncate" title={producto.kopr}>
@@ -396,19 +433,18 @@ function DetalleProducto({
             testId={`input-rendimiento-${producto.id}`}
           />
           <span className="text-xs text-slate-400">
-            {PLURAL[producto.unidad ?? ""] ?? producto.unidad ?? "unidades"} por vivienda
+            {pluralUnidad(producto.unidad)} por vivienda
           </span>
         </div>
-        {/* La unidad la trae el maestro junto con el SKU; queda editable acá
-            (y no en la fila) para los productos cargados a mano. */}
+        {/* El formato lo deduce el maestro al elegir el SKU; acá se corrige
+            cuando no acertó o cuando el producto se cargó a mano. Es una lista
+            cerrada: en obra se pide en tinetas, galones o litros. */}
         <div className="mt-2 flex items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Unidad</span>
-          <TextoEditable
-            valor={producto.unidad ?? ""}
-            onGuardar={(v) => onGuardar({ unidad: v.slice(0, 20) || "unidad" })}
-            placeholder="unidad"
-            className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-[110px]"
-            testId={`input-unidad-${producto.id}`}
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Formato</span>
+          <SelectorUnidad
+            valor={producto.unidad}
+            onGuardar={(v) => onGuardar({ unidad: v })}
+            testId={`select-unidad-${producto.id}`}
           />
         </div>
       </div>

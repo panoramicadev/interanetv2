@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilasProductos } from "@/components/obras/panel-productos";
 import { BuscadorCatalogo, unidadDeObra } from "@/components/obras/buscador-catalogo";
+import { UNIDAD_POR_DEFECTO, etiquetaCortaUnidad } from "@/components/obras/unidades";
 import { fmt, fmtDec, fmtPct, normalizar, toInt } from "@/components/obras/formato";
 import {
   calcularObra,
@@ -1069,7 +1070,14 @@ export function ControlObrasContent() {
                   </div>
 
                   <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-                    <BannerStat label="Viviendas" valor={fmt(totales.viviendas)} />
+                    {/* El total del cliente, no el de una obra: suma las viviendas
+                        de TODAS sus obras, que es el número con el que se habla
+                        con una constructora que tiene varios proyectos. */}
+                    <BannerStat
+                      label="Viviendas"
+                      valor={fmt(totales.viviendas)}
+                      sufijo={`en ${fmt(filas.length)} ${filas.length === 1 ? "obra" : "obras"}`}
+                    />
                     <BannerStat label="Proyectadas" valor={fmtDec(totales.proyectadas)} />
                     <BannerStat
                       label="Pintadas"
@@ -1756,12 +1764,12 @@ export function ControlObrasContent() {
                     kopr: item.sku || null,
                     nombre: item.nombre,
                     color: item.color || null,
-                    unidad: unidadDeObra(item.unidad),
+                    unidad: unidadDeObra(item),
                     hex: item.hex,
                   })
                 }
                 onManual={(nombre) =>
-                  agregarProducto({ kopr: null, nombre, color: null, unidad: "tineta", hex: null })
+                  agregarProducto({ kopr: null, nombre, color: null, unidad: UNIDAD_POR_DEFECTO, hex: null })
                 }
               />
 
@@ -1780,7 +1788,7 @@ export function ControlObrasContent() {
                         {p.nombre}
                       </span>
                       <span className="text-[10px] uppercase tracking-wide text-slate-400 flex-shrink-0">
-                        {p.unidad}
+                        {etiquetaCortaUnidad(p.unidad)}
                       </span>
                     </div>
                   ))}
