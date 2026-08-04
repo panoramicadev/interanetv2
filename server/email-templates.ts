@@ -506,6 +506,112 @@ export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { 
   return { subject, html };
 }
 
+interface CustomColorPricedData {
+  clientName: string;
+  productName: string;
+  format?: string | null;
+  colorCode: string;
+  colorBrand?: string | null;
+  colorHex?: string | null;
+  colorNotes?: string | null;
+  unitPrice: number;
+  quantity: number;
+  /** Token de la variante: el enlace es lo que efectivamente carga el carrito. */
+  token: string;
+  quoteNumber?: string | null;
+}
+
+/**
+ * Le avisa al cliente que su color a medida ya tiene precio y quedó listo para
+ * pedir. El botón abre /tienda con el token y ahí la tienda mete el producto al
+ * carrito — el carrito vive en el navegador, así que sin este clic no hay forma
+ * de dejárselo cargado.
+ */
+export function buildCustomColorPricedEmail(data: CustomColorPricedData): { subject: string; html: string } {
+  const subject = `¡Ya tenemos precio para tu color personalizado! - Pinturas Panorámica`;
+  const cartUrl = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/tienda?colorPersonalizado=${encodeURIComponent(data.token)}`;
+  const swatch = data.colorHex && /^#[0-9a-f]{6}$/i.test(data.colorHex) ? data.colorHex : '#e5e7eb';
+  const lineTotal = data.unitPrice * data.quantity;
+  const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Ya tenemos precio para tu producto!</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, preparamos el precio de tu color personalizado
+      y <strong>ya está en tu carrito</strong>, listo para que lo pidas cuando quieras.
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border: 1px solid #f0abfc; border-radius: 8px; margin: 20px 0; background-color: #fdf4ff;">
+      <tr>
+        <td style="padding: 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td width="64" valign="top">
+                <div style="width: 56px; height: 56px; border-radius: 8px; background-color: ${swatch}; border: 2px solid #ffffff; box-shadow: 0 0 0 1px #e9d5ff;"></div>
+              </td>
+              <td valign="top" style="padding-left: 14px;">
+                <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: bold; color: #a21caf; letter-spacing: 0.5px; text-transform: uppercase;">
+                  Color personalizado
+                </p>
+                <p style="margin: 0 0 4px 0; font-size: 15px; font-weight: bold; color: #1a1f2e;">
+                  ${data.productName}
+                </p>
+                <p style="margin: 0; font-size: 13px; color: #555;">
+                  ${data.colorCode}${data.colorBrand ? ` · ${data.colorBrand}` : ''}${data.format ? ` · ${data.format}` : ''}
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 14px; border-top: 1px solid #f0abfc;">
+            <tr>
+              <td style="padding: 10px 0 0 0; font-size: 13px; color: #666;">Precio unitario</td>
+              <td style="padding: 10px 0 0 0; font-size: 13px; color: #1a1f2e; text-align: right; font-weight: bold;">${money(data.unitPrice)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0 0 0; font-size: 13px; color: #666;">Cantidad cotizada</td>
+              <td style="padding: 4px 0 0 0; font-size: 13px; color: #1a1f2e; text-align: right; font-weight: bold;">${data.quantity}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0 0 0; font-size: 14px; color: #1a1f2e; font-weight: bold;">Total</td>
+              <td style="padding: 8px 0 0 0; font-size: 18px; color: #a21caf; text-align: right; font-weight: bold;">${money(lineTotal)}</td>
+            </tr>
+          </table>
+          <p style="margin: 10px 0 0 0; font-size: 11px; color: #888;">Valores netos, no incluyen IVA.</p>
+        </td>
+      </tr>
+    </table>
+
+    ${data.colorNotes ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 20px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Tus indicaciones de color:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.colorNotes}</p>
+    </div>` : ''}
+
+    <p style="text-align: center; margin: 24px 0 8px 0;">
+      <a href="${cartUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 14px 34px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+        Ver mi carrito y pedir
+      </a>
+    </p>
+    <p style="text-align: center; color: #888; font-size: 12px; margin: 0 0 16px 0;">
+      El enlace deja el producto cargado en tu carrito automáticamente.
+    </p>
+
+    ${data.colorHex && /^#[0-9a-f]{6}$/i.test(data.colorHex) ? `
+    <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 0 0 12px 0; text-align: center;">
+      El color que ves arriba es una referencia aproximada en pantalla: el tono final se ajusta según la carta original.
+    </p>` : ''}
+
+    ${getPaymentInfoBlock()}
+
+    <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 20px 0 0 0;">
+      ${data.quoteNumber ? `Cotización <strong>${data.quoteNumber}</strong>. ` : ''}Cualquier duda, escríbenos a
+      <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a>.
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface SuggestedOrderData {
   clientName: string;
   orderNumber: string;

@@ -1369,6 +1369,48 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_estado" ON solicitudes_credito (estado)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_created" ON solicitudes_credito (created_at)`);
 
+    // Colores personalizados cotizados (migración 078). Ver
+    // migrations/078_custom_color_variants.sql — se replica acá porque el runner
+    // de .sql corre DESPUÉS del bootstrap y el endpoint público del enlace mágico
+    // consulta la tabla apenas arranca el server.
+    console.log('  🎨 Verificando variantes de color personalizado...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS custom_color_variants (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        quote_request_id VARCHAR,
+        quote_number VARCHAR(60),
+        token VARCHAR(64) NOT NULL UNIQUE,
+        client_email VARCHAR(160) NOT NULL,
+        client_name VARCHAR(200),
+        client_user_id VARCHAR,
+        base_sku VARCHAR(60),
+        base_product_name TEXT NOT NULL,
+        generic_name TEXT,
+        format_unit VARCHAR(60),
+        image_url TEXT,
+        color_code VARCHAR(120) NOT NULL,
+        color_brand VARCHAR(120),
+        color_hex VARCHAR(9),
+        color_notes TEXT,
+        color_label VARCHAR(240) NOT NULL,
+        unit_price NUMERIC(15, 2) NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        min_unit INTEGER NOT NULL DEFAULT 1,
+        step_size INTEGER NOT NULL DEFAULT 1,
+        estado VARCHAR(20) NOT NULL DEFAULT 'active',
+        claimed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_email" ON custom_color_variants (client_email)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_quote" ON custom_color_variants (quote_request_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_custom_color_variants_estado" ON custom_color_variants (estado)`);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_custom_color_variants_quote_item"
+        ON custom_color_variants (quote_request_id, base_sku, color_code, format_unit)
+    `);
+
     // Rendición de gastos v2 (migración 073). Ver migrations/073_rendicion_gastos_v2.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas de gastos consultan estas tablas apenas arranca el server.

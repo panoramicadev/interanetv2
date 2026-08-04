@@ -64,6 +64,7 @@ import { setAttachedOc } from "@/lib/attached-oc";
 import { FloatingCart, CartToggle } from "@/components/cart";
 import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
 import CustomColorButton from "@/components/shared/CustomColorButton";
+import type { CustomColorVariantPublic } from "@shared/schema";
 import { getFormatQuantityRules } from "@shared/format-utils";
 import {
   DropdownMenu,
@@ -1181,7 +1182,7 @@ export default function TiendaPage() {
     }
   };
   const { toast } = useToast();
-  const { addItem } = useCart();
+  const { addItem, state: cartState } = useCart();
 
   // Quantity management functions
   const getProductQuantity = (productId: string, unidad: string | undefined): number => {
@@ -1785,6 +1786,114 @@ export default function TiendaPage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Colores personalizados ya cotizados ──────────────────────────────────
+  // El carrito vive en localStorage, así que el servidor no puede dejar nada
+  // dentro: son estos dos caminos los que efectivamente cargan la línea.
+
+  /** Mete la variante al carrito si no está ya. Devuelve true si la agregó. */
+  const addCustomColorToCart = useCallback((variant: CustomColorVariantPublic): boolean => {
+    // El token identifica la variante: reabrir el enlace no duplica la línea.
+    if (cartState.items.some(it => it.customColorToken === variant.token)) return false;
+
+    addItem({
+      // productId propio para no colisionar con el SKU real del producto base:
+      // el mismo esmalte en color estándar y en color a medida son dos líneas.
+      productId: `CUSTOM-${variant.token}`,
+      productCode: variant.baseSku || `CUSTOM-${variant.colorCode}`,
+      productName: variant.baseProductName,
+      selectedPackaging: variant.formatUnit || undefined,
+      selectedColor: variant.colorLabel,
+      unit: variant.formatUnit || 'UN',
+      // Precio cerrado por el equipo comercial: no se recalcula con lista ni convenio.
+      unitPrice: variant.unitPrice,
+      quantity: variant.quantity,
+      minQuantity: variant.minUnit,
+      quantityStep: variant.stepSize,
+      imageUrl: variant.imageUrl || undefined,
+      isCustomColor: true,
+      customColorToken: variant.token,
+      customColorCode: variant.colorCode,
+      customColorBrand: variant.colorBrand || undefined,
+      customColorHex: variant.colorHex || undefined,
+      customColorNotes: variant.colorNotes || undefined,
+    });
+    return true;
+  }, [addItem, cartState.items]);
+
+  // Deep-link del correo: /tienda?colorPersonalizado=<token>
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get("colorPersonalizado");
+    if (!token) return;
+
+    // Se limpia el parámetro de inmediato: si el efecto reintenta, no re-agrega.
+    url.searchParams.delete("colorPersonalizado");
+    window.history.replaceState({}, "", url.toString());
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/b2c/custom-color/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          if (cancelled) return;
+          toast({
+            title: "Color personalizado no disponible",
+            description: "Este enlace ya no está vigente. Escríbenos y te preparamos una cotización nueva.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const variant: CustomColorVariantPublic = await res.json();
+        if (cancelled) return;
+
+        const added = addCustomColorToCart(variant);
+        setShowFloatingCart(true);
+        toast({
+          title: added ? "¡Tu color personalizado está en el carrito!" : "Tu color personalizado ya está en el carrito",
+          description: `${variant.baseProductName} · ${variant.colorLabel}`,
+          action: <Check className="h-4 w-4" />,
+        });
+      } catch {
+        /* sin conexión: el cliente puede reabrir el enlace del correo */
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cliente con sesión iniciada: sus colores cotizados aparecen solos, sin
+  // depender de que abra el correo.
+  const { data: myCustomColors } = useQuery<{ variants: CustomColorVariantPublic[] }>({
+    queryKey: ["/api/b2c/my-custom-colors"],
+    queryFn: async () => {
+      const res = await fetch("/api/b2c/my-custom-colors", { credentials: "include" });
+      if (!res.ok) return { variants: [] };
+      return res.json();
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+  });
+
+  const mergedCustomColorsRef = useRef(false);
+  useEffect(() => {
+    const variants = myCustomColors?.variants;
+    if (!variants?.length || mergedCustomColorsRef.current) return;
+    // Una sola pasada por carga de página: si el cliente borra la línea a mano,
+    // no se la volvemos a meter en el siguiente render.
+    mergedCustomColorsRef.current = true;
+
+    const added = variants.filter(v => addCustomColorToCart(v)).length;
+    if (added > 0) {
+      setShowFloatingCart(true);
+      toast({
+        title: added === 1 ? "Tu color personalizado está listo" : `Tienes ${added} colores personalizados listos`,
+        description: "Ya tienen precio y quedaron en tu carrito para que los pidas.",
+        action: <Check className="h-4 w-4" />,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myCustomColors]);
 
   const navigationItems = [
     { name: "Contacto", href: "#contacto" },

@@ -24261,6 +24261,7 @@ export function registerRoutes(app: Express): Server {
       await ensure('ecommerce_sale_auto', 'Auto: Venta recibida (tienda)', 'Cuando un cliente realiza un pedido en Panorámica Market, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       await ensure('ecommerce_quote_auto', 'Auto: Cotización recibida (tienda)', 'Cuando un visitante envía una solicitud de cotización pública, se envía un correo automático de confirmación. CC: copias internas opcionales.');
       await ensure('pedido_modificado', 'Auto: Pedido modificado (tienda)', 'Cuando el equipo modifica un pedido (precios, items o estado), se envía un correo al cliente con el nuevo total y un recordatorio para actualizar el comprobante si paga por transferencia. CC: copias internas opcionales.');
+      await ensure('ecommerce_color_personalizado', 'Auto: Color personalizado cotizado (tienda)', 'Cuando se le asigna precio a un color personalizado, se avisa al cliente que ya tiene precio y se le manda un enlace que le deja el producto cargado en el carrito. CC: copias internas opcionales.');
       res.json({ success: true });
     } catch (error: any) {
       console.error('❌ Error inicializando settings de mailing:', error);
