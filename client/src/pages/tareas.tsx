@@ -68,7 +68,6 @@ import {
   Palette,
   HardHat,
   FileCheck,
-  Banknote,
   RotateCcw
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -76,12 +75,11 @@ import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
-import { RutasComercialesContent } from "@/pages/rutas-comerciales";
+import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
-import { SolicitudCreditoContent } from "@/pages/solicitud-credito";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
-import SeguimientoClientes from "@/pages/seguimiento-clientes";
+import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
 import { PanelChangesBell } from "@/components/panel/PanelChangesBell";
@@ -94,6 +92,24 @@ const SEGMENTOS = [
   { value: "digital", label: "Industrial" },
   { value: "marketing", label: "Marketing" },
 ] as const;
+
+// Segmento del usuario: el valor del ERP puede llegar por distintos campos
+// según de dónde salga el usuario (assignedSegment del panel de usuarios, o el
+// `noruen`/`segmento` de ventas), igual que en el header del layout.
+const segmentoDeUsuario = (u: unknown): string | null => {
+  const raw = (u as any)?.assignedSegment ?? (u as any)?.segmento ?? (u as any)?.noruen;
+  return typeof raw === 'string' && raw.trim() ? raw : null;
+};
+
+// ¿Ese segmento es Construcción? Se compara por el token distintivo y sin
+// acentos porque la grafía del ERP varía ("CONSTRUCCION", "Construcción",
+// "CONSTRUCTORAS"). Ningún otro segmento (Ferreterías, Industrial, MCT,
+// Digital, Marketing) usa esa raíz, así que el match es seguro.
+const esSegmentoConstruccion = (raw: string | null | undefined): boolean => {
+  if (!raw) return false;
+  const s = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return s.includes('construc');
+};
 
 // Tipos de actividad (subtareas) dentro de un seguimiento de cliente
 const ACTIVIDAD_TIPOS = [
@@ -219,9 +235,8 @@ export default function TareasPage() {
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
   // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
   const canVerVisitas = can("postventa.visitas");
-  // Solicitud de Crédito vive como pestaña además de su ítem del sidebar: el
-  // vendedor la pide desde el mismo panel donde trabaja al cliente.
-  const showCreditoTab = !isMarketing && can("solicitud_credito");
+  // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
+  // propio en el sidebar (/solicitud-credito).
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
@@ -344,7 +359,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "solicitud-credito", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -731,15 +746,14 @@ export default function TareasPage() {
     if (segmentoFilter === 'construccion') {
       return true;
     }
-    // Si el usuario tiene segmento asignado directamente
-    if ((user as any)?.assignedSegment?.toLowerCase()?.includes('construcc')) {
+    // Si el usuario tiene segmento asignado directamente (en cualquiera de los
+    // campos por los que puede llegar el segmento del ERP).
+    if (esSegmentoConstruccion(segmentoDeUsuario(user))) {
       return true;
     }
     // Si es supervisor, verificar los segmentos de sus vendedores
     if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
-      return supervisorSalespeople.some(sp =>
-        sp.assignedSegment?.toLowerCase()?.includes('construcc')
-      );
+      return supervisorSalespeople.some(sp => esSegmentoConstruccion(sp.assignedSegment));
     }
     return false;
   })();
@@ -775,7 +789,7 @@ export default function TareasPage() {
   const showRutasTab = !esConstruccion;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0) + (showCreditoTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
   const tabsGridClass =
     ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7', 8: 'sm:grid-cols-8' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
@@ -802,14 +816,6 @@ export default function TareasPage() {
       setSeguimientoVista("clientes");
     }
   }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab, seguimientoVista]);
-
-  // Igual que CRM: el permiso llega asíncrono, así que solo se saca de la
-  // pestaña de crédito cuando los permisos ya están resueltos.
-  useEffect(() => {
-    if (user && permissionsReady && !showCreditoTab && activeTab === "solicitud-credito") {
-      setActiveTab("tareas");
-    }
-  }, [user, permissionsReady, showCreditoTab, activeTab]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -887,6 +893,11 @@ export default function TareasPage() {
   // El alta de obra vive dentro de la pestaña Obras; el (+) del header la abre
   // desde afuera cuando esa pestaña es la activa (ver `accionNueva`).
   const obrasRef = useRef<ControlObrasHandle>(null);
+  // Mismo mecanismo para el alta de ruta comercial y de cliente del CRM: cada
+  // pestaña resuelve qué hace el (+) del header (ver `accionNueva`).
+  const rutasRef = useRef<RutasComercialesHandle>(null);
+  const crmRef = useRef<SeguimientoClientesHandle>(null);
+  const puedeCrearRutas = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area';
 
   // "Añadir obra" desde la sub-vista de obras del Seguimiento: la pestaña Obras
   // todavía no está montada (Radix desmonta el contenido inactivo), así que el
@@ -1347,6 +1358,15 @@ export default function TareasPage() {
         };
       }
       return { label: 'Añadir seguimiento', onClick: () => openNuevoSeguimiento() };
+    }
+    if (activeTab === 'crm') {
+      return { label: 'Nuevo cliente', onClick: () => crmRef.current?.nuevoCliente() };
+    }
+    // Crear rutas es de supervisor/encargado/admin (mismo `canManage` que usa el
+    // módulo): al vendedor no le ofrecemos una acción que no puede hacer y el
+    // (+) vuelve a ser la tarea.
+    if (activeTab === 'rutas-comerciales' && puedeCrearRutas) {
+      return { label: 'Nueva ruta', onClick: () => rutasRef.current?.nuevaRuta() };
     }
     return {
       label: 'Añadir tarea',
@@ -2047,13 +2067,8 @@ export default function TareasPage() {
                 Visitas Técnicas
               </TabsTrigger>
             )}
-            {/* Solicitud de Crédito — el mismo módulo del sidebar, embebido acá */}
-            {showCreditoTab && (
-              <TabsTrigger value="solicitud-credito" data-testid="tab-solicitud-credito" className={tabTriggerClass}>
-                <Banknote className={tabIconClass} />
-                Solicitud de Crédito
-              </TabsTrigger>
-            )}
+            {/* Solicitud de Crédito ya NO es pestaña del panel: vive solo en su
+                ítem del sidebar (/solicitud-credito). */}
             <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
               <CalendarIcon className={tabIconClass} />
               Calendario
@@ -3467,7 +3482,7 @@ export default function TareasPage() {
         {/* Rutas Comerciales — el supervisor crea rutas y asigna clientes; el vendedor ve las suyas */}
         {showRutasTab && (
           <TabsContent value="rutas-comerciales" className="space-y-6">
-            <RutasComercialesContent />
+            <RutasComercialesContent ref={rutasRef} />
           </TabsContent>
         )}
 
@@ -3481,15 +3496,7 @@ export default function TareasPage() {
         {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
         {showCrmTab && (
           <TabsContent value="crm" className="space-y-6">
-            <SeguimientoClientes segmentoArea={segmentoFilter} />
-          </TabsContent>
-        )}
-
-        {/* Solicitud de Crédito — el vendedor la pide sin salir del panel; el
-            módulo sigue existiendo en el sidebar con la misma pantalla. */}
-        {showCreditoTab && (
-          <TabsContent value="solicitud-credito" className="space-y-6">
-            <SolicitudCreditoContent embedded />
+            <SeguimientoClientes ref={crmRef} segmentoArea={segmentoFilter} />
           </TabsContent>
         )}
 

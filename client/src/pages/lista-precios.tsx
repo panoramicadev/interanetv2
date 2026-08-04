@@ -25,7 +25,8 @@ interface PriceListResponse {
   hasMore: boolean;
 }
 
-// vendorView: vista de solo lectura para vendedores — sin costos, márgenes, simulador ni acciones de edición.
+// vendorView: vista de solo lectura para vendedores — ve costos, márgenes y simulador,
+// pero sin acciones de edición (editar producto, importar, ajuste masivo, listas custom).
 // Además del prop (cuando se monta desde /productos), se fuerza si el rol
 // no tiene el permiso "productos.costos" (cubre la ruta directa /lista-precios).
 export default function ListaPrecios({ vendorView: vendorViewProp = false }: { vendorView?: boolean }) {
@@ -178,7 +179,6 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
       return response.json();
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
-    enabled: !vendorView,
   });
 
   // Mutación para importar CSV
@@ -721,12 +721,12 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                     {vendorView && (
                       <TableHead className="text-right text-xs text-emerald-600 dark:text-emerald-400 font-semibold"><span className="flex items-center justify-end gap-1"><Tag className="h-3 w-3" />Ofertas</span></TableHead>
                     )}
-                    {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400"><span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span></TableHead>
-                    <TableHead className="w-16 text-xs">Acc.</TableHead>
-                    </>)}
+                    {!vendorView && (
+                      <TableHead className="w-16 text-xs">Acc.</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -764,7 +764,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                         };
 
                         const marginBadge = (margin: number | null) => {
-                          if (vendorView || margin === null) return null;
+                          if (margin === null) return null;
                           const color = margin >= 0
                             ? 'text-emerald-600/70 dark:text-emerald-400/70'
                             : 'text-red-500/70 dark:text-red-400/70';
@@ -819,7 +819,6 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                           </>
                         );
                       })()}
-                      {!vendorView && (<>
                       <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400" data-testid={`text-costo-${item.id}`}>
                         {(() => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
@@ -880,20 +879,21 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => handleEdit(item)}
-                            data-testid={`button-edit-${item.id}`}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      </>)}
+                      {!vendorView && (
+                        <TableCell className="py-2">
+                          <div className="flex gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleEdit(item)}
+                              data-testid={`button-edit-${item.id}`}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -946,22 +946,46 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                         {vendorView && (
                           <MobilePriceField label="Ofertas" value={oferta != null ? formatCurrency(oferta) : '—'} className="text-emerald-600 dark:text-emerald-400" />
                         )}
-                        {!vendorView && (
-                          <MobilePriceField
-                            label="Costo"
-                            value={costoValue ? formatCurrency(costoValue) : '-'}
-                            className="text-amber-700 dark:text-amber-400"
-                            sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
-                          />
-                        )}
-                        {!vendorView && (
-                          <MobilePriceField
-                            label="Margen"
-                            value={margenMin != null ? `${margenMin.toFixed(1)}%` : '-'}
-                            className={margenMin != null && margenMin < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
-                          />
-                        )}
+                        <MobilePriceField
+                          label="Costo"
+                          value={costoValue ? formatCurrency(costoValue) : '-'}
+                          className="text-amber-700 dark:text-amber-400"
+                          sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
+                        />
+                        <MobilePriceField
+                          label="Margen"
+                          value={margenMin != null ? `${margenMin.toFixed(1)}%` : '-'}
+                          className={margenMin != null && margenMin < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
+                        />
                       </div>
+                      {/* Simulador: calculadora local de margen, no persiste nada */}
+                      {(() => {
+                        const simPrice = simulatorPrices[item.id];
+                        const simNum = simPrice ? parseFloat(simPrice) : null;
+                        const simMargin = simNum && costoNum && simNum > 0
+                          ? ((simNum - costoNum) / simNum) * 100
+                          : null;
+                        return (
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-[10px] uppercase tracking-wide text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                              <Calculator className="h-3 w-3" />Simulador
+                            </span>
+                            <Input
+                              type="number"
+                              placeholder="$"
+                              value={simPrice || ''}
+                              onChange={(e) => setSimulatorPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              className="h-7 w-24 text-xs text-right px-1.5 border-blue-200 focus:border-blue-400"
+                              data-testid={`input-simulador-mobile-${item.id}`}
+                            />
+                            {simMargin !== null && (
+                              <span className={`text-xs font-semibold ${simMargin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                                {simMargin >= 0 ? '+' : ''}{simMargin.toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
