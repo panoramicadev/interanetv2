@@ -163,8 +163,11 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "finanzas", item: { href: "/facturas", label: "Finanzas", icon: Receipt } },
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
-  { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
+  // Solicitud de Crédito va pegada a Comisiones: las dos son Finanzas, y así el
+  // orden del menú es el mismo para el rol que la recibe como extra y para el
+  // que ya la trae en su sidebar base.
   { key: "solicitud_credito", item: { href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck } },
+  { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
   // Visitas Técnicas oculto del sidebar para todos los roles: su acceso vive como
   // pestaña del Panel de Trabajo en el área Construcción (la ruta /visitas-tecnicas
   // sigue activa y el permiso postventa.visitas sigue gobernando el acceso).

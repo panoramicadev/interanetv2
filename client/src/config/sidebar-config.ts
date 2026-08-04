@@ -214,6 +214,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/comisiones",
       label: "Comisiones",
       icon: DollarSign,
+    },
+    // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito
+    // (la misma pantalla vive además como pestaña del Panel de Trabajo).
+    {
+      href: "/solicitud-credito",
+      label: "Solicitud de Crédito",
+      icon: FileCheck,
       separator: true,
     },
     // ── Post-venta ──
@@ -1120,6 +1127,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/comisiones",
       label: "Comisiones",
       icon: DollarSign,
+    },
+    {
+      href: "/solicitud-credito",
+      label: "Solicitud de Crédito",
+      icon: FileCheck,
     },
     {
       href: "/gastos-empresariales",
