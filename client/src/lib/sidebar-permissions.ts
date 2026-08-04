@@ -34,7 +34,12 @@ import {
   Mail,
   Send,
 } from "lucide-react";
-import { SIDEBAR_CONFIG, marketingSidebarItem, type SidebarItem } from "@/config/sidebar-config";
+import {
+  SIDEBAR_CONFIG,
+  marketingSidebarItem,
+  supervisorSidebarItems,
+  type SidebarItem,
+} from "@/config/sidebar-config";
 import { PERMISSION_BY_HREF } from "@shared/permissions";
 
 type Can = (key: string) => boolean;
@@ -197,18 +202,42 @@ const EXTRAS_OCULTOS_POR_ROL: Record<string, Set<string>> = {
   salesperson: new Set(["clientes"]),
 };
 
+/** Datos del usuario que cambian su menú más allá del rol. */
+export interface SidebarContext {
+  /**
+   * `salespeople_users.assigned_segment`. Solo lo usa el supervisor, para
+   * elegir entre el menú de Construcción y el de Ferretería.
+   */
+  assignedSegment?: string | null;
+}
+
 /**
  * Construye el sidebar final del rol: base filtrado por permisos +
  * módulos extra otorgados que el base no contempla.
  */
-export function buildSidebarItems(role: string | undefined, can: Can): SidebarItem[] {
-  const base = SIDEBAR_CONFIG[role || ""] || [];
+export function buildSidebarItems(
+  role: string | undefined,
+  can: Can,
+  ctx: SidebarContext = {},
+): SidebarItem[] {
+  // El supervisor no tiene menú propio: monta el mismo del admin, elegido por
+  // su segmento (Construcción / Ferretería). Hoy los dos devuelven lo mismo;
+  // la separación existe para poder diferenciarlos después.
+  const base =
+    role === "supervisor"
+      ? supervisorSidebarItems(ctx.assignedSegment)
+      : SIDEBAR_CONFIG[role || ""] || [];
   const items = filterByPermissions(base, can);
 
   // El sidebar del admin es la referencia curada del sistema: tiene todos
   // los permisos pero solo muestra los módulos elegidos para su menú
   // (varias rutas quedan deliberadamente fuera del sidebar).
-  if (role === "admin") return filterMarketingByRole(items, role);
+  //
+  // El supervisor sale por acá también, y por lo mismo: su menú ES el del
+  // admin, así que tampoco se le agregan "extras" al final —si no, cualquier
+  // permiso suyo que el menú curado deja fuera volvería a aparecer y los dos
+  // menús dejarían de ser iguales.
+  if (role === "admin" || role === "supervisor") return filterMarketingByRole(items, role);
 
   const covered = collectCoveredKeys(base);
   const ocultos = EXTRAS_OCULTOS_POR_ROL[role || ""] ?? new Set<string>();
