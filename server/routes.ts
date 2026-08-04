@@ -24313,6 +24313,42 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Resumen de la bitácora de TODAS las obras, en una sola consulta.
+  //
+  // La bitácora de una obra vive en `pedido_bitacora` con documentoTipo='obra'
+  // (la misma tabla genérica que usan clientes y solicitudes de marketing). El
+  // listado de la pestaña Obras del Seguimiento necesita, por obra, cuántas
+  // entradas tiene y cuál fue la última: sin este endpoint serían N llamadas a
+  // /api/bitacora, una por obra.
+  //
+  // Va ANTES de /api/obras/:id para que 'bitacora-resumen' no se tome como un id.
+  app.get('/api/obras/bitacora-resumen', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    try {
+      const resultado = await db.execute(sql`
+        SELECT documento_id AS "obraId",
+               total::int AS "total",
+               problemas::int AS "problemas",
+               nota AS "ultimaNota",
+               tipo AS "ultimoTipo",
+               autor_nombre AS "ultimoAutor",
+               created_at AS "ultimaFecha"
+        FROM (
+          SELECT documento_id, nota, tipo, autor_nombre, created_at,
+                 COUNT(*) OVER (PARTITION BY documento_id) AS total,
+                 COUNT(*) FILTER (WHERE tipo = 'problema') OVER (PARTITION BY documento_id) AS problemas,
+                 ROW_NUMBER() OVER (PARTITION BY documento_id ORDER BY created_at DESC) AS rn
+          FROM pedido_bitacora
+          WHERE documento_tipo = 'obra'
+        ) ultimas
+        WHERE rn = 1
+      `);
+      res.json((resultado as any).rows ?? []);
+    } catch (error: any) {
+      console.error('❌ Error al obtener el resumen de bitácora de obras:', error);
+      res.status(500).json({ message: 'Error al obtener la bitácora de las obras', error: error.message });
+    }
+  }));
+
   // Get obra by ID
   app.get('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
