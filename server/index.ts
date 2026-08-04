@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -60,6 +60,13 @@ app.use((req, res, next) => {
       await runProductionMigrations();
     } catch (error: any) {
       console.error('❌ Error crítico en migraciones:', error.message);
+    }
+    // Aparte del bucle de migraciones a propósito: si una migración anterior
+    // falla, ese bucle corta y sin esto el login de los asistentes queda roto.
+    try {
+      await ensureOAuthTables();
+    } catch (error: any) {
+      console.error('❌ Error al verificar las tablas OAuth:', error.message);
     }
   }
 
