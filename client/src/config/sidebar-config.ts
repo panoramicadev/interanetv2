@@ -675,6 +675,15 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
   ],
 
+  // Menú estandarizado del vendedor (igual para TODOS los vendedores: se
+  // gobierna por el rol RBAC `salesperson`, no usuario por usuario).
+  //
+  // El orden es el del trabajo diario: primero vender (tomador, panel, precios,
+  // stock), después lo administrativo (gastos, crédito) y al final el
+  // seguimiento de lo que ya pasó (reclamos, pedidos).
+  //
+  // Fuera a propósito: Productos (entra solo a Lista de Precios e Inventario),
+  // Clientes (la ficha se abre desde el Panel de Trabajo) y Marketing.
   salesperson: [
     {
       href: "/",
@@ -686,40 +695,25 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
       isPremium: true,
-      separator: true,
     },
-    {
-      href: "/productos",
-      label: "Productos",
-      icon: Package,
-    },
-    {
-      // El vendedor solo gestiona su cartera: "Clientes" abre el listado directo,
-      // sin submenú (Seguimiento / Ayuda Memoria quedan fuera de su vista).
-      href: "/clientes",
-      label: "Clientes",
-      icon: Users,
-    },
-    marketingSidebarItem({ separator: true }),
     {
       href: "/tareas",
       label: "Panel de Trabajo",
       icon: CheckCircle2,
+      separator: true,
     },
     {
-      href: "/seguimiento-pedidos",
-      label: "Pedidos",
-      icon: PackageSearch,
+      // Solo la lista COMERCIAL y en solo lectura: sin el permiso
+      // "productos.costos" la página esconde costos, márgenes y edición.
+      href: "/lista-precios",
+      label: "Lista de Precios",
+      icon: FileSpreadsheet,
     },
     {
-      href: "/mis-pedidos",
-      label: "Mis Pedidos",
-      icon: ShoppingCart,
-    },
-    {
-      href: "/reclamos-generales",
-      label: "Reclamos",
-      icon: AlertTriangle,
+      href: "/inventario",
+      label: "Inventarios",
+      icon: Warehouse,
+      separator: true,
     },
     {
       href: "/gastos-empresariales",
@@ -727,10 +721,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/catalogo",
-      label: "Mi Catálogo",
-      icon: ExternalLink,
-      isExternalCatalog: true,
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+    {
+      href: "/seguimiento-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
     },
     // Tintometría oculta temporalmente para vendedores
     // {
