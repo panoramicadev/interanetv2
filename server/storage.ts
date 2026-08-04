@@ -384,8 +384,9 @@ import {
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
+import { normalizeRut } from "@shared/rut";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
@@ -12227,6 +12228,40 @@ export class DatabaseStorage implements IStorage {
     )`;
   }
 
+  // Búsqueda libre del listado de clientes: nombre, RUT o código.
+  //
+  // El RUT se compara TAMBIÉN en forma normalizada (sin puntos, guion ni espacios)
+  // porque en la tabla conviven los dos formatos: el ETL guarda el RUT tal como
+  // viene del ERP y el alta manual lo guarda como "12.345.678-9" (formatRut).
+  // Con un LIKE literal, buscar "77454264" no encuentra "77.454.264-7", así que
+  // las fichas duplicadas bajo un mismo RUT quedaban invisibles según cómo se
+  // tipeara el término.
+  //
+  // La comparación normalizada se aplica solo cuando el término parece un RUT
+  // (dígitos, puntos, guion y un dígito verificador opcional) para no ensuciar
+  // las búsquedas por nombre que contienen números.
+  private clientSearchCondition(rawTerm: string) {
+    const term = rawTerm.trim();
+
+    // Insensible a tildes: "jose" encuentra "José" y viceversa.
+    const parts = [
+      accentInsensitiveContains(clients.nokoen, term),
+      accentInsensitiveContains(clients.rten, term),
+      accentInsensitiveContains(clients.koen, term),
+    ];
+
+    const rutTerm = normalizeRut(term);
+    if (/^[\d.\-\s]+[kK]?$/.test(term) && rutTerm.length >= 6) {
+      const stripped = (col: AnyColumn) =>
+        sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${col}, '')), '.', ''), '-', ''), ' ', '')`;
+      const pattern = `%${rutTerm}%`;
+      parts.push(sql`${stripped(clients.rten)} LIKE ${pattern}`);
+      parts.push(sql`${stripped(clients.koen)} LIKE ${pattern}`);
+    }
+
+    return sql`(${sql.join(parts, sql` OR `)})`;
+  }
+
   // Agrupación de estados de pedido eCommerce para el filtro del listado de clientes.
   // El badge "Estado Pedido" puede mostrar muchos estados; aquí se agrupan los
   // sinónimos para que el filtro sea claro y accionable.
@@ -12378,11 +12413,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
 
     if (filters?.search) {
-      // Insensible a tildes: "jose" encuentra "José" y viceversa.
-      const term = filters.search.trim();
-      conditions.push(
-        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
-      );
+      conditions.push(this.clientSearchCondition(filters.search));
     }
 
     if (filters?.segment) {
@@ -12703,11 +12734,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.search) {
-      // Insensible a tildes: "jose" encuentra "José" y viceversa.
-      const term = filters.search.trim();
-      conditions.push(
-        sql`(${accentInsensitiveContains(clients.nokoen, term)} OR ${accentInsensitiveContains(clients.rten, term)} OR ${accentInsensitiveContains(clients.koen, term)})`
-      );
+      conditions.push(this.clientSearchCondition(filters.search));
     }
 
     if (filters?.segment) {
