@@ -14058,7 +14058,63 @@ export class DatabaseStorage implements IStorage {
       }
     });
 
-    return Array.from(taskMap.values());
+    const allTasks = Array.from(taskMap.values());
+    await this.enrichSeguimientoTasks(allTasks);
+    return allTasks;
+  }
+
+  // El supervisor necesita ver, sin abrir cada cliente, cuáles tienen tareas
+  // internas (actividades) pendientes y hace cuánto que no pasa nada con ellos.
+  // Se resuelve con dos agregados sobre TODOS los seguimientos de la respuesta
+  // (no una consulta por tarjeta): actividades y comentarios del hilo.
+  private async enrichSeguimientoTasks(tasksList: Array<Task & { assignments: TaskAssignment[] }>): Promise<void> {
+    const seguimientos = tasksList.filter((t) => (t.payload as any)?.kind === 'seguimiento_cliente');
+    if (seguimientos.length === 0) return;
+
+    const idList = sql.join(seguimientos.map((t) => sql`${t.id}`), sql`, `);
+    let actRows: any[] = [];
+    let comRows: any[] = [];
+    try {
+      const [actRes, comRes]: any[] = await Promise.all([
+        db.execute(sql`
+          SELECT task_id,
+                 COUNT(*)::int AS total,
+                 SUM(CASE WHEN estado <> 'completada' THEN 1 ELSE 0 END)::int AS pendientes,
+                 MAX(GREATEST(updated_at, created_at)) AS ultima
+          FROM task_actividades
+          WHERE task_id IN (${idList})
+          GROUP BY task_id
+        `),
+        db.execute(sql`
+          SELECT a.task_id AS task_id, MAX(c.created_at) AS ultima
+          FROM task_comments c
+          JOIN task_assignments a ON a.id = c.assignment_id
+          WHERE a.task_id IN (${idList})
+          GROUP BY a.task_id
+        `),
+      ]);
+      actRows = (Array.isArray(actRes) ? actRes : actRes?.rows) || [];
+      comRows = (Array.isArray(comRes) ? comRes : comRes?.rows) || [];
+    } catch (err: any) {
+      // Los contadores son informativos: si el agregado falla, el panel sigue
+      // funcionando sin los badges en vez de caerse entero.
+      console.error('Error calculando pendientes de seguimiento:', err?.message || err);
+      return;
+    }
+
+    const actMap = new Map<string, any>(actRows.map((r: any) => [String(r.task_id), r]));
+    const comMap = new Map<string, any>(comRows.map((r: any) => [String(r.task_id), r]));
+
+    for (const task of seguimientos) {
+      const act = actMap.get(task.id);
+      const com = comMap.get(task.id);
+      const marcas = [task.updatedAt, act?.ultima, com?.ultima]
+        .map((d) => (d ? new Date(d as any).getTime() : 0))
+        .filter((n) => n > 0);
+      (task as any).actividadesTotal = Number(act?.total ?? 0);
+      (task as any).actividadesPendientes = Number(act?.pendientes ?? 0);
+      (task as any).ultimaInteraccion = marcas.length > 0 ? new Date(Math.max(...marcas)).toISOString() : null;
+    }
   }
 
   async getTask(id: string): Promise<Task & { assignments: TaskAssignment[] } | undefined> {
