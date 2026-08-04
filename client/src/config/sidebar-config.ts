@@ -919,7 +919,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   // solicitudes y sus tareas viven ahí. Antes tenía además el Panel de Trabajo, que
   // le mostraba lo mismo con otra interfaz (una bandeja de solicitudes distinta y un
   // "Mis tareas" paralelo) y era la principal fuente de confusión.
-  marketing: [marketingSidebarItem()],
+  //
+  // Acá las sub-secciones van planas, al mismo nivel, y no colgando de un desplegable
+  // "Marketing": para este rol el módulo ES el sistema, así que un grupo que agrupa
+  // todo el menú no separa nada y solo agrega un clic para llegar a cualquier parte.
+  // Los demás roles sí lo siguen viendo agrupado, porque ahí Marketing es un módulo
+  // más entre varios (ver `marketingSidebarItem`).
+  marketing: marketingChildren(),
 };
 
 const GASTOS_SIDEBAR_ITEM: SidebarItem = {

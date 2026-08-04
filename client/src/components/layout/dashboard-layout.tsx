@@ -138,8 +138,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Solicitudes de Marketing esperando respuesta: el número va en el propio ítem del
   // menú para que la encargada sepa que hay algo que atender sin entrar al módulo.
+  // El ítem puede venir dentro del grupo "Marketing" (roles que tienen el módulo
+  // entre varios) o suelto en el primer nivel (rol Marketing, que lo tiene plano).
   const hasMarketingInbox = useMemo(
-    () => sidebarItems.some((item) => item.children?.some((c) => c.href === "/marketing/solicitudes")),
+    () =>
+      sidebarItems.some(
+        (item) =>
+          item.href === "/marketing/solicitudes" ||
+          item.children?.some((c) => c.href === "/marketing/solicitudes"),
+      ),
     [sidebarItems],
   );
   const { data: marketingSolicitudes = [] } = useQuery<Array<{ estado: string }>>({
@@ -165,6 +172,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const isActive = location === item.href;
     const isNotif = item.href === "/notificaciones";
     const isAi = item.href === "/ai-assistant";
+    // Bandeja de Marketing suelta en el primer nivel: lleva el mismo contador que
+    // cuando cuelga del grupo "Marketing".
+    const isMarketingInbox = item.href === "/marketing/solicitudes";
     const isPremium = item.isPremium;
     const isExpanded = expandedItems.has(item.href);
     const hasChildren = item.children && item.children.length > 0;
@@ -325,7 +335,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
             >
               <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
-              {isNotif && unreadCount > 0 && (
+              {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0)) && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
               )}
             </button>
@@ -381,6 +391,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 data-testid="notification-badge"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+            {isMarketingInbox && marketingPorAceptar > 0 && (
+              <span
+                className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                  isActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+                }`}
+                data-testid="badge-solicitudes-marketing"
+              >
+                {marketingPorAceptar}
               </span>
             )}
           </button>
