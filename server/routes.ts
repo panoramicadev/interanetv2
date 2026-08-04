@@ -18,6 +18,13 @@ import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { LocalImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
+import {
+  parseFichaOverrides,
+  effectivePriceList,
+  resolvePriceListForClient,
+  invalidatePriceListCache,
+  DEFAULT_PRICE_LIST,
+} from "./price-list-resolver";
 import { db } from "./db";
 import {
   clients,
@@ -500,27 +507,36 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   });
 }
 
-// ficha_overrides es JSONB y puede llegar como string (según el driver) u objeto.
-function parseFichaOverrides(raw: any): Record<string, any> {
-  if (!raw) return {};
-  if (typeof raw === 'string') {
-    try { return JSON.parse(raw) || {}; } catch { return {}; }
-  }
-  if (typeof raw === 'object') return raw;
-  return {};
-}
+// La lista de precios de un cliente (declarada, heredada de la matriz y
+// validada contra las listas que la intranet sabe cotizar) vive en un solo
+// lugar: server/price-list-resolver.ts, importado arriba. Catálogo, búsqueda
+// por SKU y checkout llaman al mismo resolvedor para no cobrar listas distintas.
 
-// Lista de precios efectiva de un cliente: el override manual guardado en
-// ficha_overrides.priceList (que el ETL nunca sobrescribe) prevalece sobre el
-// lcen sincronizado desde Softland. Devuelve null si no hay ninguno.
-// Acepta tanto la fila camelCase de Drizzle (fichaOverrides) como la cruda
-// de db.execute (ficha_overrides).
-function effectivePriceList(client: any): string | null {
-  const ov = parseFichaOverrides(client?.fichaOverrides ?? client?.ficha_overrides);
-  const override = typeof ov.priceList === 'string' ? ov.priceList.trim() : '';
-  if (override) return override;
-  const lcen = (client?.lcen && typeof client.lcen === 'string') ? client.lcen.trim() : '';
-  return lcen || null;
+/**
+ * Guarda la lista de precios que un admin le asigna a un cliente.
+ *
+ * Va SIEMPRE a clients.ficha_overrides.priceList, no a clients.lcen: el ETL
+ * reescribe lcen con el valor de Softland en cada sincronización, así que una
+ * lista guardada solo ahí se perdía sola a las pocas horas y el marketplace
+ * volvía a cobrar la lista del ERP. ficha_overrides es la única columna que el
+ * ETL no toca. `code` vacío/null quita la asignación manual (vuelve al ERP).
+ */
+async function persistPriceListAssignment(clientId: string, code: string | null | undefined) {
+  if (!clientId) return;
+  const cur: any = await db.execute(sql`SELECT ficha_overrides FROM clients WHERE id = ${clientId} LIMIT 1`);
+  const rows = Array.isArray(cur) ? cur : (cur?.rows || []);
+  if (rows.length === 0) return;
+  const overrides = parseFichaOverrides(rows[0].ficha_overrides);
+  const clean = (code || '').toString().trim().toUpperCase();
+  if (clean) overrides.priceList = clean;
+  else delete overrides.priceList;
+  const hasAny = Object.keys(overrides).length > 0;
+  await db.execute(sql`
+    UPDATE clients
+    SET ficha_overrides = ${hasAny ? JSON.stringify(overrides) : null}::jsonb,
+        updated_at = now()
+    WHERE id = ${clientId}
+  `);
 }
 
 export function registerRoutes(app: Express): Server {
@@ -2317,8 +2333,8 @@ export function registerRoutes(app: Express): Server {
       let fichaRows: any[] = [];
       try {
         const fichaResult = await db.execute(sql`
-          SELECT id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
-                 cpen, kofuen, lcen, crlt, cren, crsd, ficha_overrides
+          SELECT id, parent_client_id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
+                 cpen, kofuen, lcen, crlt, cren, crsd, dccr, ficha_overrides
           FROM clients
           WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
              OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
@@ -2448,6 +2464,11 @@ export function registerRoutes(app: Express): Server {
 
       const linked = !!(ecommerceAccount && ecommerceAccount.client_id);
 
+      // Lista de precios con la que se le cotiza en Panorámica Market: la misma
+      // resolución que usan el catálogo y el checkout, para que la ficha no
+      // muestre una lista que en realidad no se está aplicando.
+      const fichaPriceList = await resolvePriceListForClient(ficha);
+
       res.json({
         hasFicha: !!ficha,
         ficha: ficha
@@ -2461,6 +2482,7 @@ export function registerRoutes(app: Express): Server {
               commune: fichaOv.commune ?? (ficha.cmen || ficha.comuna || null),
               email: fichaOv.email ?? ficha.email,
               paymentCondition: ficha.cpen,
+              creditDays: ficha.dccr != null ? Number(ficha.dccr) : null,
               salesRepCode: ficha.kofuen,
               // Lista efectiva (override manual > lcen del ERP). priceListOverride indica
               // si fue fijada a mano, y priceListErp es el valor crudo de Softland, para que
@@ -2468,6 +2490,12 @@ export function registerRoutes(app: Express): Server {
               priceList: effectivePriceList(ficha),
               priceListOverride: (typeof fichaOv.priceList === 'string' && fichaOv.priceList.trim()) ? fichaOv.priceList.trim() : null,
               priceListErp: ficha.lcen ?? null,
+              // Lo que de verdad se le cobra en Panorámica Market. Si no coincide
+              // con priceList es porque esa lista no tiene precios en la intranet
+              // (código de lista del ERP) y se está cotizando la comercial.
+              priceListCharged: fichaPriceList.code,
+              priceListChargedName: fichaPriceList.name,
+              priceListUsable: fichaPriceList.usable,
               creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
@@ -2710,6 +2738,168 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // CRÉDITO DEL CLIENTE — fuente de verdad única
+  // ───────────────────────────────────────────────────────────────────────────
+  // Una sola respuesta con TODO el panorama de crédito de un cliente: la línea
+  // asignada, la deuda, el vencido, el por vencer, el disponible, la antigüedad
+  // de la deuda y el detalle de documentos. La pestaña Crédito de la ficha y el
+  // panel de Cobranza del Panel de Trabajo consumen este mismo endpoint, así que
+  // no pueden mostrar números distintos.
+  //
+  // Todo sale de ventas.fact_ventas con el cálculo ya validado en la ficha:
+  // saldo del documento = vabrdo - vaabdo, dedup por idmaeedo, solo documentos
+  // pendientes (espgdo='P') de tipo FCV/FDV. La deuda NO se lee de clients.crsd
+  // (viene vacío/no fidedigno desde el ERP); de clients solo se toma la línea de
+  // crédito (crlt) y los días de crédito (dccr).
+  //
+  // Alcance: la empresa completa (casa matriz + sucursales que comparten nombre
+  // o RUT), igual que el resto de la ficha.
+  app.get('/api/clients/credito', requireAuth, async (req, res) => {
+    try {
+      const name = ((req.query.name as string) || '').trim();
+      const rut = ((req.query.rut as string) || '').trim();
+      if (!name && !rut) {
+        return res.status(400).json({ message: 'name o rut es requerido' });
+      }
+
+      const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
+      const upperName = name.toUpperCase();
+      const cleanRut = normalizeRut(rut);
+
+      // Filas de la empresa, casa matriz primero (misma regla que account-status).
+      const fichaResult: any = await db.execute(sql`
+        SELECT id, koen, nokoen, rten, cpen, crlt, dccr, kofuen, parent_client_id
+        FROM clients
+        WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
+           OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
+        ORDER BY parent_client_id NULLS FIRST
+      `);
+      const fichaRows = (Array.isArray(fichaResult) ? fichaResult : (fichaResult.rows || [])) as any[];
+      const principal = fichaRows[0] || null;
+      const koens = Array.from(new Set(fichaRows.map((f) => f.koen).filter(Boolean)));
+
+      // Línea de crédito: la de la casa matriz; si no tiene, la primera sucursal
+      // que sí la tenga. Sin línea asignada queda en null (≠ límite cero).
+      const limitRow = fichaRows.find((f) => f.crlt != null);
+      const limit = limitRow ? Number(limitRow.crlt) : null;
+
+      const empty = {
+        client: principal
+          ? {
+              id: principal.id,
+              clientCode: principal.koen ?? null,
+              name: principal.nokoen ?? name,
+              rut: principal.rten ?? null,
+              paymentCondition: principal.cpen ?? null,
+              creditDays: principal.dccr != null ? Number(principal.dccr) : null,
+              salesRepCode: principal.kofuen ?? null,
+              branchCount: fichaRows.length,
+            }
+          : null,
+        credit: {
+          limit,
+          used: 0, overdue: 0, upcoming: 0,
+          available: limit != null ? limit : null,
+          exceeded: false,
+          overdueSince: null as string | null,
+          nextDueDate: null as string | null,
+          documentCount: 0,
+          oldestOverdueDays: null as number | null,
+        },
+        aging: { porVencer: 0, d1a30: 0, d31a60: 0, d61a90: 0, d90mas: 0 },
+        docs: [] as any[],
+      };
+
+      if (koens.length === 0) return res.json(empty);
+
+      const docsResult: any = await db.execute(sql`
+        SELECT idmaeedo,
+               MAX(nudo) AS nudo,
+               MAX(tido) AS tido,
+               MAX(endo) AS endo,
+               MAX(feemdo) AS emision,
+               MAX(fe01vedo) AS vencimiento,
+               MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo
+        FROM ventas.fact_ventas
+        WHERE endo IN (${sql.join(koens.map((k: string) => sql`${k}`), sql`, `)})
+          AND tido IN ('FCV', 'FDV')
+          AND espgdo = 'P'
+        GROUP BY idmaeedo
+        HAVING (MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0))) > 0
+        ORDER BY MAX(fe01vedo) ASC NULLS LAST
+      `);
+      const docRows = (Array.isArray(docsResult) ? docsResult : (docsResult.rows || [])) as any[];
+
+      const fmtDate = (v: any) => (v == null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const diasDesde = (fecha: string | null) => {
+        if (!fecha) return null;
+        const d = new Date(`${fecha}T00:00:00`);
+        if (isNaN(d.getTime())) return null;
+        return Math.floor((hoy.getTime() - d.getTime()) / 86_400_000);
+      };
+
+      const docs = docRows.map((d) => {
+        const vencimiento = fmtDate(d.vencimiento);
+        const dias = diasDesde(vencimiento);
+        // Sin fecha de vencimiento el documento cuenta como por vencer, no como
+        // vencido: no hay evidencia de que se haya pasado la fecha.
+        const vencida = dias != null && dias > 0;
+        return {
+          nudo: d.nudo != null ? String(d.nudo) : null,
+          tido: d.tido ? String(d.tido).trim() : null,
+          clientCode: d.endo ? String(d.endo).trim() : null,
+          emision: fmtDate(d.emision),
+          vencimiento,
+          saldo: Number(d.saldo) || 0,
+          diasVencido: vencida ? dias : 0,
+          vencida,
+        };
+      });
+
+      const suma = (f: (d: typeof docs[number]) => boolean) =>
+        docs.filter(f).reduce((t, d) => t + d.saldo, 0);
+
+      const used = suma(() => true);
+      const overdue = suma((d) => d.vencida);
+      const upcoming = suma((d) => !d.vencida);
+      const vencidos = docs.filter((d) => d.vencida);
+      const porVencerDocs = docs.filter((d) => !d.vencida && d.vencimiento);
+
+      res.json({
+        client: empty.client,
+        credit: {
+          limit,
+          used,
+          overdue,
+          upcoming,
+          // Sin línea asignada no hay disponible que calcular.
+          available: limit != null ? limit - used : null,
+          exceeded: limit != null && used > limit,
+          overdueSince: vencidos.length > 0 ? vencidos[0].vencimiento : null,
+          nextDueDate: porVencerDocs.length > 0 ? porVencerDocs[0].vencimiento : null,
+          documentCount: docs.length,
+          oldestOverdueDays: vencidos.length > 0 ? Math.max(...vencidos.map((d) => d.diasVencido)) : null,
+        },
+        // Antigüedad de la deuda vencida, en tramos: para saber si lo vencido es
+        // de la semana pasada o de hace tres meses.
+        aging: {
+          porVencer: upcoming,
+          d1a30: suma((d) => d.vencida && d.diasVencido <= 30),
+          d31a60: suma((d) => d.vencida && d.diasVencido > 30 && d.diasVencido <= 60),
+          d61a90: suma((d) => d.vencida && d.diasVencido > 60 && d.diasVencido <= 90),
+          d90mas: suma((d) => d.vencida && d.diasVencido > 90),
+        },
+        docs,
+      });
+    } catch (error) {
+      console.error('[credito] error:', error);
+      res.status(500).json({ message: 'Error al obtener el crédito del cliente' });
+    }
+  });
+
   // Crédito vencido por cliente para la vista rápida del listado. Recibe la página
   // visible y devuelve, por cada cliente con código (koen), el monto vencido de su
   // cartera. Reproduce el mismo cálculo validado de /api/clients/account-status
@@ -2915,8 +3105,19 @@ export function registerRoutes(app: Express): Server {
       }
 
       // El storefront (tienda/carrito) usa client.lcen como lista de precios. Exponemos
-      // la lista efectiva (override manual > ERP) para que coincida con lo que cobra el checkout.
-      res.json({ ...client, lcen: effectivePriceList(client), parentNokoen, parentGien });
+      // la lista que realmente se cobra (override manual > matriz > ERP, validada)
+      // para que coincida con el catálogo y con el checkout.
+      const resolvedList = await resolvePriceListForClient(client);
+      res.json({
+        ...client,
+        lcen: resolvedList.code,
+        priceList: resolvedList.code,
+        priceListName: resolvedList.name,
+        priceListAssigned: resolvedList.assigned,
+        priceListUsable: resolvedList.usable,
+        parentNokoen,
+        parentGien,
+      });
     } catch (error) {
       console.error('Error al obtener datos del cliente:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
@@ -8983,9 +9184,15 @@ export function registerRoutes(app: Express): Server {
   //     instead of the client's lcen, and convenio discount is NOT applied (the salesperson
   //     already chose the final tier).
   async function resolveItemsPricing(items: any[], client: any | null) {
-    const priceListCode = (effectivePriceList(client) || 'LP01').toUpperCase();
+    // Misma resolución que el catálogo: override de la ficha > lista heredada de
+    // la casa matriz > lcen del ERP, validada contra las listas cotizables.
+    const resolvedList = await resolvePriceListForClient(client);
+    const priceListCode = resolvedList.code;
+    if (!resolvedList.usable && resolvedList.assigned) {
+      console.warn(`[PRECIOS] cliente ${client?.id} tiene lista "${resolvedList.assigned}" sin precios en la intranet — se cobra ${priceListCode}`);
+    }
     const branchDiscountPct = client?.branchDiscountPercent ? parseFloat(client.branchDiscountPercent as string) || 0 : 0;
-    const useCustomList = priceListCode !== 'LP01';
+    const useCustomList = priceListCode !== DEFAULT_PRICE_LIST;
 
     // Targeting de ofertas: una oferta aplica si es para todos (all_clients) o si
     // este cliente está en su lista. Matcheamos por id exacto o por mismo RUT (para
@@ -9038,7 +9245,7 @@ export function registerRoutes(app: Express): Server {
             FROM price_list pl
             LEFT JOIN custom_price_list_items cpli
               ON UPPER(cpli.codigo) = UPPER(pl.codigo)
-             AND cpli.list_code = ${priceListCode}
+             AND UPPER(cpli.list_code) = ${priceListCode}
             LEFT JOIN price_list_offers offers
               ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}
             WHERE UPPER(pl.codigo) IN (${skuList})
@@ -15287,7 +15494,8 @@ export function registerRoutes(app: Express): Server {
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
-          lcen: clientRecord?.lcen || null,
+          // Lista asignada a mano (sobrevive al ETL) o, si no hay, la del ERP.
+          lcen: effectivePriceList(clientRecord),
           parentClientId: clientRecord?.parentClientId || clientRecord?.parent_client_id || null,
           branchLabel: clientRecord?.branchLabel || clientRecord?.branch_label || null,
           freeShipping: !!(clientRecord?.freeShipping ?? clientRecord?.free_shipping),
@@ -15322,7 +15530,8 @@ export function registerRoutes(app: Express): Server {
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
-          lcen: clientRecord?.lcen || null,
+          // Lista asignada a mano (sobrevive al ETL) o, si no hay, la del ERP.
+          lcen: effectivePriceList(clientRecord),
           parentClientId: clientRecord?.parentClientId || clientRecord?.parent_client_id || null,
           branchLabel: clientRecord?.branchLabel || clientRecord?.branch_label || null,
           freeShipping: !!(clientRecord?.freeShipping ?? clientRecord?.free_shipping),
@@ -16108,6 +16317,12 @@ export function registerRoutes(app: Express): Server {
         })
         .where(eq(clients.id, id));
 
+      // La lista elegida acá se guarda además como asignación manual, que es lo
+      // único que sobrevive al ETL (lcen lo pisa la próxima sincronización).
+      if (lcen !== undefined) {
+        await persistPriceListAssignment(id, lcen);
+      }
+
       res.json({ success: true, message: "Información comercial actualizada" });
     } catch (error: any) {
       console.error("Error updating commercial info:", error);
@@ -16518,6 +16733,13 @@ export function registerRoutes(app: Express): Server {
         lcen: lcen || parentClient.lcen || null,
       }).returning();
 
+      // Lista elegida para la sucursal: además de lcen, se guarda como asignación
+      // manual para que no se la lleve el ETL. Sin lista propia, la sucursal
+      // hereda la de la casa matriz al cotizar (ver price-list-resolver).
+      if (lcen) {
+        await persistPriceListAssignment(branchClient.id, lcen);
+      }
+
       // Link users to the new branch client record via junction table (multi-branch support)
       const { userBranchAssignments } = await import('@shared/schema');
       for (const branchUser of branchUsers) {
@@ -16675,6 +16897,12 @@ export function registerRoutes(app: Express): Server {
       }
 
       await dbInstance.update(clientsTable).set(updateData).where(eq(clientsTable.id, branchId));
+
+      // La lista de la sucursal se guarda también como asignación manual: lcen lo
+      // reescribe el ETL en la próxima sincronización. Vacío = vuelve a heredar.
+      if (lcen !== undefined) {
+        await persistPriceListAssignment(branchId, lcen);
+      }
 
       res.json({
         success: true,
@@ -19596,6 +19824,7 @@ export function registerRoutes(app: Express): Server {
       
       const { customPriceLists } = await import('@shared/schema');
       const [list] = await db.insert(customPriceLists).values({ code, name }).returning();
+      invalidatePriceListCache();
       res.status(201).json(list);
     } catch (error) {
       console.error("Error creating custom price list:", error);
@@ -19621,6 +19850,7 @@ export function registerRoutes(app: Express): Server {
         .where(eq(customPriceLists.code, code))
         .returning();
       if (!list) return res.status(404).json({ message: "List not found" });
+      invalidatePriceListCache();
       res.json(list);
     } catch (error) {
       console.error("Error updating custom price list:", error);
@@ -19640,6 +19870,7 @@ export function registerRoutes(app: Express): Server {
       const { customPriceLists, customPriceListItems } = await import('@shared/schema');
       await db.delete(customPriceListItems).where(eq(customPriceListItems.listCode, code));
       await db.delete(customPriceLists).where(eq(customPriceLists.code, code));
+      invalidatePriceListCache();
       res.json({ message: "Deleted successfully" });
     } catch (error) {
       console.error("Error deleting custom price list:", error);
@@ -20949,14 +21180,18 @@ export function registerRoutes(app: Express): Server {
 
   // Build the full catalog
   const buildStoreCatalog = async (priceList?: string): Promise<{ catalog: any[]; totalProducts: number }> => {
+    // El código llega ya resuelto y validado por price-list-resolver; se normaliza
+    // igual acá porque el checkout compara list_code en mayúsculas y catálogo y
+    // cobro tienen que mirar exactamente la misma lista.
+    const listCode = (priceList || DEFAULT_PRICE_LIST).trim().toUpperCase();
    // Check cache only if no custom price list
-    const useCache = !priceList || priceList === 'LP01';
+    const useCache = listCode === DEFAULT_PRICE_LIST;
     if (useCache && _storeCatalogCache && Date.now() - _storeCatalogCache.builtAt < STORE_CACHE_TTL) {
       return _storeCatalogCache;
     }
 
     // Any list other than LP01 is a custom list that uses custom_price_list_items
-    const useCustomList = priceList && priceList !== 'LP01';
+    const useCustomList = listCode !== DEFAULT_PRICE_LIST;
 
     const result = await db.execute(sql`
       SELECT
@@ -20976,7 +21211,7 @@ export function registerRoutes(app: Express): Server {
           ? sql`COALESCE(cpli.precio, pl.lista, ep.precio_ecommerce) as precio`
           : sql`COALESCE(ep.precio_ecommerce, pl.lista) as precio`},
         ${useCustomList
-          ? sql`CASE WHEN cpli.precio IS NOT NULL THEN ${priceList} ELSE 'LP01' END as price_source`
+          ? sql`CASE WHEN cpli.precio IS NOT NULL THEN ${listCode} ELSE 'LP01' END as price_source`
           : sql`'LP01' as price_source`},
         pl.codigo as sku,
         pl.producto as product_name,
@@ -20995,7 +21230,7 @@ export function registerRoutes(app: Express): Server {
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
       ${useCustomList
-        ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}`
+        ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND UPPER(cpli.list_code) = ${listCode}`
         : sql``}
       -- Catálogo compartido/cacheado: solo ofertas globales (all_clients). Las ofertas
       -- dirigidas a clientes específicos se aplican al precio en el carrito/checkout
@@ -21187,7 +21422,7 @@ export function registerRoutes(app: Express): Server {
     if (useCache) {
       _storeCatalogCache = result2;
     }
-    console.log(`[STORE CACHE] Built catalog: ${catalog.length} groups, ${(rows as any[]).length} products` + (priceList ? ` (priceList: ${priceList})` : ''));
+    console.log(`[STORE CACHE] Built catalog: ${catalog.length} groups, ${(rows as any[]).length} products (lista: ${listCode})`);
     return result2;
   };
 
@@ -21240,15 +21475,17 @@ export function registerRoutes(app: Express): Server {
       const allBranches = await dbInstance.select().from(clientsTable)
         .where(inArray(clientsTable.id, Array.from(branchClientIds)));
 
-      const branches = allBranches.map(b => ({
+      // priceList es la lista que se le cobra de verdad a esa sucursal (ya
+      // heredada de la matriz y validada), no el código crudo de la ficha.
+      const branches = await Promise.all(allBranches.map(async b => ({
         id: b.id,
         name: b.nokoen || b.branchLabel || 'Sin nombre',
         branchLabel: b.branchLabel || null,
         isRoot: !b.parentClientId,
         address: b.dien || null,
         discountPercent: b.branchDiscountPercent ? parseFloat(b.branchDiscountPercent as string) : 0,
-        priceList: effectivePriceList(b),
-      }));
+        priceList: (await resolvePriceListForClient(b)).code,
+      })));
 
       res.json({
         branches,
@@ -21262,8 +21499,45 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/store/products/grouped', async (req: any, res) => {
     try {
-      const { search, category, priceList } = req.query;
-      const fullCatalog = await buildStoreCatalog(priceList as string | undefined);
+      const { search, category, priceList, branchId } = req.query;
+
+      // ─── Lista de precios: la decide el servidor, no el navegador ───
+      // Para un cliente logueado la lista sale de SU ficha (override manual >
+      // lista heredada de la casa matriz > lcen del ERP), la misma que aplica
+      // resolveItemsPricing al cobrar. Antes se usaba el `?priceList=` que
+      // mandaba la tienda, así que la vitrina podía mostrar una lista y el
+      // checkout cobrar otra. El param solo sigue valiendo para el equipo
+      // comercial (tomador de pedidos), y siempre validado.
+      let clientRecord: any = null;
+      let resolvedList: Awaited<ReturnType<typeof resolvePriceListForClient>> | null = null;
+
+      if (req.user && req.user.role === 'client') {
+        try {
+          if (branchId) {
+            const { clients: clientsLookup } = await import('@shared/schema');
+            const { eq: eqLookup } = await import('drizzle-orm');
+            const [explicitBranch] = await db.select().from(clientsLookup).where(eqLookup(clientsLookup.id, branchId as string)).limit(1);
+            if (explicitBranch) clientRecord = explicitBranch;
+          }
+          if (!clientRecord) clientRecord = await storage.getClientByUserId(req.user.id);
+        } catch (e) {
+          console.warn('[STORE] no se pudo resolver el cliente del catálogo:', e);
+        }
+        resolvedList = await resolvePriceListForClient(clientRecord);
+        if (!resolvedList.usable && resolvedList.assigned) {
+          // La ficha dice una lista que la intranet no sabe cotizar (típicamente
+          // un código de lista del ERP). Se cobra la comercial y queda el aviso.
+          console.warn(`[STORE] cliente ${clientRecord?.id || req.user.id} tiene lista "${resolvedList.assigned}" sin precios en la intranet — se cotiza ${resolvedList.code}`);
+        }
+      } else if (priceList) {
+        // Rol interno cotizando para un cliente: se acepta el param pero se
+        // valida contra las listas cotizables (y se normaliza a mayúsculas,
+        // porque el checkout compara en mayúsculas).
+        resolvedList = await resolvePriceListForClient({ lcen: String(priceList) });
+      }
+
+      const effectivePriceListCode = resolvedList?.code ?? DEFAULT_PRICE_LIST;
+      const fullCatalog = await buildStoreCatalog(effectivePriceListCode);
 
       let filtered = fullCatalog.catalog;
 
@@ -21285,24 +21559,12 @@ export function registerRoutes(app: Express): Server {
       // Strip internal _searchText field before sending
       let cleanCatalog = filtered.map(({ _searchText, ...rest }: any) => rest);
 
-      // ─── Resolve client context (for branch discount and targeted offers) ───
+      // ─── Convenio por sucursal + ofertas dirigidas ───
+      // Usa el mismo `clientRecord` con el que se resolvió la lista de precios.
       let branchDiscountApplied = 0;
       let targetedOffersApplied = 0;
       if (req.user && req.user.role === 'client') {
         try {
-          const { branchId } = req.query;
-          let clientRecord: any;
-
-          if (branchId) {
-            const { clients: clientsLookup } = await import('@shared/schema');
-            const { eq: eqLookup } = await import('drizzle-orm');
-            const { db: dbLookup } = await import('./db');
-            const [explicitBranch] = await dbLookup.select().from(clientsLookup).where(eqLookup(clientsLookup.id, branchId as string)).limit(1);
-            if (explicitBranch) clientRecord = explicitBranch;
-          } else {
-            clientRecord = await storage.getClientByUserId(req.user.id);
-          }
-
           // Look up offers targeted to this client (by id or same RUT — to cover all
           // branches of a company even when the user is on the parent). The catalog
           // already includes all_clients=true offers; we layer the targeted ones on top.
@@ -21386,12 +21648,22 @@ export function registerRoutes(app: Express): Server {
 
       // Cache control: disable cache when client has custom price list, branch discount,
       // or per-client targeted offers (any of these makes the response client-specific).
-      if ((priceList && priceList !== 'LP01') || branchDiscountApplied > 0 || targetedOffersApplied > 0) {
+      if (effectivePriceListCode !== DEFAULT_PRICE_LIST || branchDiscountApplied > 0 || targetedOffersApplied > 0) {
         res.set('Cache-Control', 'no-store');
       } else {
         res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
       }
-      res.json({ catalog: cleanCatalog, totalProducts: fullCatalog.totalProducts, branchDiscountPercent: branchDiscountApplied || undefined });
+      res.json({
+        catalog: cleanCatalog,
+        totalProducts: fullCatalog.totalProducts,
+        branchDiscountPercent: branchDiscountApplied || undefined,
+        // Lista con la que se cotizó esta respuesta, para que la tienda pueda
+        // mostrarla y no haya dudas de qué precios está viendo el cliente.
+        priceList: effectivePriceListCode,
+        priceListName: resolvedList?.name ?? null,
+        priceListAssigned: resolvedList?.assigned ?? null,
+        priceListUsable: resolvedList ? resolvedList.usable : true,
+      });
     } catch (error) {
       console.error('Error fetching store grouped products:', error);
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
@@ -21445,8 +21717,8 @@ export function registerRoutes(app: Express): Server {
       console.warn('[sku-lookup] client resolution failed:', e);
     }
 
-    const priceListCode = (effectivePriceList(clientRecord) || 'LP01').toUpperCase();
-    const useCustomList = priceListCode !== 'LP01';
+    const priceListCode = (await resolvePriceListForClient(clientRecord)).code;
+    const useCustomList = priceListCode !== DEFAULT_PRICE_LIST;
     const branchDiscountPct = clientRecord?.branchDiscountPercent ? parseFloat(clientRecord.branchDiscountPercent as string) || 0 : 0;
     const discountFactor = branchDiscountPct > 0 && branchDiscountPct <= 100 ? 1 - branchDiscountPct / 100 : 1;
 
@@ -21482,7 +21754,7 @@ export function registerRoutes(app: Express): Server {
           pc.imagen_destacada  AS imagen_destacada
         FROM price_list pl
         ${useCustomList
-          ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceListCode}`
+          ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND UPPER(cpli.list_code) = ${priceListCode}`
           : sql``}
         LEFT JOIN price_list_offers offers
           ON UPPER(offers.codigo) = UPPER(pl.codigo) AND (offers.paused IS NULL OR offers.paused = false) AND ${offerAudienceClause}

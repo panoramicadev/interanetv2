@@ -4,6 +4,7 @@ import { validateApiKey, requireApiRole, type ApiAuthRequest } from './middlewar
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { db } from './db';
+import { resolvePriceListForClient } from './price-list-resolver';
 import {
   users,
   notifications,
@@ -4790,6 +4791,8 @@ router.get('/clientes/estado-cuenta', async (req: ApiAuthRequest, res) => {
     const fichaId = ficha?.id || null;
     const effPriceList = (fichaOv.priceList && String(fichaOv.priceList).trim())
       ? String(fichaOv.priceList).trim() : (ficha?.lcen ?? 'LP01');
+    // Lista que realmente se cobra: misma resolución que el catálogo y el checkout.
+    const fichaPriceList = await resolvePriceListForClient(ficha);
 
     const companyIds = Array.from(new Set(fichaRows.map((f: any) => f.id).filter(Boolean)));
     const companyRuts = Array.from(new Set(
@@ -4887,6 +4890,10 @@ router.get('/clientes/estado-cuenta', async (req: ApiAuthRequest, res) => {
         salesRepCode: ficha.kofuen,
         priceList: effPriceList,
         priceListErp: ficha.lcen ?? null,
+        // Lista con la que se le cotiza de verdad (ver price-list-resolver):
+        // si difiere de priceList, esa lista no tiene precios en la intranet.
+        priceListCharged: fichaPriceList.code,
+        priceListUsable: fichaPriceList.usable,
         creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
         creditUsed: carteraUsado,
         creditOverdue: carteraVencido,
@@ -5101,6 +5108,8 @@ router.get('/clientes/:id/ficha', async (req: ApiAuthRequest, res) => {
     }
 
     const creditLimit = ficha.crlt != null ? Number(ficha.crlt) : null;
+    // Lista que realmente se cobra: misma resolución que el catálogo y el checkout.
+    const fichaPriceList = await resolvePriceListForClient(ficha);
     res.json({
       id: ficha.id,
       clientCode: ficha.koen,
@@ -5114,6 +5123,8 @@ router.get('/clientes/:id/ficha', async (req: ApiAuthRequest, res) => {
       salesRepCode: ficha.kofuen,
       priceList: (fichaOv.priceList && String(fichaOv.priceList).trim()) ? String(fichaOv.priceList).trim() : (ficha.lcen ?? 'LP01'),
       priceListErp: ficha.lcen ?? null,
+      priceListCharged: fichaPriceList.code,
+      priceListUsable: fichaPriceList.usable,
       businessType: ficha.gien ?? null,
       creditLimit,
       creditUsed: cartera.usado,
