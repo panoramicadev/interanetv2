@@ -404,7 +404,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema, insertObraProductoMovimientoSchema, insertObraEtapaSchema, obraTiposViviendaPayloadSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema, insertObraSchema, insertObraProductoSchema, insertObraProductoMovimientoSchema, insertObraEtapaSchema, insertObraBitacoraSchema, obraTiposViviendaPayloadSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -24315,30 +24315,25 @@ export function registerRoutes(app: Express): Server {
 
   // Resumen de la bitácora de TODAS las obras, en una sola consulta.
   //
-  // La bitácora de una obra vive en `pedido_bitacora` con documentoTipo='obra'
-  // (la misma tabla genérica que usan clientes y solicitudes de marketing). El
-  // listado de la pestaña Obras del Seguimiento necesita, por obra, cuántas
-  // entradas tiene y cuál fue la última: sin este endpoint serían N llamadas a
-  // /api/bitacora, una por obra.
+  // El listado de la pestaña Obras del Seguimiento muestra, en cada fila, cuánta
+  // bitácora tiene la obra y cuál fue la última nota —es lo que dice si la obra
+  // está siendo seguida—. Sin este endpoint sería una llamada a
+  // /api/obras/:id/bitacora por cada obra de la cartera.
   //
   // Va ANTES de /api/obras/:id para que 'bitacora-resumen' no se tome como un id.
   app.get('/api/obras/bitacora-resumen', requireAuth, asyncHandler(async (_req: any, res: any) => {
     try {
       const resultado = await db.execute(sql`
-        SELECT documento_id AS "obraId",
+        SELECT obra_id AS "obraId",
                total::int AS "total",
-               problemas::int AS "problemas",
-               nota AS "ultimaNota",
-               tipo AS "ultimoTipo",
+               texto AS "ultimaNota",
                autor_nombre AS "ultimoAutor",
                created_at AS "ultimaFecha"
         FROM (
-          SELECT documento_id, nota, tipo, autor_nombre, created_at,
-                 COUNT(*) OVER (PARTITION BY documento_id) AS total,
-                 COUNT(*) FILTER (WHERE tipo = 'problema') OVER (PARTITION BY documento_id) AS problemas,
-                 ROW_NUMBER() OVER (PARTITION BY documento_id ORDER BY created_at DESC) AS rn
-          FROM pedido_bitacora
-          WHERE documento_tipo = 'obra'
+          SELECT obra_id, texto, autor_nombre, created_at,
+                 COUNT(*) OVER (PARTITION BY obra_id) AS total,
+                 ROW_NUMBER() OVER (PARTITION BY obra_id ORDER BY created_at DESC) AS rn
+          FROM obra_bitacora
         ) ultimas
         WHERE rn = 1
       `);
@@ -24384,7 +24379,18 @@ export function registerRoutes(app: Express): Server {
       if (!tipos.success) {
         return res.status(400).json({ message: 'Tipos de vivienda inválidos', errors: tipos.error.errors });
       }
-      const nuevaObra = await storage.createObra(parsed.data);
+      // La obra queda vinculada SOLA a quien la crea y a su supervisor. Antes
+      // había que hacerlo a mano y, cuando se hacía dos veces, la obra sumaba
+      // dos veces en los totales del supervisor. No se lee del body: el dueño lo
+      // decide el servidor por el usuario de la sesión.
+      const usuario = req.user;
+      const vendedorId = usuario?.role === 'salesperson' ? usuario.id : null;
+      const supervisorId = usuario?.role === 'supervisor' || usuario?.role === 'encargado_area'
+        ? usuario.id
+        : vendedorId
+          ? await storage.getSupervisorIdDeVendedor(vendedorId)
+          : null;
+      const nuevaObra = await storage.createObra({ ...parsed.data, vendedorId, supervisorId });
       const tiposVivienda = await storage.reemplazarTiposVivienda(
         nuevaObra.id,
         tipos.data.map((t) => ({
@@ -24457,6 +24463,85 @@ export function registerRoutes(app: Express): Server {
   // ----------------------------------------------
   // Productos por obra (desglose del despacho por SKU)
   // ----------------------------------------------
+  // Cotizaciones colgadas de una obra. Es el camino de vuelta del campo "Obra"
+  // del tomador: desde la obra se ve qué se le cotizó.
+  app.get('/api/obras/:id/cotizaciones', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { quotes: quotesTable } = await import('@shared/schema');
+      const filas = await db
+        .select({
+          id: quotesTable.id,
+          quoteNumber: quotesTable.quoteNumber,
+          clientName: quotesTable.clientName,
+          status: quotesTable.status,
+          total: quotesTable.total,
+          createdAt: quotesTable.createdAt,
+        })
+        .from(quotesTable)
+        .where(eq(quotesTable.obraId, req.params.id))
+        .orderBy(desc(quotesTable.createdAt));
+      res.json(filas);
+    } catch (error: any) {
+      console.error('❌ Error al obtener las cotizaciones de la obra:', error);
+      res.status(500).json({ message: 'Error al obtener las cotizaciones', error: error.message });
+    }
+  }));
+
+  // --- Bitácora de la obra ---
+  // Una por obra: la constructora con cinco proyectos tiene cinco historias.
+  // Va anidada bajo la obra porque no existe fuera de ella.
+  app.get('/api/obras/:id/bitacora', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      res.json(await storage.getObraBitacora(req.params.id));
+    } catch (error: any) {
+      console.error('❌ Error al obtener la bitácora de la obra:', error);
+      res.status(500).json({ message: 'Error al obtener la bitácora', error: error.message });
+    }
+  }));
+
+  app.post('/api/obras/:id/bitacora', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = insertObraBitacoraSchema.safeParse({ ...req.body, obraId: req.params.id });
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Nota inválida', errors: parsed.error.errors });
+      }
+      const usuario = req.user;
+      // El autor lo pone el servidor: una nota de bitácora vale por quién la
+      // escribió, así que no puede venir del cliente.
+      const autorNombre =
+        usuario?.salespersonName
+        || `${usuario?.firstName ?? ''} ${usuario?.lastName ?? ''}`.trim()
+        || usuario?.email
+        || null;
+      const nota = await storage.createObraBitacora({
+        ...parsed.data,
+        autorId: usuario?.id ?? null,
+        autorNombre,
+      });
+      res.status(201).json(nota);
+    } catch (error: any) {
+      console.error('❌ Error al escribir en la bitácora de la obra:', error);
+      res.status(500).json({ message: 'Error al guardar la nota', error: error.message });
+    }
+  }));
+
+  // Borra su propia nota; admin y supervisor pueden borrar cualquiera.
+  app.delete('/api/obras/bitacora/:notaId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const usuario = req.user;
+      const nota = await storage.getObraBitacoraNota(req.params.notaId);
+      const mandan = usuario?.role === 'admin' || usuario?.role === 'supervisor' || usuario?.role === 'encargado_area';
+      if (nota && !mandan && nota.autorId !== usuario?.id) {
+        return res.status(403).json({ message: 'Solo podés borrar tus propias notas' });
+      }
+      await storage.deleteObraBitacora(req.params.notaId);
+      res.json({ message: 'Nota eliminada' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar la nota de bitácora:', error);
+      res.status(500).json({ message: 'Error al eliminar la nota', error: error.message });
+    }
+  }));
+
   // Ruta propia (no anidada bajo /api/obras/:id) para no competir con
   // /api/obras/:id en el matcher de Express.
 

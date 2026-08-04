@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BitacoraObra, hace, tipoBitacora } from "@/components/obras/bitacora";
+import { BitacoraObra } from "@/components/obras/bitacora";
 import { BadgeEstado, BarraAvance } from "@/components/obras/celdas";
 import {
   calcularObra,
@@ -58,12 +58,26 @@ import {
 interface ResumenBitacora {
   obraId: string;
   total: number;
-  problemas: number;
   ultimaNota: string | null;
-  ultimoTipo: string | null;
   ultimoAutor: string | null;
   ultimaFecha: string | null;
 }
+
+/** "hace 3 días" — la antigüedad de la última nota es lo que se mira primero. */
+const hace = (valor: string | Date | null | undefined) => {
+  if (!valor) return "";
+  const d = new Date(valor);
+  if (isNaN(d.getTime())) return "";
+  const min = Math.round((Date.now() - d.getTime()) / 60000);
+  if (min < 1) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  const horas = Math.round(min / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.round(horas / 24);
+  if (dias < 31) return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
+  const meses = Math.round(dias / 30);
+  return `hace ${meses} ${meses === 1 ? "mes" : "meses"}`;
+};
 
 interface FilaSeguimiento {
   calc: ObraCalculada;
@@ -363,7 +377,6 @@ export function SeguimientoObrasContent({ onIrAObras }: { onIrAObras?: () => voi
 function FilaObraSeguimiento({ fila, onAbrir }: { fila: FilaSeguimiento; onAbrir: () => void }) {
   const { calc, bitacora } = fila;
   const obra = calc.obra;
-  const cfgTipo = tipoBitacora(bitacora?.ultimoTipo);
 
   const contexto = [obra.ciudad, obra.programa, obra.temporada, obra.etapa].filter(Boolean).join(" · ");
 
@@ -405,17 +418,16 @@ function FilaObraSeguimiento({ fila, onAbrir }: { fila: FilaSeguimiento; onAbrir
           {bitacora && bitacora.total > 0 ? (
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${cfgTipo.color}`}>
-                  <cfgTipo.icon className="h-2.5 w-2.5" />
-                  {cfgTipo.label}
+                <MessageSquare className="h-3 w-3 text-slate-300 dark:text-slate-600 flex-shrink-0" />
+                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  {hace(bitacora.ultimaFecha)}
                 </span>
-                <span className="text-[10px] text-slate-400 whitespace-nowrap">{hace(bitacora.ultimaFecha)}</span>
-                {bitacora.problemas > 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
-                    <AlertTriangle className="h-2.5 w-2.5" />
-                    {bitacora.problemas}
-                  </span>
+                {bitacora.ultimoAutor && (
+                  <span className="text-[10px] text-slate-400 truncate">· {bitacora.ultimoAutor}</span>
                 )}
+                <span className="text-[10px] tabular-nums text-slate-300 dark:text-slate-600 ml-auto">
+                  {bitacora.total}
+                </span>
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{bitacora.ultimaNota}</div>
             </div>
@@ -665,7 +677,7 @@ function DetalleObra({
           titulo="Bitácora de la obra"
           descripcion="Visitas, avances, pedidos comprometidos y problemas"
         >
-          <BitacoraObra obra={obra} />
+          <BitacoraObra obraId={obra.id} obraNombre={obra.nombre} />
         </Seccion>
       </div>
     </div>

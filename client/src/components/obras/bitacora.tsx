@@ -1,16 +1,13 @@
 /**
- * Bitácora de una obra — el hilo de lo que va pasando en terreno.
+ * Bitácora de una obra — lo que pasa en terreno y no es un número.
  *
- * La planilla y el panel de productos cuentan CUÁNTO (viviendas pintadas,
- * tinetas pedidas, saldo en obra). Lo que no cabía en ningún número es el
- * relato: que la cuadrilla entró recién el lunes, que el mandante cambió el
- * color de la fachada, que quedó una tineta abierta en bodega. Eso es lo que se
- * escribe acá, y es lo que se lee antes de llamar a la constructora.
+ * Es UNA POR OBRA, no una del cliente: la constructora con cinco proyectos tiene
+ * cinco historias distintas, y mezcladas la nota no sirve para nada. Va como una
+ * fila más de la planilla, debajo de los productos de la obra, porque se escribe
+ * en el mismo momento en que se cargan los números de la visita.
  *
- * Las entradas viven en `pedido_bitacora` con documentoTipo='obra' — la misma
- * tabla genérica (nota + tipo + autor + fecha) que ya usan la ficha del cliente
- * y las solicitudes de marketing. No hay tabla nueva: el formato es idéntico y
- * los endpoints /api/bitacora ya existen.
+ * La escribe cualquiera que entre a la obra —incluido el vendedor—; borrar solo
+ * lo propio, salvo admin y supervisor.
  */
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -19,250 +16,201 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  AlertTriangle,
-  Loader2,
-  MapPin,
-  MessageSquare,
-  Paintbrush,
-  Send,
-  ShoppingCart,
-  Trash2,
-} from "lucide-react";
-import type { ObraConCliente, PedidoBitacora } from "@shared/schema";
+import { BookOpen, FileText, Loader2, Send, Trash2 } from "lucide-react";
+import type { ObraBitacora } from "@shared/schema";
+
+const fmtCuando = (valor: string | Date | null | undefined) => {
+  if (!valor) return "";
+  const d = new Date(valor as any);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+};
+
+interface CotizacionDeObra {
+  id: string;
+  quoteNumber: string;
+  clientName: string;
+  status: string | null;
+  total: string | null;
+  createdAt: string | null;
+}
 
 /**
- * Tipos de entrada de la bitácora de obra.
- *
- * Son los del `tipo` de pedido_bitacora (texto libre en la base), elegidos para
- * lo que de verdad se anota en una obra: la visita, cómo viene el avance, el
- * pedido que se prometió y el problema que hay que resolver.
+ * Las cotizaciones que se le hicieron a esta obra — el camino de vuelta del
+ * campo "Obra" del tomador de pedidos. Sin esto la relación se veía solo desde
+ * la cotización, que es el lado que no se mira cuando se está en la obra.
  */
-export const OBRA_BITACORA_TIPOS = [
-  { value: "visita", label: "Visita", icon: MapPin, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" },
-  { value: "avance", label: "Avance", icon: Paintbrush, color: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300" },
-  { value: "pedido", label: "Pedido", icon: ShoppingCart, color: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" },
-  { value: "problema", label: "Problema", icon: AlertTriangle, color: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300" },
-  { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300" },
-] as const;
-
-export const tipoBitacora = (tipo: string | null | undefined) =>
-  OBRA_BITACORA_TIPOS.find((t) => t.value === tipo) ?? OBRA_BITACORA_TIPOS[4];
-
-/** Clave de caché de las entradas de una obra (para invalidar desde afuera). */
-export const claveBitacoraObra = (obraId: string) => ["/api/bitacora", "obra", obraId];
-
-const fechaLarga = new Intl.DateTimeFormat("es-CL", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-export const fmtFecha = (valor: string | Date | null | undefined) => {
-  if (!valor) return "—";
-  const d = new Date(valor);
-  return isNaN(d.getTime()) ? "—" : fechaLarga.format(d);
-};
-
-/** "hace 3 días" — la antigüedad es lo primero que se mira en un hilo. */
-export const hace = (valor: string | Date | null | undefined) => {
-  if (!valor) return "";
-  const d = new Date(valor);
-  if (isNaN(d.getTime())) return "";
-  const min = Math.round((Date.now() - d.getTime()) / 60000);
-  if (min < 1) return "recién";
-  if (min < 60) return `hace ${min} min`;
-  const horas = Math.round(min / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  const dias = Math.round(horas / 24);
-  if (dias < 31) return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
-  const meses = Math.round(dias / 30);
-  return `hace ${meses} ${meses === 1 ? "mes" : "meses"}`;
-};
-
-export function BitacoraObra({ obra }: { obra: ObraConCliente }) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [tipo, setTipo] = useState<string>("visita");
-  const [nota, setNota] = useState("");
-
-  // Una entrada de bitácora es un registro de lo que pasó: la borra quien la
-  // escribió, o quien manda en el área si quedó mal cargada.
-  const puedeBorrarTodo =
-    user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
-
-  const { data: entradas = [], isLoading } = useQuery<PedidoBitacora[]>({
-    queryKey: claveBitacoraObra(obra.id),
+function CotizacionesDeObra({ obraId }: { obraId: string }) {
+  const { data: cotizaciones = [] } = useQuery<CotizacionDeObra[]>({
+    queryKey: ["/api/obras", obraId, "cotizaciones"],
     queryFn: async () => {
-      const params = new URLSearchParams({ documentoTipo: "obra", documentoId: obra.id });
-      const res = await apiRequest(`/api/bitacora?${params}`);
+      const res = await apiRequest(`/api/obras/${obraId}/cotizaciones`);
       return res.json();
     },
   });
 
-  const invalidar = () => {
-    queryClient.invalidateQueries({ queryKey: claveBitacoraObra(obra.id) });
-    // El listado de obras muestra la última entrada y el contador de cada una.
-    queryClient.invalidateQueries({ queryKey: ["/api/obras/bitacora-resumen"] });
-  };
+  if (cotizaciones.length === 0) return null;
 
-  const agregar = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("/api/bitacora", {
-        method: "POST",
-        data: {
-          documentoTipo: "obra",
-          documentoId: obra.id,
-          // Con qué obra y de qué constructora, para que la entrada se entienda
-          // sola si algún día se lee fuera de esta pantalla (documento_numero es
-          // varchar(100): el nombre de la obra va recortado a esa medida).
-          documentoNumero: obra.nombre.slice(0, 100),
-          clienteNombre: obra.clienteNombre,
-          nota: nota.trim(),
-          tipo,
-        },
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      setNota("");
-      invalidar();
-    },
-    onError: (error: any) => {
-      toast({ title: "No se pudo guardar la entrada", description: error?.message, variant: "destructive" });
-    },
-  });
-
-  const eliminar = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest(`/api/bitacora/${id}`, { method: "DELETE" });
-    },
-    onSuccess: invalidar,
-    onError: (error: any) => {
-      toast({ title: "No se pudo eliminar la entrada", description: error?.message, variant: "destructive" });
-    },
-  });
-
-  const enviar = () => {
-    if (!nota.trim()) return;
-    agregar.mutate();
+  const fmtMonto = (valor: string | null) => {
+    const n = Number(valor ?? 0);
+    return Number.isFinite(n) ? `$${Math.round(n).toLocaleString("es-CL")}` : "—";
   };
 
   return (
-    <div className="space-y-4">
-      {/* ---------- Escribir ---------- */}
-      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-3.5 shadow-sm">
-        <div className="flex flex-wrap gap-1.5">
-          {OBRA_BITACORA_TIPOS.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setTipo(t.value)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all ${t.color} ${
-                tipo === t.value
-                  ? "ring-2 ring-offset-1 ring-slate-400 dark:ring-offset-slate-900"
-                  : "opacity-70 hover:opacity-100"
-              }`}
-              data-testid={`button-bitacora-tipo-${t.value}`}
-            >
-              <t.icon className="h-3 w-3" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <Textarea
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter manda; Shift+Enter hace párrafo. Una bitácora se escribe de a
-            // una línea, así que pedir el mouse para guardar sobra.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              enviar();
-            }
-          }}
-          placeholder={`¿Qué pasó en ${obra.nombre}? (visita, avance, pedido prometido, problema…)`}
-          rows={3}
-          className="mt-3 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-400 focus:ring-orange-400/20 resize-none"
-          data-testid="input-bitacora-nota"
-        />
-        <div className="mt-2.5 flex items-center justify-between gap-3">
-          <span className="text-[11px] text-slate-400">Enter para guardar · Shift + Enter para otra línea</span>
-          <Button
-            onClick={enviar}
-            disabled={!nota.trim() || agregar.isPending}
-            className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
-            data-testid="button-bitacora-guardar"
-          >
-            {agregar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-            Registrar
-          </Button>
-        </div>
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-slate-400">
+        <FileText className="h-3 w-3" />
+        Cotizaciones de esta obra
+        <span className="tabular-nums text-slate-300">· {cotizaciones.length}</span>
       </div>
-
-      {/* ---------- Hilo ---------- */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10 text-slate-400">
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </div>
-      ) : entradas.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-10 text-center">
-          <MessageSquare className="h-7 w-7 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Bitácora vacía</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Anota la primera visita a la obra: lo que se vio en terreno y lo que quedó comprometido.
-          </p>
-        </div>
-      ) : (
-        <div data-testid="lista-bitacora-obra">
-          {entradas.map((entrada, i) => {
-            const cfg = tipoBitacora(entrada.tipo);
-            const ultima = i === entradas.length - 1;
-            const puedeBorrar = puedeBorrarTodo || entrada.autorId === user?.id;
-            return (
-              <div key={entrada.id} className="flex gap-3 relative">
-                {!ultima && (
-                  <div className="absolute left-[17px] top-9 w-px h-[calc(100%-16px)] bg-slate-200 dark:bg-slate-700" />
-                )}
-                <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center z-10 ${cfg.color}`}>
-                  <cfg.icon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 pb-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
-                    <span
-                      className="text-[11px] text-slate-400 ml-auto whitespace-nowrap"
-                      title={fmtFecha(entrada.createdAt)}
-                    >
-                      {hace(entrada.createdAt)}
-                    </span>
-                    {puedeBorrar && (
-                      <button
-                        onClick={() => eliminar.mutate(entrada.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
-                        title="Eliminar entrada"
-                        data-testid={`button-bitacora-eliminar-${entrada.id}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-700 dark:text-slate-200 mt-1 whitespace-pre-wrap">{entrada.nota}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    por {entrada.autorNombre} · {fmtFecha(entrada.createdAt)}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <ul className="space-y-1">
+        {cotizaciones.map((c) => (
+          <li
+            key={c.id}
+            className="flex items-center gap-2 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 px-2.5 py-1.5 text-xs"
+            data-testid={`cotizacion-obra-${c.id}`}
+          >
+            <span className="font-bold tabular-nums text-slate-600 dark:text-slate-300">{c.quoteNumber}</span>
+            <span className="text-slate-400 truncate flex-1 min-w-0">{c.clientName}</span>
+            <span className="tabular-nums font-semibold text-slate-600 dark:text-slate-300">{fmtMonto(c.total)}</span>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">{c.status ?? "—"}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-export default BitacoraObra;
+export function BitacoraObra({ obraId, obraNombre }: { obraId: string; obraNombre: string }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [texto, setTexto] = useState("");
+
+  const clave = ["/api/obras", obraId, "bitacora"];
+
+  // Escribir o borrar cambia además la última nota y el contador que muestra el
+  // listado de Seguimiento → Obras (que los pide todos juntos, no obra por obra).
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: clave });
+    queryClient.invalidateQueries({ queryKey: ["/api/obras/bitacora-resumen"] });
+  };
+
+  const { data: notas = [], isLoading } = useQuery<ObraBitacora[]>({
+    queryKey: clave,
+    queryFn: async () => {
+      const res = await apiRequest(`/api/obras/${obraId}/bitacora`);
+      return res.json();
+    },
+  });
+
+  const escribir = useMutation({
+    mutationFn: async (nota: string) => {
+      const res = await apiRequest(`/api/obras/${obraId}/bitacora`, { method: "POST", data: { texto: nota } });
+      return res.json();
+    },
+    onSuccess: () => {
+      setTexto("");
+      refrescar();
+    },
+    onError: (error: any) => {
+      toast({ title: "No se pudo guardar la nota", description: error?.message, variant: "destructive" });
+    },
+  });
+
+  const borrar = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest(`/api/obras/bitacora/${id}`, { method: "DELETE" });
+    },
+    onSuccess: refrescar,
+    onError: (error: any) => {
+      toast({ title: "No se pudo borrar la nota", description: error?.message, variant: "destructive" });
+    },
+  });
+
+  const mandan = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
+  const puedeBorrar = (nota: ObraBitacora) => mandan || nota.autorId === user?.id;
+
+  const guardar = () => {
+    const limpio = texto.trim();
+    if (!limpio) return;
+    escribir.mutate(limpio);
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <CotizacionesDeObra obraId={obraId} />
+
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-slate-400">
+        <BookOpen className="h-3 w-3" />
+        Bitácora de {obraNombre}
+        {notas.length > 0 && <span className="tabular-nums text-slate-300">· {notas.length}</span>}
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter manda, Shift+Enter hace salto: se escribe de a una línea
+            // desde el celular, en la obra.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              guardar();
+            }
+          }}
+          rows={2}
+          placeholder="Qué pasó en la obra: avance, quién estaba, qué quedó pendiente…"
+          className="min-h-[52px] resize-none rounded-xl text-sm"
+          data-testid={`input-bitacora-${obraId}`}
+        />
+        <Button
+          onClick={guardar}
+          disabled={!texto.trim() || escribir.isPending}
+          className="h-9 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white text-xs font-semibold flex-shrink-0"
+          data-testid={`button-bitacora-guardar-${obraId}`}
+        >
+          {escribir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
+        </div>
+      ) : notas.length === 0 ? (
+        <p className="text-xs text-slate-400">
+          Todavía no hay notas de esta obra. Lo que se escriba acá queda con la obra, no con la constructora.
+        </p>
+      ) : (
+        <ul className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+          {notas.map((nota) => (
+            <li
+              key={nota.id}
+              className="group/nota rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 px-3 py-2"
+              data-testid={`nota-bitacora-${nota.id}`}
+            >
+              <div className="flex items-start gap-2">
+                <p className="flex-1 min-w-0 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words">
+                  {nota.texto}
+                </p>
+                {puedeBorrar(nota) && (
+                  <button
+                    onClick={() => borrar.mutate(nota.id)}
+                    className="opacity-0 group-hover/nota:opacity-100 focus:opacity-100 text-slate-300 hover:text-red-600 transition-all flex-shrink-0"
+                    aria-label="Borrar nota"
+                    data-testid={`button-borrar-nota-${nota.id}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-400">
+                {nota.autorNombre || "—"} · {fmtCuando(nota.createdAt)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
