@@ -8,6 +8,8 @@
  * desincronicen entre ambos lados.
  */
 
+import { normalizarGeoCrm } from "./chile-geo";
+
 export type CrmImportField =
   | "nombre" | "empresa" | "rut" | "telefono" | "email"
   | "region" | "comuna" | "contactoEncargado" | "segmento"
@@ -218,14 +220,18 @@ export function mapRowToLead(raw: Record<string, any>): CrmImportRow {
   const estadoRaw = pick(raw, "estado");
   const prioridadRaw = pick(raw, "prioridad");
   const origenRaw = pick(raw, "origen");
+  // Comuna y región entran canónicas: una planilla con "ARAUCANIA" o "las
+  // condes" no puede volver a ensuciar el catálogo. Si la comuna no resuelve se
+  // conserva el texto, para no descartar en silencio lo que escribió el vendedor.
+  const geo = normalizarGeoCrm({ comuna: pick(raw, "comuna"), region: pick(raw, "region") });
   return {
     nombre: pick(raw, "nombre") || "",
     empresa: pick(raw, "empresa"),
     rut: pick(raw, "rut"),
     telefono: pick(raw, "telefono"),
     email: pick(raw, "email"),
-    region: pick(raw, "region"),
-    comuna: pick(raw, "comuna"),
+    region: geo.region,
+    comuna: geo.comuna,
     contactoEncargado: pick(raw, "contactoEncargado"),
     segmento: pick(raw, "segmento"),
     condicionPago: pick(raw, "condicionPago"),

@@ -387,21 +387,20 @@ import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
-import { getComunaRegion } from "./chile-regions";
-import { comunaRegionService } from "./comunaRegionService";
+import { SIN_COMUNA, SIN_REGION, regionDeComuna, resolveComuna } from "@shared/chile-geo";
 import { generateTrackingCode } from "./utils/tracking-code";
 import { fuzzyRank } from "./utils/fuzzy-match";
 import mssql from 'mssql';
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-// Utility function to normalize comuna names for consistent regional mapping
+// Nombre de comuna para reportes: resuelve contra el catálogo canónico de Chile
+// (@shared/chile-geo) para que "LAS CONDES", "Las condes" y "las  condes" caigan
+// todas en la misma barra del gráfico. Lo que no resuelve se muestra tal cual
+// vino, en vez de descartarse.
 function normalizeComunaName(name: string | null): string | null {
   if (!name) return null;
-  return name.trim().toUpperCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-    .replace(/\s+/g, ' '); // collapse spaces
+  return resolveComuna(name)?.nombre ?? name.trim().replace(/\s+/g, ' ');
 }
 
 // Utility function to extract packaging type from product names
@@ -6451,8 +6450,6 @@ export class DatabaseStorage implements IStorage {
         email: clients.email,
         foen: clients.foen,
         comuna: clients.comuna,
-        // Campos extra para pre-rellenar el alta del CRM desde la base de clientes
-        region: sql<string>`(SELECT region FROM comuna_region_mapping WHERE UPPER(TRIM(comuna_normalized)) = UPPER(TRIM(${clients.comuna})) AND is_active = true LIMIT 1)`.as('cliente_region'),
         cpen: clients.cpen,
         purchasingContactName: clients.purchasingContactName,
         cnen: clients.cnen,
@@ -6465,7 +6462,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(clients.nokoen))
       .limit(50);
 
-    return result as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>;
+    // Comuna y región canónicas para pre-rellenar el alta del CRM ya normalizada.
+    return result.map((c) => {
+      const comuna = resolveComuna(c.comuna);
+      return {
+        ...c,
+        comuna: comuna?.nombre ?? c.comuna ?? undefined,
+        region: comuna ? regionDeComuna(comuna.nombre)?.nombreCorto : undefined,
+      };
+    }) as Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>;
   }
 
   // Sales data for goals comparison
@@ -12010,7 +12015,7 @@ export class DatabaseStorage implements IStorage {
     const normalizedMap = new Map<string, { totalSales: number; transactionCount: number }>();
 
     for (const result of results) {
-      const normalizedComuna = normalizeComunaName(result.rawComuna) || 'Sin comuna';
+      const normalizedComuna = normalizeComunaName(result.rawComuna) || SIN_COMUNA;
       const existing = normalizedMap.get(normalizedComuna) || { totalSales: 0, transactionCount: 0 };
 
       normalizedMap.set(normalizedComuna, {
@@ -12099,26 +12104,18 @@ export class DatabaseStorage implements IStorage {
         'Sin comuna'
       )`);
 
-    // Map comunas to regions using the new intelligent matching service (parallel processing)
+    // Agrupar por región usando el catálogo canónico. Antes esto resolvía comuna
+    // por comuna contra la tabla comuna_region_mapping con distancia de
+    // Levenshtein: una query por comuna, y con un umbral de confianza que dejaba
+    // pasar matches equivocados. El catálogo es exacto y en memoria.
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
     let unknownRegionSales = 0;
     let unknownRegionCount = 0;
 
-    // Process all comunas in parallel for better performance
-    const regionMatches = await Promise.all(
-      comunaResults.map(async (comunaData) => {
-        const regionMatch = await comunaRegionService.findRegion(comunaData.rawComuna);
-        return { comunaData, regionMatch };
-      })
-    );
+    for (const comunaData of comunaResults) {
+      const finalRegion = regionDeComuna(comunaData.rawComuna)?.nombreCorto ?? SIN_REGION;
 
-    for (const { comunaData, regionMatch } of regionMatches) {
-      // Map regions with confidence-based handling
-      const finalRegion = regionMatch.region === 'Sin región' || regionMatch.confidence < 0.6
-        ? 'Sin región'
-        : regionMatch.region;
-
-      if (finalRegion === 'Sin región') {
+      if (finalRegion === SIN_REGION) {
         unknownRegionSales += Number(comunaData.totalSales);
         unknownRegionCount += Number(comunaData.transactionCount);
       }
@@ -12143,7 +12140,7 @@ export class DatabaseStorage implements IStorage {
 
     // Log unknown region stats for observability
     if (unknownRegionSales > 0) {
-      console.log(`📊 Regional analysis: ${unknownRegionCount} transactions (${(unknownRegionSales / totalSales * 100).toFixed(2)}%) mapped to 'Sin región'`);
+      console.log(`📊 Regional analysis: ${unknownRegionCount} transactions (${(unknownRegionSales / totalSales * 100).toFixed(2)}%) mapped to '${SIN_REGION}'`);
     }
 
     return regionResults;
@@ -17123,13 +17120,16 @@ export class DatabaseStorage implements IStorage {
         )`)
         .orderBy(sql`COUNT(*) DESC`); // Sort by transaction count
 
-      // Return only the raw data without normalization
-      // The actual region matching will be done by the ComunaRegionService
-      return comunaResults.map(result => ({
-        comuna: result.rawComuna,
-        transactionCount: Number(result.transactionCount),
-        totalSales: Number(result.totalSales)
-      }));
+      // Solo las que NO resuelven contra el catálogo canónico: son las que hay
+      // que corregir en el ERP o agregar como alias en @shared/chile-geo.
+      // (Antes esto devolvía TODAS las comunas, no las no-matcheadas.)
+      return comunaResults
+        .filter(result => !resolveComuna(result.rawComuna))
+        .map(result => ({
+          comuna: result.rawComuna,
+          transactionCount: Number(result.transactionCount),
+          totalSales: Number(result.totalSales)
+        }));
     } catch (error) {
       console.error('Error getting unmatched comunas:', error);
       return [];

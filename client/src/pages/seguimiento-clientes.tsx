@@ -39,8 +39,16 @@ import {
   fixEncoding, getInitials,
 } from "@/lib/crm-seguimiento";
 import ImportExportClientes from "@/components/crm/import-export-clientes";
+import { ComunaSelect } from "@/components/shared/comuna-select";
+import {
+  COMUNAS_CHILE, REGIONES_CHILE, SIN_REGION, comunasDeRegion, regionPorCodigo,
+} from "@shared/chile-geo";
 
 type ViewMode = "tabla" | "pipeline";
+
+// Valor del select para "los que no tienen región resuelta". No puede ser ""
+// porque Radix Select reserva la cadena vacía para el placeholder.
+const SIN_REGION_VALUE = "sin-region";
 
 const VIEW_STORAGE_KEY = "crm-seguimiento-view";
 // La búsqueda y los demás filtros se persisten en sessionStorage para no
@@ -54,7 +62,10 @@ type FiltrosPersistidos = {
   estado: string;
   prioridad: string;
   vendedor: string;
+  /** Código CUT de región ("13"), "todos", o SIN_REGION_VALUE. */
   region: string;
+  /** Nombre canónico de comuna, o "todos". */
+  comuna: string;
   segmento: string;
   soloDestacados: boolean;
   pinProblemas: boolean;
@@ -121,6 +132,7 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>(() => loadFiltrosPreference().prioridad ?? "todos");
   const [filtroVendedor, setFiltroVendedor] = useState<string>(() => loadFiltrosPreference().vendedor ?? "todos");
   const [filtroRegion, setFiltroRegion] = useState<string>(() => loadFiltrosPreference().region ?? "todos");
+  const [filtroComuna, setFiltroComuna] = useState<string>(() => loadFiltrosPreference().comuna ?? "todos");
   const [filtroSegmento, setFiltroSegmento] = useState<string>(
     () => segmentoDesdeArea ?? loadFiltrosPreference().segmento ?? "todos"
   );
@@ -158,6 +170,7 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
         prioridad: filtroPrioridad,
         vendedor: filtroVendedor,
         region: filtroRegion,
+        comuna: filtroComuna,
         segmento: filtroSegmento,
         soloDestacados,
         pinProblemas,
@@ -165,7 +178,7 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
       };
       sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtros));
     } catch { /* ignore */ }
-  }, [filtroEstado, filtroPrioridad, filtroVendedor, filtroRegion, filtroSegmento, soloDestacados, pinProblemas, sortContacto]);
+  }, [filtroEstado, filtroPrioridad, filtroVendedor, filtroRegion, filtroComuna, filtroSegmento, soloDestacados, pinProblemas, sortContacto]);
 
   const changeView = (v: ViewMode) => {
     setView(v);
@@ -392,39 +405,51 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
     setFiltroPrioridad("todos");
     setFiltroVendedor("todos");
     setFiltroRegion("todos");
+    setFiltroComuna("todos");
     // Embebido: el segmento sigue atado al Área, no se limpia a "todos".
     setFiltroSegmento(segmentoDesdeArea ?? "todos");
     setSoloDestacados(false);
   };
 
   // ─── Derived data ────────────────────────────────────────────────
-  // Regiones disponibles según los datos vinculados de la lista cargada
-  const uniqueRegiones = useMemo(() => (
-    Array.from(
-      new Set(
-        clientes
-          .map((c: any) => (c.linkedRegion || c.linkedProvincia || c.region || "").trim())
-          .filter((r: string) => r && r !== "—")
-      )
-    ).sort() as string[]
-  ), [clientes]);
+  // Las opciones de Región y Comuna salen del catálogo canónico de Chile, no de
+  // los datos cargados: antes se armaban con lo que hubiera en la lista y por eso
+  // convivían "ARAUCANIA", "La Araucanía" y hasta regiones argentinas.
+  // La región se identifica por su código CUT para que el filtro no dependa de
+  // cómo se escriba el nombre.
+  const comunasDelFiltro = useMemo(
+    () => (filtroRegion === "todos" || filtroRegion === SIN_REGION_VALUE
+      ? COMUNAS_CHILE
+      : comunasDeRegion(filtroRegion)),
+    [filtroRegion]
+  );
 
-  // Estado/región/segmento/destacados se filtran en cliente (estado, para
+  // Elegir una región deja sin sentido una comuna de otra región.
+  useEffect(() => {
+    if (filtroComuna !== "todos" && !comunasDelFiltro.some((c) => c.nombre === filtroComuna)) {
+      setFiltroComuna("todos");
+    }
+  }, [comunasDelFiltro, filtroComuna]);
+
+  // Estado/región/comuna/segmento/destacados se filtran en cliente (estado, para
   // que normalizeEstado absorba los valores legacy; el resto no lo soporta
   // el endpoint)
   const filteredClientes = useMemo(() => clientes.filter((c: any) => {
     if (filtroEstado !== "todos" && normalizeEstado(c.estado) !== filtroEstado) return false;
     if (filtroRegion !== "todos") {
-      const region = (c.linkedRegion || c.linkedProvincia || c.region || "").trim();
-      if (region !== filtroRegion) return false;
+      // El server ya resolvió la ubicación canónica (comuna del CRM → comuna del
+      // ERP → región declarada → provincia del ERP) en `regionCodigo`.
+      const codigo = c.regionCodigo || null;
+      if (filtroRegion === SIN_REGION_VALUE ? codigo !== null : codigo !== filtroRegion) return false;
     }
+    if (filtroComuna !== "todos" && c.comunaCanonica !== filtroComuna) return false;
     if (filtroSegmento !== "todos") {
       const seg = (c.segmento || c.linkedSegmento || "").trim();
       if (seg !== filtroSegmento) return false;
     }
     if (soloDestacados && !c.destacado) return false;
     return true;
-  }), [clientes, filtroEstado, filtroRegion, filtroSegmento, soloDestacados]);
+  }), [clientes, filtroEstado, filtroRegion, filtroComuna, filtroSegmento, soloDestacados]);
 
   // Orden: destacados primero, luego problemas (opcional), luego último contacto
   const sortedClientes = useMemo(() => [...filteredClientes].sort((a: any, b: any) => {
@@ -465,6 +490,7 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
     filtroPrioridad !== "todos",
     filtroVendedor !== "todos",
     filtroRegion !== "todos",
+    filtroComuna !== "todos",
     filtroSegmento !== "todos",
     soloDestacados,
   ].filter(Boolean).length;
@@ -645,15 +671,39 @@ export default function SeguimientoClientes({ segmentoArea }: { segmentoArea?: s
               </Select>
             )}
 
+            {/* Región y comuna encadenadas: ambas salen del catálogo oficial de
+                Chile, y elegir región acota las comunas ofrecidas. */}
             <Select value={filtroRegion} onValueChange={setFiltroRegion}>
               <SelectTrigger className="w-[180px] shrink-0" data-testid="select-region-filter">
                 <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                {filtroRegion === "todos" ? <span className="text-muted-foreground">Región</span> : <SelectValue />}
+                {filtroRegion === "todos"
+                  ? <span className="text-muted-foreground">Región</span>
+                  : <span className="truncate">
+                      {filtroRegion === SIN_REGION_VALUE ? SIN_REGION : regionPorCodigo(filtroRegion)?.nombreCorto}
+                    </span>}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas las regiones</SelectItem>
-                {uniqueRegiones.map((region: string) => (
-                  <SelectItem key={region} value={region}>{fixEncoding(region)}</SelectItem>
+                {REGIONES_CHILE.map((r) => (
+                  <SelectItem key={r.codigo} value={r.codigo}>{r.nombreCorto}</SelectItem>
+                ))}
+                <SelectItem value={SIN_REGION_VALUE}>{SIN_REGION}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filtroComuna} onValueChange={setFiltroComuna}>
+              <SelectTrigger className="w-[180px] shrink-0" data-testid="select-comuna-filter">
+                <MapPin className="w-3.5 h-3.5 mr-1.5" />
+                {filtroComuna === "todos" ? <span className="text-muted-foreground">Comuna</span> : <SelectValue />}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">
+                  {filtroRegion === "todos" || filtroRegion === SIN_REGION_VALUE
+                    ? "Todas las comunas"
+                    : `Todas las de ${regionPorCodigo(filtroRegion)?.nombreCorto}`}
+                </SelectItem>
+                {comunasDelFiltro.map((c) => (
+                  <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1008,7 +1058,7 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
                 </span>
               </th>
               <th className={`${TH_CLASS} w-[110px]`}>Próx. contacto</th>
-              <th className={`${TH_CLASS} w-[100px]`}>Región</th>
+              <th className={`${TH_CLASS} w-[120px]`}>Comuna / Región</th>
               <th className={`${TH_CLASS} w-[90px]`}>Segmento</th>
               <th className={`${TH_CLASS} w-[110px]`}>Teléfono</th>
               <th className={`${TH_CLASS} w-[100px]`}>Cond. Pago</th>
@@ -1112,11 +1162,22 @@ function TablaView({ clientes, sortContacto, onToggleSort, onToggleDestacado, on
                       <span className="text-[10px] text-muted-foreground/50">—</span>
                     )}
                   </td>
-                  {/* Región */}
+                  {/* Comuna / Región — ambas canónicas, resueltas en el server */}
                   <td className="py-2.5 px-2">
-                    <span className="text-[11px] text-foreground/80 truncate block max-w-[110px]">
-                      {fixEncoding(client.linkedRegion || client.linkedProvincia || client.region) || "—"}
-                    </span>
+                    {client.comunaCanonica || client.regionCanonica ? (
+                      <div className="max-w-[130px]">
+                        <span className="text-[11px] text-foreground/80 truncate block">
+                          {client.comunaCanonica || client.regionCanonica}
+                        </span>
+                        {client.comunaCanonica && client.regionCanonica && (
+                          <span className="text-[10px] text-muted-foreground truncate block">
+                            {client.regionCanonica}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground/50">—</span>
+                    )}
                   </td>
                   {/* Segmento */}
                   <td className="py-2.5 px-2">
@@ -1547,7 +1608,7 @@ const EMPTY_FORM = {
   nombre: "", telefono: "", email: "", empresa: "", rut: "", comuna: "", notas: "",
   origen: "manual", vendedorId: "", segmento: "",
   estado: "prospecto", prioridad: "media",
-  region: "", contactoEncargado: "", condicionPago: "", clienteId: "",
+  contactoEncargado: "", condicionPago: "", clienteId: "",
 };
 
 function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores, isAdminOrSupervisor }: {
@@ -1565,17 +1626,6 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
   const [isSearching, setIsSearching] = useState(false);
   const [selectedExisting, setSelectedExisting] = useState<any>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Comunas existentes (autocomplete, mismo endpoint que el detalle)
-  const { data: comunasSugeridas = [] } = useQuery<string[]>({
-    queryKey: ["/api/crm/comunas"],
-    queryFn: async () => {
-      const res = await fetch("/api/crm/comunas");
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: open,
-  });
 
   // El formulario se limpia al ABRIR el modal, no al enviar: si el POST
   // falla, el modal queda abierto y el usuario conserva lo que escribió.
@@ -1626,9 +1676,8 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       email: client.email || "",
       empresa: client.nokoen || "",
       telefono: client.foen || client.phone || f.telefono,
-      comuna: client.comuna ? fixEncoding(client.comuna) : f.comuna,
-      // Campos extra auto-rellenados desde la base de clientes
-      region: client.region ? fixEncoding(client.region) : f.region,
+      // La comuna llega ya canónica del endpoint de clientes; la región se deriva.
+      comuna: client.comuna || f.comuna,
       contactoEncargado: (client.purchasingContactName || client.cnen)
         ? fixEncoding(client.purchasingContactName || client.cnen)
         : f.contactoEncargado,
@@ -1647,7 +1696,6 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       vendedorId: form.vendedorId || undefined,
       segmento: form.segmento || undefined,
       comuna: form.comuna.trim() || undefined,
-      region: form.region.trim() || undefined,
       contactoEncargado: form.contactoEncargado.trim() || undefined,
       condicionPago: form.condicionPago.trim() || undefined,
       clienteId: form.clienteId || undefined,
@@ -1698,7 +1746,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                   <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                     Cliente existente vinculado — RUT: {selectedExisting.rten || "Sin RUT"}
                   </span>
-                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm((f) => ({ ...f, nombre: "", rut: "", email: "", empresa: "", comuna: "", region: "", contactoEncargado: "", condicionPago: "", clienteId: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => { setSelectedExisting(null); setSearchQuery(""); setForm((f) => ({ ...f, nombre: "", rut: "", email: "", empresa: "", comuna: "", contactoEncargado: "", condicionPago: "", clienteId: "" })); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1754,26 +1802,15 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
               <Label htmlFor="rut">RUT (opcional)</Label>
               <Input id="rut" value={form.rut} onChange={(e) => setForm((f) => ({ ...f, rut: e.target.value }))} placeholder="12.345.678-9" />
             </div>
-            <div>
+            {/* La región no se pide: sale de la comuna (ver ComunaSelect). */}
+            <div className="col-span-2">
               <Label htmlFor="comuna">Comuna</Label>
-              <Input
+              <ComunaSelect
                 id="comuna"
-                list="comunas-sugeridas"
                 value={form.comuna}
-                onChange={(e) => setForm((f) => ({ ...f, comuna: e.target.value }))}
-                placeholder="Escribir o seleccionar comuna..."
-                autoComplete="off"
+                onChange={(comuna) => setForm((f) => ({ ...f, comuna: comuna ?? "" }))}
                 data-testid="input-comuna"
               />
-              <datalist id="comunas-sugeridas">
-                {comunasSugeridas.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <Label htmlFor="region">Región</Label>
-              <Input id="region" value={form.region} onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))} placeholder="Región" data-testid="input-region" />
             </div>
             <div>
               <Label htmlFor="contactoEncargado">Contacto encargado</Label>
