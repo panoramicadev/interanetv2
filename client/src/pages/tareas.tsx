@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -76,7 +77,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
-import { ControlObrasContent } from "@/pages/control-obras";
+import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
@@ -858,6 +859,10 @@ export default function TareasPage() {
     },
   });
 
+  // El alta de obra vive dentro de la pestaña Obras; el (+) del header la abre
+  // desde afuera cuando esa pestaña es la activa (ver `accionNueva`).
+  const obrasRef = useRef<ControlObrasHandle>(null);
+
   // Selector "Nueva Tarea": seguimiento de cliente / solicitud de marketing / otras tareas
   const [showChooser, setShowChooser] = useState(false);
   const [taskFlow, setTaskFlow] = useState<'otras' | 'seguimiento' | 'marketing'>('otras');
@@ -900,6 +905,22 @@ export default function TareasPage() {
     },
   });
 
+  // Devuelve una asignación a pendiente. Vive aparte de la mutación porque el
+  // aviso de "tarea completada" ofrece deshacer, y desde su propio onSuccess la
+  // mutación no puede referenciarse a sí misma.
+  const reabrirAsignacion = async (taskId: string, assignmentId: string) => {
+    try {
+      await apiRequest("PATCH", `/api/tasks/${taskId}/assignments/${assignmentId}`, { status: 'pending' });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "No se pudo reabrir la tarea.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Update assignment status mutation
   const updateAssignmentMutation = useMutation({
     mutationFn: async ({ taskId, assignmentId, status, notes }: { taskId: string; assignmentId: string; status?: string; notes?: string }) => {
@@ -927,8 +948,24 @@ export default function TareasPage() {
       });
       return { previousTasks };
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      // Completar saca la tarea de la lista (se va a "Terminadas"). Sin este aviso
+      // la tarea simplemente desaparece y no se ve cómo volver atrás.
+      if (vars.status === 'completed') {
+        toast({
+          title: "Tarea completada",
+          description: 'Pasó a "Terminadas". Podés reabrirla desde ahí.',
+          action: (
+            <ToastAction
+              altText="Reabrir la tarea"
+              onClick={() => reabrirAsignacion(vars.taskId, vars.assignmentId)}
+            >
+              Reabrir
+            </ToastAction>
+          ),
+        });
+      }
     },
     onError: (error: any, _vars, context: any) => {
       // Rollback on error
@@ -1185,10 +1222,18 @@ export default function TareasPage() {
     return null;
   };
 
+  // El vendedor administra SU trabajo: lo que crea queda asignado a él mismo y no
+  // elige equipo. Además es obligatorio para que la tarea le aparezca: la consulta
+  // del rol salesperson solo trae las tareas donde él es el asignado, no las que creó.
+  const asignaSoloASiMismo = user.role === 'salesperson';
+  const asignacionesPorDefecto = (): CreateTaskWithAssignmentsInput['assignments'] =>
+    asignaSoloASiMismo ? [{ assigneeType: 'salesperson', assigneeId: user.id }] : [];
+
   const handleSubmit = (data: CreateTaskWithAssignmentsInput) => {
     // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente
     const payload = seguimientoMode ? { kind: 'seguimiento_cliente' } : undefined;
-    createTaskMutation.mutate({ ...data, ...(payload ? { payload } : {}) } as any);
+    const assignments = asignaSoloASiMismo ? asignacionesPorDefecto() : data.assignments;
+    createTaskMutation.mutate({ ...data, assignments, ...(payload ? { payload } : {}) } as any);
   };
 
   // Abre el flujo "Nuevo Seguimiento" (responsable → cliente). Si se pasa un miembro,
@@ -1201,18 +1246,19 @@ export default function TareasPage() {
       title: "", description: "", priority: "medium",
       segmento: segmentoFilter !== 'all' ? segmentoFilter : null,
       groupId: null, dueDate: "", clienteId: null, clienteNombre: null,
-      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : [],
+      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : asignacionesPorDefecto(),
     });
     setShowCreateDialog(true);
   };
 
-  const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra' || user.role === 'marketing';
+  // El vendedor crea, edita y marca sus propias tareas dentro de su pestaña
+  // (debe coincidir con el allowlist del backend en POST /api/tasks).
+  const canCreateTasks = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'salesperson' || user.role === 'tecnico_obra' || user.role === 'marketing';
   // Quién puede enviar Solicitudes de Marketing (debe coincidir con el allowlist del backend
   // en POST /api/marketing/solicitudes): admin/supervisor/encargado y el vendedor, que canaliza
-  // pedidos de sus clientes. El técnico de obra conserva 'Nueva Tarea' pero no ve la opción.
+  // pedidos de sus clientes. Ya no es un botón propio: es una opción más del
+  // selector "¿Qué querés crear?". El técnico de obra no la ve.
   const canRequestMarketing = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'salesperson';
-  // El vendedor no crea tareas comunes; su único acceso al botón es la Solicitud de Marketing.
-  const onlyMarketingRequest = canRequestMarketing && !canCreateTasks;
 
   // KPIs presentacionales — reutilizan la misma lógica de completado que las tarjetas
   const isTaskDone = (t: typeof filteredTasks[number]) =>
@@ -1246,6 +1292,34 @@ export default function TareasPage() {
       </div>
     );
   }
+
+  // Botón (+) del header: hace lo que dice la pestaña que se está mirando.
+  // Antes era un único "Nueva Tarea" (y para el vendedor, un "Solicitar a
+  // Marketing" que no tenía que ver con lo que estaba haciendo).
+  const accionNueva: { label: string; onClick: () => void } = (() => {
+    if (activeTab === 'obras') {
+      return { label: 'Añadir obra', onClick: () => obrasRef.current?.nuevaObra() };
+    }
+    if (activeTab === 'seguimiento') {
+      return { label: 'Añadir seguimiento', onClick: () => openNuevoSeguimiento() };
+    }
+    return {
+      label: 'Añadir tarea',
+      onClick: () => {
+        if (isMarketing) {
+          // La encargada de Marketing crea directo una tarea de su área:
+          // saltar el selector y abrir el formulario estándar con segmento = marketing.
+          setTaskFlow('otras');
+          setSelectedClienteTask(null);
+          setSearchClienteTask("");
+          form.reset({ title: "", description: "", priority: "medium", segmento: 'marketing', groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+          setShowCreateDialog(true);
+          return;
+        }
+        setShowChooser(true);
+      },
+    };
+  })();
 
   // Selector de Área — la card-pill con el ícono de edificio y el dropdown de segmento.
   // Vive SIEMPRE en el header (junto a "Nueva Tarea"), en todas las pestañas, para
@@ -1437,33 +1511,9 @@ export default function TareasPage() {
                 <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
                 {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
               </div>
-              <Button onClick={() => {
-                // El vendedor solo puede pedirle a Marketing: abrimos directo ese diálogo.
-                if (onlyMarketingRequest) {
-                  setShowMarketingDialog(true);
-                  return;
-                }
-                // Desde la pestaña Seguimiento, saltar el selector y abrir directo el flujo de cliente.
-                if (activeTab === 'seguimiento') {
-                  setTaskFlow('seguimiento');
-                  setSelectedClienteTask(null);
-                  setSearchClienteTask("");
-                  form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
-                  setShowCreateDialog(true);
-                } else if (isMarketing) {
-                  // La encargada de Marketing crea directo una tarea de su área:
-                  // saltar el selector y abrir el formulario estándar con segmento = marketing.
-                  setTaskFlow('otras');
-                  setSelectedClienteTask(null);
-                  setSearchClienteTask("");
-                  form.reset({ title: "", description: "", priority: "medium", segmento: 'marketing', groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
-                  setShowCreateDialog(true);
-                } else {
-                  setShowChooser(true);
-                }
-              }} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
-                {onlyMarketingRequest ? <TrendingUp className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                {onlyMarketingRequest ? 'Solicitar a Marketing' : (activeTab === 'seguimiento' ? 'Nuevo Seguimiento' : 'Nueva Tarea')}
+              <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+                <Plus className="h-4 w-4 mr-2" />
+                {accionNueva.label}
               </Button>
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
@@ -1694,8 +1744,9 @@ export default function TareasPage() {
                         </div>
                       </div>
 
-                      {/* Section: Equipo */}
-                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'}`}>
+                      {/* Section: Equipo — el vendedor no asigna trabajo a terceros:
+                          lo que crea queda a su nombre, así que no ve el selector. */}
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${asignaSoloASiMismo ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                           <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center">
                             <Users className="w-3.5 h-3.5" />
@@ -1869,7 +1920,7 @@ export default function TareasPage() {
                         setTaskFlow(opt.flow);
                         setSelectedClienteTask(null);
                         setSearchClienteTask("");
-                        form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+                        form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: asignacionesPorDefecto() });
                         if (opt.flow === 'marketing') setShowMarketingDialog(true);
                         else setShowCreateDialog(true);
                       }}
@@ -2299,6 +2350,15 @@ export default function TareasPage() {
           {/* La bandeja de Solicitudes de Marketing dejó de vivir acá: ahora está
               en el módulo Marketing. */}
 
+          {/* Cómo se usa una tarjeta: el círculo completa y el resto abre. Sin decirlo,
+              pinchar la tarjeta para leer la tarea terminaba marcándola completada. */}
+          {!selectionMode && filteredTasks.length > 0 && (
+            <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mb-3" data-testid="text-hint-tarjetas">
+              <Circle className="h-3 w-3 flex-shrink-0" />
+              El círculo completa la tarea. Para abrirla, pinchá en cualquier otra parte de la tarjeta.
+            </p>
+          )}
+
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
             {tasksQuery.isLoading ? (
@@ -2321,13 +2381,10 @@ export default function TareasPage() {
                   {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
                 </p>
                 {canCreateTasks && (
+                  // Mismo camino que el (+) del header: abrir el diálogo "a mano"
+                  // se saltaba el reset del formulario y dejaba la asignación vacía.
                   <Button
-                    onClick={() => {
-                      if (segmentoFilter && segmentoFilter !== 'all') {
-                        form.setValue('segmento', segmentoFilter);
-                      }
-                      setShowCreateDialog(true);
-                    }}
+                    onClick={accionNueva.onClick}
                     className="bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
                   >
                     <Plus className="h-4 w-4 mr-2" />
@@ -2433,6 +2490,7 @@ export default function TareasPage() {
                               ? 'bg-emerald-500 border-emerald-500 text-white scale-110'
                               : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50'
                           }`}
+                          title={isCompleted ? 'Reabrir la tarea' : 'Marcar como completada'}
                           disabled={updateAssignmentMutation.isPending}
                         >
                           {isCompleted && <Check className="h-3 w-3" />}
@@ -2506,6 +2564,29 @@ export default function TareasPage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Reabrir — el círculo también des-completa, pero una tarea terminada
+                        sale de la lista y ese camino de vuelta no se ve. Acá queda dicho. */}
+                    {isCompleted && canComplete && targetAssignment && !selectionMode && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-shrink-0 h-7 px-2.5 rounded-lg text-[11px] font-semibold border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateAssignmentMutation.mutate({
+                            taskId: task.id,
+                            assignmentId: targetAssignment.id,
+                            status: 'pending',
+                          });
+                        }}
+                        disabled={updateAssignmentMutation.isPending}
+                        data-testid={`button-reabrir-${task.id}`}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Reabrir
+                      </Button>
+                    )}
 
                     {/* Right badges - show on hover */}
                     <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3288,7 +3369,7 @@ export default function TareasPage() {
             control de avance por obra de cada constructora (ex planilla Excel). */}
         {showObrasTab && (
           <TabsContent value="obras" className="space-y-6">
-            <ControlObrasContent />
+            <ControlObrasContent ref={obrasRef} />
           </TabsContent>
         )}
 
