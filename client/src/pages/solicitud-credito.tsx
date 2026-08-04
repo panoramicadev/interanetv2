@@ -78,6 +78,15 @@ const BADGE_ESTADO: Record<string, string> = {
 };
 
 export default function SolicitudCreditoPage() {
+  return <SolicitudCreditoContent />;
+}
+
+/**
+ * El mismo módulo, embebible como pestaña del Panel de Trabajo (tareas.tsx).
+ * Con `embedded` se omiten el encabezado y el ancho de página: el panel ya
+ * pone su propio header y su contenedor.
+ */
+export function SolicitudCreditoContent({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [form, setForm] = useState<FormSolicitud>(FORM_VACIO);
@@ -224,18 +233,24 @@ export default function SolicitudCreditoPage() {
   );
 
   return (
-    <div className="p-3 sm:p-5 space-y-4 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center">
-            <Banknote className="h-4 w-4" />
-          </span>
-          Solicitud de Crédito
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+    <div className={embedded ? "space-y-4 max-w-5xl" : "p-3 sm:p-5 space-y-4 max-w-5xl mx-auto"}>
+      {embedded ? (
+        <p className="text-sm text-muted-foreground">
           Se envía a Finanzas con copia a tu supervisor y a ti. Adjuntá la carpeta tributaria para que puedan evaluarla.
         </p>
-      </div>
+      ) : (
+        <div>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center">
+              <Banknote className="h-4 w-4" />
+            </span>
+            Solicitud de Crédito
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Se envía a Finanzas con copia a tu supervisor y a ti. Adjuntá la carpeta tributaria para que puedan evaluarla.
+          </p>
+        </div>
+      )}
 
       <Tabs defaultValue="nueva">
         <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg">

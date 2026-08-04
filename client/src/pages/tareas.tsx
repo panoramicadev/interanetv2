@@ -68,6 +68,7 @@ import {
   Palette,
   HardHat,
   FileCheck,
+  Banknote,
   RotateCcw
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -78,6 +79,7 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { RutasComercialesContent } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
+import { SolicitudCreditoContent } from "@/pages/solicitud-credito";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
 import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -217,6 +219,9 @@ export default function TareasPage() {
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
   // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
   const canVerVisitas = can("postventa.visitas");
+  // Solicitud de Crédito vive como pestaña además de su ítem del sidebar: el
+  // vendedor la pide desde el mismo panel donde trabaja al cliente.
+  const showCreditoTab = !isMarketing && can("solicitud_credito");
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
@@ -339,7 +344,7 @@ export default function TareasPage() {
   // y no a la raíz del panel.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "solicitud-credito", "calendario"];
     return tab && validas.includes(tab) ? tab : "tareas";
   });
 
@@ -770,9 +775,9 @@ export default function TareasPage() {
   const showRutasTab = !esConstruccion;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0) + (showCreditoTab ? 1 : 0);
   const tabsGridClass =
-    ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
+    ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7', 8: 'sm:grid-cols-8' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
   // Si el usuario venía parado en una pestaña que el área actual no ofrece
   // (Estimación solo existe en Ferreterías; Rutas Comerciales no existe en
@@ -797,6 +802,14 @@ export default function TareasPage() {
       setSeguimientoVista("clientes");
     }
   }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab, seguimientoVista]);
+
+  // Igual que CRM: el permiso llega asíncrono, así que solo se saca de la
+  // pestaña de crédito cuando los permisos ya están resueltos.
+  useEffect(() => {
+    if (user && permissionsReady && !showCreditoTab && activeTab === "solicitud-credito") {
+      setActiveTab("tareas");
+    }
+  }, [user, permissionsReady, showCreditoTab, activeTab]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -2032,6 +2045,13 @@ export default function TareasPage() {
               <TabsTrigger value="visitas-tecnicas" data-testid="tab-visitas-tecnicas" className={tabTriggerClass}>
                 <FileCheck className={tabIconClass} />
                 Visitas Técnicas
+              </TabsTrigger>
+            )}
+            {/* Solicitud de Crédito — el mismo módulo del sidebar, embebido acá */}
+            {showCreditoTab && (
+              <TabsTrigger value="solicitud-credito" data-testid="tab-solicitud-credito" className={tabTriggerClass}>
+                <Banknote className={tabIconClass} />
+                Solicitud de Crédito
               </TabsTrigger>
             )}
             <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
@@ -3462,6 +3482,14 @@ export default function TareasPage() {
         {showCrmTab && (
           <TabsContent value="crm" className="space-y-6">
             <SeguimientoClientes segmentoArea={segmentoFilter} />
+          </TabsContent>
+        )}
+
+        {/* Solicitud de Crédito — el vendedor la pide sin salir del panel; el
+            módulo sigue existiendo en el sidebar con la misma pantalla. */}
+        {showCreditoTab && (
+          <TabsContent value="solicitud-credito" className="space-y-6">
+            <SolicitudCreditoContent embedded />
           </TabsContent>
         )}
 
