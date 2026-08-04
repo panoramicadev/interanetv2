@@ -125,6 +125,44 @@ La razón de existir del kit no es estética: antes **cada pantalla tenía su pr
 `getEstadoBadge`**, así que un mismo "aprobado" se veía distinto en gastos que en
 fondos. Si agregas un estado nuevo, va en el mapa de `ui.tsx`, no en la página.
 
+### Gráficos: paleta y reglas (ago-2026)
+
+Definida al modernizar el dashboard de Gastos
+(`client/src/pages/gastos-empresariales-dashboard.tsx`). Vale para cualquier
+gráfico de la intranet.
+
+- **Categórica, en orden fijo** (validada contra daltonismo sobre fondo claro;
+  pares vecinos ΔE ≥ 9): `#fd6301` · `#2563eb` · `#10b981` · `#db2777` ·
+  `#f59e0b` · `#7c3aed` · `#0d9488`. De la 8ª serie en adelante se **agrupa en
+  "Otras"** con `#64748b`; no se generan colores nuevos.
+- **El color sigue a la entidad, no a su ranking.** Se asigna por nombre desde un
+  orden estable, así filtrar el período no repinta las categorías que quedan.
+- **Estados reservados** (nunca como color de serie): pendiente `#d97706`,
+  aprobado `#059669`, rechazado `#dc2626` — los mismos conceptos del `EstadoChip`.
+- **Marcas finas y grilla recesiva:** línea de 2px, sin puntos salvo en hover,
+  grilla `rgba(148,163,184,0.16)`, ejes sin borde y ticks en
+  `rgba(100,116,139,0.9)`. Nada de porcentajes impresos sobre cada marca.
+- **Un ranking se lee mejor como lista con barra** (nombre + monto + % + barra
+  `h-2 rounded-full`) que como gráfico de barras: entra en móvil y muestra la
+  cifra exacta. Los gráficos quedan para composición (dona) y tiempo (línea).
+- La dona va con `cutout: '72%'`, aro blanco de 2px entre porciones y el **total
+  al centro**; la leyenda son filas con monto al costado, no la de Chart.js.
+
+### Formularios largos (alta de gasto)
+
+Patrón de `components/gastos/formulario-gasto.tsx`:
+
+- **Dos columnas** en escritorio: campos a la izquierda, resumen `lg:sticky` a la
+  derecha con el total, el financiamiento y el botón primario siempre a la vista.
+- Bloques numerados (chip naranja `1`, `2`, `3`) sobre tarjetas `SUPERFICIE`.
+- **Categoría en chips** en vez de un `Select`: se elige de un toque y se ve todo
+  el catálogo. Activo = `bg-[#fd6301]` con texto blanco.
+- **Control segmentado** para opciones binarias (Reembolso / Con fondo): mismo
+  track gris + activo blanco con texto naranja de `TAB_PILL_SOFT`.
+- Campos en `rounded-xl`, `bg-slate-50/60` y foco naranja
+  (`focus-visible:border-[#fd6301]` + `ring-orange-500/20`).
+- El formulario **arranca listo**: colaborador y fecha puestos, foco en el monto.
+
 ### Móvil: tabla ≠ lista
 
 Regla del módulo de Gastos, extensible al resto: **una tabla de más de ~5 columnas

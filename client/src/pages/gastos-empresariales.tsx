@@ -56,7 +56,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
 import GastosEmpresarialesDashboard, { type DashboardExportHandle } from "./gastos-empresariales-dashboard";
@@ -64,6 +63,7 @@ import GastosFilterBarDashboard from "@/components/gastos-filter-bar-dashboard";
 import GastosInformes from "./gastos-informes";
 import GastosViajes from "./gastos-viajes";
 import GastosCatalogos from "./gastos-catalogos";
+import FormularioGasto from "@/components/gastos/formulario-gasto";
 import { TABS_LIST_PILL, TAB_PILL } from "@/components/gastos/tabs-pill";
 import {
   BOTON_MARCA,
@@ -177,7 +177,7 @@ export default function GastosEmpresariales() {
   // área, no rendir.
   const [activeMainTab, setActiveMainTab] = useState(() => {
     const pedida = new URLSearchParams(window.location.search).get("tab");
-    if (["dashboard", "rendicion", "informes", "fondos", "viajes", "catalogos"].includes(pedida ?? "")) {
+    if (["dashboard", "nuevo", "rendicion", "informes", "fondos", "viajes", "catalogos"].includes(pedida ?? "")) {
       return pedida as string;
     }
     const supervisaElArea = user?.role === "admin" || user?.role === "recursos_humanos";
@@ -626,6 +626,13 @@ export default function GastosEmpresariales() {
               <BarChart3 className="h-4 w-4" />
               Dashboard
             </TabsTrigger>
+            {/* La pestaña de alta va segunda y a mano: entrar al módulo y cargar
+                un gasto es la acción más frecuente, y antes obligaba a pasar por
+                Rendición para encontrar el botón. */}
+            <TabsTrigger value="nuevo" data-testid="tab-nuevo-gasto" className={TAB_PILL}>
+              <Plus className="h-4 w-4" />
+              Añadir Gasto
+            </TabsTrigger>
             <TabsTrigger value="rendicion" data-testid="tab-rendicion" className={TAB_PILL}>
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
@@ -656,11 +663,11 @@ export default function GastosEmpresariales() {
           </TabsList>
 
           {/* Los filtros globales (período, segmento, vendedor) solo aplican a
-              Dashboard, Rendición y Fondos. Informes, Viajes y Catálogos tienen
-              su propia navegación y la barra solo agregaba ruido. */}
+              Dashboard, Rendición y Fondos. Añadir Gasto, Informes, Viajes y
+              Catálogos tienen su propio flujo y la barra solo agregaba ruido. */}
           <div
             className={`sticky top-0 z-10 rounded-lg bg-background/95 pb-1 pt-2 backdrop-blur-sm md:pt-3 ${
-              ['informes', 'viajes', 'catalogos'].includes(activeMainTab) ? 'hidden' : ''
+              ['nuevo', 'informes', 'viajes', 'catalogos'].includes(activeMainTab) ? 'hidden' : ''
             }`}
           >
             <GastosFilterBarDashboard
@@ -725,12 +732,18 @@ export default function GastosEmpresariales() {
                         <HandCoins className="h-4 w-4 mr-2" />
                         Solicitar Fondo
                       </Button>
-                      <Link href="/gastos-empresariales/nuevo">
-                        <Button size="sm" data-testid="button-add-gasto">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Añadir Gasto
-                        </Button>
-                      </Link>
+                      {/* Ya no navega fuera del módulo: el formulario vive en
+                          su propia pestaña, así se puede cargar un gasto y
+                          volver a la lista sin perder los filtros. */}
+                      <Button
+                        size="sm"
+                        className={BOTON_MARCA}
+                        onClick={() => setActiveMainTab('nuevo')}
+                        data-testid="button-add-gasto"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Añadir Gasto
+                      </Button>
                     </>
                   )}
                   {activeMainTab === 'fondos' && (user?.role === 'admin' || user?.role === 'recursos_humanos') && (
@@ -751,6 +764,17 @@ export default function GastosEmpresariales() {
 
           <TabsContent value="dashboard" className="mt-4">
             <GastosEmpresarialesDashboard ref={dashboardRef} embedded={true} onReady={() => forceUpdate(n => n + 1)} />
+          </TabsContent>
+
+          {/* Alta de gasto en la propia pestaña: se abre con el formulario ya
+              listo (colaborador y fecha puestos) y al guardar se limpia para
+              cargar el siguiente, en vez de rebotar a otra pantalla. */}
+          <TabsContent value="nuevo" className="mt-3 md:mt-4">
+            <FormularioGasto
+              modo="panel"
+              onVerGastos={() => setActiveMainTab('rendicion')}
+              onCancelar={() => setActiveMainTab('rendicion')}
+            />
           </TabsContent>
 
           <TabsContent value="rendicion" className="mt-3 space-y-3 md:mt-4 md:space-y-5">
@@ -1124,6 +1148,17 @@ export default function GastosEmpresariales() {
                   icono={FileText}
                   titulo="No se encontraron gastos"
                   descripcion={`No hay gastos registrados en ${['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} ${anio}.`}
+                  accion={
+                    <Button
+                      size="sm"
+                      className={BOTON_MARCA}
+                      onClick={() => setActiveMainTab('nuevo')}
+                      data-testid="button-add-gasto-vacio"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Añadir gasto
+                    </Button>
+                  }
                 />
               ) : (
                 filteredGastos.map((gasto) => (

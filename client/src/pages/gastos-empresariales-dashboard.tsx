@@ -4,42 +4,31 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useFilter } from "@/contexts/FilterContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
   TrendingUp,
-  DollarSign,
   CheckCircle,
   XCircle,
   Clock,
   Download,
-  FileSpreadsheet,
-  Filter,
   BarChart3,
   PieChart as PieChartIcon,
   Calendar,
   Users,
-  FolderOpen,
   FileText,
-  Loader2
+  Loader2,
+  Receipt,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  CategoriaIcono,
+  EstadoChip,
+  EstadoVacio,
+  KpiCard,
+  SUPERFICIE,
+  formatoMoneda,
+} from "@/components/gastos/ui";
 import { useLocation } from "wouter";
 import {
   Chart as ChartJS,
@@ -54,7 +43,8 @@ import {
   LineElement,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { Bar, Pie, Doughnut, Line } from 'react-chartjs-2';
+import { Doughnut, Line } from 'react-chartjs-2';
+import type { LucideIcon } from 'lucide-react';
 import type { GastoEmpresarial, FundAllocation } from "@shared/schema";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -294,27 +284,65 @@ const CATEGORIAS = [
   "Otros"
 ];
 
-const COLORS = {
-  primary: 'rgba(59, 130, 246, 0.8)',
-  success: 'rgba(16, 185, 129, 0.8)',
-  warning: 'rgba(251, 191, 36, 0.8)',
-  danger: 'rgba(239, 68, 68, 0.8)',
-  purple: 'rgba(139, 92, 246, 0.8)',
-  orange: 'rgba(251, 146, 60, 0.8)',
-  teal: 'rgba(20, 184, 166, 0.8)',
-  pink: 'rgba(236, 72, 153, 0.8)',
+/**
+ * Paleta categórica del dashboard: orden fijo arrancando por el naranja de
+ * marca. Validada contra daltonismo (deutan/protan/tritan) sobre superficie
+ * clara; los pares vecinos separan ΔE ≥ 9, así que las categorías se distinguen
+ * sin depender solo del color (igual todas van con su nombre y su monto al lado).
+ *
+ * El color lo lleva la CATEGORÍA, no su posición en el ranking: se asigna por
+ * `colorCategoria()` a partir de un orden estable, de manera que filtrar el
+ * período no repinte las que quedan.
+ */
+const PALETA_CATEGORIAS = [
+  '#fd6301', // marca
+  '#2563eb',
+  '#10b981',
+  '#db2777',
+  '#f59e0b',
+  '#7c3aed',
+  '#0d9488',
+];
+
+/** Todo lo que cae fuera de los 7 primeros slots se agrupa como "Otras". */
+const COLOR_OTRAS = '#64748b';
+
+/**
+ * Colores de estado. Son reservados: no se reutilizan como color de serie.
+ * Pendiente ámbar, aprobado verde, rechazado rojo, igual que los chips.
+ */
+const COLOR_ESTADO = {
+  pendiente: '#d97706',
+  aprobado: '#059669',
+  rechazado: '#dc2626',
 };
 
-const CATEGORY_COLORS = [
-  COLORS.primary,
-  COLORS.success,
-  COLORS.warning,
-  COLORS.purple,
-  COLORS.orange,
-  COLORS.teal,
-  COLORS.pink,
-  COLORS.danger,
-];
+/** Tinta de ejes y grilla: recesiva, nunca compite con las marcas. */
+const TINTA_EJE = 'rgba(100, 116, 139, 0.9)';
+const TINTA_GRILLA = 'rgba(148, 163, 184, 0.16)';
+
+/** Título de tarjeta del dashboard: ícono en chip naranja + título + extra. */
+function TituloTarjeta({
+  icono: Icono,
+  titulo,
+  extra,
+}: {
+  icono: LucideIcon;
+  titulo: string;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-orange-50 dark:bg-orange-950/40">
+          <Icono className="size-4 text-[#fd6301]" strokeWidth={1.8} />
+        </span>
+        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{titulo}</h3>
+      </div>
+      {extra}
+    </div>
+  );
+}
 
 export interface DashboardExportHandle {
   handleExportPDF: () => void;
@@ -537,15 +565,31 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     });
   };
 
-  const getEstadoBadge = (estado: string) => {
-    switch (estado) {
-      case 'aprobado':
-        return <Badge className="bg-green-100 text-green-800">Aprobado</Badge>;
-      case 'rechazado':
-        return <Badge className="bg-red-100 text-red-800">Rechazado</Badge>;
-      default:
-        return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>;
-    }
+  /** Monto abreviado para los ticks del eje: "$1,2M", "$450k". */
+  const formatCurrencyCorto = (amount: number) => {
+    const abs = Math.abs(amount);
+    if (abs >= 1_000_000) return `$${(amount / 1_000_000).toLocaleString('es-CL', { maximumFractionDigits: 1 })}M`;
+    if (abs >= 1_000) return `$${Math.round(amount / 1_000)}k`;
+    return `$${amount}`;
+  };
+
+  /**
+   * Color estable por categoría: el orden sale del catálogo conocido y, para lo
+   * que no esté ahí, del alfabético de las categorías del período. Así una
+   * categoría conserva su color aunque cambie el período o el ranking; de la
+   * posición 8 en adelante todas van al gris de "Otras".
+   */
+  const ordenCategorias = (() => {
+    const extras = porCategoria
+      .map((c) => c.categoria)
+      .filter((nombre) => !CATEGORIAS.includes(nombre))
+      .sort((a, b) => a.localeCompare(b, 'es'));
+    return [...CATEGORIAS, ...extras];
+  })();
+
+  const colorCategoria = (categoria: string) => {
+    const i = ordenCategorias.indexOf(categoria);
+    return i >= 0 && i < PALETA_CATEGORIAS.length ? PALETA_CATEGORIAS[i] : COLOR_OTRAS;
   };
 
   const statusChartData = {
@@ -556,31 +600,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         summary?.totalAprobado || 0,
         summary?.totalRechazado || 0,
       ],
-      backgroundColor: [COLORS.warning, COLORS.success, COLORS.danger],
-      borderWidth: 0,
-    }]
-  };
-
-  const categoriaChartData = {
-    labels: porCategoria.map(c => c.categoria),
-    datasets: [{
-      label: 'Monto por Categoría',
-      data: porCategoria.map(c => c.total),
-      backgroundColor: CATEGORY_COLORS.slice(0, porCategoria.length),
-      borderRadius: 4,
-    }]
-  };
-
-  const usuarioChartData = {
-    labels: porUsuario.slice(0, 10).map(u => {
-      const parts = u.userName.split(' ');
-      return parts.length > 1 ? `${parts[0]} ${parts[1]?.[0] || ''}.` : u.userName;
-    }),
-    datasets: [{
-      label: 'Gasto por Vendedor',
-      data: porUsuario.slice(0, 10).map(u => u.total),
-      backgroundColor: COLORS.primary,
-      borderRadius: 4,
+      backgroundColor: [COLOR_ESTADO.pendiente, COLOR_ESTADO.aprobado, COLOR_ESTADO.rechazado],
+      // Aro del color de la superficie: separa los segmentos sin dibujar un
+      // borde propio, que ensuciaría la lectura de las porciones chicas.
+      borderColor: '#ffffff',
+      borderWidth: 2,
+      hoverOffset: 6,
     }]
   };
 
@@ -588,90 +613,90 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const diaChartData = {
     labels: sortedDia.map(d => formatDate(d.dia)),
     datasets: [{
-      label: 'Gasto Diario',
+      label: 'Gasto diario',
       data: sortedDia.map(d => d.total),
-      borderColor: COLORS.primary,
-      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      borderColor: '#fd6301',
+      borderWidth: 2,
+      // Degradado vertical bajo la línea: se arma con el contexto del canvas
+      // porque su alto depende del área de dibujo, no del componente.
+      backgroundColor: (ctx: any) => {
+        const { chart } = ctx;
+        if (!chart.chartArea) return 'rgba(253, 99, 1, 0.12)';
+        const g = chart.ctx.createLinearGradient(0, chart.chartArea.top, 0, chart.chartArea.bottom);
+        g.addColorStop(0, 'rgba(253, 99, 1, 0.22)');
+        g.addColorStop(1, 'rgba(253, 99, 1, 0)');
+        return g;
+      },
       fill: true,
-      tension: 0.3,
+      tension: 0.35,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: '#fd6301',
+      pointHoverBorderColor: '#ffffff',
+      pointHoverBorderWidth: 2,
     }]
+  };
+
+  /** Tooltip común: oscuro, sin leyenda de color redundante. */
+  const tooltipComun = {
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    padding: 10,
+    cornerRadius: 10,
+    displayColors: false,
+    titleFont: { size: 12, weight: 'bold' as const },
+    bodyFont: { size: 12 },
   };
 
   const pieOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: '72%',
     plugins: {
-      legend: {
-        position: 'bottom' as const,
-      },
-      datalabels: {
-        formatter: (value: number, ctx: any) => {
-          const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
-          if (total === 0 || value === 0) return '';
-          const percentage = Math.round((value / total) * 100);
-          return percentage >= 5 ? `${percentage}%` : '';
+      // La leyenda de estados va como filas con monto al costado del gráfico:
+      // dice lo mismo que la de Chart.js y además muestra la plata.
+      legend: { display: false },
+      datalabels: { display: false },
+      tooltip: {
+        ...tooltipComun,
+        callbacks: {
+          label: (ctx: any) => `${ctx.label}: ${formatCurrency(ctx.parsed || 0)}`,
         },
-        color: '#fff',
-        font: { weight: 'bold' as const, size: 12 },
-      }
-    },
-  };
-
-  const barOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      datalabels: { display: false },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (value: any) => formatCurrency(value),
-        }
-      }
-    }
-  };
-
-  const horizontalBarOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    indexAxis: 'y' as const,
-    plugins: {
-      legend: { display: false },
-      datalabels: { display: false },
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        ticks: {
-          callback: (value: any) => formatCurrency(value),
-        }
       },
-      y: {
-        ticks: {
-          font: { size: 11 }
-        }
-      }
-    }
+    },
   };
 
   const lineOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: { display: false },
       datalabels: { display: false },
+      tooltip: {
+        ...tooltipComun,
+        callbacks: {
+          label: (ctx: any) => formatCurrency(ctx.parsed.y || 0),
+        },
+      },
     },
     scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: { color: TINTA_EJE, font: { size: 11 }, maxRotation: 0, autoSkipPadding: 16 },
+      },
       y: {
         beginAtZero: true,
+        grid: { color: TINTA_GRILLA },
+        border: { display: false },
         ticks: {
-          callback: (value: any) => formatCurrency(value),
-        }
-      }
-    }
+          color: TINTA_EJE,
+          font: { size: 11 },
+          maxTicksLimit: 5,
+          callback: (value: any) => formatCurrencyCorto(Number(value)),
+        },
+      },
+    },
   };
 
   // Función para obtener gastos filtrados (reutilizable)
@@ -876,8 +901,10 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           const pieData = {
             labels: porCategoria.map(c => c.categoria),
             datasets: [{
+              // Mismos colores que en pantalla, para que el PDF no cuente otra
+              // historia que el dashboard del que salió.
               data: porCategoria.map(c => c.total),
-              backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'],
+              backgroundColor: porCategoria.map(c => colorCategoria(c.categoria)),
               borderWidth: 1
             }]
           };
@@ -891,7 +918,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             datasets: [{
               label: 'Monto',
               data: [summary.totalAprobado, summary.totalPendiente, summary.totalRechazado],
-              backgroundColor: ['#16A34A', '#F59E0B', '#DC2626']
+              backgroundColor: [COLOR_ESTADO.aprobado, COLOR_ESTADO.pendiente, COLOR_ESTADO.rechazado]
             }]
           };
           const barImg = await renderChartToImage(estadosData, 'bar', chartWidth * 3, chartHeight * 3);
@@ -1546,9 +1573,6 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     { value: '12', label: 'Diciembre' },
   ];
 
-  // Usar la función de filtrado para la vista
-  const filteredGastos = getFilteredGastos();
-
   const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
   useImperativeHandle(ref, () => ({
@@ -1564,24 +1588,69 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     if (onReady) onReady();
   }, [canExport, hasData, isGeneratingPDF, isLoadingUsers]);
 
+  // ── Datos derivados de lo que ya trajeron las consultas ───────────────────
+  const total = summary?.total || 0;
+  const cantidad = summary?.count || 0;
+  const promedio = cantidad > 0 ? total / cantidad : 0;
+  const porcentaje = (valor: number) => (total > 0 ? Math.round((valor / total) * 100) : 0);
+
+  const estados = [
+    { clave: 'aprobado', label: 'Aprobado', monto: summary?.totalAprobado || 0, color: COLOR_ESTADO.aprobado },
+    { clave: 'pendiente', label: 'Pendiente', monto: summary?.totalPendiente || 0, color: COLOR_ESTADO.pendiente },
+    { clave: 'rechazado', label: 'Rechazado', monto: summary?.totalRechazado || 0, color: COLOR_ESTADO.rechazado },
+  ];
+
+  // Ranking de categorías: top 6 y el resto agrupado. Antes se graficaban
+  // todas, y con un catálogo largo el gráfico quedaba ilegible.
+  const categoriasOrdenadas = [...porCategoria].sort((a, b) => b.total - a.total);
+  const restoCategorias = categoriasOrdenadas.slice(6);
+  const categoriasVista = [
+    ...categoriasOrdenadas.slice(0, 6).map((c) => ({
+      nombre: c.categoria,
+      total: c.total,
+      cantidad: c.cantidad,
+      color: colorCategoria(c.categoria),
+    })),
+    ...(restoCategorias.length > 0
+      ? [{
+          nombre: `Otras (${restoCategorias.length})`,
+          total: restoCategorias.reduce((acc, c) => acc + c.total, 0),
+          cantidad: restoCategorias.reduce((acc, c) => acc + c.cantidad, 0),
+          color: COLOR_OTRAS,
+        }]
+      : []),
+  ];
+  const maxCategoria = Math.max(...categoriasVista.map((c) => c.total), 1);
+
+  const usuariosTop = [...porUsuario].sort((a, b) => b.total - a.total).slice(0, 6);
+  const maxUsuario = Math.max(...usuariosTop.map((u) => u.total), 1);
+
+  const ultimosGastos = [...gastosRecientes]
+    .sort((a, b) => {
+      const fa = new Date((a.fechaEmision || a.createdAt) as any).getTime();
+      const fb = new Date((b.fechaEmision || b.createdAt) as any).getTime();
+      return fb - fa;
+    })
+    .slice(0, 6);
+
   return (
-    <div className={embedded ? "space-y-6" : "p-4 sm:p-6 lg:p-8 space-y-6"}>
+    <div className={embedded ? "space-y-4 md:space-y-5" : "space-y-4 p-4 sm:p-6 md:space-y-5 lg:p-8"}>
       {!embedded && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Button
               variant="ghost"
               onClick={() => setLocation('/gastos-empresariales')}
-              className="mb-2"
+              className="mb-2 rounded-2xl"
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver
             </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
               Dashboard de Rendición de Gastos
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Análisis y métricas de gastos empresariales
             </p>
           </div>
@@ -1616,169 +1685,247 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       )}
 
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-blue-500 to-blue-600 rounded-l-lg" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wider">Total Gastos</CardTitle>
-            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold text-blue-700 dark:text-blue-300" data-testid="text-total-gastos">
-              {isLoadingSummary ? '...' : formatCurrency(summary?.total || 0)}
-            </div>
-            <p className="text-xs text-blue-600/60 dark:text-blue-400/60 mt-1.5 font-medium">
-              {summary?.count || 0} registro{(summary?.count || 0) !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-400 to-amber-500 rounded-l-lg" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-amber-900/70 dark:text-amber-200/70 uppercase tracking-wider">Pendiente</CardTitle>
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold text-amber-700 dark:text-amber-300" data-testid="text-total-pendiente">
-              {isLoadingSummary ? '...' : formatCurrency(summary?.totalPendiente || 0)}
-            </div>
-            <p className="text-xs text-amber-600/60 dark:text-amber-400/60 mt-1.5 font-medium">Por aprobar</p>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-400 to-emerald-500 rounded-l-lg" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-emerald-900/70 dark:text-emerald-200/70 uppercase tracking-wider">Aprobado</CardTitle>
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold text-emerald-700 dark:text-emerald-300" data-testid="text-total-aprobado">
-              {isLoadingSummary ? '...' : formatCurrency(summary?.totalAprobado || 0)}
-            </div>
-            <p className="text-xs text-emerald-600/60 dark:text-emerald-400/60 mt-1.5 font-medium">Aprobados</p>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-400 to-rose-500 rounded-l-lg" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-rose-900/70 dark:text-rose-200/70 uppercase tracking-wider">Rechazado</CardTitle>
-            <div className="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
-              <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold text-rose-700 dark:text-rose-300" data-testid="text-total-rechazado">
-              {isLoadingSummary ? '...' : formatCurrency(summary?.totalRechazado || 0)}
-            </div>
-            <p className="text-xs text-rose-600/60 dark:text-rose-400/60 mt-1.5 font-medium">Rechazados</p>
-          </CardContent>
-        </Card>
+      {/* ── Indicadores del período ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        {isLoadingSummary ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[104px] rounded-2xl" />
+          ))
+        ) : (
+          <>
+            <KpiCard
+              label="Total del período"
+              value={formatoMoneda(total)}
+              sub={`${cantidad} registro${cantidad !== 1 ? 's' : ''} · promedio ${formatoMoneda(promedio)}`}
+              tono="marca"
+              icono={TrendingUp}
+              testId="text-total-gastos"
+            />
+            <KpiCard
+              label="Por aprobar"
+              value={formatoMoneda(summary?.totalPendiente || 0)}
+              sub={`${porcentaje(summary?.totalPendiente || 0)}% del período`}
+              tono="alerta"
+              icono={Clock}
+              testId="text-total-pendiente"
+            />
+            <KpiCard
+              label="Aprobado"
+              value={formatoMoneda(summary?.totalAprobado || 0)}
+              sub={`${porcentaje(summary?.totalAprobado || 0)}% del período`}
+              tono="ok"
+              icono={CheckCircle}
+              testId="text-total-aprobado"
+            />
+            <KpiCard
+              label="Rechazado"
+              value={formatoMoneda(summary?.totalRechazado || 0)}
+              sub={`${porcentaje(summary?.totalRechazado || 0)}% del período`}
+              tono="error"
+              icono={XCircle}
+              testId="text-total-rechazado"
+            />
+          </>
+        )}
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                <PieChartIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              </div>
-              Distribución por Estado
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              {hasData ? (
+      {!hasData ? (
+        <EstadoVacio
+          icono={Receipt}
+          titulo="No hay gastos en este período"
+          descripcion="Ajusta el período o el colaborador en los filtros de arriba, o carga uno nuevo desde la pestaña Añadir Gasto."
+        />
+      ) : (
+        <>
+          {/* ── Composición y evolución ────────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <section className={cn(SUPERFICIE, 'p-4 md:p-5')}>
+              <TituloTarjeta icono={PieChartIcon} titulo="Distribución por estado" />
+              <div className="relative mt-4 h-[180px]">
                 <Doughnut data={statusChartData} options={pieOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                  No hay datos disponibles
+                {/* El total va al centro del anillo: es el número que se busca
+                    primero y evita tener que sumar las tres porciones. */}
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Total
+                  </span>
+                  <span className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                    {formatoMoneda(total)}
+                  </span>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-              <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
-                <BarChart3 className="h-4 w-4 text-sky-600 dark:text-sky-400" />
               </div>
-              Gastos por Categoría
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              {porCategoria.length > 0 ? (
-                <Bar data={categoriaChartData} options={barOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                  No hay datos disponibles
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              <ul className="mt-4 space-y-2.5">
+                {estados.map((e) => (
+                  <li key={e.clave} className="flex items-center gap-2.5">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: e.color }}
+                      aria-hidden
+                    />
+                    <span className="flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
+                      {e.label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                      {formatoMoneda(e.monto)}
+                    </span>
+                    <span className="w-10 text-right text-xs tabular-nums text-slate-400">
+                      {porcentaje(e.monto)}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {user?.role !== 'salesperson' && (
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-                <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                  <Users className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                </div>
-                Top 10 Vendedores con más Gastos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                {porUsuario.length > 0 ? (
-                  <Bar data={usuarioChartData} options={horizontalBarOptions} />
+            <section className={cn(SUPERFICIE, 'p-4 md:p-5 lg:col-span-2')}>
+              <TituloTarjeta
+                icono={Calendar}
+                titulo="Evolución del período"
+                extra={
+                  sortedDia.length > 0 ? (
+                    <span className="text-xs text-slate-400">
+                      Máximo diario {formatoMoneda(Math.max(...sortedDia.map((d) => d.total)))}
+                    </span>
+                  ) : undefined
+                }
+              />
+              <div className="mt-4 h-[280px]">
+                {isLoadingDia ? (
+                  <Skeleton className="h-full w-full rounded-xl" />
+                ) : porDia.length > 0 ? (
+                  <Line data={diaChartData} options={lineOptions} />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                    No hay datos disponibles
-                  </div>
+                  <p className="flex h-full items-center justify-center text-sm text-slate-400">
+                    Sin movimientos en el período
+                  </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </section>
+          </div>
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-              <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                <Calendar className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              Evolución Diaria del Mes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {porDia.length > 0 ? (
-                <Line data={diaChartData} options={lineOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                  No hay datos disponibles
+          {/* ── Rankings ───────────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className={cn(SUPERFICIE, 'p-4 md:p-5')}>
+              <TituloTarjeta icono={BarChart3} titulo="Gastos por categoría" />
+              {isLoadingCategoria ? (
+                <div className="mt-4 space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 rounded-xl" />
+                  ))}
                 </div>
+              ) : categoriasVista.length > 0 ? (
+                <ul className="mt-4 space-y-3.5">
+                  {categoriasVista.map((c) => (
+                    <li key={c.nombre} className="space-y-1.5">
+                      <div className="flex items-baseline gap-2.5">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                          {c.nombre}
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                          {formatoMoneda(c.total)}
+                        </span>
+                        <span className="w-10 text-right text-xs tabular-nums text-slate-400">
+                          {porcentaje(c.total)}%
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.max((c.total / maxCategoria) * 100, 2)}%`,
+                            backgroundColor: c.color,
+                          }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-10 text-center text-sm text-slate-400">Sin datos por categoría</p>
               )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </section>
+
+            {user?.role !== 'salesperson' && (
+              <section className={cn(SUPERFICIE, 'p-4 md:p-5')}>
+                <TituloTarjeta icono={Users} titulo="Quiénes gastan más" />
+                {isLoadingUsuario ? (
+                  <div className="mt-4 space-y-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-10 rounded-xl" />
+                    ))}
+                  </div>
+                ) : usuariosTop.length > 0 ? (
+                  <ul className="mt-4 space-y-3.5">
+                    {usuariosTop.map((u, i) => (
+                      <li key={u.userId} className="space-y-1.5">
+                        <div className="flex items-baseline gap-2.5">
+                          <span className="w-4 shrink-0 text-xs font-bold tabular-nums text-slate-300 dark:text-slate-600">
+                            {i + 1}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                            {u.userName}
+                          </span>
+                          <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                            {formatoMoneda(u.total)}
+                          </span>
+                          <span className="w-16 text-right text-xs tabular-nums text-slate-400">
+                            {u.cantidad} gasto{u.cantidad !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {/* Una sola serie: un solo tono, el largo lleva la magnitud. */}
+                        <div className="ml-6 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-[#fd6301] transition-all"
+                            style={{ width: `${Math.max((u.total / maxUsuario) * 100, 2)}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-10 text-center text-sm text-slate-400">Sin datos por colaborador</p>
+                )}
+              </section>
+            )}
+          </div>
+
+          {/* ── Últimos movimientos ────────────────────────────────────── */}
+          {ultimosGastos.length > 0 && (
+            <section className={cn(SUPERFICIE, 'p-4 md:p-5')}>
+              <TituloTarjeta
+                icono={Receipt}
+                titulo="Últimos gastos cargados"
+                extra={
+                  <span className="text-xs text-slate-400">
+                    {gastosRecientes.length} en el período
+                  </span>
+                }
+              />
+              <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+                {ultimosGastos.map((g) => (
+                  <li key={g.id} className="flex items-center gap-3 py-3">
+                    <CategoriaIcono categoria={g.categoria} className="size-9" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {g.descripcion}
+                      </p>
+                      <p className="truncate text-xs text-slate-400">
+                        {formatFullDate((g.fechaEmision || g.createdAt) as any)} · {g.categoria}
+                        {user?.role !== 'salesperson' ? ` · ${getUserName(g.userId)}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                        {formatoMoneda(g.monto)}
+                      </span>
+                      <EstadoChip estado={(g as any).estadoAprobacion || g.estado} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 });

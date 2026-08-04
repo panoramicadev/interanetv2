@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, CheckCircle2, Loader2, Paintbrush, Plus, ShoppingCart, Truck } from "lucide-react";
 import { fmt, fmtDec, fmtPct, numeroEditable, toNum } from "./formato";
 import { ESTADO_MAP, fmtDesviacion, type EstadoObra } from "./calculos";
+import { UNIDADES_OBRA, normalizarUnidad } from "./unidades";
 
 // ---------------------------------------------------------------------------
 // Movimientos (pedido / entrega / consumo)
@@ -274,11 +275,15 @@ export function InputCantidad({
 
   const confirmar = () => {
     setEditando(false);
-    const nuevo = toNum(texto);
+    // Ninguna de estas columnas admite negativos: no existe "pedir −5". Un signo
+    // tipeado de más se descarta acá y no viaja a la base, donde después
+    // ensuciaba el saldo y el próximo pedido de toda la obra.
+    const nuevo = Math.max(0, toNum(texto));
     if (nuevo === toNum(valor)) {
       setTexto(numeroEditable(valor));
       return;
     }
+    setTexto(numeroEditable(nuevo));
     onGuardar(String(nuevo));
   };
 
@@ -304,6 +309,36 @@ export function InputCantidad({
       />
       {movimiento && <BotonMovimiento {...movimiento} />}
     </div>
+  );
+}
+
+/**
+ * Formato en que se pide el producto. Es una lista cerrada (ver unidades.ts):
+ * antes era texto libre y terminaba con la misma tineta escrita de cinco formas
+ * distintas, que además no decían si era la de 4 o la de 5 galones.
+ */
+export function SelectorUnidad({
+  valor,
+  onGuardar,
+  testId,
+}: {
+  valor: string | null | undefined;
+  onGuardar: (valor: string) => void;
+  testId: string;
+}) {
+  return (
+    <select
+      value={normalizarUnidad(valor)}
+      onChange={(e) => onGuardar(e.target.value)}
+      className="h-7 rounded-md border border-transparent bg-transparent px-1 text-xs text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors"
+      data-testid={testId}
+    >
+      {UNIDADES_OBRA.map((u) => (
+        <option key={u.valor} value={u.valor}>
+          {u.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -455,7 +490,9 @@ function BotonMovimiento({
   }, [abierto, sugerido]);
 
   const registrar = () => {
-    const n = toNum(cantidad);
+    // Un movimiento suma: en negativo restaría del acumulado sin dejar rastro de
+    // por qué. Para corregir está deshacer el movimiento en el historial.
+    const n = Math.max(0, toNum(cantidad));
     if (n === 0) return;
     onRegistrar({ tipo, cantidad: String(n), fecha: fecha || null, nota: nota.trim() || null });
     setAbierto(false);
@@ -507,7 +544,7 @@ function BotonMovimiento({
           />
           <Button
             onClick={registrar}
-            disabled={toNum(cantidad) === 0 || registrando}
+            disabled={toNum(cantidad) <= 0 || registrando}
             className="w-full h-8 rounded-lg bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white text-xs font-semibold"
             data-testid={`button-movimiento-guardar-${tipo}`}
           >
