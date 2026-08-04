@@ -6,7 +6,7 @@
  * Allows visitors to build a product list and request a quotation.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QuoteProvider } from '@/contexts/QuoteContext';
 import CotizadorHeader from '@/components/cotizador/CotizadorHeader';
@@ -14,7 +14,7 @@ import ProductCardExpandable from '@/components/shared/ProductCardExpandable';
 import CotizadorProductDetail from '@/components/cotizador/CotizadorProductDetail';
 import CotizadorQuotePanel from '@/components/cotizador/CotizadorQuotePanel';
 import CotizadorContactForm from '@/components/cotizador/CotizadorContactForm';
-import { Filter, ChevronDown, Loader2, Search, ArrowRight, ShieldCheck, Truck, Clock, Star } from 'lucide-react';
+import { Filter, ChevronDown, ChevronLeft, ChevronRight, Loader2, Search, ArrowRight, ShieldCheck, Truck, Clock, Star } from 'lucide-react';
 
 function CotizadorContent() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +23,7 @@ function CotizadorContent() {
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<any>(null);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   // Fetch public config
   const { data: config } = useQuery({
@@ -57,6 +58,29 @@ function CotizadorContent() {
     staleTime: 30_000,
   });
 
+  // Fetch banners — sólo los configurados para el cotizador (admin: eCommerce ▸ Cotizador)
+  const { data: bannersData } = useQuery({
+    queryKey: ['/api/b2c/banners'],
+    queryFn: async () => {
+      const res = await fetch('/api/b2c/banners');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const heroBanners: any[] = ((bannersData?.banners || []) as any[])
+    .filter((b) => b.tipoVisualizacion === 'cotizador' && b.imagenDesktop)
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  // Auto-rotación del carrusel cuando hay más de un banner
+  useEffect(() => {
+    if (heroBanners.length < 2) return;
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % heroBanners.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [heroBanners.length]);
+
   const categories: string[] = categoriesData?.categories || [];
   const products = catalogData?.catalog || [];
 
@@ -70,7 +94,74 @@ function CotizadorContent() {
         config={config}
       />
 
-      {/* ═══ HERO — Premium wholesale CTA ═══ */}
+      {/* ═══ HERO — Banners administrables (eCommerce ▸ Cotizador) ═══ */}
+      {heroBanners.length > 0 ? (
+        <section className="w-full relative overflow-hidden bg-slate-100" data-testid="cotizador-banner-carousel">
+          <div className="relative w-full group">
+            {heroBanners.map((banner: any, index: number) => {
+              const activeIndex = currentSlide % heroBanners.length;
+              const image = (
+                <picture>
+                  {banner.imagenMobile && <source media="(max-width: 768px)" srcSet={banner.imagenMobile} />}
+                  <img
+                    src={banner.imagenDesktop}
+                    alt={banner.titulo || 'Banner cotizador'}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    className="w-full h-auto object-contain block"
+                  />
+                </picture>
+              );
+              return (
+                <div
+                  key={banner.id}
+                  className={`w-full transition-opacity duration-500 ${
+                    index === activeIndex ? 'opacity-100 relative z-10' : 'opacity-0 absolute top-0 left-0 z-0'
+                  }`}
+                  data-testid={`cotizador-banner-slide-${index}`}
+                >
+                  {banner.linkUrl ? (
+                    <a href={banner.linkUrl} target="_blank" rel="noopener noreferrer" className="block w-full">
+                      {image}
+                    </a>
+                  ) : image}
+                </div>
+              );
+            })}
+
+            {heroBanners.length > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentSlide(prev => (prev === 0 ? heroBanners.length - 1 : prev - 1))}
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 md:opacity-0 md:group-hover:opacity-100"
+                  aria-label="Banner anterior"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setCurrentSlide(prev => (prev + 1) % heroBanners.length)}
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 md:opacity-0 md:group-hover:opacity-100"
+                  aria-label="Banner siguiente"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
+                  {heroBanners.map((_: any, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      aria-label={`Ir al banner ${index + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${
+                        index === currentSlide % heroBanners.length ? 'w-6 bg-[#fd6301]' : 'w-1.5 bg-white/70 hover:bg-white'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      ) : (
       <section className="relative overflow-hidden">
         {/* Background image — painted building / construction */}
         <div
@@ -136,6 +227,7 @@ function CotizadorContent() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ═══ CATALOG ═══ */}
       <div id="catalogo" className="max-w-7xl mx-auto px-4 py-6">
