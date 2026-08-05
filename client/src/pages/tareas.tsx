@@ -78,6 +78,7 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
+import { CreditoPanel } from "@/components/clients/credito-panel";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
 import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -6504,39 +6505,13 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
   );
 }
 
+// Cobranza del cliente dentro del modal de tarea. Es el MISMO panel (y la misma
+// query) que la pestaña Crédito de la ficha del cliente: la ficha es la fuente
+// de verdad y acá se ve su versión compacta, así los dos nunca muestran cifras
+// distintas para el mismo cliente.
 function CobranzaPanel({ clienteNombre }: { clienteNombre: string }) {
-  const { data, isLoading } = useQuery<{ docs: Array<{ nudo: string; tido: string; vencimiento: string | null; saldo: number; vencida: boolean }> }>({
-    queryKey: ["/api/clients/cartera", { name: clienteNombre }],
-    enabled: !!clienteNombre,
-  });
-  const docs = data?.docs || [];
-  const totalSaldo = docs.reduce((s, d) => s + (Number(d.saldo) || 0), 0);
-  const totalVencido = docs.filter((d) => d.vencida).reduce((s, d) => s + (Number(d.saldo) || 0), 0);
-  if (isLoading) return <p className="text-xs text-slate-400">Cargando cobranza…</p>;
-  if (docs.length === 0) return <p className="text-xs text-slate-400 italic">Sin documentos pendientes.</p>;
-  return (
-    <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-white border border-slate-200 p-2.5">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Saldo total</p>
-          <p className="text-sm font-bold text-slate-800">{fmtCLP(totalSaldo)}</p>
-        </div>
-        <div className="rounded-lg bg-red-50 border border-red-200 p-2.5">
-          <p className="text-[10px] text-red-500 uppercase font-bold tracking-wider">Vencido</p>
-          <p className="text-sm font-bold text-red-700">{fmtCLP(totalVencido)}</p>
-        </div>
-      </div>
-      <div className="space-y-1">
-        {docs.map((d, i) => (
-          <div key={i} className={`flex items-center gap-2 text-xs rounded-lg px-2.5 py-1.5 border ${d.vencida ? "bg-red-50 border-red-100" : "bg-white border-slate-100"}`}>
-            <span className="font-medium text-slate-700 flex-shrink-0">{d.tido} {d.nudo}</span>
-            <span className="text-slate-400 flex-1 text-center">{d.vencimiento || "—"}</span>
-            <span className={`font-semibold flex-shrink-0 ${d.vencida ? "text-red-600" : "text-slate-700"}`}>{fmtCLP(Number(d.saldo))}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (!clienteNombre) return <p className="text-xs text-slate-400 italic">Sin cliente asociado.</p>;
+  return <CreditoPanel clientName={clienteNombre} variant="compact" />;
 }
 
 function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {

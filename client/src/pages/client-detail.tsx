@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
+import { CreditoPanel, useCredito } from "@/components/clients/credito-panel";
 import { OrderTrackingTimeline } from "@/components/ecommerce/order-tracking-timeline";
 import { statusConfig } from "@/components/ecommerce/order-detail-view";
 import TmsOrdersPanel from "@/components/logistica/tms-orders-panel";
@@ -102,6 +103,12 @@ interface FichaInfo {
   priceList: string | null;
   priceListOverride: string | null;
   priceListErp: string | null;
+  // Lista con la que realmente se le cotiza en Panorámica Market. Si
+  // priceListUsable es false, la lista de la ficha no tiene precios cargados en
+  // la intranet y se está cobrando priceListCharged.
+  priceListCharged: string | null;
+  priceListChargedName: string | null;
+  priceListUsable: boolean;
   creditLimit: number | null;
   creditAvailable: number | null;
   creditUsed: number | null;
@@ -294,7 +301,7 @@ export default function ClientDetail() {
   });
 
   // Listas de precios disponibles para el selector de "Lista de Precios".
-  const { data: customPriceLists = [] } = useQuery<{ code: string; name: string }[]>({
+  const { data: customPriceLists = [] } = useQuery<{ code: string; name: string; active?: boolean }[]>({
     queryKey: ["/api/custom-price-lists"],
     enabled: canManage,
   });
@@ -305,6 +312,10 @@ export default function ClientDetail() {
     enabled: !!decodedClientName,
   });
   const carteraDocs = carteraData?.docs ?? [];
+
+  // Crédito consolidado (misma query que usa la pestaña Crédito y el Panel de
+  // Trabajo). Acá solo se usa para el aviso de vencido en la pestaña.
+  const { data: credito } = useCredito(decodedClientName);
 
   // Purchase history (recent transactions) for the "Pedidos" tab
   const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery<PurchaseItem[]>({
@@ -329,6 +340,22 @@ export default function ClientDetail() {
    * disponible que calcular, y se dice en vez de mostrar un guión.
    */
   const cobranza = useMemo(() => {
+    // Primero, lo que dice la pestaña Crédito (/api/clients/credito): es la
+    // fuente de verdad y así este panel jamás muestra otra cifra que ella.
+    if (credito) {
+      const c = credito.credit;
+      return {
+        limite: c.limit,
+        deuda: c.used,
+        vencido: c.overdue,
+        porVencer: c.upcoming,
+        documentos: c.documentCount,
+        disponible: c.available,
+        excedido: c.exceeded,
+        derivadoDelDetalle: c.documentCount > 0,
+      };
+    }
+
     const hayDetalle = carteraDocs.length > 0;
     const suma = (filtro: (d: CarteraDoc) => boolean) =>
       carteraDocs.filter(filtro).reduce((total, d) => total + (Number(d.saldo) || 0), 0);
@@ -349,7 +376,7 @@ export default function ClientDetail() {
       excedido: limite != null && (deuda ?? 0) > limite,
       derivadoDelDetalle: hayDetalle,
     };
-  }, [carteraDocs, ficha]);
+  }, [credito, carteraDocs, ficha]);
 
   const ecommerceUserId = accountStatus?.ecommerceUserId || null;
   const fichaIdForActivation = accountStatus?.ficha?.id || accountStatus?.clientId || null;
@@ -943,6 +970,12 @@ export default function ClientDetail() {
             <TabsTrigger value="info" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="h-4 w-4" /> Información
             </TabsTrigger>
+            <TabsTrigger value="credito" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm" data-testid="tab-credito">
+              <CreditCard className="h-4 w-4" /> Crédito
+              {(credito?.credit.overdue ?? 0) > 0 && (
+                <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">!</span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <FileText className="h-4 w-4" /> Pedidos
             </TabsTrigger>
@@ -953,6 +986,32 @@ export default function ClientDetail() {
               <Truck className="h-4 w-4" /> Despachos
             </TabsTrigger>
           </TabsList>
+
+          {/* Crédito tab — panorama completo de crédito y cobranza del cliente.
+              Misma fuente (/api/clients/credito) y mismo componente que el panel
+              de Cobranza del Panel de Trabajo: no pueden discrepar. */}
+          <TabsContent value="credito" className="mt-4">
+            {/* Sin rut: la consulta va por nombre, igual que la del Panel de
+                Trabajo, para que ambas compartan caché y no puedan diferir. */}
+            <CreditoPanel
+              clientName={decodedClientName}
+              footer={
+                canManage && (carteraDocs.length > 0 || (credito?.docs.length ?? 0) > 0) ? (
+                  <div className="pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full rounded-2xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
+                      onClick={openCobranza}
+                      data-testid="button-enviar-cobranza-credito"
+                    >
+                      <Send className="h-4 w-4 mr-2" /> Enviar cobranza
+                    </Button>
+                  </div>
+                ) : null
+              }
+            />
+          </TabsContent>
 
           {/* Productos tab — products bought */}
           <TabsContent value="productos" className="mt-4">
@@ -1187,7 +1246,9 @@ export default function ClientDetail() {
                               <SelectContent>
                                 <SelectItem value="__erp__">Por defecto del ERP{ficha?.priceListErp ? ` (${ficha.priceListErp})` : ""}</SelectItem>
                                 <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
-                                {customPriceLists.map((l) => (
+                                {/* Solo listas activas: una inactiva no tiene
+                                    precios que cobrar y caería en la comercial. */}
+                                {customPriceLists.filter((l) => l.active !== false).map((l) => (
                                   <SelectItem key={l.code} value={l.code}>{l.name} ({l.code})</SelectItem>
                                 ))}
                               </SelectContent>
@@ -1195,6 +1256,9 @@ export default function ClientDetail() {
                           ) : (
                             <span className="text-sm font-medium text-right max-w-[60%] truncate flex items-center gap-1.5 justify-end">
                               {ficha?.priceListOverride && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">manual</Badge>}
+                              {ficha && ficha.priceListUsable === false && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-300 bg-amber-50 text-amber-700">sin precios</Badge>
+                              )}
                               {getListName(ficha?.priceList)}
                             </span>
                           )
@@ -1203,6 +1267,23 @@ export default function ClientDetail() {
                         )}
                       </div>
                     ))}
+
+                    {/* La lista de la ficha puede ser un código de lista del ERP
+                        (TABPPPL1, etc.), que no tiene precios cargados en la
+                        intranet. En ese caso Panorámica Market cobra la lista
+                        comercial: se dice, en vez de mostrar una lista que no se
+                        está aplicando. */}
+                    {ficha && ficha.priceListUsable === false && (
+                      <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5" data-testid="alert-lista-sin-precios">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-amber-800">
+                          La lista <span className="font-semibold">{ficha.priceList}</span> viene del ERP y no tiene precios cargados en la intranet,
+                          así que en Panorámica Market se le está cobrando{" "}
+                          <span className="font-semibold">{ficha.priceListChargedName || ficha.priceListCharged}</span>.
+                          {canManage && " Para que respete otra lista, asignala acá con Editar."}
+                        </p>
+                      </div>
+                    )}
 
                     {/* De dónde salen los números: son la suma de los documentos
                         de la tarjeta de al lado, no otra fuente. */}
