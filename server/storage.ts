@@ -2779,7 +2779,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokoen, client));
     }
     if (product) {
-      conditions.push(eq(factVentas.nokoar, product));
+      // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
+      conditions.push(eq(factVentas.nokoprct, product));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3324,7 +3325,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokoen, client));
     }
     if (product) {
-      conditions.push(eq(factVentas.nokoar, product));
+      // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
+      conditions.push(eq(factVentas.nokoprct, product));
     }
     conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
@@ -3394,7 +3396,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokoen, client));
     }
     if (product) {
-      conditions.push(eq(factVentas.nokoar, product));
+      // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
+      conditions.push(eq(factVentas.nokoprct, product));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3539,7 +3542,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (product) {
-      conditions.push(eq(factVentas.nokoar, product));
+      // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
+      conditions.push(eq(factVentas.nokoprct, product));
     }
     conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
