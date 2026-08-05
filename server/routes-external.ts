@@ -1973,6 +1973,136 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'OK' } },
       },
     },
+    // Estadísticas de ventas. `period` acepta YYYY | YYYY-MM | YYYY-MM-DD |
+    // current-month | last-month | last-30-days | last-90-days; startDate+endDate
+    // gana sobre period.
+    '/ventas/top-clientes': {
+      get: {
+        summary: 'Ranking de clientes por venta facturada del período',
+        description: 'Ordenado de mayor a menor, con percentage sobre el total del período y percentageAcumulado (Pareto). El monto es el del período, no el histórico del cliente.',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'filterType', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'product', in: 'query', schema: { type: 'string' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 500 } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ventas/top-vendedores': {
+      get: {
+        summary: 'Ranking de vendedores por venta facturada (volumen, no margen)',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+          { name: 'product', in: 'query', schema: { type: 'string' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ventas/top-productos': {
+      get: {
+        summary: 'Ranking de productos por venta facturada',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ventas/por-segmento': {
+      get: {
+        summary: 'Participación de cada segmento comercial en la venta del período',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ventas/tendencia': {
+      get: {
+        summary: 'Serie temporal de la venta del período',
+        parameters: [
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'granularidad', in: 'query', schema: { type: 'string', enum: ['daily', 'weekly', 'monthly'] } },
+          { name: 'salesperson', in: 'query', schema: { type: 'string' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'client', in: 'query', schema: { type: 'string' } },
+          { name: 'product', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/ventas/ficha-cliente': {
+      get: {
+        summary: 'Qué compró un cliente en el período (productos y vendedores)',
+        description: 'El nombre puede ser parcial: se resuelve al del ERP y las otras candidatas vuelven en coincidencias[].',
+        parameters: [
+          { name: 'nombre', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'limitProductos', in: 'query', schema: { type: 'integer', default: 10 } },
+        ],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Sin ventas de un cliente que coincida' } },
+      },
+    },
+    '/ventas/ficha-vendedor': {
+      get: {
+        summary: 'Desempeño de un vendedor: cartera top, productos y apertura por segmento',
+        parameters: [
+          { name: 'nombre', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'limitClientes', in: 'query', schema: { type: 'integer', default: 10 } },
+          { name: 'limitProductos', in: 'query', schema: { type: 'integer', default: 10 } },
+        ],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Sin ventas de un vendedor que coincida' } },
+      },
+    },
+    '/ventas/ficha-producto': {
+      get: {
+        summary: 'Quién compra y quién vende un producto',
+        parameters: [
+          { name: 'nombre', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'period', in: 'query', schema: { type: 'string' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'segment', in: 'query', schema: { type: 'string' } },
+          { name: 'limitClientes', in: 'query', schema: { type: 'integer', default: 10 } },
+        ],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Sin ventas de un producto que coincida' } },
+      },
+    },
+    '/crm/seguimiento/por-vendedor': {
+      get: {
+        summary: 'KPIs del pipeline CRM abiertos por vendedor',
+        parameters: [
+          { name: 'segmento', in: 'query', schema: { type: 'string' }, description: 'Construcción | Ferretería | Digital | Industrial' },
+        ],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
   },
 };
 
@@ -2173,7 +2303,7 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /finanzas/proyecciones/charts': { filters: ['years', 'months', 'salespersonCode', 'segment'], role: 'read_write' },
       'POST /finanzas/proyecciones/manual': { body: ['year*', 'salespersonCode*', 'clientCode*', 'month', 'salespersonName', 'clientName', 'projectedAmount', 'segment'], role: 'ADMIN' },
       'GET /ventas': { filters: ['startDate', 'endDate', 'salesperson', 'segment', 'client', 'product', 'client_rut', 'limit', 'offset'] },
-      'GET /clientes': { filters: ['search', 'segment', 'salesperson', 'creditStatus', 'businessType', 'debtStatus', 'entityType', 'salesPeriod', 'limit', 'offset'] },
+      'GET /clientes': { filters: ['search', 'segment', 'salesperson', 'creditStatus', 'businessType', 'debtStatus', 'entityType', 'salesPeriod', 'compact (true = solo los campos usables)', 'limit', 'offset'], note: 'Maestro del ERP. totalSales es el HISTÓRICO del cliente, no el del período: para rankings por período usar /ventas/top-clientes.' },
       'GET /puntos-de-venta': { filters: ['type (sucursal_propia|distribuidor|ferreteria)', 'region', 'comuna'], note: 'puntos de venta activos con lat/long para el mapa "Dónde Comprar" — CORS abierto' },
       'GET /usuarios': { filters: ['role', 'source (users|salespeople|all)', 'limit'], note: 'returns { users, salespeople, counts }' },
       'GET /notificaciones': { filters: ['type', 'priority', 'departamento', 'archived', 'targetType', 'userId', 'limit', 'offset'] },
@@ -2206,7 +2336,8 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /crm/seguimiento/:id/bitacora': { filters: ['limit'], note: 'Lista entradas de la BITÁCORA (panel derecho), distinta del timeline /hito' },
       'POST /crm/seguimiento/:id/bitacora': { body: ['nota*', 'tipo (nota|llamada|visita|seguimiento|problema)', 'autor'], note: 'Refresca ultimoContacto del CRM' },
       'DELETE /crm/seguimiento/:id/bitacora/:entryId': { note: 'Eliminar entrada' },
-      'GET /crm/seguimiento/stats': { filters: ['vendedor'], note: '{ total, porEstado, porPrioridad, sinContacto7Dias, prospectosEnSeguimiento, tiempoCierrePromedioDias }' },
+      'GET /crm/seguimiento/stats': { filters: ['vendedor (vendedorId)', 'segmento'], note: 'KPIs del panel: { total (ACTIVOS, excluye perdido), totalIncluyendoPerdidos, porEstado, porPrioridad, sinContacto7Dias, prospectosEnSeguimiento, montoEstimadoActivo, montoEstimadoPorEstado, tasaConversion, tiempoCierrePromedioDias }' },
+      'GET /crm/seguimiento/por-vendedor': { filters: ['segmento'], note: 'El mismo resumen abierto por vendedor (items[]) + el consolidado. Evita llamar /stats una vez por vendedor.' },
       'GET /crm/seguimiento/segmentos': { note: 'Catálogo de segmentos del ERP' },
       'GET /productos': { filters: ['search', 'unidad', 'tipoProducto', 'color', 'priceList (LP01|LP02|...)', 'limit', 'offset'], note: 'flat list with all price tiers + cost + custom-list price' },
       'GET /listas-precio': { note: 'lists LP01 (base) + custom price lists (LP02 Mix, LP03 etc)' },
@@ -2226,6 +2357,17 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'PATCH /cotizaciones/items/:itemId': { body: ['quantity', 'unitPrice', 'productName', '...'] },
       'DELETE /cotizaciones/items/:itemId': {},
       'GET /dashboard': { filters: ['period (YYYY | YYYY-MM | YYYY-MM-DD)', 'filterType', 'segment', 'salesperson', 'client'] },
+      // ═══ Estadísticas de ventas (rankings y fichas) ═══
+      // period acepta YYYY | YYYY-MM | YYYY-MM-DD | current-month | last-month |
+      // last-30-days | last-90-days, o startDate + endDate para un rango libre.
+      'GET /ventas/top-clientes': { filters: ['period | startDate+endDate', 'salesperson', 'segment', 'product', 'limit (default 20, max 500)'], note: 'Ranking de clientes por venta FACTURADA del período, con percentage y percentageAcumulado (Pareto). Para "los N que más compraron" usar esto, NO /clientes (ahí totalSales es el histórico).' },
+      'GET /ventas/top-vendedores': { filters: ['period | startDate+endDate', 'segment', 'client', 'product', 'limit'], note: 'Ranking por VOLUMEN. Para margen: /margenes/ventas/por-vendedor.' },
+      'GET /ventas/top-productos': { filters: ['period | startDate+endDate', 'salesperson', 'segment', 'client', 'limit'], note: 'Ranking de productos por venta. Mismos datos que /margenes/top-productos con más formatos de period.' },
+      'GET /ventas/por-segmento': { filters: ['period | startDate+endDate', 'salesperson', 'segment'], note: 'Participación de cada segmento comercial en la venta del período.' },
+      'GET /ventas/tendencia': { filters: ['period | startDate+endDate', 'granularidad (daily|weekly|monthly)', 'salesperson', 'segment', 'client', 'product'], note: 'Serie temporal de la venta del período.' },
+      'GET /ventas/ficha-cliente': { filters: ['nombre* (parcial, se resuelve al del ERP)', 'period | startDate+endDate', 'limitProductos'], note: 'Métricas del cliente en el período + qué le vendimos + quién se lo vendió.' },
+      'GET /ventas/ficha-vendedor': { filters: ['nombre*', 'period | startDate+endDate', 'limitClientes', 'limitProductos'], note: 'Métricas del vendedor + su cartera top + productos + apertura por segmento.' },
+      'GET /ventas/ficha-producto': { filters: ['nombre*', 'period | startDate+endDate', 'segment'], note: 'Quién compra el producto y quién lo vende.' },
     },
   });
 });
@@ -2360,9 +2502,29 @@ router.get('/ventas', async (req: ApiAuthRequest, res) => {
 // Clients (Read)
 // ============================================
 
+// Campos que se devuelven con ?compact=true. El maestro del ERP trae 100+ columnas
+// (direcciones, condiciones de crédito SAP, flags internos) casi todas vacías, y con
+// eso una respuesta de 50 clientes se pasa de largo y el cliente MCP la corta. Este
+// subconjunto es lo que se usa al hablar de un cliente.
+const CLIENTE_CAMPOS_COMPACTOS = [
+  'id', 'koen', 'nokoen', 'rten', 'cmen', 'gien', 'email', 'foen', 'cpen', 'crsd',
+  'totalTransactions', 'totalSales', 'lastTransactionDate', 'lastTransactionAmount',
+  'salespersonName', 'salesSegment', 'marketAccess',
+] as const;
+
+function clienteCompacto(cliente: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const campo of CLIENTE_CAMPOS_COMPACTOS) {
+    const valor = cliente[campo];
+    if (valor !== null && valor !== undefined && valor !== '') out[campo] = valor;
+  }
+  return out;
+}
+
 router.get('/clientes', async (req: ApiAuthRequest, res) => {
   try {
     const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod } = req.query;
+    const compact = String(req.query.compact ?? '') === 'true' || String(req.query.compact ?? '') === '1';
 
     const clients = await storage.getClients({
       search: search as string | undefined,
@@ -2377,7 +2539,7 @@ router.get('/clientes', async (req: ApiAuthRequest, res) => {
       offset: parseOffset(req.query.offset),
     });
 
-    res.json(clients);
+    res.json(compact ? clients.map((c) => clienteCompacto(c as unknown as Record<string, unknown>)) : clients);
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2894,36 +3056,186 @@ router.get('/crm/seguimiento/segmentos', async (_req: ApiAuthRequest, res) => {
   }
 });
 
-// GET /crm/seguimiento/stats — Pipeline statistics
+// Lee el pipeline (con el segmento derivado del cliente del ERP cuando el lead no
+// lo tiene propio) y lo resume igual que las tarjetas KPI del panel. Se comparte
+// entre /crm/seguimiento/stats y /crm/seguimiento/por-vendedor para que los dos
+// cuenten lo mismo.
+type SeguimientoLead = typeof crmSeguimientoClientes.$inferSelect & { linkedSegmento?: string | null };
+
+async function leerPipelineSeguimiento(opts: {
+  vendedorId?: string;
+  segmento?: string;
+}): Promise<SeguimientoLead[]> {
+  const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+  if (opts.vendedorId) conditions.push(eq(crmSeguimientoClientes.vendedorId, opts.vendedorId));
+
+  const rows = await db.select({
+      ...getTableColumns(crmSeguimientoClientes),
+      linkedSegmento: sql<string>`(SELECT nokoru FROM ventas.stg_tabru WHERE koru = ${clients.ruen} LIMIT 1)`.as('linked_segmento'),
+    })
+    .from(crmSeguimientoClientes)
+    .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
+    .where(and(...conditions));
+
+  // El segmento del lead es texto libre y conviven variantes ("Ferretería" del CRM
+  // vs "FERRETERIAS" del ERP): se compara por raíz sin tildes, igual que el listado.
+  if (!opts.segmento || opts.segmento === 'todos') return rows as SeguimientoLead[];
+  const raiz = segmentoRaiz(opts.segmento);
+  return (rows as SeguimientoLead[]).filter((c) => {
+    const propio = String(c.segmento || c.linkedSegmento || '').trim();
+    return propio !== '' && segmentoRaiz(propio) === raiz;
+  });
+}
+
+// Tiempo promedio (días) entre el alta del lead y el primer hito de sistema que lo
+// movió a "venta". No hay columna de cierre, así que el hito es la única marca.
+async function tiempoPromedioCierre(leads: SeguimientoLead[]): Promise<number | null> {
+  const ids = leads.map((c) => c.id);
+  if (ids.length === 0) return null;
+
+  const cierres = await db.select({
+      seguimientoId: crmSeguimientoHitos.seguimientoId,
+      createdAt: crmSeguimientoHitos.createdAt,
+    })
+    .from(crmSeguimientoHitos)
+    .where(and(
+      eq(crmSeguimientoHitos.tipo, 'sistema'),
+      ilike(crmSeguimientoHitos.descripcion, '%a "venta"%'),
+      inArray(crmSeguimientoHitos.seguimientoId, ids),
+    ));
+
+  const primerCierre = new Map<string, Date>();
+  for (const h of cierres) {
+    const prev = primerCierre.get(h.seguimientoId);
+    if (!prev || h.createdAt < prev) primerCierre.set(h.seguimientoId, h.createdAt);
+  }
+
+  const porId = new Map(leads.map((c) => [c.id, c]));
+  const dias: number[] = [];
+  for (const [id, cierreAt] of Array.from(primerCierre.entries())) {
+    const lead = porId.get(id);
+    if (!lead) continue;
+    const diff = (cierreAt.getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    if (diff >= 0) dias.push(diff);
+  }
+  if (dias.length === 0) return null;
+  return Math.round(dias.reduce((a, b) => a + b, 0) / dias.length);
+}
+
+// Resume un conjunto de leads con los mismos criterios de las tarjetas KPI del panel.
+function resumirPipeline(leads: SeguimientoLead[]) {
+  const porEstado: Record<string, number> = {};
+  const porPrioridad: Record<string, number> = {};
+  const montoEstimadoPorEstado: Record<string, number> = {};
+  let sinContacto7Dias = 0;
+  let activos = 0;
+  let montoEstimadoActivo = 0;
+  const ahora = Date.now();
+
+  for (const c of leads) {
+    const monto = Number(c.montoEstimado ?? 0) || 0;
+    // porEstado conserva TODOS los estados (incluido "perdido") porque es la foto
+    // del embudo; "perdido" no cuenta como lead activo ni entra en el alerta de
+    // 7 días, igual que en el panel.
+    porEstado[c.estado] = (porEstado[c.estado] || 0) + 1;
+    porPrioridad[c.prioridad] = (porPrioridad[c.prioridad] || 0) + 1;
+    montoEstimadoPorEstado[c.estado] = (montoEstimadoPorEstado[c.estado] || 0) + monto;
+    if (c.estado === 'perdido') continue;
+    activos++;
+    montoEstimadoActivo += monto;
+    if (c.ultimoContacto) {
+      const diffDays = (ahora - new Date(c.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays > 7) sinContacto7Dias++;
+    } else {
+      sinContacto7Dias++;
+    }
+  }
+
+  // "seguimiento" absorbe el legacy "contactado" (ver client/src/lib/crm-seguimiento.ts).
+  const prospectosEnSeguimiento = (porEstado['seguimiento'] || 0) + (porEstado['contactado'] || 0);
+  const ganados = porEstado['venta'] || 0;
+  const cerrados = ganados + (porEstado['perdido'] || 0);
+
+  return {
+    total: activos,
+    totalIncluyendoPerdidos: leads.length,
+    porEstado,
+    porPrioridad,
+    sinContacto7Dias,
+    prospectosEnSeguimiento,
+    montoEstimadoActivo,
+    montoEstimadoPorEstado,
+    // Cerrados ganados sobre cerrados totales. Sin cierres todavía es null, no 0%.
+    tasaConversion: cerrados > 0 ? Math.round((ganados / cerrados) * 10000) / 100 : null,
+  };
+}
+
+// GET /crm/seguimiento/stats — KPIs del pipeline, con los mismos criterios que las
+// tarjetas del panel "Seguimiento de Clientes": `total` son los leads ACTIVOS
+// (excluye "perdido"), y se agrega el valor estimado del embudo y la conversión.
 router.get('/crm/seguimiento/stats', async (req: ApiAuthRequest, res) => {
   try {
-    const vendedorFilter = req.query.vendedor as string | undefined;
-    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
-    if (vendedorFilter) {
-      conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
-    }
+    const vendedorId = (req.query.vendedor as string | undefined) || undefined;
+    const segmento = (req.query.segmento as string | undefined) || undefined;
 
-    const allClients = await db.select().from(crmSeguimientoClientes).where(and(...conditions));
+    const leads = await leerPipelineSeguimiento({ vendedorId, segmento });
+    const resumen = resumirPipeline(leads);
+    const tiempoCierrePromedioDias = await tiempoPromedioCierre(leads);
 
-    const porEstado: Record<string, number> = {};
-    const porPrioridad: Record<string, number> = {};
-    let sinContacto7Dias = 0;
-    const ahora = Date.now();
-
-    for (const c of allClients) {
-      porEstado[c.estado] = (porEstado[c.estado] || 0) + 1;
-      porPrioridad[c.prioridad] = (porPrioridad[c.prioridad] || 0) + 1;
-      if (c.ultimoContacto) {
-        const diffDays = (ahora - new Date(c.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays > 7) sinContacto7Dias++;
-      } else {
-        sinContacto7Dias++;
-      }
-    }
-
-    res.json({ total: allClients.length, porEstado, porPrioridad, sinContacto7Dias });
+    res.json({
+      filtros: { vendedor: vendedorId ?? null, segmento: segmento ?? null },
+      ...resumen,
+      tiempoCierrePromedioDias,
+    });
   } catch (error) {
     console.error('Error fetching seguimiento stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /crm/seguimiento/por-vendedor — el mismo resumen del pipeline abierto por
+// vendedor. Es la vista que pide un supervisor ("cómo viene el CRM de cada uno")
+// y evita tener que llamar a /stats una vez por vendedor.
+router.get('/crm/seguimiento/por-vendedor', async (req: ApiAuthRequest, res) => {
+  try {
+    const segmento = (req.query.segmento as string | undefined) || undefined;
+    const leads = await leerPipelineSeguimiento({ segmento });
+
+    const porVendedor = new Map<string, SeguimientoLead[]>();
+    for (const lead of leads) {
+      const key = lead.vendedorId || 'sin_vendedor';
+      const acc = porVendedor.get(key);
+      if (acc) acc.push(lead);
+      else porVendedor.set(key, [lead]);
+    }
+
+    // El nombre del vendedor está denormalizado en el lead; si falta, se resuelve
+    // contra salespeople_users.
+    const ids = Array.from(porVendedor.keys()).filter((k) => k !== 'sin_vendedor');
+    const nombres = new Map<string, string>();
+    if (ids.length > 0) {
+      const filas = await db.select({ id: salespeopleUsers.id, nombre: salespeopleUsers.salespersonName })
+        .from(salespeopleUsers)
+        .where(inArray(salespeopleUsers.id, ids));
+      for (const f of filas) nombres.set(f.id, f.nombre || '');
+    }
+
+    const items = Array.from(porVendedor.entries())
+      .map(([vendedorId, propios]) => ({
+        vendedorId: vendedorId === 'sin_vendedor' ? null : vendedorId,
+        vendedorNombre: propios[0]?.vendedorNombre || nombres.get(vendedorId) || null,
+        ...resumirPipeline(propios),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    res.json({
+      filtros: { segmento: segmento ?? null },
+      vendedores: items.length,
+      ...resumirPipeline(leads),
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching seguimiento por vendedor:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -6636,6 +6948,454 @@ router.get('/ventas/comparar', async (req: ApiAuthRequest, res) => {
     res.json(response);
   } catch (error) {
     console.error('Error fetching comparativa de ventas:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Estadísticas de ventas — rankings y fichas
+// ============================================
+// La API tenía agregados (dashboard, márgenes, comparativa) pero ningún ranking, y
+// eso dejaba sin respuesta la familia de preguntas más común del negocio: "los 50
+// clientes que más compraron el 2025", "qué vendedor vendió más este mes", "los 20
+// productos top de Ferreterías". La única salida era paginar /clientes, que
+// devuelve la ficha completa del ERP (100+ columnas, la mayoría vacías) y cuyo
+// totalSales es el histórico del cliente y no lo del período: la respuesta se
+// cortaba por tamaño y encima el número no era el pedido.
+//
+// Estas rutas agregan en SQL sobre ventas.fact_ventas (excluye GDV, igual que el
+// dashboard) y devuelven el ranking ya ordenado, con porcentaje del período y
+// porcentaje acumulado — con eso el "20% de clientes que hace el 80% de la venta"
+// se lee directo de la respuesta, sin sumar a mano.
+//
+// La ventana temporal es la misma de márgenes y comparativa (ventasWindow):
+// period = YYYY | YYYY-MM | YYYY-MM-DD | current-month | last-month |
+// last-30-days | last-90-days, o startDate + endDate para un rango libre.
+
+function ventasPct(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 10000) / 100 : 0;
+}
+
+// Agrega `rank`, `percentage` (sobre el total del período) y `percentageAcumulado`
+// (Pareto) a un ranking ya ordenado de mayor a menor.
+function ventasRankear<T extends { totalSales: number }>(
+  items: T[],
+  periodTotalSales: number,
+): Array<T & { rank: number; percentage: number; percentageAcumulado: number }> {
+  let acumulado = 0;
+  return items.map((item, i) => {
+    acumulado += item.totalSales;
+    return {
+      ...item,
+      rank: i + 1,
+      percentage: ventasPct(item.totalSales, periodTotalSales),
+      percentageAcumulado: ventasPct(acumulado, periodTotalSales),
+    };
+  });
+}
+
+// Resuelve un nombre parcial ("el martillo", "jesus") al valor exacto que usa el
+// ERP, porque los filtros de las estadísticas comparan por igualdad. Prioriza la
+// coincidencia exacta (sin distinguir mayúsculas) y si no hay, la de mayor venta
+// en la ventana. Devuelve también las otras candidatas para que el asistente pueda
+// avisar cuando el nombre era ambiguo en vez de responder por el cliente equivocado.
+async function resolverNombreVentas(
+  campo: 'nokoen' | 'nokofu' | 'nokoprct',
+  valor: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ exact: string | null; matches: Array<{ name: string; totalSales: number }> }> {
+  const buscado = valor.trim();
+  if (!buscado) return { exact: null, matches: [] };
+
+  const col = sql.raw(campo);
+  const result = await db.execute(sql`
+    SELECT ${col} AS name, COALESCE(SUM(monto), 0)::float8 AS total_sales
+    FROM ventas.fact_ventas
+    WHERE tido <> 'GDV'
+      AND feemdo >= ${startDate}::date
+      AND feemdo <= ${endDate}::date
+      AND ${col} ILIKE ${`%${buscado}%`}
+    GROUP BY ${col}
+    ORDER BY 2 DESC
+    LIMIT 8
+  `);
+
+  const matches = (((result as any).rows ?? []) as any[])
+    .map((r) => ({ name: String(r.name ?? '').trim(), totalSales: Number(r.total_sales) }))
+    .filter((r) => r.name !== '');
+
+  if (matches.length === 0) return { exact: null, matches: [] };
+  const exacto = matches.find((m) => m.name.toLowerCase() === buscado.toLowerCase());
+  return { exact: (exacto ?? matches[0]).name, matches };
+}
+
+// Primera y última compra + segmentos en los que aparece. Complementa a
+// getSalesMetrics, que no las trae, para las fichas.
+async function ventasBordesPeriodo(
+  campo: 'nokoen' | 'nokofu' | 'nokoprct',
+  valorExacto: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ primeraVenta: string | null; ultimaVenta: string | null; segmentos: string[] }> {
+  const col = sql.raw(campo);
+  const result = await db.execute(sql`
+    SELECT MIN(feemdo)::text AS primera, MAX(feemdo)::text AS ultima,
+           ARRAY_AGG(DISTINCT noruen) FILTER (WHERE noruen IS NOT NULL AND noruen <> '') AS segmentos
+    FROM ventas.fact_ventas
+    WHERE tido <> 'GDV'
+      AND feemdo >= ${startDate}::date
+      AND feemdo <= ${endDate}::date
+      AND ${col} = ${valorExacto}
+  `);
+  const row = (((result as any).rows ?? [])[0] ?? {}) as any;
+  return {
+    primeraVenta: row.primera ?? null,
+    ultimaVenta: row.ultima ?? null,
+    segmentos: Array.isArray(row.segmentos) ? row.segmentos.map((s: string) => String(s).trim()) : [],
+  };
+}
+
+// GET /ventas/top-clientes — ranking de clientes por venta facturada del período.
+// Esta es la que faltaba: responde "los 50 clientes con más venta el 2025" en una
+// sola llamada, con el monto del período (no el histórico) y el acumulado Pareto.
+router.get('/ventas/top-clientes', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, product } = req.query;
+    const limit = parseLimit(req.query.limit, 20, 500);
+
+    const result = await storage.getTopClients(
+      limit,
+      startDate,
+      endDate,
+      salesperson as string | undefined,
+      segment as string | undefined,
+      product as string | undefined,
+      [], // sin restricción de scope (API externa)
+    );
+
+    res.json({
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      filters: {
+        salesperson: (salesperson as string) || null,
+        segment: (segment as string) || null,
+        product: (product as string) || null,
+      },
+      periodTotalSales: result.periodTotalSales,
+      clientesConVenta: result.totalCount,
+      limit,
+      items: ventasRankear(result.items, result.periodTotalSales),
+    });
+  } catch (error) {
+    console.error('Error fetching top clientes:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/top-vendedores — ranking de vendedores por venta facturada.
+// Es el volumen, no el margen: para "quién dejó más plata" va /margenes/ventas/por-vendedor.
+router.get('/ventas/top-vendedores', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { segment, client, product } = req.query;
+    const limit = parseLimit(req.query.limit, 20, 200);
+
+    const result = await storage.getTopSalespeople(
+      limit,
+      startDate,
+      endDate,
+      segment as string | undefined,
+      client as string | undefined,
+      product as string | undefined,
+      [],
+    );
+
+    res.json({
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      filters: {
+        segment: (segment as string) || null,
+        client: (client as string) || null,
+        product: (product as string) || null,
+      },
+      periodTotalSales: result.periodTotalSales,
+      vendedoresConVenta: result.totalCount,
+      limit,
+      items: ventasRankear(result.items, result.periodTotalSales),
+    });
+  } catch (error) {
+    console.error('Error fetching top vendedores:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/top-productos — ranking de productos por venta facturada.
+// Mismos datos que /margenes/top-productos (que quedó colgando del módulo de
+// márgenes por historia), pero acepta el vocabulario completo de period.
+router.get('/ventas/top-productos', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, client } = req.query;
+    const limit = parseLimit(req.query.limit, 20, 500);
+
+    const result = await storage.getTopProducts(
+      limit,
+      startDate,
+      endDate,
+      salesperson as string | undefined,
+      segment as string | undefined,
+      client as string | undefined,
+      [],
+    );
+
+    res.json({
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      filters: {
+        salesperson: (salesperson as string) || null,
+        segment: (segment as string) || null,
+        client: (client as string) || null,
+      },
+      periodTotalSales: result.periodTotalSales,
+      productosConVenta: result.totalCount,
+      limit,
+      items: ventasRankear(result.items, result.periodTotalSales),
+    });
+  } catch (error) {
+    console.error('Error fetching top productos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/por-segmento — participación de cada segmento comercial en la venta
+// del período. Es el mismo corte que muestra el dashboard, pero como recurso propio.
+router.get('/ventas/por-segmento', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment } = req.query;
+
+    const items = await storage.getSegmentAnalysis(
+      startDate,
+      endDate,
+      salesperson as string | undefined,
+      segment as string | undefined,
+      [],
+    );
+
+    res.json({
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      filters: { salesperson: (salesperson as string) || null, segment: (segment as string) || null },
+      totalSales: items.reduce((acc, s) => acc + s.totalSales, 0),
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching ventas por segmento:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/tendencia — serie temporal de la venta del período.
+// granularidad: daily | weekly | monthly. Por defecto, mensual para un período
+// anual y diaria para el resto, que es como la dibuja la intranet.
+router.get('/ventas/tendencia', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, client, product } = req.query;
+
+    const pedida = String(req.query.granularidad ?? '').trim();
+    const granularidad: 'daily' | 'weekly' | 'monthly' =
+      pedida === 'daily' || pedida === 'weekly' || pedida === 'monthly'
+        ? pedida
+        : filterType === 'year' ? 'monthly' : 'daily';
+
+    const items = await storage.getSalesChartData(
+      granularidad,
+      startDate,
+      endDate,
+      salesperson as string | undefined,
+      segment as string | undefined,
+      client as string | undefined,
+      product as string | undefined,
+      undefined,
+      [],
+    );
+
+    res.json({
+      period,
+      filterType,
+      granularidad,
+      dateRange: { startDate, endDate },
+      filters: {
+        salesperson: (salesperson as string) || null,
+        segment: (segment as string) || null,
+        client: (client as string) || null,
+        product: (product as string) || null,
+      },
+      totalSales: items.reduce((acc, p) => acc + p.sales, 0),
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching tendencia de ventas:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/ficha-cliente?nombre= — todo lo que compró un cliente en el período:
+// métricas, qué le vendimos y quién se lo vendió. El nombre puede ser parcial: se
+// resuelve al del ERP (por eso va como query param y no en el path — los nombres
+// del ERP traen puntos, comas y barras).
+router.get('/ventas/ficha-cliente', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const nombre = String(req.query.nombre ?? req.query.cliente ?? '').trim();
+    if (!nombre) return res.status(400).json({ error: 'nombre is required' });
+
+    const { exact, matches } = await resolverNombreVentas('nokoen', nombre, startDate, endDate);
+    if (!exact) {
+      return res.status(404).json({ error: `Sin ventas de un cliente que coincida con "${nombre}" en el período`, period, dateRange: { startDate, endDate } });
+    }
+
+    const [metrics, bordes, topProductos, vendedores] = await Promise.all([
+      storage.getSalesMetrics({ startDate, endDate, client: exact }),
+      ventasBordesPeriodo('nokoen', exact, startDate, endDate),
+      storage.getTopProducts(parseLimit(req.query.limitProductos, 10, 100), startDate, endDate, undefined, undefined, exact, []),
+      storage.getTopSalespeople(5, startDate, endDate, undefined, exact, undefined, []),
+    ]);
+
+    res.json({
+      cliente: exact,
+      coincidencias: matches.filter((m) => m.name !== exact),
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      metricas: {
+        totalSales: metrics.totalSales,
+        unidades: metrics.totalUnits,
+        transacciones: metrics.salesTransactionCount,
+        documentos: metrics.totalOrders,
+        ticketPromedio: metrics.salesTransactionCount > 0
+          ? Math.round(metrics.totalSales / metrics.salesTransactionCount)
+          : 0,
+        primeraVenta: bordes.primeraVenta,
+        ultimaVenta: bordes.ultimaVenta,
+        segmentos: bordes.segmentos,
+      },
+      topProductos: ventasRankear(topProductos.items, metrics.totalSales),
+      vendedores: ventasRankear(vendedores.items, metrics.totalSales),
+    });
+  } catch (error) {
+    console.error('Error fetching ficha de ventas del cliente:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/ficha-vendedor?nombre= — desempeño de un vendedor en el período:
+// métricas, su cartera top y qué productos mueve.
+router.get('/ventas/ficha-vendedor', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const nombre = String(req.query.nombre ?? req.query.vendedor ?? '').trim();
+    if (!nombre) return res.status(400).json({ error: 'nombre is required' });
+
+    const { exact, matches } = await resolverNombreVentas('nokofu', nombre, startDate, endDate);
+    if (!exact) {
+      return res.status(404).json({ error: `Sin ventas de un vendedor que coincida con "${nombre}" en el período`, period, dateRange: { startDate, endDate } });
+    }
+
+    const [metrics, bordes, topClientes, topProductos, porSegmento] = await Promise.all([
+      storage.getSalesMetrics({ startDate, endDate, salesperson: exact }),
+      ventasBordesPeriodo('nokofu', exact, startDate, endDate),
+      storage.getTopClients(parseLimit(req.query.limitClientes, 10, 200), startDate, endDate, exact, undefined, undefined, []),
+      storage.getTopProducts(parseLimit(req.query.limitProductos, 10, 100), startDate, endDate, exact, undefined, undefined, []),
+      storage.getSegmentAnalysis(startDate, endDate, exact, undefined, []),
+    ]);
+
+    res.json({
+      vendedor: exact,
+      coincidencias: matches.filter((m) => m.name !== exact),
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      metricas: {
+        totalSales: metrics.totalSales,
+        unidades: metrics.totalUnits,
+        transacciones: metrics.salesTransactionCount,
+        documentos: metrics.totalOrders,
+        clientesAtendidos: metrics.activeCustomers,
+        ticketPromedio: metrics.salesTransactionCount > 0
+          ? Math.round(metrics.totalSales / metrics.salesTransactionCount)
+          : 0,
+        primeraVenta: bordes.primeraVenta,
+        ultimaVenta: bordes.ultimaVenta,
+      },
+      topClientes: ventasRankear(topClientes.items, metrics.totalSales),
+      topProductos: ventasRankear(topProductos.items, metrics.totalSales),
+      porSegmento,
+    });
+  } catch (error) {
+    console.error('Error fetching ficha de ventas del vendedor:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/ficha-producto?nombre= — quién compra un producto y quién lo vende.
+router.get('/ventas/ficha-producto', async (req: ApiAuthRequest, res) => {
+  try {
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { segment } = req.query;
+    const nombre = String(req.query.nombre ?? req.query.producto ?? '').trim();
+    if (!nombre) return res.status(400).json({ error: 'nombre is required' });
+
+    const { exact, matches } = await resolverNombreVentas('nokoprct', nombre, startDate, endDate);
+    if (!exact) {
+      return res.status(404).json({ error: `Sin ventas de un producto que coincida con "${nombre}" en el período`, period, dateRange: { startDate, endDate } });
+    }
+
+    // Se compone con getSalesMetrics + los rankings en vez de storage.getProductDetails:
+    // esa función está declarada dos veces en storage y la que gana en runtime tiene
+    // otra firma y otra forma de respuesta.
+    const [metrics, bordes, topClientes, vendedores] = await Promise.all([
+      storage.getSalesMetrics({ startDate, endDate, product: exact, segment: segment as string | undefined }),
+      ventasBordesPeriodo('nokoprct', exact, startDate, endDate),
+      storage.getTopClients(parseLimit(req.query.limitClientes, 10, 200), startDate, endDate, undefined, segment as string | undefined, exact, []),
+      storage.getTopSalespeople(10, startDate, endDate, segment as string | undefined, undefined, exact, []),
+    ]);
+
+    if (metrics.salesTransactionCount === 0) {
+      return res.status(404).json({ error: `El producto "${exact}" no registra ventas en el período`, period, dateRange: { startDate, endDate } });
+    }
+
+    res.json({
+      producto: exact,
+      coincidencias: matches.filter((m) => m.name !== exact),
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      filters: { segment: (segment as string) || null },
+      metricas: {
+        totalSales: metrics.totalSales,
+        unidades: metrics.totalUnits,
+        transacciones: metrics.salesTransactionCount,
+        clientesCompradores: metrics.activeCustomers,
+        ticketPromedio: metrics.salesTransactionCount > 0
+          ? Math.round(metrics.totalSales / metrics.salesTransactionCount)
+          : 0,
+        primeraVenta: bordes.primeraVenta,
+        ultimaVenta: bordes.ultimaVenta,
+        segmentos: bordes.segmentos,
+      },
+      topClientes: ventasRankear(topClientes.items, metrics.totalSales),
+      vendedores: ventasRankear(vendedores.items, metrics.totalSales),
+    });
+  } catch (error) {
+    console.error('Error fetching ficha de ventas del producto:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
