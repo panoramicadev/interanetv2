@@ -5,7 +5,7 @@ import {
   ArrowLeft, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save, Loader2,
+  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save, Loader2, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -429,7 +429,12 @@ export default function ClientDetail() {
     mutationFn: async (password: string) => {
       const fichaId = accountStatus?.clientId || fichaIdForActivation;
       if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
-      const res = await apiRequest("POST", `/api/clients/${fichaId}/market-password`, { password });
+      // Mandamos el id de la cuenta que la ficha ya resolvió: es más confiable que
+      // hacer que el backend la busque de nuevo por RUT.
+      const res = await apiRequest("POST", `/api/clients/${fichaId}/market-password`, {
+        password,
+        ecommerceUserId: accountStatus?.ecommerceUserId ?? null,
+      });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -457,7 +462,10 @@ export default function ClientDetail() {
     mutationFn: async (enabled: boolean) => {
       const fichaId = accountStatus?.clientId || fichaIdForActivation;
       if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
-      const res = await apiRequest("PATCH", `/api/clients/${fichaId}/market-sub-users`, { enabled });
+      const res = await apiRequest("PATCH", `/api/clients/${fichaId}/market-sub-users`, {
+        enabled,
+        ecommerceUserId: accountStatus?.ecommerceUserId ?? null,
+      });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -1164,6 +1172,43 @@ export default function ClientDetail() {
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
+                {/* Panorámica Market — permisos de la cuenta del cliente.
+                    Va primero: es lo que se viene a buscar a esta pestaña cuando el
+                    cliente pide poder crear su propia gente. */}
+                {canManage && accountStatus?.inEcommerce && (
+                  <Card className="border border-orange-200/70 bg-orange-50/30 shadow-sm md:col-span-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex items-start gap-3">
+                          <div className="h-9 w-9 rounded-xl bg-[#FF6E23]/10 text-[#FF6E23] flex items-center justify-center shrink-0">
+                            <Users className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
+                              al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
+                              antes de llegar a Panorámica.
+                            </p>
+                            {!!accountStatus?.subUsersCount && (
+                              <p className="text-xs text-gray-500 mt-1.5">
+                                Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
+                                usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={!!accountStatus?.canCreateSubUsers}
+                          disabled={toggleSubUsers.isPending}
+                          onCheckedChange={(v) => toggleSubUsers.mutate(v)}
+                          data-testid="switch-allow-sub-users"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between gap-2">
@@ -1385,41 +1430,6 @@ export default function ClientDetail() {
                     )}
                   </CardContent>
                 </Card>
-
-                {/* Panorámica Market — permisos de la cuenta del cliente */}
-                {canManage && accountStatus?.inEcommerce && (
-                  <Card className="border-0 shadow-sm md:col-span-2">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <KeyRound className="h-4 w-4 text-[#FF6E23]" /> Panorámica Market
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200/70 p-3.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
-                            al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
-                            antes de llegar a Panorámica.
-                          </p>
-                          {!!accountStatus?.subUsersCount && (
-                            <p className="text-xs text-gray-500 mt-1.5">
-                              Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
-                              usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
-                            </p>
-                          )}
-                        </div>
-                        <Switch
-                          checked={!!accountStatus?.canCreateSubUsers}
-                          disabled={toggleSubUsers.isPending}
-                          onCheckedChange={(v) => toggleSubUsers.mutate(v)}
-                          data-testid="switch-allow-sub-users"
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
 
                 {/* Cuentas por Cobrar — detalle de facturas pendientes */}
                 <Card className="border-0 shadow-sm md:col-span-2">

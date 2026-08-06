@@ -82,7 +82,23 @@ const vistaComprador = (fila: any) => ({
  * clientes. Siempre parent_user_id IS NULL — los compradores heredan el client_id
  * y el RUT del titular, y sin ese filtro se devolvería a uno de ellos.
  */
-async function resolverTitularDeFicha(fichaId: string) {
+async function resolverTitularDeFicha(fichaId: string, ecommerceUserId?: string | null) {
+  // Camino preferido: la ficha ya resolvió la cuenta (es lo que muestra como
+  // "En eCommerce") y nos pasa su id. Evita depender del calce por RUT, que falla
+  // cuando la ficha del ERP guarda el RUT sin dígito verificador y la cuenta con él.
+  if (ecommerceUserId) {
+    const [porId] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(and(
+        eq(salespeopleUsers.id, ecommerceUserId),
+        eq(salespeopleUsers.role, 'client'),
+        isNull(salespeopleUsers.parentUserId),
+      ))
+      .limit(1);
+    if (porId) return porId;
+  }
+
   const [porVinculo] = await db
     .select()
     .from(salespeopleUsers)
@@ -103,13 +119,23 @@ async function resolverTitularDeFicha(fichaId: string) {
   const rutLimpio = (ficha?.rten || '').replace(/[.\-\s]/g, '').toUpperCase();
   if (!rutLimpio) return undefined;
 
+  // El ERP a veces guarda el RUT sin dígito verificador ("77454264") y la cuenta
+  // del Market con él ("77.454.264-7"). Comparamos ambos lados por el cuerpo del
+  // RUT —sin el último carácter cuando corresponde— para que igual calcen.
+  const cuerpo = (v: string) => (v.length > 8 ? v.slice(0, -1) : v);
   const [porRut] = await db
     .select()
     .from(salespeopleUsers)
     .where(and(
       eq(salespeopleUsers.role, 'client'),
       isNull(salespeopleUsers.parentUserId),
-      sql`REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '') = ${rutLimpio}`,
+      sql`
+        CASE
+          WHEN LENGTH(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')) > 8
+          THEN LEFT(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', ''), LENGTH(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')) - 1)
+          ELSE REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')
+        END = ${cuerpo(rutLimpio)}
+      `,
     ))
     .orderBy(salespeopleUsers.createdAt)
     .limit(1);
@@ -129,7 +155,7 @@ export function registerMarketUsuariosRoutes(app: Express): void {
       const enabled = req.body?.enabled === true;
       const fichaId = req.params.id;
 
-      const titular = await resolverTitularDeFicha(fichaId);
+      const titular = await resolverTitularDeFicha(fichaId, req.body?.ecommerceUserId);
       if (!titular) {
         return res.status(404).json({
           message: 'El cliente todavía no tiene cuenta en Panorámica Market. Actívala primero.',
@@ -182,7 +208,7 @@ export function registerMarketUsuariosRoutes(app: Express): void {
         return res.status(400).json({ message: parsed.error.errors[0]?.message || 'Datos inválidos' });
       }
 
-      const titular = await resolverTitularDeFicha(req.params.id);
+      const titular = await resolverTitularDeFicha(req.params.id, req.body?.ecommerceUserId);
       if (!titular) {
         return res.status(404).json({
           message: 'El cliente todavía no tiene cuenta en Panorámica Market. Actívala primero.',
