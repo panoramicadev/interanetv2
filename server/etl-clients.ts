@@ -180,7 +180,11 @@ export async function executeClientETL(): Promise<ClientETLResult> {
           CONTAB, SUBAUXI,
           NOKOENAMP
         FROM dbo.MAEEN
-        WHERE TIEN = 'C'
+        -- TIEN: 'C' = cliente, 'P' = proveedor, 'A' = ambos. Con TIEN = 'C' a
+        -- secas quedaban fuera las entidades que además nos venden, y su ficha
+        -- nunca se actualizaba: PINTURERIA DEL SUR (TIEN='A'), el cliente #1 por
+        -- venta, arrastraba el nombre y los datos congelados desde mayo 2026.
+        WHERE TIEN IN ('C', 'A')
         ORDER BY KOEN
       `),
       sqlServerBreaker,

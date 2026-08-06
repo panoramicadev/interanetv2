@@ -301,6 +301,7 @@ import {
   stgMaeven,
   stgTabbo,
   stgTabpp,
+  stgTabru,
   factVentas,
   type FactVentas,
   type InsertFactVentas,
@@ -6309,13 +6310,26 @@ export class DatabaseStorage implements IStorage {
     const cached = this.getCached<string[]>('uniqueSegments');
     if (cached) return cached;
 
-    const result = await db
-      .selectDistinct({ segment: factVentas.noruen })
-      .from(factVentas)
-      .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
-      .orderBy(factVentas.noruen);
+    // Se unen las dos fuentes que puede mostrar el listado: el segmento vigente
+    // del maestro del ERP (TABRU) y el congelado en las facturas. Sin TABRU no
+    // se podía filtrar por un segmento recién creado en el ERP hasta que
+    // apareciera en una venta.
+    const [ventasResult, tabruResult] = await Promise.all([
+      db
+        .selectDistinct({ segment: factVentas.noruen })
+        .from(factVentas)
+        .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
+        .orderBy(factVentas.noruen),
+      db
+        .selectDistinct({ segment: stgTabru.nokoru })
+        .from(stgTabru)
+        .where(sql`${stgTabru.nokoru} IS NOT NULL AND TRIM(${stgTabru.nokoru}) != ''`),
+    ]);
 
-    const rawSegments = result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
+    const rawSegments = [...ventasResult, ...tabruResult]
+      .map((r: any) => (r.segment ?? '').trim())
+      .filter((segment: string): segment is string => Boolean(segment))
+      .sort((a, b) => a.localeCompare(b, 'es'));
     // Colapsa "Fabricación Modular" / "Industrial" en una sola etiqueta "Industrial".
     const segments = canonicalizeSegmentList(rawSegments);
     this.setCache('uniqueSegments', segments, 300000); // 5 min cache
@@ -12230,6 +12244,33 @@ export class DatabaseStorage implements IStorage {
     )`;
   }
 
+  // Segmento vigente de un cliente, como fragmento SQL reutilizable.
+  //
+  // El maestro del ERP guarda el segmento en MAEEN.RUEN (código) y su nombre en
+  // TABRU, que el ETL deja en ventas.stg_tabru. Ese es el valor VIGENTE: si en
+  // el ERP le reasignan el segmento al cliente, cambia ahí.
+  //
+  // ventas.fact_ventas.noruen, en cambio, es el segmento CONGELADO en cada
+  // factura. Filtrar solo por ahí mostraba el segmento viejo hasta que se
+  // emitiera un documento nuevo. Se usa como respaldo para los clientes cuyo
+  // maestro no trae RUEN.
+  private clientSegmentCondition(segment: string) {
+    return sql`(
+      (
+        TRIM(COALESCE(${clients.ruen}, '')) <> ''
+        AND TRIM(${clients.ruen}) IN (
+          SELECT TRIM(koru) FROM ventas.stg_tabru WHERE ${segmentSqlEq(sql`nokoru`, segment)}
+        )
+      )
+      OR (
+        TRIM(COALESCE(${clients.ruen}, '')) = ''
+        AND ${clients.nokoen} IN (
+          SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, segment)}
+        )
+      )
+    )`;
+  }
+
   // Búsqueda libre del listado de clientes: nombre, RUT o código.
   //
   // El RUT se compara TAMBIÉN en forma normalizada (sin puntos, guion ni espacios)
@@ -12423,13 +12464,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.segment) {
-      // El segmento del cliente no se guarda en la tabla clients (clients.ruen es la
-      // RUTA, no el segmento). El dropdown lista nombres de segmento desde
-      // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
-      // ventas en ese segmento.
-      conditions.push(
-        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, filters.segment)})`
-      );
+      conditions.push(this.clientSegmentCondition(filters.segment));
     }
 
     if (filters?.businessType) {
@@ -12641,9 +12676,36 @@ export class DatabaseStorage implements IStorage {
       // metricsMap stays empty — clients will be returned with zero metrics
     }
 
+    // Segmento VIGENTE del maestro del ERP: clients.ruen (MAEEN.RUEN) resuelto a
+    // nombre por ventas.stg_tabru (TABRU). El de fact_ventas.noruen queda
+    // congelado en cada factura, así que cuando en el ERP le reasignaban el
+    // segmento a un cliente el panel seguía mostrando el viejo hasta que se
+    // emitiera un documento nuevo.
+    const masterSegmentByRuen = new Map<string, string>();
+    try {
+      const ruens = Array.from(new Set(
+        clientsData.map((c: any) => (c.ruen || '').trim()).filter(Boolean)
+      )) as string[];
+      if (ruens.length > 0) {
+        const tabruResult: any = await db.execute(sql`
+          SELECT TRIM(koru) AS koru, nokoru
+          FROM ventas.stg_tabru
+          WHERE TRIM(koru) IN (${sql.join(ruens.map((r) => sql`${r}`), sql`, `)})
+        `);
+        const rows = (Array.isArray(tabruResult) ? tabruResult : tabruResult.rows) || [];
+        for (const r of rows as any[]) {
+          if (r.koru && r.nokoru) masterSegmentByRuen.set(String(r.koru), String(r.nokoru));
+        }
+      }
+    } catch (tabruError) {
+      // Sin el maestro se sigue mostrando el segmento de la última factura.
+      console.error('[getClients] lookup de segmento maestro (stg_tabru) falló:', tabruError);
+    }
+
     // Merge metrics into client data
     const clientsWithMetrics = clientsData.map((client: any) => {
       const metrics = metricsMap.get(client.nokoen);
+      const masterSegment = masterSegmentByRuen.get((client.ruen || '').trim());
       return {
         ...client,
         totalTransactions: metrics ? Number(metrics.total_transactions) : 0,
@@ -12651,7 +12713,8 @@ export class DatabaseStorage implements IStorage {
         lastTransactionDate: metrics?.last_transaction_date || undefined,
         salespersonName: metrics?.salesperson_name || undefined,
         lastTransactionAmount: metrics ? Number(metrics.last_transaction_amount) : undefined,
-        salesSegment: canonicalSegmentName(metrics?.segment_name) || undefined,
+        // El maestro del ERP manda; la última factura es el respaldo.
+        salesSegment: canonicalSegmentName(masterSegment || metrics?.segment_name) || undefined,
       };
     });
 
@@ -12744,13 +12807,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.segment) {
-      // El segmento del cliente no se guarda en la tabla clients (clients.ruen es la
-      // RUTA, no el segmento). El dropdown lista nombres de segmento desde
-      // ventas.fact_ventas.noruen, así que filtramos por los clientes que registren
-      // ventas en ese segmento.
-      conditions.push(
-        sql`${clients.nokoen} IN (SELECT DISTINCT nokoen FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, filters.segment)})`
-      );
+      // Mismo criterio que getClients para que el total y la página coincidan.
+      conditions.push(this.clientSegmentCondition(filters.segment));
     }
 
     if (filters?.businessType) {
