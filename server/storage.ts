@@ -388,6 +388,7 @@ import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { normalizeRut, rutMatchKey } from "@shared/rut";
+import { rutContainsCondition } from "./utils/rut-sql";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { SIN_COMUNA, SIN_REGION, regionDeComuna, resolveComuna } from "@shared/chile-geo";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -6477,6 +6478,22 @@ export class DatabaseStorage implements IStorage {
 
   async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string; rten?: string; email?: string; foen?: string; comuna?: string; region?: string; cpen?: string; purchasingContactName?: string; cnen?: string; dien?: string }>> {
     const searchPattern = `%${searchTerm}%`;
+    // Además del ILIKE literal, comparación por cuerpo de RUT: el ETL guarda
+    // rten en el formato del ERP (sin DV) y el alta manual con formato, así que
+    // buscar "77.454.264-7" no encontraba la ficha bajada del ERP.
+    const rutCondition = rutContainsCondition(clients.rten, searchTerm);
+    const conditions = [
+      sql`${clients.nokoen} ILIKE ${searchPattern}`,
+      sql`${clients.koen} ILIKE ${searchPattern}`,
+      sql`${clients.rten} ILIKE ${searchPattern}`,
+      sql`${clients.foen} ILIKE ${searchPattern}`,
+    ];
+    if (rutCondition) {
+      conditions.push(rutCondition);
+      const koenRut = rutContainsCondition(clients.koen, searchTerm);
+      if (koenRut) conditions.push(koenRut);
+    }
+
     const result = await db
       .select({
         id: clients.id,
@@ -6492,9 +6509,7 @@ export class DatabaseStorage implements IStorage {
         dien: clients.dien,
       })
       .from(clients)
-      .where(
-        sql`${clients.nokoen} ILIKE ${searchPattern} OR ${clients.koen} ILIKE ${searchPattern} OR ${clients.rten} ILIKE ${searchPattern} OR ${clients.foen} ILIKE ${searchPattern}`
-      )
+      .where(sql`(${sql.join(conditions, sql` OR `)})`)
       .orderBy(asc(clients.nokoen))
       .limit(50);
 
@@ -12310,17 +12325,14 @@ export class DatabaseStorage implements IStorage {
       accentInsensitiveContains(clients.koen, term),
     ];
 
-    // Se compara por el CUERPO del RUT (sin dígito verificador) porque el ERP
-    // guarda RTEN sin DV ("77454264") y el alta manual con DV ("77.454.264-7").
-    // El LIKE por cuerpo encuentra las dos formas; usar el RUT completo dejaba
-    // fuera las fichas que bajan del ERP.
-    const rutTerm = rutMatchKey(term);
-    if (/^[\d.\-\s]+[kK]?$/.test(term) && rutTerm.length >= 6) {
-      const stripped = (col: AnyColumn) =>
-        sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${col}, '')), '.', ''), '-', ''), ' ', '')`;
-      const pattern = `%${rutTerm}%`;
-      parts.push(sql`${stripped(clients.rten)} LIKE ${pattern}`);
-      parts.push(sql`${stripped(clients.koen)} LIKE ${pattern}`);
+    // Comparación por cuerpo de RUT, insensible al formato guardado
+    // (ver server/utils/rut-sql.ts). Misma lógica que usan el autocompletado de
+    // clientes y el buscador de seguimiento, para que las tres den lo mismo.
+    const rtenRut = rutContainsCondition(clients.rten, term);
+    if (rtenRut) {
+      parts.push(rtenRut);
+      const koenRut = rutContainsCondition(clients.koen, term);
+      if (koenRut) parts.push(koenRut);
     }
 
     return sql`(${sql.join(parts, sql` OR `)})`;
