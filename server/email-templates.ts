@@ -211,6 +211,8 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
 interface OrderReceivedData {
   clientName: string;
   orderNumber: string;
+  /** Código corto del pedido (ej. "PM-7K2QD9XR4T"). Se prefiere al UUID interno. */
+  trackingCode?: string | null;
   total?: number;
   items?: Array<{ name: string; quantity: number; price?: number }>;
 }
@@ -219,7 +221,10 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
   const totalStr = typeof data.total === 'number'
     ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(data.total)
     : null;
-  const subject = `Hemos recibido tu pedido #${data.orderNumber} - Pinturas Panorámica`;
+  // El UUID del pedido no entra en un asunto: usamos el código de seguimiento,
+  // que además es el que sirve para buscar el pedido.
+  const ref = data.trackingCode || data.orderNumber;
+  const subject = `Hemos recibido tu pedido ${ref} - Pinturas Panorámica`;
   const itemsRows = (data.items || []).slice(0, 30).map(it => `
     <tr>
       <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
@@ -238,7 +243,7 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
       <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
         <span style="font-weight: bold; color: #fd6301;">N° Pedido:</span>
-        <span style="color: #333; margin-left: 8px;">${data.orderNumber}</span>
+        <span style="color: #333; margin-left: 8px;">${ref}</span>
       </td></tr>
       ${totalStr ? `<tr><td style="height: 6px;"></td></tr>
       <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
@@ -268,6 +273,8 @@ export function buildOrderReceivedEmail(data: OrderReceivedData): { subject: str
 
 interface OrderInternalNotifyData {
   orderNumber: string;
+  /** Código corto del pedido (ej. "PM-7K2QD9XR4T"). Se prefiere al UUID interno. */
+  trackingCode?: string | null;
   clientName: string;
   clientEmail?: string | null;
   clientRut?: string | null;
@@ -280,11 +287,18 @@ interface OrderInternalNotifyData {
   notes?: string | null;
   status?: string | null;
   items: Array<{ name: string; quantity: number; price?: number }>;
+  /** Vendedor a cargo de la ficha del cliente, si se pudo resolver. */
+  salespersonName?: string | null;
+  /** Aviso de por qué le llega el correo a quien lo recibe (ej. al supervisor del área). */
+  recipientIntro?: string | null;
 }
 
 export function buildOrderInternalNotifyEmail(data: OrderInternalNotifyData): { subject: string; html: string } {
   const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
-  const subject = `🛒 Nuevo pedido en Panorámica Market #${data.orderNumber} — ${data.clientName}`;
+  // El UUID del pedido es impresentable en un asunto: mandamos el código de
+  // seguimiento, que es corto y sirve para buscar el pedido en la intranet.
+  const ref = data.trackingCode || data.orderNumber;
+  const subject = `🛒 Nuevo pedido en Panorámica Market ${ref} — ${data.clientName}`;
 
   const row = (label: string, value?: string | null) => value ? `
     <tr>
@@ -303,15 +317,20 @@ export function buildOrderInternalNotifyEmail(data: OrderInternalNotifyData): { 
 
   const html = wrapEmailContent(`
     <h2 style="color: #1a1f2e; margin: 0 0 16px 0; font-family: Arial, sans-serif;">Nuevo pedido en Panorámica Market</h2>
+    ${data.recipientIntro ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 16px 0;">
+      <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6;">${data.recipientIntro}</p>
+    </div>` : ''}
     <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
       Se ha registrado un nuevo pedido desde la tienda. Datos del cliente:
     </p>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
-      ${row('N° Pedido', data.orderNumber)}
+      ${row('N° Pedido', ref)}
       ${row('Cliente', data.clientName)}
       ${row('Email', data.clientEmail)}
       ${row('RUT', data.clientRut)}
       ${row('Teléfono', data.clientPhone)}
+      ${row('Vendedor asignado', data.salespersonName)}
       ${row('Condición de pago', data.paymentCondition)}
       ${row('Estado', data.status)}
       ${row('Dirección de envío', data.shippingAddress)}

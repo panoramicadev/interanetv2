@@ -66,7 +66,7 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
       {/* Top Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 sticky top-0 z-50 shadow-lg shadow-slate-900/10 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 gap-2">
             {/* Logo — fondo claro para que el logo de letras oscuras se lea sobre la barra oscura */}
             <a href="/" className="flex-shrink-0">
               <span className="inline-flex items-center bg-white rounded-xl px-3 py-1.5 shadow-sm ring-1 ring-black/5">
@@ -78,8 +78,9 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
               </span>
             </a>
 
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-1">
+            {/* Desktop Nav — los items nunca se parten en dos líneas: con "Usuarios"
+                habilitado son 6 y sólo caben cómodos de xl para arriba. */}
+            <nav className="hidden xl:flex items-center gap-0.5">
               {items.map(item => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 const Icon = item.icon;
@@ -87,13 +88,13 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
                   <button
                     key={item.href}
                     onClick={() => navigate(item.href)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                       isActive
                         ? "bg-white/15 text-white"
                         : "text-gray-300 hover:text-white hover:bg-white/10"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 shrink-0" />
                     {item.label}
                   </button>
                 );
@@ -101,21 +102,21 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
             </nav>
 
             {/* Right: CTA + User */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <a
                 href="/tienda"
-                className="hidden sm:inline-flex items-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold text-sm px-4 py-2 rounded-lg transition-all shadow-lg shadow-orange-500/20"
+                className="hidden sm:inline-flex items-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold text-sm px-4 py-2 rounded-lg whitespace-nowrap transition-all shadow-lg shadow-orange-500/20"
               >
-                <ShoppingCart className="h-4 w-4" />
+                <ShoppingCart className="h-4 w-4 shrink-0" />
                 Ver mi Catálogo
               </a>
 
               {/* User greeting */}
-              <div className="hidden md:flex items-center gap-2.5 text-gray-300 text-sm pl-3 border-l border-white/20 ml-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/10">
+              <div className="hidden xl:flex items-center gap-2.5 text-gray-300 text-sm pl-3 border-l border-white/20 ml-2">
+                <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/10">
                   {firstName.charAt(0).toUpperCase()}
                 </div>
-                <div className="leading-tight max-w-[150px]">
+                <div className="leading-tight max-w-[110px] min-w-0">
                   <p className="text-[10px] text-gray-400 -mb-0.5">Hola,</p>
                   <p className="text-xs font-semibold text-white truncate">{firstName}</p>
                 </div>
@@ -131,7 +132,7 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
               {/* Mobile menu toggle */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
+                className="xl:hidden p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
               >
                 {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -141,7 +142,7 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/10 bg-gray-900/95 backdrop-blur-sm">
+          <div className="xl:hidden border-t border-white/10 bg-gray-900/95 backdrop-blur-sm">
             <div className="px-4 py-3 space-y-1">
               {items.map(item => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));

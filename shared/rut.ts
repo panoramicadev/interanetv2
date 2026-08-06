@@ -54,6 +54,25 @@ export function rutMatchKey(rut: string | null | undefined): string {
   return isValidRut(clean) ? clean.slice(0, -1) : clean;
 }
 
+/**
+ * RUT listo para mostrarle a una persona, venga de donde venga.
+ *
+ * El ERP guarda RTEN sin dígito verificador ("77454264") y formatRut() en ese
+ * caso se come el último dígito ("7.745.426-4"). Acá, si el valor no trae un DV
+ * válido, se le calcula antes de formatear.
+ *
+ * "77454264"     -> "77.454.264-7"
+ * "77.454.264-7" -> "77.454.264-7"
+ */
+export function formatRutDisplay(rut: string | null | undefined): string {
+  const clean = normalizeRut(rut);
+  // Cuerpo mínimo de 6 dígitos: más corto que eso no es un RUT y no lo tocamos.
+  if (clean.length < 6) return clean;
+  if (isValidRut(clean)) return formatRut(clean);
+  if (!/^\d+$/.test(clean)) return clean;
+  return formatRut(clean + computeDv(clean));
+}
+
 /** Formatea un RUT a "12.345.678-9". Si no puede, devuelve la forma normalizada. */
 export function formatRut(rut: string | null | undefined): string {
   const clean = normalizeRut(rut);

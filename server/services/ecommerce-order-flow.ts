@@ -15,6 +15,7 @@
 import { storage } from '../storage';
 import * as NotifyHelper from '../notifications-helper';
 import { emailService } from './email';
+import { formatRutDisplay } from '@shared/rut';
 
 /*
  * ── Por qué acá ya no se descuenta cupo ──────────────────────────────────────
@@ -90,6 +91,108 @@ export async function notificarPedidoPorAprobar(datos: {
   }
 }
 
+/** Alguien del equipo comercial que tiene que enterarse del pedido. */
+interface DestinatarioComercial {
+  id: string;
+  nombre: string;
+  email: string;
+  /** Vendedor a cargo o supervisor del área. */
+  rol: 'vendedor' | 'supervisor';
+  /** Por qué le llega el correo; se muestra en el cuerpo. */
+  motivo: string;
+}
+
+/**
+ * A quién le toca enterarse de un pedido del Market: el vendedor asignado a la
+ * ficha del cliente y el supervisor de su área.
+ *
+ * El área comercial acá se ordena por vendedor, así que el supervisor sale de él:
+ *   1. su supervisor directo (salespeople_users.supervisor_id);
+ *   2. si no lo tiene cargado, el supervisor/encargado activo del mismo
+ *      segmento (assigned_segment).
+ * Devuelve lista vacía si no hay a quién avisar — el pedido no se cae por eso.
+ */
+async function resolverEquipoComercial(
+  assignedSalespersonId: string | null | undefined,
+): Promise<DestinatarioComercial[]> {
+  if (!assignedSalespersonId) return [];
+
+  const vendedor = await storage.getUser(assignedSalespersonId).catch(() => null);
+  const vendedorNombre = (vendedor as any)?.salespersonName || null;
+  const destinatarios: DestinatarioComercial[] = [];
+
+  if (vendedor?.email) {
+    destinatarios.push({
+      id: vendedor.id,
+      nombre: vendedorNombre || vendedor.email,
+      email: vendedor.email,
+      rol: 'vendedor',
+      motivo: 'eres el vendedor a cargo de este cliente',
+    });
+  }
+
+  const motivoSupervisor = vendedorNombre
+    ? `supervisas a <strong>${vendedorNombre}</strong>, el vendedor a cargo de este cliente`
+    : 'supervisas el área a cargo de este cliente';
+
+  const supervisorId = await storage.getSupervisorIdDeVendedor(assignedSalespersonId).catch(() => null);
+  let supervisor: DestinatarioComercial | null = null;
+
+  if (supervisorId) {
+    const sup = await storage.getUser(supervisorId).catch(() => null);
+    if (sup?.email) {
+      supervisor = {
+        id: sup.id,
+        nombre: (sup as any).salespersonName || sup.email,
+        email: sup.email,
+        rol: 'supervisor',
+        motivo: motivoSupervisor,
+      };
+    }
+  }
+
+  // Sin supervisor directo caemos al del segmento del vendedor.
+  const segmento = (vendedor as any)?.assignedSegment;
+  if (!supervisor && segmento) {
+    const { salespeopleUsers } = await import('@shared/schema');
+    const { and, eq, inArray, isNotNull, ne } = await import('drizzle-orm');
+    const { db } = await import('../db');
+
+    const [sup] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(and(
+        eq(salespeopleUsers.assignedSegment, segmento),
+        inArray(salespeopleUsers.role, ['supervisor', 'encargado_area']),
+        eq(salespeopleUsers.isActive, true),
+        isNotNull(salespeopleUsers.email),
+        ne(salespeopleUsers.email, ''),
+      ))
+      .limit(1);
+
+    if (sup?.email) {
+      supervisor = {
+        id: sup.id,
+        nombre: sup.salespersonName || sup.email,
+        email: sup.email,
+        rol: 'supervisor',
+        motivo: motivoSupervisor,
+      };
+    }
+  }
+
+  if (supervisor) destinatarios.push(supervisor);
+
+  // Un vendedor que figura como su propio supervisor recibe un solo correo.
+  const vistos = new Set<string>();
+  return destinatarios.filter((d) => {
+    const clave = d.email.trim().toLowerCase();
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
+}
+
 export interface AvisoPedidoNuevo {
   order: any;
   /** Ficha de `clients` usada para precios (puede ser null si no se pudo resolver). */
@@ -163,6 +266,7 @@ export async function avisarPedidoNuevo(datos: AvisoPedidoNuevo): Promise<void> 
       const built = buildOrderReceivedEmail({
         clientName: clientName || 'Cliente',
         orderNumber: order.id,
+        trackingCode: order.trackingCode || null,
         total: Number(total) || 0,
         items: itemsParaCorreo,
       });
@@ -182,21 +286,7 @@ export async function avisarPedidoNuevo(datos: AvisoPedidoNuevo): Promise<void> 
   // contacto@pinturaspanoramica.cl con copia a fparra@pinturaspanoramica.cl.
   try {
     const { buildOrderInternalNotifyEmail } = await import('../email-templates');
-    const built = buildOrderInternalNotifyEmail({
-      orderNumber: order.id,
-      clientName: clientName || 'Cliente',
-      clientEmail: clientEmail || null,
-      clientRut: client?.ruen || null,
-      clientPhone: (client as any)?.foen || (client as any)?.fichaOverrides?.phone || null,
-      total: Number(total) || 0,
-      subtotal: Number(subtotal) || 0,
-      tax: Number(tax) || 0,
-      paymentCondition: paymentCondition || null,
-      shippingAddress: shippingAddress || null,
-      notes: createdByName ? [`Pedido armado por ${createdByName}`, notes].filter(Boolean).join('\n') : notes,
-      status: status === 'approved' ? 'Aprobado' : 'Pendiente de aprobación',
-      items: itemsParaCorreo,
-    });
+    const built = buildOrderInternalNotifyEmail(datosCorreoInterno(datos, itemsParaCorreo));
     await emailService.sendEmail({
       to: 'contacto@pinturaspanoramica.cl',
       cc: 'fparra@pinturaspanoramica.cl',
@@ -205,5 +295,102 @@ export async function avisarPedidoNuevo(datos: AvisoPedidoNuevo): Promise<void> 
     });
   } catch (internalErr) {
     console.warn('Warning: internal order notification email failed:', internalErr);
+  }
+
+  await notificarEquipoComercial(datos);
+}
+
+/**
+ * Datos del pedido para los correos internos (equipo y supervisor).
+ * `rten` es el RUT de la ficha: `ruen` es la ruta y llegaba un "10" en el correo.
+ */
+function datosCorreoInterno(
+  datos: AvisoPedidoNuevo,
+  itemsParaCorreo: Array<{ name: string; quantity: number; price?: number }>,
+) {
+  const { order, client, clientName, clientEmail, total, subtotal, tax } = datos;
+  const { paymentCondition, shippingAddress, notes, status, createdByName } = datos;
+
+  return {
+    orderNumber: order.id,
+    trackingCode: order.trackingCode || null,
+    clientName: clientName || 'Cliente',
+    clientEmail: clientEmail || null,
+    clientRut: formatRutDisplay(client?.rten) || null,
+    clientPhone: (client as any)?.foen || (client as any)?.fichaOverrides?.phone || null,
+    total: Number(total) || 0,
+    subtotal: Number(subtotal) || 0,
+    tax: Number(tax) || 0,
+    paymentCondition: paymentCondition || null,
+    shippingAddress: shippingAddress || null,
+    notes: createdByName ? [`Pedido armado por ${createdByName}`, notes].filter(Boolean).join('\n') : notes,
+    status: status === 'approved' ? 'Aprobado' : 'Pendiente de aprobación',
+    items: itemsParaCorreo,
+    salespersonName: order.assignedSalespersonName || null,
+  };
+}
+
+/**
+ * Le avisa por correo al vendedor a cargo del cliente y al supervisor de su área
+ * que entró un pedido. Sólo se llama con pedidos confirmados: lo que un comprador
+ * deja esperando el visto bueno de su titular ('pending_client') no se avisa acá —
+ * eso es asunto del cliente, no de Panorámica.
+ *
+ * De paso deja registrado en el pedido a qué supervisor se le avisó
+ * (`assignedSupervisorId`), que hasta ahora nunca se llenaba.
+ */
+export async function notificarEquipoComercial(datos: AvisoPedidoNuevo): Promise<void> {
+  const { order, clientName, total, assignedSalespersonId } = datos;
+  const refPedido = order.trackingCode || order.id;
+
+  try {
+    const destinatarios = await resolverEquipoComercial(assignedSalespersonId);
+    if (destinatarios.length === 0) {
+      console.warn(`[pedido ${refPedido}] sin vendedor ni supervisor a quién avisar (vendedor asignado: ${assignedSalespersonId || 'ninguno'})`);
+      return;
+    }
+
+    const itemsParaCorreo = (datos.items || []).map((it: any) => ({
+      name: it.productName || it.name || it.sku || 'Producto',
+      quantity: Number(it.quantity) || 1,
+      price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
+    }));
+    const base = datosCorreoInterno(datos, itemsParaCorreo);
+    const { buildOrderInternalNotifyEmail } = await import('../email-templates');
+
+    // Uno por uno: si a alguno le falla el correo, el otro igual se entera.
+    for (const destinatario of destinatarios) {
+      try {
+        const built = buildOrderInternalNotifyEmail({
+          ...base,
+          recipientIntro: `${destinatario.nombre}: recibes este aviso porque ${destinatario.motivo}. El pedido ya está en la intranet.`,
+        });
+        await emailService.sendEmail({
+          to: destinatario.email,
+          subject: built.subject,
+          html: built.html,
+        });
+        console.log(`[pedido ${refPedido}] aviso al ${destinatario.rol}: ${destinatario.email} — ${clientName} $${Number(total).toFixed(0)}`);
+      } catch (envioErr) {
+        console.warn(`Warning: correo al ${destinatario.rol} (${destinatario.email}) falló:`, envioErr);
+      }
+    }
+
+    // Queda asentado en el pedido a qué supervisor se le avisó.
+    try {
+      const supervisor = destinatarios.find((d) => d.rol === 'supervisor');
+      if (supervisor && !order.assignedSupervisorId) {
+        const { ecommerceOrders } = await import('@shared/schema');
+        const { eq } = await import('drizzle-orm');
+        const { db } = await import('../db');
+        await db.update(ecommerceOrders)
+          .set({ assignedSupervisorId: supervisor.id })
+          .where(eq(ecommerceOrders.id, order.id));
+      }
+    } catch (persistErr) {
+      console.warn('Warning: no se pudo guardar el supervisor en el pedido:', persistErr);
+    }
+  } catch (err) {
+    console.warn('Warning: aviso al equipo comercial falló:', err);
   }
 }
