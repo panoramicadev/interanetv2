@@ -36,6 +36,24 @@ export function isValidRut(rut: string | null | undefined): boolean {
   return computeDv(body) === dv;
 }
 
+/**
+ * Clave para CRUZAR el mismo RUT escrito en formatos distintos.
+ *
+ * El ERP (dbo.MAEEN.RTEN) guarda el RUT sin dígito verificador ("77454264"),
+ * mientras que el alta manual de la intranet lo guarda completo y con formato
+ * ("77.454.264-7"). normalizeRut() no basta para compararlos: deja "77454264"
+ * y "774542647", que no coinciden. Esta función devuelve siempre el CUERPO del
+ * RUT, sacando el DV solo cuando el valor trae uno válido según módulo 11.
+ *
+ * "77.454.264-7" -> "77454264"   (traía DV válido: se saca)
+ * "77454264"     -> "77454264"   (sin DV: queda igual)
+ */
+export function rutMatchKey(rut: string | null | undefined): string {
+  const clean = normalizeRut(rut);
+  if (!clean) return "";
+  return isValidRut(clean) ? clean.slice(0, -1) : clean;
+}
+
 /** Formatea un RUT a "12.345.678-9". Si no puede, devuelve la forma normalizada. */
 export function formatRut(rut: string | null | undefined): string {
   const clean = normalizeRut(rut);

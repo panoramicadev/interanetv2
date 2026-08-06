@@ -3,7 +3,7 @@ import { db } from './db';
 import { sql, eq } from 'drizzle-orm';
 import { EventEmitter } from 'events';
 import { clients, etlExecutionLog, etlConfig } from '../shared/schema';
-import { normalizeRut } from '../shared/rut';
+import { rutMatchKey } from '../shared/rut';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
 
@@ -224,19 +224,34 @@ export async function executeClientETL(): Promise<ClientETLResult> {
 
     console.log(`   📋 ${existingKoens.size} clientes existentes en la base local\n`);
 
-    // Clientes cargados a mano (sin código ERP) indexados por RUT normalizado.
-    // Permiten CRUZAR: cuando el ERP asigna un código a un cliente que ya existía
-    // como prospecto manual, se fusiona ese registro en vez de duplicarlo.
-    const manualByRut = new Map<string, string>(); // rut normalizado -> client.id
-    const manualResult = await db.execute(sql`
-      SELECT id, rten FROM clients
-      WHERE (koen IS NULL OR koen = '') AND rten IS NOT NULL AND rten <> ''
+    // Candidatos a CRUCE por RUT: fichas locales que NO corresponden a un código
+    // vivo del ERP — o sin código (prospecto manual), o con un código tipeado a
+    // mano que el ERP no conoce. Cuando el ERP trae ese mismo RUT bajo su código
+    // real, se fusiona sobre esa ficha (queda el nombre del ERP) en vez de crear
+    // un duplicado.
+    //
+    // Las fichas cuyo koen SÍ existe en el ERP quedan fuera a propósito: son
+    // sucursales/códigos legítimos y cada una debe seguir su propio registro.
+    const erpKoens = new Set(
+      erpClients.map((r: any) => cleanString(r.KOEN)).filter(Boolean) as string[]
+    );
+
+    const crossableByRut = new Map<string, string>(); // clave de RUT -> client.id
+    const crossableResult = await db.execute(sql`
+      SELECT id, koen, rten FROM clients
+      WHERE rten IS NOT NULL AND rten <> ''
+      ORDER BY created_at DESC NULLS LAST, id
     `);
-    for (const r of (manualResult as any).rows) {
-      const nr = normalizeRut(r.rten);
-      if (nr && !manualByRut.has(nr)) manualByRut.set(nr, r.id);
+    for (const r of (crossableResult as any).rows) {
+      const localKoen = cleanString(r.koen);
+      if (localKoen && erpKoens.has(localKoen)) continue; // código vivo del ERP
+      // rutMatchKey compara por cuerpo del RUT: el ERP lo guarda sin DV
+      // ("77454264") y el alta manual con DV y formato ("77.454.264-7").
+      const key = rutMatchKey(r.rten);
+      // ORDER BY created_at DESC: se queda la ficha más reciente por RUT.
+      if (key && !crossableByRut.has(key)) crossableByRut.set(key, r.id);
     }
-    console.log(`   🔗 ${manualByRut.size} clientes cargados a mano disponibles para cruce por RUT\n`);
+    console.log(`   🔗 ${crossableByRut.size} fichas locales disponibles para cruce por RUT\n`);
 
     // ── PASO 4: UPSERT en lotes ──────────────────────────────────────────
     emitProgress(4, TOTAL_STEPS, 'Sincronizando clientes', 'Insertando y actualizando...');
@@ -314,16 +329,18 @@ export async function executeClientETL(): Promise<ClientETLResult> {
               .where(eq(clients.koen, koen));
             updatedClients++;
           } else {
-            // ¿Existe ya como prospecto cargado a mano (mismo RUT, sin código)?
-            const nr = normalizeRut(erpData.rten);
-            const manualId = nr ? manualByRut.get(nr) : undefined;
-            if (manualId) {
-              // CRUCE: asignar el código ERP y volcar datos oficiales sobre el
-              // registro manual, preservando sus campos CRM (no vienen en erpData).
+            // ¿Ya existe una ficha local con este mismo RUT que no sea un código
+            // vivo del ERP (prospecto manual o código tipeado a mano)?
+            const rutKey = rutMatchKey(erpData.rten);
+            const crossId = rutKey ? crossableByRut.get(rutKey) : undefined;
+            if (crossId) {
+              // CRUCE: asignar el código ERP y volcar datos oficiales sobre esa
+              // ficha —incluido el nombre, que es lo que se ve en el listado—
+              // preservando sus campos CRM (no vienen en erpData).
               await db.update(clients)
                 .set({ koen, ...erpData })
-                .where(eq(clients.id, manualId));
-              manualByRut.delete(nr);
+                .where(eq(clients.id, crossId));
+              crossableByRut.delete(rutKey);
               existingKoens.add(koen);
               crossedClients++;
             } else {
