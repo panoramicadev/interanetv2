@@ -46,6 +46,10 @@ export interface CreditoResponse {
   } | null;
   credit: {
     limit: number | null;
+    /** 'manual' = la línea la fijó alguien en la intranet; 'erp' = viene de Softland (CRTO). */
+    limitSource: "manual" | "erp" | "sin-linea";
+    /** Lo que dice el ERP, aunque haya override manual. */
+    limitErp: number | null;
     used: number;
     overdue: number;
     upcoming: number;
@@ -243,7 +247,13 @@ export function CreditoPanel({
             <KpiCredito
               label="Límite de crédito"
               value={credit.limit == null ? "Sin línea" : clp(credit.limit)}
-              hint={client?.creditDays ? `${client.creditDays} días` : client?.paymentCondition || null}
+              // Si la línea la fijó alguien en la intranet hay que decirlo acá:
+              // el resto del panel se mide contra ella, y no es lo que dice el ERP.
+              hint={
+                credit.limitSource === "manual"
+                  ? `fijada a mano · ERP: ${credit.limitErp != null ? clp(credit.limitErp) : "sin línea"}`
+                  : client?.creditDays ? `${client.creditDays} días` : client?.paymentCondition || null
+              }
               icon={CircleDollarSign}
               tono="marca"
             />

@@ -1,6 +1,6 @@
 /**
  * Lo que pasa cuando un pedido del Market entra "en firme" a Panorámica:
- * consumo de cupo de crédito, notificación interna y correos.
+ * notificación interna y correos.
  *
  * Vivía inline en POST /api/ecommerce/orders/client. Se extrajo porque ahora hay
  * DOS puertas de entrada al mismo flujo:
@@ -17,56 +17,25 @@ import * as NotifyHelper from '../notifications-helper';
 import { emailService } from './email';
 import { formatRutDisplay } from '@shared/rut';
 
-/**
- * Descuenta el total del pedido del cupo de crédito de la ficha del cliente.
- * Sólo aplica cuando el pedido queda aprobado de una (pago a crédito sin OC):
- * con OC el cupo se consume cuando recepción lo aprueba.
+/*
+ * ── Por qué acá ya no se descuenta cupo ──────────────────────────────────────
+ *
+ * Existía consumirCupoDeCredito(), que al aprobarse un pedido a crédito sumaba
+ * el total a clients.crsd y escribía clients.cren como "disponible". Las dos son
+ * columnas del ERP: crsd es el CUPO autorizado sin documentar (no la deuda) y el
+ * ETL de clientes las devuelve al valor de Softland en la siguiente corrida, así
+ * que lo único que lograba era desfigurar el espejo del ERP entre ETL y ETL.
+ *
+ * De hecho nunca llegó a correr: la guarda era `if (clientRecordMatch.crlt)` y
+ * crlt (cupo en letras) es 0 en todas las fichas — el mismo error de columna que
+ * dejaba el límite de crédito en $0 en pantalla. Al corregir la columna esto
+ * habría revivido escribiendo datos falsos, así que se eliminó.
+ *
+ * El uso de crédito sale de ventas.fact_ventas (documentos por cobrar), que es
+ * lo que muestran la ficha, el Market y el panel de Cobranza. Un pedido recién
+ * aprobado todavía no es un documento por cobrar: entra al cupo cuando se
+ * factura y el ETL lo trae. Ver shared/credito.ts.
  */
-export async function consumirCupoDeCredito(clientUserId: string, orderTotal: number): Promise<void> {
-  try {
-    const { salespeopleUsers, users, clients } = await import('@shared/schema');
-    const { eq, or, desc } = await import('drizzle-orm');
-    const { db } = await import('../db');
-
-    let clientRecordMatch: any = null;
-    if (clientUserId) {
-      // Find user to map to client
-      const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, clientUserId)).limit(1);
-      const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, clientUserId)).limit(1) : null;
-
-      const userName = sUser[0]?.salespersonName || legacyUser?.[0]?.firstName || null;
-
-      if (userName) {
-        const possibleClients = await db.select().from(clients)
-          .where(or(
-            eq(clients.userId, clientUserId),
-            eq(clients.nokoen, userName.toUpperCase())
-          ))
-          .orderBy(desc(clients.updatedAt))
-          .limit(1);
-
-        if (possibleClients.length > 0) {
-          clientRecordMatch = possibleClients[0];
-        }
-      }
-    }
-
-    if (clientRecordMatch && clientRecordMatch.crlt) {
-      const limit = parseFloat(clientRecordMatch.crlt) || 0;
-      const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
-
-      const newUsed = used + orderTotal;
-      const newAvailable = Math.max(0, limit - newUsed);
-
-      await db.update(clients).set({
-        crsd: newUsed.toString(),
-        cren: newAvailable.toString()
-      }).where(eq(clients.id, clientRecordMatch.id));
-    }
-  } catch (e) {
-    console.error('Error updating client credit on direct order approval:', e);
-  }
-}
 
 /**
  * Un comprador armó un pedido: le avisamos al titular que lo tiene esperando.

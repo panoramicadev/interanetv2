@@ -252,9 +252,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         clientId: data.customNewClientId || client.clientId,
         paymentCondition: variables.cpen || client.paymentCondition,
         salesRepCode: variables.kofuen || client.salesRepCode,
-        creditLimit: variables.crlt != null ? variables.crlt : client.creditLimit,
-        creditAvailable: variables.cren != null ? variables.cren : client.creditAvailable,
-        creditUsed: variables.crsd != null ? variables.crsd : client.creditUsed,
+        creditLimit: variables.creditLimit !== undefined ? variables.creditLimit : client.creditLimit,
         pickupWarehouseId: variables.pickupWarehouseId ?? client.pickupWarehouseId,
         lcen: variables.lcen || client.lcen,
         freeShipping: variables.freeShipping !== undefined ? !!variables.freeShipping : !!client.freeShipping,
@@ -1154,45 +1152,22 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                       </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs border-b border-dashed border-gray-300 pb-0.5 cursor-help" title="Monto máximo autorizado">Límite Crédito ($)</Label>
-                        <Input 
-                          type="number" className="h-8 text-sm" placeholder="Ej: 5000000"
-                          value={commercialForm.creditLimit} 
-                          onChange={(e) => {
-                            const newLimit = e.target.value;
-                            setCommercialForm(p => {
-                               const limitNum = parseFloat(newLimit) || 0;
-                               const usedNum = parseFloat(p.creditUsed) || 0;
-                               return { ...p, creditLimit: newLimit, creditAvailable: (limitNum - usedNum).toString() };
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs border-b border-dashed border-gray-300 pb-0.5 cursor-help" title="Cupo ya utilizado / Deuda">Crédito Usado ($)</Label>
-                        <Input 
-                          type="number" className="h-8 text-sm" placeholder="Ej: 1000000"
-                          value={commercialForm.creditUsed} 
-                          onChange={(e) => {
-                             const newUsed = e.target.value;
-                             setCommercialForm(p => {
-                               const limitNum = parseFloat(p.creditLimit) || 0;
-                               const usedNum = parseFloat(newUsed) || 0;
-                               return { ...p, creditUsed: newUsed, creditAvailable: (limitNum - usedNum).toString() };
-                             });
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-emerald-700">Disponible ($)</Label>
-                        <Input 
-                          type="number" className="h-8 text-sm bg-emerald-50" placeholder="Automático"
-                          value={commercialForm.creditAvailable} 
-                          onChange={(e) => setCommercialForm(p => ({ ...p, creditAvailable: e.target.value }))}
-                        />
-                      </div>
+                    {/* Solo la línea se escribe. El usado y el disponible salen de
+                        las cuentas por cobrar (pestaña Crédito de la ficha), no
+                        se tipean: antes eran tres campos libres que se guardaban
+                        en columnas del ERP y el ETL los borraba en la siguiente
+                        corrida. Vacío = rige la línea que dice Softland. */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs border-b border-dashed border-gray-300 pb-0.5 cursor-help" title="Línea de crédito fijada a mano. Vacío = la del ERP.">Límite Crédito ($)</Label>
+                      <Input
+                        type="number" className="h-8 text-sm" placeholder="Vacío = usar la línea del ERP"
+                        value={commercialForm.creditLimit}
+                        onChange={(e) => setCommercialForm(p => ({ ...p, creditLimit: e.target.value }))}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Queda marcada como <span className="font-medium">manual</span> en la ficha. La deuda y el
+                        disponible se calculan solos desde las cuentas por cobrar.
+                      </p>
                     </div>
 
                     <div className="space-y-1.5">
@@ -1262,9 +1237,9 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                              cpen, dccr,
                              pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId,
                              kofuen: commercialForm.salesRepCode || null,
-                             crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
-                             cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
-                             crsd: commercialForm.creditUsed ? parseFloat(commercialForm.creditUsed) : null,
+                             // Override marcado de la ficha. null = quitar el override
+                             // y volver a la línea del ERP.
+                             creditLimit: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
                              lcen: commercialForm.lcen ? commercialForm.lcen : null,
                              freeShipping: commercialForm.freeShipping
                           });
@@ -1283,9 +1258,10 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         return v ? `${v.name} (${v.code})` : client.salesRepCode;
                       })() },
                       { label: "Lista de Precios", value: getListName(client.lcen) || '—' },
+                      // Usado y disponible viven en la pestaña Crédito de la ficha,
+                      // que los calcula desde las cuentas por cobrar. Acá salían de
+                      // columnas de cupo del ERP y eran números inventados.
                       { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
-                      { label: "Crédito Usado", value: formatCurrency(client.creditUsed) },
-                      { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },
                       { label: "Bodega de Retiro", value: warehouses.find(w => w.id === client.pickupWarehouseId)?.name || "—" },
                     ].map(({ label, value }) => (
                       <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0 hover:bg-muted/10">
@@ -1471,18 +1447,14 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               <div className="space-y-4">
                 {/* Group totals */}
                 {branchGroup.branches.length > 1 && (
-                  <div className="grid grid-cols-3 gap-3 p-3 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/30 dark:to-indigo-950/30 rounded-lg border border-violet-100 dark:border-violet-800">
+                  <div className="p-3 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/30 dark:to-indigo-950/30 rounded-lg border border-violet-100 dark:border-violet-800">
                     <div className="text-center">
                       <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Crédito Grupo</p>
                       <p className="text-lg font-bold text-violet-900 dark:text-violet-100">{formatCurrency(branchGroup.groupTotals.creditLimit)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Usado Grupo</p>
-                      <p className="text-lg font-bold text-violet-900 dark:text-violet-100">{formatCurrency(branchGroup.groupTotals.creditUsed)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] font-medium text-emerald-500 uppercase tracking-wider">Disponible Grupo</p>
-                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(branchGroup.groupTotals.creditAvailable)}</p>
+                      {/* Usado y disponible del grupo salían de columnas de cupo
+                          del ERP. El uso real está en la pestaña Crédito de la
+                          ficha, que suma las cuentas por cobrar de la empresa. */}
+                      <p className="text-[10px] text-violet-500 mt-0.5">Suma de las líneas de las sucursales</p>
                     </div>
                   </div>
                 )}
@@ -1538,9 +1510,6 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                       </div>
                       <div className="text-right flex-shrink-0 ml-3 flex flex-col items-end gap-1">
                         <p className="text-xs font-medium">{formatCurrency(branch.creditLimit)}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Usado: {formatCurrency(branch.creditUsed)}
-                        </p>
                         <Button variant="ghost" size="icon" className="h-6 w-6 mt-1" onClick={() => handleEditBranch(branch)}>
                           <Edit2 className="h-3 w-3" />
                         </Button>

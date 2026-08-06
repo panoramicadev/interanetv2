@@ -24,7 +24,7 @@ import { db } from './db';
 import { requireAuth } from './auth';
 import { storage } from './storage';
 import { clients, ecommerceOrders, salespeopleUsers } from '../shared/schema';
-import { avisarPedidoNuevo, consumirCupoDeCredito } from './services/ecommerce-order-flow';
+import { avisarPedidoNuevo } from './services/ecommerce-order-flow';
 
 /** Roles de la intranet que pueden habilitar la función en la ficha del cliente. */
 const ROLES_INTRANET = ['admin', 'supervisor', 'encargado_area'];
@@ -421,9 +421,8 @@ export function registerMarketUsuariosRoutes(app: Express): void {
         return res.status(409).json({ message: 'Este pedido ya fue resuelto.' });
       }
 
-      if (autoAprobado) {
-        await consumirCupoDeCredito(req.user.id, Number(actualizado.total) || 0);
-      }
+      // El cupo no se descuenta acá: se refleja cuando el pedido se factura y el
+      // documento entra por el ETL (ver services/ecommerce-order-flow.ts).
 
       const ficha = await storage.getClientByUserId(req.user.id).catch(() => null);
       await avisarPedidoNuevo({

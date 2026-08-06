@@ -26,6 +26,7 @@ import {
   invalidatePriceListCache,
   DEFAULT_PRICE_LIST,
 } from "./price-list-resolver";
+import { resolverLineaCredito } from "@shared/credito";
 import { db } from "./db";
 import {
   clients,
@@ -97,7 +98,7 @@ import * as NotifyHelper from "./notifications-helper";
 import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
 import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
-import { avisarPedidoNuevo, consumirCupoDeCredito, notificarPedidoPorAprobar, notificarEquipoComercial } from "./services/ecommerce-order-flow";
+import { avisarPedidoNuevo, notificarPedidoPorAprobar, notificarEquipoComercial } from "./services/ecommerce-order-flow";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import { parseOrdenDeCompra } from "./oc-parser";
@@ -532,6 +533,35 @@ async function persistPriceListAssignment(clientId: string, code: string | null 
   const clean = (code || '').toString().trim().toUpperCase();
   if (clean) overrides.priceList = clean;
   else delete overrides.priceList;
+  const hasAny = Object.keys(overrides).length > 0;
+  await db.execute(sql`
+    UPDATE clients
+    SET ficha_overrides = ${hasAny ? JSON.stringify(overrides) : null}::jsonb,
+        updated_at = now()
+    WHERE id = ${clientId}
+  `);
+}
+
+/**
+ * Guarda la línea de crédito que Finanzas le fija a mano a un cliente.
+ *
+ * Mismo criterio que la lista de precios: va a clients.ficha_overrides, NUNCA a
+ * las columnas CR* — esas son el espejo de Softland y el ETL de clientes las
+ * devuelve a su valor en la siguiente corrida, así que una línea guardada ahí
+ * se perdía sola. Monto vacío, null o <= 0 quita el override y la ficha vuelve
+ * a mostrar el CRTO del ERP. Ver shared/credito.ts.
+ */
+async function persistCreditLimitOverride(clientId: string, monto: unknown) {
+  if (!clientId) return;
+  const cur: any = await db.execute(sql`SELECT ficha_overrides FROM clients WHERE id = ${clientId} LIMIT 1`);
+  const rows = Array.isArray(cur) ? cur : (cur?.rows || []);
+  if (rows.length === 0) return;
+  const overrides = parseFichaOverrides(rows[0].ficha_overrides);
+  const limpio = monto === null || monto === undefined || monto === ''
+    ? null
+    : Number(String(monto).replace(/[^\d.-]/g, ''));
+  if (limpio != null && Number.isFinite(limpio) && limpio > 0) overrides.creditLimit = limpio;
+  else delete overrides.creditLimit;
   const hasAny = Object.keys(overrides).length > 0;
   await db.execute(sql`
     UPDATE clients
@@ -2336,7 +2366,7 @@ export function registerRoutes(app: Express): Server {
       try {
         const fichaResult = await db.execute(sql`
           SELECT id, parent_client_id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
-                 cpen, kofuen, lcen, crlt, cren, crsd, dccr, ficha_overrides
+                 cpen, kofuen, lcen, crto, dccr, ficha_overrides
           FROM clients
           WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
              OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
@@ -2359,6 +2389,10 @@ export function registerRoutes(app: Express): Server {
       })();
       const fichaRut = normalizeRut(ficha?.rten) || cleanRut;
       const fichaId = ficha?.id || null;
+      // Línea de crédito de la empresa, con la MISMA regla que /api/clients/credito:
+      // la de la casa matriz y, si no tiene, la de la primera sucursal que sí.
+      const lineaCredito = fichaRows.map(resolverLineaCredito).find((l) => l.limit != null)
+        ?? resolverLineaCredito(ficha);
 
       // Every clients id + normalized RUT for this company, used to match access.
       const companyIds = Array.from(new Set(fichaRows.map((f: any) => f.id).filter(Boolean)));
@@ -2521,14 +2555,18 @@ export function registerRoutes(app: Express): Server {
               priceListCharged: fichaPriceList.code,
               priceListChargedName: fichaPriceList.name,
               priceListUsable: fichaPriceList.usable,
-              creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
+              // Línea de crédito: override manual de la ficha > CRTO del ERP.
+              // creditLimitSource permite marcarla como manual en pantalla.
+              creditLimit: lineaCredito.limit,
+              creditLimitSource: lineaCredito.origen,
+              creditLimitErp: lineaCredito.erp,
               // usado/vencido reales desde fact_ventas (cartera); disponible = límite - usado
               creditUsed: carteraUsado,
               creditOverdue: carteraVencido,
               overdueSince: carteraVencidoDesde,
               creditUpcoming: carteraPorVencer,
               nextDueDate: carteraProximoVenc,
-              creditAvailable: ficha.crlt != null ? Number(ficha.crlt) - (carteraUsado ?? 0) : null,
+              creditAvailable: lineaCredito.limit != null ? lineaCredito.limit - (carteraUsado ?? 0) : null,
             }
           : null,
         inEcommerce: !!ecommerceAccount,
@@ -2579,6 +2617,8 @@ export function registerRoutes(app: Express): Server {
         commune: z.string().trim().max(100).optional(),
         // Lista de precios asignada manualmente. Vacío => quitar override (vuelve al lcen del ERP).
         priceList: z.string().trim().max(50).optional(),
+        // Línea de crédito fijada a mano. Vacío => quitar override (vuelve al CRTO del ERP).
+        creditLimit: z.union([z.string().trim().max(20), z.number()]).optional(),
       });
       const body = fichaSchema.parse(req.body ?? {});
 
@@ -2605,6 +2645,15 @@ export function registerRoutes(app: Express): Server {
         if (!(f in body)) continue; // campo no enviado: no tocar
         const v = (body[f] ?? '').toString().trim();
         if (v) overrides[f] = v; else delete overrides[f];
+      }
+
+      // La línea de crédito se guarda como número, no como texto: la ficha la
+      // compara contra la deuda. Vacío o <= 0 quita el override y vuelve a regir
+      // el CRTO de Softland. Ver shared/credito.ts.
+      if ('creditLimit' in body) {
+        const monto = Number(String(body.creditLimit ?? '').replace(/[^\d.-]/g, ''));
+        if (Number.isFinite(monto) && monto > 0) overrides.creditLimit = monto;
+        else delete overrides.creditLimit;
       }
 
       const hasAny = Object.keys(overrides).length > 0;
@@ -2777,9 +2826,10 @@ export function registerRoutes(app: Express): Server {
   //
   // Todo sale de ventas.fact_ventas con el cálculo ya validado en la ficha:
   // saldo del documento = vabrdo - vaabdo, dedup por idmaeedo, solo documentos
-  // pendientes (espgdo='P') de tipo FCV/FDV. La deuda NO se lee de clients.crsd
-  // (viene vacío/no fidedigno desde el ERP); de clients solo se toma la línea de
-  // crédito (crlt) y los días de crédito (dccr).
+  // pendientes (espgdo='P') de tipo FCV/FDV. La deuda NO se lee de las columnas
+  // CR* de la ficha: esas son los CUPOS autorizados por instrumento de pago, no
+  // lo que el cliente debe (ver shared/credito.ts). De clients solo se toma la
+  // línea de crédito y los días de crédito (dccr).
   //
   // Alcance: la empresa completa (casa matriz + sucursales que comparten nombre
   // o RUT), igual que el resto de la ficha.
@@ -2797,7 +2847,7 @@ export function registerRoutes(app: Express): Server {
 
       // Filas de la empresa, casa matriz primero (misma regla que account-status).
       const fichaResult: any = await db.execute(sql`
-        SELECT id, koen, nokoen, rten, cpen, crlt, dccr, kofuen, parent_client_id
+        SELECT id, koen, nokoen, rten, cpen, crto, dccr, kofuen, parent_client_id, ficha_overrides
         FROM clients
         WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
            OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
@@ -2809,8 +2859,11 @@ export function registerRoutes(app: Express): Server {
 
       // Línea de crédito: la de la casa matriz; si no tiene, la primera sucursal
       // que sí la tenga. Sin línea asignada queda en null (≠ límite cero).
-      const limitRow = fichaRows.find((f) => f.crlt != null);
-      const limit = limitRow ? Number(limitRow.crlt) : null;
+      // El override manual de la ficha manda sobre el CRTO del ERP, y se informa
+      // aparte para que el panel pueda marcarlo como manual.
+      const linea = fichaRows.map(resolverLineaCredito).find((l) => l.limit != null)
+        ?? resolverLineaCredito(principal);
+      const limit = linea.limit;
 
       const empty = {
         client: principal
@@ -2827,6 +2880,11 @@ export function registerRoutes(app: Express): Server {
           : null,
         credit: {
           limit,
+          // De dónde sale la línea: 'manual' si alguien la fijó en la intranet,
+          // 'erp' si viene de Softland. limitErp deja ver el valor del ERP aunque
+          // haya override, para poder contrastarlos en la ficha.
+          limitSource: linea.origen,
+          limitErp: linea.erp,
           used: 0, overdue: 0, upcoming: 0,
           available: limit != null ? limit : null,
           exceeded: false,
@@ -2900,6 +2958,8 @@ export function registerRoutes(app: Express): Server {
         client: empty.client,
         credit: {
           limit,
+          limitSource: linea.origen,
+          limitErp: linea.erp,
           used,
           overdue,
           upcoming,
@@ -9732,11 +9792,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(201).json(order);
       }
 
-      // Process credit updates if the order is automatically approved (credit payment).
-      // OC-attached credit orders stay pending — credit is consumed when the receptionist approves.
-      if (shouldAutoApprove) {
-        await consumirCupoDeCredito(clientId, resolved.total);
-      }
+      // El cupo no se descuenta acá: se refleja cuando el pedido se factura y el
+      // documento entra por el ETL (ver services/ecommerce-order-flow.ts).
 
       await avisarPedidoNuevo({
         order,
@@ -10118,26 +10175,23 @@ export function registerRoutes(app: Express): Server {
     return /\bMCT\b/i.test(names);
   };
 
-  // Consume cupo de crédito del cliente (por userId) al aprobar un pedido a crédito.
-  // Mantiene la misma semántica que el checkout: crsd = usado/deuda, cren = disponible.
-  const consumeClientCreditForUser = async (userId: string, orderTotal: number): Promise<void> => {
-    try {
-      const { clients: clientsTbl } = await import('@shared/schema');
-      const { eq: eqOp } = await import('drizzle-orm');
-      const { db: dbLookup } = await import('./db');
-      const [rec] = await dbLookup.select().from(clientsTbl).where(eqOp(clientsTbl.userId, userId)).limit(1);
-      if (!rec || !rec.crlt) return;
-      const limit = parseFloat(rec.crlt as any) || 0;
-      const used = parseFloat((rec.crsd as any) || '0') || 0;
-      const newUsed = used + (Number(orderTotal) || 0);
-      const newAvailable = Math.max(0, limit - newUsed);
-      await dbLookup.update(clientsTbl)
-        .set({ crsd: newUsed.toString(), cren: newAvailable.toString() })
-        .where(eqOp(clientsTbl.id, rec.id));
-    } catch (e) {
-      console.error('Error consuming client credit (suggested order):', e);
-    }
-  };
+  // El cupo consumido NO se descuenta a mano en la ficha.
+  //
+  // Antes esto sumaba el total del pedido a clients.crsd y escribía clients.cren
+  // como "disponible". Las dos columnas son del ERP: crsd es el CUPO autorizado
+  // sin documentar (no la deuda) y el ETL de clientes las vuelve a dejar como
+  // están en Softland en la siguiente corrida. Escribirlas solo lograba
+  // desfigurar el espejo del ERP entre ETL y ETL.
+  //
+  // Nunca llegó a pasar porque la guarda era `if (!rec.crlt) return` y crlt
+  // (cupo en letras) es 0 en todas las fichas — el mismo error de columna que
+  // dejaba el límite en $0 en pantalla. Al corregir la columna esto habría
+  // revivido, así que se elimina.
+  //
+  // El uso real del crédito sale de ventas.fact_ventas (documentos pendientes),
+  // que es lo que muestran la ficha, el Market y el panel de Cobranza. Un pedido
+  // recién aprobado todavía no es un documento por cobrar: entra al cupo cuando
+  // se factura y el ETL lo trae. Ver shared/credito.ts.
 
   // Cliente acepta el sugerido → elige forma de pago (transferencia/crédito) y, si
   // corresponde, adjunta la OC. Igual que el checkout del ecommerce: a crédito se
@@ -10187,11 +10241,9 @@ export function registerRoutes(app: Express): Server {
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
 
-      // A crédito: aprobación inmediata y consumo de cupo (igual que el checkout).
-      // Si hay OC, el cupo se consume cuando la recepcionista apruebe.
-      if (shouldAutoApprove) {
-        await consumeClientCreditForUser(order.clientId, Number(order.total) || 0);
-      }
+      // A crédito el pedido queda aprobado de inmediato. El cupo no se descuenta
+      // acá: se refleja solo cuando el pedido se factura y el documento entra por
+      // el ETL a ventas.fact_ventas, que es de donde sale el uso de crédito.
 
       // Notificar al vendedor asignado / supervisor / admin
       try {
@@ -10412,11 +10464,9 @@ export function registerRoutes(app: Express): Server {
         .where(eq(ecommerceOrders.id, orderId))
         .returning();
 
-      // A crédito: aprobación inmediata y consumo de cupo (con el total recalculado).
-      // Si hay OC, el cupo se consume cuando la recepcionista apruebe.
-      if (shouldAutoApprove) {
-        await consumeClientCreditForUser(order.clientId, Number(resolved.total) || 0);
-      }
+      // A crédito el pedido queda aprobado de inmediato. El cupo no se descuenta
+      // acá: se refleja solo cuando el pedido se factura y el documento entra por
+      // el ETL a ventas.fact_ventas, que es de donde sale el uso de crédito.
 
       try {
         const notifyTo = order.assignedSalespersonId || order.suggestedById || await storage.getAdminUserId();
@@ -10841,7 +10891,25 @@ export function registerRoutes(app: Express): Server {
       }
     }
 
-    const creditLimit = client.crlt != null ? Number(client.crlt) : null;
+    // Línea de crédito con la MISMA regla que la ficha (/api/clients/credito):
+    // override manual > CRTO del ERP, y si la ficha del usuario no tiene línea,
+    // la de la primera sucursal de la empresa que sí la tenga. El cliente no
+    // puede ver un cupo distinto del que ve el vendedor en la intranet.
+    let linea = resolverLineaCredito(client as any);
+    if (linea.limit == null && scope.clientIds.length > 0) {
+      try {
+        const r = await db.execute(sql`
+          SELECT crto, ficha_overrides FROM clients
+          WHERE id IN (${sql.join(scope.clientIds.map((id) => sql`${id}`), sql`, `)})
+          ORDER BY parent_client_id NULLS FIRST
+        `);
+        const filas = (Array.isArray(r) ? r : (r as any).rows || []) as any[];
+        linea = filas.map(resolverLineaCredito).find((l) => l.limit != null) ?? linea;
+      } catch (e) {
+        console.error('[client account-status] credit line lookup failed:', e);
+      }
+    }
+    const creditLimit = linea.limit;
     const cpen = (client.cpen || '') as string;
     const hasCredit = /CR[EÉ]DITO/i.test(cpen) || (creditLimit != null && creditLimit > 0);
 
@@ -11791,52 +11859,11 @@ export function registerRoutes(app: Express): Server {
       }).catch(err => console.warn('[order-modified-email]', err?.message));
     }
 
-    // Process credit updates if the order is approved
-    if (status === 'approved') {
-      try {
-        const { salespeopleUsers, users, clients } = await import('@shared/schema');
-        const { or, desc } = await import('drizzle-orm');
-        
-        let clientRecordMatch = null;
-        if (updated.clientId) {
-          // Find user to map to client
-          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientId)).limit(1);
-          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientId)).limit(1) : null;
-          
-          const userName = sUser[0]?.salespersonName || legacyUser[0]?.firstName || null;
-          
-          if (userName) {
-            const possibleClients = await db.select().from(clients)
-              .where(or(
-                eq(clients.userId, updated.clientId),
-                eq(clients.nokoen, userName.toUpperCase())
-              ))
-              .orderBy(desc(clients.updatedAt))
-              .limit(1);
-              
-            if (possibleClients.length > 0) {
-              clientRecordMatch = possibleClients[0];
-            }
-          }
-        }
-        
-        if (clientRecordMatch && clientRecordMatch.crlt) {
-          const limit = parseFloat(clientRecordMatch.crlt) || 0;
-          const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
-          const orderTotal = parseFloat(updated.total as string || '0') || 0;
-          
-          const newUsed = used + orderTotal;
-          const newAvailable = Math.max(0, limit - newUsed);
-          
-          await db.update(clients).set({
-            crsd: newUsed.toString(),
-            cren: newAvailable.toString()
-          }).where(eq(clients.id, clientRecordMatch.id));
-        }
-      } catch (e) {
-        console.error('Error updating client credit on order approval:', e);
-      }
-    }
+    // Aprobar un pedido NO toca el cupo de la ficha. Acá se sumaba el total a
+    // clients.crsd y se escribía clients.cren: las dos son columnas del ERP
+    // (crsd es el cupo autorizado sin documentar, no la deuda) y el ETL de
+    // clientes las devuelve al valor de Softland en la siguiente corrida. El uso
+    // de crédito se calcula desde ventas.fact_ventas. Ver shared/credito.ts.
 
     res.json(updated);
   }));
@@ -11918,51 +11945,9 @@ export function registerRoutes(app: Express): Server {
       .where(eq(ecommerceOrders.id, id))
       .returning();
 
-    // Consume client credit if approved via "Crédito" (mirrors /status approval logic)
-    if (shouldAutoApprove && isCredito) {
-      try {
-        const { salespeopleUsers, users, clients } = await import('@shared/schema');
-        const { or, desc } = await import('drizzle-orm');
-
-        let clientRecordMatch = null;
-        if (updated.clientId) {
-          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientId)).limit(1);
-          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientId)).limit(1) : null;
-
-          const userName = sUser[0]?.salespersonName || legacyUser?.[0]?.firstName || null;
-
-          if (userName) {
-            const possibleClients = await db.select().from(clients)
-              .where(or(
-                eq(clients.userId, updated.clientId),
-                eq(clients.nokoen, userName.toUpperCase())
-              ))
-              .orderBy(desc(clients.updatedAt))
-              .limit(1);
-
-            if (possibleClients.length > 0) {
-              clientRecordMatch = possibleClients[0];
-            }
-          }
-        }
-
-        if (clientRecordMatch && clientRecordMatch.crlt) {
-          const limit = parseFloat(clientRecordMatch.crlt) || 0;
-          const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
-          const orderTotal = parseFloat(updated.total as string || '0') || 0;
-
-          const newUsed = used + orderTotal;
-          const newAvailable = Math.max(0, limit - newUsed);
-
-          await db.update(clients).set({
-            crsd: newUsed.toString(),
-            cren: newAvailable.toString()
-          }).where(eq(clients.id, clientRecordMatch.id));
-        }
-      } catch (e) {
-        console.error('Error updating client credit on payment-condition credit approval:', e);
-      }
-    }
+    // Aprobar a crédito NO toca el cupo de la ficha: las columnas CR* son el
+    // espejo del ERP y el uso real se calcula desde ventas.fact_ventas.
+    // Ver shared/credito.ts.
 
     res.json(updated);
   }));
@@ -15508,9 +15493,15 @@ export function registerRoutes(app: Express): Server {
           commune: clientRecord?.cmen || clientRecord?.comuna || null,
           assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
           salesRepCode: clientRecord?.kofuen || null,
-          creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
-          creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
-          creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
+          // Línea de crédito: override manual > CRTO del ERP (ver shared/credito.ts).
+          // El usado y el disponible NO se informan acá: se calculan desde la
+          // cartera (ventas.fact_ventas) y este listado no la consulta. Antes salían
+          // de clients.cren/crsd, que son columnas de cupo del ERP —cren viene vacía
+          // y crsd es el cupo sin documentar, no la deuda—, así que el número era
+          // inventado. Para el crédito real de un cliente está /api/clients/credito.
+          creditLimit: resolverLineaCredito(clientRecord).limit,
+          creditAvailable: null,
+          creditUsed: null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
           // Lista asignada a mano (sobrevive al ETL) o, si no hay, la del ERP.
@@ -15544,9 +15535,15 @@ export function registerRoutes(app: Express): Server {
           commune: clientRecord?.cmen || clientRecord?.comuna || null,
           assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
           salesRepCode: clientRecord?.kofuen || null,
-          creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
-          creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
-          creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
+          // Línea de crédito: override manual > CRTO del ERP (ver shared/credito.ts).
+          // El usado y el disponible NO se informan acá: se calculan desde la
+          // cartera (ventas.fact_ventas) y este listado no la consulta. Antes salían
+          // de clients.cren/crsd, que son columnas de cupo del ERP —cren viene vacía
+          // y crsd es el cupo sin documentar, no la deuda—, así que el número era
+          // inventado. Para el crédito real de un cliente está /api/clients/credito.
+          creditLimit: resolverLineaCredito(clientRecord).limit,
+          creditAvailable: null,
+          creditUsed: null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || clientRecord?.pickup_warehouse_id || null,
           // Lista asignada a mano (sobrevive al ETL) o, si no hay, la del ERP.
@@ -15638,9 +15635,7 @@ export function registerRoutes(app: Express): Server {
               sapTotalTransactions: metrics ? Number(metrics.total_transactions) : null,
               sapLastTransactionDate: metrics?.last_transaction_date || null,
               sapSalespersonName: metrics?.salesperson_name || null,
-              creditLimit: cr?.crlt ? parseFloat(cr.crlt) : r.creditLimit,
-              creditAvailable: cr?.cren ? parseFloat(cr.cren) : r.creditAvailable,
-              creditUsed: cr?.crsd ? parseFloat(cr.crsd) : r.creditUsed,
+              creditLimit: resolverLineaCredito(cr).limit ?? r.creditLimit,
               paymentCondition: cr?.cpen || r.paymentCondition,
               salesRepCode: cr?.kofuen || r.salesRepCode,
             };
@@ -16277,7 +16272,11 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen: rawLcen, freeShipping } = req.body;
+      // creditLimit es la línea que se fija a mano. `crlt` se sigue aceptando como
+      // alias por compatibilidad con clientes viejos de la API, pero ya no escribe
+      // la columna crlt del ERP: va al override de la ficha (ver shared/credito.ts).
+      const { cpen, dccr, pickupWarehouseId, creditLimit, crlt, kofuen, lcen: rawLcen, freeShipping } = req.body;
+      const nuevaLinea = creditLimit !== undefined ? creditLimit : crlt;
       // lcen handling: undefined = not sent (preserve existing), null = explicit reset,
       // empty string = treat as null, valid string ('LP01','LP02') = set
       const lcen = rawLcen === undefined ? undefined
@@ -16317,18 +16316,12 @@ export function registerRoutes(app: Express): Server {
       }
 
       const dccrNorm = toNumericString(dccr);
-      const crltNorm = toNumericString(crlt);
-      const crenNorm = toNumericString(cren);
-      const crsdNorm = toNumericString(crsd);
 
       await db.update(clients)
         .set({
           cpen: cpen !== undefined ? cpen : existingClient[0].cpen,
           dccr: dccrNorm !== undefined ? dccrNorm : existingClient[0].dccr,
           pickupWarehouseId: pickupWarehouseId !== undefined ? pickupWarehouseId : existingClient[0].pickupWarehouseId,
-          crlt: crltNorm !== undefined ? crltNorm : existingClient[0].crlt,
-          cren: crenNorm !== undefined ? crenNorm : existingClient[0].cren,
-          crsd: crsdNorm !== undefined ? crsdNorm : existingClient[0].crsd,
           kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
           lcen: lcen !== undefined ? lcen : existingClient[0].lcen,
           freeShipping: freeShipping !== undefined ? !!freeShipping : existingClient[0].freeShipping,
@@ -16340,6 +16333,12 @@ export function registerRoutes(app: Express): Server {
       // único que sobrevive al ETL (lcen lo pisa la próxima sincronización).
       if (lcen !== undefined) {
         await persistPriceListAssignment(id, lcen);
+      }
+
+      // La línea de crédito fijada acá queda como override marcado de la ficha,
+      // no como columna del ERP: es lo único que sobrevive al ETL.
+      if (nuevaLinea !== undefined) {
+        await persistCreditLimitOverride(id, nuevaLinea);
       }
 
       res.json({ success: true, message: "Información comercial actualizada" });
@@ -16748,11 +16747,12 @@ export function registerRoutes(app: Express): Server {
         branchDiscountPercent: String(safeDiscount),
         kofuen: salesRepCode || parentClient.kofuen || null,
         pickupWarehouseId: pickupWarehouseId || null,
-        crlt: creditLimit ? String(creditLimit) : parentClient.crlt || null,
-        cren: creditLimit ? String(creditLimit) : parentClient.cren || null,
-        crsd: '0',
         cpen: paymentCondition || parentClient.cpen || null,
         lcen: lcen || parentClient.lcen || null,
+        // Línea propia de la sucursal: va como override marcado de la ficha, no a
+        // las columnas CR* del ERP (el ETL las pisa). Sin línea propia, la sucursal
+        // usa la de la empresa. Ver shared/credito.ts.
+        fichaOverrides: Number(creditLimit) > 0 ? { creditLimit: Number(creditLimit) } : null,
       }).returning();
 
       // Lista elegida para la sucursal: además de lcen, se guarda como asignación
@@ -16900,8 +16900,6 @@ export function registerRoutes(app: Express): Server {
         branchLabel,
         kofuen: salesRepCode !== undefined ? (salesRepCode || null) : branchClient.kofuen,
         pickupWarehouseId: pickupWarehouseId !== undefined ? (pickupWarehouseId === 'none' ? null : pickupWarehouseId) : branchClient.pickupWarehouseId,
-        crlt: creditLimit !== undefined ? (creditLimit ? String(creditLimit) : null) : branchClient.crlt,
-        cren: creditLimit !== undefined ? (creditLimit ? String(creditLimit) : null) : branchClient.cren,
         cpen: paymentCondition !== undefined ? (paymentCondition || null) : branchClient.cpen,
         lcen: lcen !== undefined ? (lcen || null) : branchClient.lcen,
         updatedAt: new Date()
@@ -16924,6 +16922,12 @@ export function registerRoutes(app: Express): Server {
       // reescribe el ETL en la próxima sincronización. Vacío = vuelve a heredar.
       if (lcen !== undefined) {
         await persistPriceListAssignment(branchId, lcen);
+      }
+
+      // Línea propia de la sucursal: override marcado, no columna del ERP.
+      // Vacío = la sucursal vuelve a usar la línea de la empresa.
+      if (creditLimit !== undefined) {
+        await persistCreditLimitOverride(branchId, creditLimit);
       }
 
       res.json({
@@ -16972,10 +16976,11 @@ export function registerRoutes(app: Express): Server {
           )
         );
 
-      // Calculate group totals
-      const groupCreditLimit = allBranches.reduce((sum, b) => sum + (parseFloat(b.crlt as string) || 0), 0);
-      const groupCreditUsed = allBranches.reduce((sum, b) => sum + (parseFloat(b.crsd as string) || 0), 0);
-      const groupCreditAvailable = allBranches.reduce((sum, b) => sum + (parseFloat(b.cren as string) || 0), 0);
+      // Línea del grupo: suma de las líneas de cada sucursal (override manual >
+      // CRTO del ERP). El usado y el disponible no se informan: salen de la
+      // cartera (/api/clients/credito), no de la ficha — antes se sumaban
+      // clients.crsd y clients.cren, que son columnas de cupo del ERP.
+      const groupCreditLimit = allBranches.reduce((sum, b) => sum + (resolverLineaCredito(b as any).limit ?? 0), 0);
 
       res.json({
         rootId,
@@ -16984,9 +16989,9 @@ export function registerRoutes(app: Express): Server {
           name: b.nokoen,
           branchLabel: b.branchLabel,
           isRoot: b.id === rootId,
-          creditLimit: b.crlt ? parseFloat(b.crlt as string) : null,
-          creditUsed: b.crsd ? parseFloat(b.crsd as string) : null,
-          creditAvailable: b.cren ? parseFloat(b.cren as string) : null,
+          creditLimit: resolverLineaCredito(b as any).limit,
+          creditUsed: null,
+          creditAvailable: null,
           salesRepCode: b.kofuen,
           pickupWarehouseId: b.pickupWarehouseId,
           paymentCondition: b.cpen,
@@ -16995,8 +17000,8 @@ export function registerRoutes(app: Express): Server {
         })),
         groupTotals: {
           creditLimit: groupCreditLimit,
-          creditUsed: groupCreditUsed,
-          creditAvailable: groupCreditAvailable,
+          creditUsed: null,
+          creditAvailable: null,
           branchCount: allBranches.length,
         },
       });

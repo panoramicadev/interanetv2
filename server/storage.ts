@@ -12501,13 +12501,28 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.debtStatus) {
-      // Filter by debt status using crsd (credit balance/debt)
+      // "Con deuda" = tiene documentos por cobrar abiertos, calculado desde
+      // ventas.fact_ventas con el mismo criterio que la ficha (FCV/FDV
+      // pendientes, saldo = vabrdo - vaabdo > 0, dedup por idmaeedo).
+      //
+      // Antes filtraba por `crsd > 0`, que no es deuda: crsd es el CUPO
+      // autorizado sin documentar de la ficha del ERP. O sea "con deuda"
+      // devolvía a los clientes con línea de crédito, tuvieran o no un peso
+      // pendiente. Ver shared/credito.ts.
+      const tieneDeuda = sql`EXISTS (
+        SELECT 1 FROM ventas.fact_ventas fv
+        WHERE fv.endo = ${clients.koen}
+          AND fv.tido IN ('FCV', 'FDV')
+          AND fv.espgdo = 'P'
+        GROUP BY fv.idmaeedo
+        HAVING MAX(COALESCE(fv.vabrdo, 0)) - MAX(COALESCE(fv.vaabdo, 0)) > 0
+      )`;
       switch (filters.debtStatus) {
         case 'con_deuda':
-          conditions.push(sql`${clients.crsd} > 0`);
+          conditions.push(tieneDeuda);
           break;
         case 'sin_deuda':
-          conditions.push(sql`${clients.crsd} <= 0 OR ${clients.crsd} IS NULL`);
+          conditions.push(sql`NOT ${tieneDeuda}`);
           break;
       }
     }

@@ -5,7 +5,7 @@ import {
   ArrowLeft, ShoppingBag, Package, DollarSign, Clock, CalendarIcon,
   Tag, History, Mail, Building2, Hash, KeyRound, Link as LinkIcon, Unlink,
   UserCircle, FileText, CreditCard, ExternalLink, MapPin, Phone, AlertTriangle,
-  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save, Loader2,
+  Store, Send, Truck, Receipt, Copy, Check, Pencil, X, Save, Loader2, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,6 +110,10 @@ interface FichaInfo {
   priceListChargedName: string | null;
   priceListUsable: boolean;
   creditLimit: number | null;
+  /** 'manual' = la línea la fijó alguien acá; 'erp' = viene de Softland (CRTO). */
+  creditLimitSource: "manual" | "erp" | "sin-linea" | null;
+  /** Lo que dice el ERP, aunque haya override. Para poder contrastarlos. */
+  creditLimitErp: number | null;
   creditAvailable: number | null;
   creditUsed: number | null;
   creditOverdue: number | null;
@@ -194,6 +198,8 @@ export default function ClientDetail() {
   const [fichaForm, setFichaForm] = useState({ clientName: "", email: "", phone: "", address: "", commune: "" });
   const [editingComercial, setEditingComercial] = useState(false);
   const [priceListForm, setPriceListForm] = useState<string>("__erp__");
+  // Línea de crédito fijada a mano. "" = sin override: manda el CRTO del ERP.
+  const [creditLimitForm, setCreditLimitForm] = useState<string>("");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean; reset?: boolean } | null>(null);
   // Restablecer la clave del panel del cliente (se abre desde el badge "En eCommerce")
@@ -352,6 +358,8 @@ export default function ClientDetail() {
       const c = credito.credit;
       return {
         limite: c.limit,
+        limiteManual: c.limitSource === "manual",
+        limiteErp: c.limitErp,
         deuda: c.used,
         vencido: c.overdue,
         porVencer: c.upcoming,
@@ -373,6 +381,8 @@ export default function ClientDetail() {
 
     return {
       limite,
+      limiteManual: ficha?.creditLimitSource === "manual",
+      limiteErp: ficha?.creditLimitErp ?? null,
       deuda,
       vencido,
       porVencer,
@@ -503,28 +513,35 @@ export default function ClientDetail() {
     setEditingFicha(true);
   };
 
-  // Guarda la lista de precios como override manual (sobrevive al ETL) y refresca
-  // la ficha. Esa lista pasa a regir presupuestos y el panel de Panorámica Market.
-  const savePriceList = useMutation({
+  // Guarda lista de precios y línea de crédito como overrides manuales de la
+  // ficha (clients.ficha_overrides), que es lo único que sobrevive al ETL. Las
+  // columnas del ERP no se tocan: el ETL las devuelve al valor de Softland.
+  const saveComercial = useMutation({
     mutationFn: async () => {
       if (!ficha?.id) throw new Error("Este cliente no tiene ficha.");
       const priceList = priceListForm === "__erp__" ? "" : priceListForm;
-      const res = await apiRequest("PATCH", `/api/clients/${ficha.id}/ficha`, { priceList });
+      // Vacío => se quita el override y la línea vuelve a ser la del ERP.
+      const creditLimit = creditLimitForm.replace(/[^\d]/g, "");
+      const res = await apiRequest("PATCH", `/api/clients/${ficha.id}/ficha`, { priceList, creditLimit });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients/credito"] });
       setEditingComercial(false);
-      toast({ title: "Lista de precios actualizada", description: "Se aplicará a presupuestos y al panel de Panorámica Market." });
+      toast({ title: "Información comercial actualizada", description: "Rige para la ficha, Panorámica Market y el panel de Cobranza." });
     },
     onError: (e: any) => {
-      toast({ title: "No se pudo guardar", description: e?.message || "Error al guardar la lista de precios", variant: "destructive" });
+      toast({ title: "No se pudo guardar", description: e?.message || "Error al guardar la información comercial", variant: "destructive" });
     },
   });
 
   const startEditComercial = () => {
     // El override manual manda; si no hay, arranca en "ERP por defecto".
     setPriceListForm(ficha?.priceListOverride || "__erp__");
+    // Solo se precarga si la línea es manual: si viene del ERP, el campo va
+    // vacío y el placeholder muestra lo que dice Softland.
+    setCreditLimitForm(ficha?.creditLimitSource === "manual" && ficha?.creditLimit != null ? String(ficha.creditLimit) : "");
     setEditingComercial(true);
   };
 
@@ -1254,11 +1271,11 @@ export default function ClientDetail() {
                       {canManage && (
                         editingComercial ? (
                           <div className="flex items-center gap-1.5">
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingComercial(false)} disabled={savePriceList.isPending} data-testid="button-cancel-comercial">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingComercial(false)} disabled={saveComercial.isPending} data-testid="button-cancel-comercial">
                               <X className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" className="h-7 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => savePriceList.mutate()} disabled={savePriceList.isPending} data-testid="button-save-comercial">
-                              <Save className="h-3.5 w-3.5 mr-1.5" /> {savePriceList.isPending ? "Guardando…" : "Guardar"}
+                            <Button size="sm" className="h-7 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => saveComercial.mutate()} disabled={saveComercial.isPending} data-testid="button-save-comercial">
+                              <Save className="h-3.5 w-3.5 mr-1.5" /> {saveComercial.isPending ? "Guardando…" : "Guardar"}
                             </Button>
                           </div>
                         ) : (
@@ -1312,7 +1329,29 @@ export default function ClientDetail() {
                     ] as { label: string; value: any; valueClassName?: string }[]).map(({ label, value, valueClassName }) => (
                       <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-muted/50 last:border-0">
                         <span className="text-sm text-muted-foreground shrink-0">{label}</span>
-                        {label === "Lista de Precios" ? (
+                        {label === "Límite de Crédito" ? (
+                          editingComercial ? (
+                            <div className="flex items-center gap-1.5 max-w-[65%]">
+                              <span className="text-sm text-muted-foreground">$</span>
+                              <Input
+                                value={creditLimitForm}
+                                onChange={(e) => setCreditLimitForm(e.target.value.replace(/[^\d]/g, ""))}
+                                placeholder={cobranza.limiteErp != null ? `ERP: ${cobranza.limiteErp.toLocaleString("es-CL")}` : "Sin línea en el ERP"}
+                                className="h-8 text-sm text-right"
+                                inputMode="numeric"
+                                data-testid="input-credit-limit"
+                              />
+                            </div>
+                          ) : (
+                            <span className={`text-sm font-medium text-right max-w-[60%] truncate flex items-center gap-1.5 justify-end ${valueClassName ?? ""}`}>
+                              {/* Una línea fijada a mano tiene que distinguirse de
+                                  la que manda Softland: son responsabilidades
+                                  distintas y el vendedor necesita saber cuál mira. */}
+                              {cobranza.limiteManual && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">manual</Badge>}
+                              {value || "—"}
+                            </span>
+                          )
+                        ) : label === "Lista de Precios" ? (
                           editingComercial ? (
                             <Select value={priceListForm} onValueChange={setPriceListForm}>
                               <SelectTrigger className="h-8 max-w-[65%] text-sm" data-testid="select-price-list">
@@ -1356,6 +1395,22 @@ export default function ClientDetail() {
                           así que en Panorámica Market se le está cobrando{" "}
                           <span className="font-semibold">{ficha.priceListChargedName || ficha.priceListCharged}</span>.
                           {canManage && " Para que respete otra lista, asignala acá con Editar."}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Una línea fijada a mano no puede pasar por dato del ERP:
+                        se dice quién la puso y qué dice Softland, para que quede
+                        claro contra qué número se está midiendo el disponible. */}
+                    {cobranza.limiteManual && !editingComercial && (
+                      <div className="mt-2 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50/60 p-2.5" data-testid="alert-linea-manual">
+                        <Info className="h-4 w-4 text-sky-500 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-sky-800">
+                          La línea de crédito está fijada a mano en la intranet.{" "}
+                          {cobranza.limiteErp != null
+                            ? <>En el ERP el cliente tiene <span className="font-semibold">{formatCurrency(cobranza.limiteErp)}</span>.</>
+                            : <>En el ERP el cliente no tiene línea asignada.</>}
+                          {canManage && " Para volver a la del ERP, dejá el campo vacío en Editar."}
                         </p>
                       </div>
                     )}
