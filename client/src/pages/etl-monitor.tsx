@@ -485,6 +485,7 @@ export default function ETLMonitor() {
             {renderETLRow('Ventas Incremental', syncStatus?.ventas)}
             {renderETLRow('Guías de Despacho (GDV)', syncStatus?.gdv)}
             {renderETLRow('Notas de Venta (NVV)', syncStatus?.nvv)}
+            {renderETLRow('Clientes (maestro ERP)', syncStatus?.clientes)}
           </div>
 
           {!isSyncAllRunning && syncStatus?.completedAt && (
