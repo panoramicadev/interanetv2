@@ -13,6 +13,7 @@ import {
   FileText,
   Truck,
   Wallet,
+  Users,
 } from "lucide-react";
 
 interface StoreConfig {
@@ -28,6 +29,12 @@ const navItems = [
   { label: "Seguimiento", href: "/seguimiento", icon: Truck },
   { label: "Documentos", href: "/mis-documentos", icon: FileText },
 ];
+
+// "Usuarios" sólo aparece si Panorámica le habilitó al cliente crear su propia gente.
+const USUARIOS_ITEM = { label: "Usuarios", href: "/mis-usuarios", icon: Users };
+// Un comprador (sub-usuario del cliente) entra sólo a comprar: no ve el estado de
+// cuenta, los documentos ni el panel de la empresa.
+const NAV_COMPRADOR = ["/mis-pedidos", "/seguimiento"];
 
 const niceFirstName = (full: string) => {
   const first = (full || "").trim().split(/\s+/)[0] || "Cliente";
@@ -46,6 +53,13 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
 
   const displayName = (user as any)?.salespersonName || (user as any)?.name || (user as any)?.username || "Cliente";
   const firstName = niceFirstName(displayName);
+
+  const esComprador = !!(user as any)?.parentUserId;
+  const items = esComprador
+    ? navItems.filter(i => NAV_COMPRADOR.includes(i.href))
+    : (user as any)?.canCreateSubUsers
+      ? [...navItems, USUARIOS_ITEM]
+      : navItems;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -66,7 +80,7 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {navItems.map(item => {
+              {items.map(item => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 const Icon = item.icon;
                 return (
@@ -129,7 +143,7 @@ export default function ClientEcommerceLayout({ children }: { children: ReactNod
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-white/10 bg-gray-900/95 backdrop-blur-sm">
             <div className="px-4 py-3 space-y-1">
-              {navItems.map(item => {
+              {items.map(item => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 const Icon = item.icon;
                 return (

@@ -96,6 +96,7 @@ import * as NotifyHelper from "./notifications-helper";
 import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
 import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
+import { avisarPedidoNuevo, consumirCupoDeCredito, notificarPedidoPorAprobar } from "./services/ecommerce-order-flow";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import { parseOrdenDeCompra } from "./oc-parser";
@@ -2423,9 +2424,11 @@ export function registerRoutes(app: Express): Server {
       let ecommerceAccount: any = null;
       try {
         const acctResult = await db.execute(sql`
-          SELECT id, email, salesperson_name, client_rut, client_id
+          SELECT id, email, salesperson_name, client_rut, client_id, can_create_sub_users,
+                 (SELECT COUNT(*) FROM salespeople_users sub WHERE sub.parent_user_id = salespeople_users.id) AS sub_users_count
           FROM salespeople_users
           WHERE role = 'client'
+            AND parent_user_id IS NULL
             AND (
               ${companyIds.length > 0 ? sql`client_id IN (${sql.join(companyIds.map((i: string) => sql`${i}`), sql`, `)})` : sql`FALSE`}
               OR (${upperName} <> '' AND UPPER(salesperson_name) = ${upperName})
@@ -2438,6 +2441,27 @@ export function registerRoutes(app: Express): Server {
         ecommerceAccount = rows[0] || null;
       } catch (e) {
         console.error('[account-status] ecommerce account lookup failed:', e);
+        // Base sin las columnas de compradores (migración 079): reintentamos sin ellas
+        // para no perder el estado "En eCommerce" de la ficha, que es lo que habilita
+        // los botones de Market.
+        try {
+          const legacyResult = await db.execute(sql`
+            SELECT id, email, salesperson_name, client_rut, client_id
+            FROM salespeople_users
+            WHERE role = 'client'
+              AND (
+                ${companyIds.length > 0 ? sql`client_id IN (${sql.join(companyIds.map((i: string) => sql`${i}`), sql`, `)})` : sql`FALSE`}
+                OR (${upperName} <> '' AND UPPER(salesperson_name) = ${upperName})
+                ${companyRuts.length > 0 ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') IN (${sql.join(companyRuts.map((r: string) => sql`${r}`), sql`, `)})` : sql``}
+              )
+            ORDER BY (client_id IS NOT NULL) DESC, created_at DESC
+            LIMIT 1
+          `);
+          const legacyRows = Array.isArray(legacyResult) ? legacyResult : (legacyResult as any).rows || [];
+          ecommerceAccount = legacyRows[0] || null;
+        } catch (e2) {
+          console.error('[account-status] fallback lookup also failed:', e2);
+        }
       }
 
       // 3. Pending eCommerce join request (stored as JSON in app_config)
@@ -2509,6 +2533,9 @@ export function registerRoutes(app: Express): Server {
         inEcommerce: !!ecommerceAccount,
         linked,
         ecommerceUserId: ecommerceAccount?.id || null,
+        // Compradores del cliente: si puede crearlos y cuántos tiene hoy.
+        canCreateSubUsers: !!ecommerceAccount?.can_create_sub_users,
+        subUsersCount: Number(ecommerceAccount?.sub_users_count) || 0,
         clientId: linked ? ecommerceAccount.client_id : fichaId,
         pendingRequest: pendingRequest
           ? {
@@ -2628,7 +2655,7 @@ export function registerRoutes(app: Express): Server {
             SELECT DISTINCT ON (client_id) client_id, id, status, created_at
             FROM ecommerce_orders
             WHERE client_id IN (${sql.join(ecommerceUserIds.map((i) => sql`${i}`), sql`, `)})
-              AND COALESCE(status, '') NOT IN ('archived', 'rejected')
+              AND COALESCE(status, '') NOT IN ('archived', 'rejected', 'pending_client')
             ORDER BY client_id, created_at DESC NULLS LAST
           `);
           const rows = (Array.isArray(ordRes) ? ordRes : ordRes.rows) || [];
@@ -9558,7 +9585,18 @@ export function registerRoutes(app: Express): Server {
       }
 
       const orderData = validationResult.data;
-      const clientId = req.user.id;
+      // Compradores (sub-usuarios de un cliente): el pedido pertenece a la cuenta del
+      // TITULAR — precios, cupo de crédito, historial y panel son los de la empresa —
+      // y queda registrado quién lo armó. No sale a Panorámica hasta que el titular
+      // lo aprueba desde su panel.
+      const compradorId: string | null = (req.user as any).parentUserId ? req.user.id : null;
+      const compradorNombre: string | null = compradorId
+        ? ((req.user as any).salespersonName
+            || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()
+            || req.user.email
+            || 'Comprador')
+        : null;
+      const clientId = (req.user as any).parentUserId || req.user.id;
 
       // Get client details to find assigned salesperson and price list (non-blocking).
       // If the cart carried a specific branchId (sucursal seleccionada en la tienda),
@@ -9632,7 +9670,11 @@ export function registerRoutes(app: Express): Server {
       // Si el pedido trae OC adjunta, queda en pendiente aunque sea a crédito:
       // la recepcionista debe revisarlo y aprobar antes de consumir el cupo.
       const hasPurchaseOrder = !!orderData.purchaseOrderPdfUrl;
-      const shouldAutoApprove = isCreditMethod && !hasPurchaseOrder;
+      // Un pedido de comprador nunca se auto-aprueba: primero pasa por su titular.
+      const shouldAutoApprove = isCreditMethod && !hasPurchaseOrder && !compradorId;
+
+      // Titular de la cuenta: los correos del pedido son suyos, no del comprador.
+      const titular = compradorId ? await storage.getUser(clientId) : req.user;
 
       const orderToCreate: any = {
         items: resolved.items,
@@ -9647,15 +9689,16 @@ export function registerRoutes(app: Express): Server {
         // identifican el pedido por la razón social/sucursal — no por el nombre del
         // usuario operador. Caemos al nombre del user sólo si no hay registro de cliente.
         clientName: client?.nokoen
-          || (req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : (req.user.email || 'Cliente')),
-        clientEmail: req.user.email,
+          || (titular?.firstName ? `${titular.firstName} ${titular.lastName || ''}`.trim() : (titular?.email || 'Cliente')),
+        clientEmail: titular?.email || null,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null,
-        status: shouldAutoApprove ? 'approved' : 'pending',
+        status: compradorId ? 'pending_client' : (shouldAutoApprove ? 'approved' : 'pending'),
         paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
         purchaseOrderPdfUrl: orderData.purchaseOrderPdfUrl || null,
+        ...(compradorId ? { createdByUserId: compradorId, createdByName: compradorNombre } : {}),
         ...(shouldAutoApprove ? { approvedAt: new Date(), approvedById: clientId } : {}),
       };
 
@@ -9674,146 +9717,42 @@ export function registerRoutes(app: Express): Server {
       // Create the order
       const order = await storage.createEcommerceOrder(orderToCreate);
 
+      // Pedido de un comprador: no sale a Panorámica todavía. Queda esperando el
+      // visto bueno del titular, a quien avisamos para que lo revise en su panel.
+      if (compradorId) {
+        await notificarPedidoPorAprobar({
+          order,
+          titular,
+          clientName: orderToCreate.clientName,
+          compradorNombre: compradorNombre || 'Comprador',
+          total: Number(resolved.total) || 0,
+          items: resolved.items as any[],
+        });
+        return res.status(201).json(order);
+      }
+
       // Process credit updates if the order is automatically approved (credit payment).
       // OC-attached credit orders stay pending — credit is consumed when the receptionist approves.
       if (shouldAutoApprove) {
-        try {
-          const { salespeopleUsers, users, clients } = await import('@shared/schema');
-          const { eq, or, desc } = await import('drizzle-orm');
-          const { db } = await import('./db');
-          
-          let clientRecordMatch = null;
-          if (clientId) {
-            // Find user to map to client
-            const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, clientId)).limit(1);
-            const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, clientId)).limit(1) : null;
-            
-            const userName = sUser[0]?.salespersonName || legacyUser[0]?.firstName || null;
-            
-            if (userName) {
-              const possibleClients = await db.select().from(clients)
-                .where(or(
-                  eq(clients.userId, clientId),
-                  eq(clients.nokoen, userName.toUpperCase())
-                ))
-                .orderBy(desc(clients.updatedAt))
-                .limit(1);
-                
-              if (possibleClients.length > 0) {
-                clientRecordMatch = possibleClients[0];
-              }
-            }
-          }
-          
-          if (clientRecordMatch && clientRecordMatch.crlt) {
-            const limit = parseFloat(clientRecordMatch.crlt) || 0;
-            const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
-            const orderTotal = resolved.total;
-
-            const newUsed = used + orderTotal;
-            const newAvailable = Math.max(0, limit - newUsed);
-
-            await db.update(clients).set({
-              crsd: newUsed.toString(),
-              cren: newAvailable.toString()
-            }).where(eq(clients.id, clientRecordMatch.id));
-          }
-        } catch (e) {
-          console.error('Error updating client credit on direct order approval:', e);
-        }
+        await consumirCupoDeCredito(clientId, resolved.total);
       }
 
-      // Create notification for salesperson or admin (non-blocking)
-      try {
-        const notificationUserId = orderToCreate.assignedSalespersonId || await storage.getAdminUserId();
-        if (notificationUserId) {
-          await storage.createNotification({
-            userId: notificationUserId,
-            type: 'ecommerce_order',
-            title: hasPurchaseOrder
-              ? 'Pedido con OC — requiere revisión'
-              : 'Nuevo pedido de cliente',
-            message: `${orderToCreate.clientName} ha realizado un pedido por $${resolved.total.toFixed(0)}${hasPurchaseOrder ? ' con OC adjunta. Revisa antes de aprobar.' : ''}`,
-            relatedOrderId: order.id,
-            read: false
-          });
-        }
-      } catch (notifErr) {
-        console.warn('Warning: Notification creation failed, order was still created:', notifErr);
-      }
-
-      // Email notification for new store order (pedido_nuevo)
-      try {
-        await NotifyHelper.notifyNuevaOrden(
-          order.id,
-          orderToCreate.clientName || 'Cliente',
-          Number(resolved.total) || 0
-        );
-      } catch (notifErr) {
-        console.warn('Warning: notifyNuevaOrden failed:', notifErr);
-      }
-
-      // Customer-facing auto-confirmation email
-      try {
-        if (orderToCreate.clientEmail) {
-          const { buildOrderReceivedEmail } = await import('./email-templates');
-          const items = (resolved.items || []).map((it: any) => ({
-            name: it.productName || it.name || it.sku || 'Producto',
-            quantity: Number(it.quantity) || 1,
-            price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
-          }));
-          const built = buildOrderReceivedEmail({
-            clientName: orderToCreate.clientName || 'Cliente',
-            orderNumber: order.id,
-            total: Number(resolved.total) || 0,
-            items,
-          });
-          await NotifyHelper.sendAutoCustomerEmail({
-            notificationType: 'ecommerce_sale_auto',
-            to: orderToCreate.clientEmail,
-            subject: built.subject,
-            html: built.html,
-          });
-        }
-      } catch (autoErr) {
-        console.warn('Warning: auto-confirmation email failed:', autoErr);
-      }
-
-      // Internal staff notification — pedidos de Panorámica Market.
-      // Va siempre (no depende del toggle de emailNotificationSettings) a
-      // contacto@pinturaspanoramica.cl con copia a fparra@pinturaspanoramica.cl.
-      try {
-        const { buildOrderInternalNotifyEmail } = await import('./email-templates');
-        const itemsForEmail = (resolved.items || []).map((it: any) => ({
-          name: it.productName || it.name || it.sku || 'Producto',
-          quantity: Number(it.quantity) || 1,
-          price: Number(it.totalPriceAfterDiscount ?? it.totalPrice) || undefined,
-        }));
-        const built = buildOrderInternalNotifyEmail({
-          orderNumber: order.id,
-          clientName: orderToCreate.clientName || 'Cliente',
-          clientEmail: orderToCreate.clientEmail || null,
-          clientRut: client?.ruen || null,
-          clientPhone: (client as any)?.foen || (client as any)?.fichaOverrides?.phone || null,
-          total: Number(resolved.total) || 0,
-          subtotal: Number(resolved.subtotal) || 0,
-          tax: Number(resolved.tax) || 0,
-          paymentCondition: orderToCreate.paymentCondition || null,
-          shippingAddress: orderToCreate.shippingAddress || null,
-          notes: orderToCreate.notes || null,
-          status: orderToCreate.status === 'approved' ? 'Aprobado' : 'Pendiente de aprobación',
-          items: itemsForEmail,
-        });
-        await emailService.sendEmail({
-          to: 'contacto@pinturaspanoramica.cl',
-          cc: 'fparra@pinturaspanoramica.cl',
-          subject: built.subject,
-          html: built.html,
-        });
-      } catch (internalErr) {
-        console.warn('Warning: internal order notification email failed:', internalErr);
-      }
-
+      await avisarPedidoNuevo({
+        order,
+        client,
+        clientName: orderToCreate.clientName,
+        clientEmail: orderToCreate.clientEmail,
+        assignedSalespersonId: orderToCreate.assignedSalespersonId,
+        items: resolved.items as any[],
+        total: Number(resolved.total) || 0,
+        subtotal: Number(resolved.subtotal) || 0,
+        tax: Number(resolved.tax) || 0,
+        paymentCondition: orderToCreate.paymentCondition || null,
+        shippingAddress: orderToCreate.shippingAddress || null,
+        notes: orderToCreate.notes || null,
+        status: orderToCreate.status,
+        hasPurchaseOrder,
+      });
       res.status(201).json(order);
     } catch (error: any) {
       console.error('Error creating client order:', error);
@@ -10113,7 +10052,9 @@ export function registerRoutes(app: Express): Server {
       if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
 
       const isAdmin = user.role === 'admin' || user.role === 'supervisor';
-      if (!isAdmin && order.clientId !== user.id) {
+      // Dueño de la cuenta o el comprador que lo armó.
+      const esPropio = order.clientId === user.id || order.createdByUserId === user.id;
+      if (!isAdmin && !esPropio) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
@@ -10487,7 +10428,15 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado. Solo clientes pueden consultar su propio historial.' });
       }
 
-      const orders = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.clientId, user.id)).orderBy(desc(ecommerceOrders.createdAt));
+      // Los pedidos son de la cuenta del titular. Un comprador (sub-usuario) ve sólo
+      // los que armó él — no el historial de compras completo de la empresa.
+      const esComprador = !!(user as any).parentUserId;
+      const cuentaId = (user as any).parentUserId || user.id;
+      const orders = await db.select().from(ecommerceOrders)
+        .where(esComprador
+          ? and(eq(ecommerceOrders.clientId, cuentaId), eq(ecommerceOrders.createdByUserId, user.id))
+          : eq(ecommerceOrders.clientId, cuentaId))
+        .orderBy(desc(ecommerceOrders.createdAt));
       res.json(orders);
     } catch (error: any) {
       console.error('Error fetching client orders:', error);
@@ -10501,6 +10450,11 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       if (user.role !== 'client') {
         return res.status(403).json({ message: 'No autorizado. Solo clientes pueden consultar su propio historial ERP.' });
+      }
+      if ((user as any).parentUserId) {
+        // Compradores: su acceso es para comprar. El estado financiero y el historial
+        // de la empresa los ve el titular de la cuenta.
+        return res.status(403).json({ message: 'No autorizado. Esta información la ve el titular de la cuenta.' });
       }
 
       // Resolvemos el scope del cliente desde su SESIÓN (ficha + todos los códigos de la
@@ -10813,6 +10767,10 @@ export function registerRoutes(app: Express): Server {
     if (user.role !== 'client') {
       return res.status(403).json({ message: 'No autorizado.' });
     }
+    if ((user as any).parentUserId) {
+      // Compradores: su acceso es para comprar. El estado de cuenta lo ve el titular.
+      return res.status(403).json({ message: 'No autorizado. Esta información la ve el titular de la cuenta.' });
+    }
     const emptyPayload = {
       hasFicha: false, clientName: null, rut: null, paymentCondition: null,
       creditLimit: null, creditUsed: null, creditOverdue: null, creditUpcoming: null,
@@ -10891,6 +10849,10 @@ export function registerRoutes(app: Express): Server {
     const user = req.user;
     if (user.role !== 'client') {
       return res.status(403).json({ message: 'No autorizado.' });
+    }
+    if ((user as any).parentUserId) {
+      // Compradores: su acceso es para comprar. La cartera la ve el titular.
+      return res.status(403).json({ message: 'No autorizado. Esta información la ve el titular de la cuenta.' });
     }
     const scope = await resolveClientScope(user.id);
     if (!scope || scope.koens.length === 0) return res.json({ docs: [] });
@@ -11021,7 +10983,8 @@ export function registerRoutes(app: Express): Server {
         const order = result[0];
         if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
         // Allow owner or admin/supervisor
-        if (order.clientId !== user.id && !['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
+        const esPropio = order.clientId === user.id || order.createdByUserId === user.id;
+        if (!esPropio && !['admin', 'supervisor', 'encargado_area', 'salesperson', 'reception'].includes(user.role)) {
           return res.status(403).json({ message: 'No autorizado' });
         }
         return res.json(order);
@@ -11706,7 +11669,7 @@ export function registerRoutes(app: Express): Server {
         const rows = await db
           .select({ id: ecommerceOrders.id })
           .from(ecommerceOrders)
-          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived', 'suggested_pending', 'preparacion', 'transito', 'entregado']));
+          .where(notInArray(ecommerceOrders.status, ['ingresado', 'rejected', 'archived', 'suggested_pending', 'pending_client', 'preparacion', 'transito', 'entregado']));
         return res.json({ count: rows.length });
       }
 
@@ -12405,7 +12368,11 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
-    if (order.clientId !== user.id && !['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
+    // Dueño de la cuenta, el comprador que armó el pedido, o el equipo. Sin el
+    // comprador, subir el comprobante de transferencia justo después de comprar
+    // le daba 403 en la pantalla de "pedido confirmado".
+    const esPropio = order.clientId === user.id || order.createdByUserId === user.id;
+    if (!esPropio && !['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
       return res.status(403).json({ message: 'No autorizado para modificar este pedido' });
     }
 
@@ -15391,13 +15358,27 @@ export function registerRoutes(app: Express): Server {
       // Use raw SQL to be resilient to missing client_id column (migration may not have run yet)
       let spClientUsersRaw: any[] = [];
       try {
+        // parent_user_id IS NULL deja fuera a los compradores que crea el propio
+        // cliente desde su panel: acá se administran las cuentas de empresa, no su gente.
         const spResult = await db.execute(sql`
-          SELECT * FROM salespeople_users WHERE role = 'client' ORDER BY created_at DESC
+          SELECT * FROM salespeople_users
+          WHERE role = 'client' AND parent_user_id IS NULL
+          ORDER BY created_at DESC
         `);
         spClientUsersRaw = Array.isArray(spResult) ? spResult : (spResult as any).rows || [];
       } catch (e1) {
+        // Si parent_user_id todavía no existe (base sin la migración 079), volvemos a
+        // consultar sin el filtro: preferimos listar de más a dejar la pantalla vacía.
         console.error('[GET /api/users/clients] Failed to query salespeople_users:', e1);
-        spClientUsersRaw = [];
+        try {
+          const legacyResult = await db.execute(sql`
+            SELECT * FROM salespeople_users WHERE role = 'client' ORDER BY created_at DESC
+          `);
+          spClientUsersRaw = Array.isArray(legacyResult) ? legacyResult : (legacyResult as any).rows || [];
+        } catch (e2) {
+          console.error('[GET /api/users/clients] Fallback query also failed:', e2);
+          spClientUsersRaw = [];
+        }
       }
       // Map snake_case columns from raw SQL to camelCase for consistency
       const spClientUsers = (spClientUsersRaw || []).map((r: any) => ({
@@ -16581,8 +16562,11 @@ export function registerRoutes(app: Express): Server {
       const fichaRut = normalizeRut(ficha.rten);
 
       // Idempotent: reuse an existing ecommerce user for this ficha (by id or RUT).
+      // parent_user_id IS NULL: los compradores que crea el propio cliente heredan su
+      // client_id y su RUT, así que sin este filtro "Activar Market" podría reutilizar
+      // la cuenta de un comprador como si fuera la del titular.
       const existing = await dbInstance.select().from(spTable).where(sql`
-        ${spTable.role} = 'client' AND (
+        ${spTable.role} = 'client' AND ${spTable.parentUserId} IS NULL AND (
           ${spTable.clientId} = ${id}
           ${fichaRut ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(${spTable.clientRut}), '.', ''), '-', ''), ' ', '') = ${fichaRut}` : sql``}
         )

@@ -133,6 +133,9 @@ interface AccountStatus {
   linked: boolean;
   ecommerceUserId: string | null;
   clientId: string | null;
+  /** Si el cliente puede crear sus propios usuarios (compradores) en el Market. */
+  canCreateSubUsers?: boolean;
+  subUsersCount?: number;
   pendingRequest: {
     id: string;
     empresa: string;
@@ -192,7 +195,10 @@ export default function ClientDetail() {
   const [editingComercial, setEditingComercial] = useState(false);
   const [priceListForm, setPriceListForm] = useState<string>("__erp__");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
-  const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean } | null>(null);
+  const [marketCreds, setMarketCreds] = useState<{ loginEmail: string | null; tempPassword: string | null; username: string; created: boolean; reset?: boolean } | null>(null);
+  // Restablecer la clave del panel del cliente (se abre desde el badge "En eCommerce")
+  const [resetPassOpen, setResetPassOpen] = useState(false);
+  const [nuevaClaveCliente, setNuevaClaveCliente] = useState("");
 
   // Estado del diálogo "Enviar cobranza"
   const [cobranzaOpen, setCobranzaOpen] = useState(false);
@@ -413,6 +419,60 @@ export default function ClientDetail() {
     },
     onError: (e: any) => {
       toast({ title: "No se pudo activar", description: e?.message || "Error al activar acceso", variant: "destructive" });
+    },
+  });
+
+  // Restablece la clave con la que el cliente entra a su panel del Market. La clave
+  // anterior está cifrada y no se puede recuperar, así que la única salida cuando la
+  // pierde es ponerle una nueva y pasársela.
+  const resetMarketPassword = useMutation({
+    mutationFn: async (password: string) => {
+      const fichaId = accountStatus?.clientId || fichaIdForActivation;
+      if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
+      const res = await apiRequest("POST", `/api/clients/${fichaId}/market-password`, { password });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setResetPassOpen(false);
+      // Reutilizamos el diálogo de credenciales: el ejecutivo copia usuario y clave
+      // y se los pasa al cliente.
+      setMarketCreds({
+        loginEmail: data?.loginEmail ?? null,
+        tempPassword: nuevaClaveCliente,
+        username: data?.username ?? "",
+        created: false,
+        reset: true,
+      });
+      setNuevaClaveCliente("");
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo cambiar la clave", description: e?.message || "Error al restablecer", variant: "destructive" });
+    },
+  });
+
+  // Permite (o corta) que el cliente cree sus propios usuarios en Panorámica Market.
+  // Al apagarlo, el backend además desactiva a los compradores que ya existían: si no,
+  // el switch quedaba en "no" pero su gente seguía entrando.
+  const toggleSubUsers = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const fichaId = accountStatus?.clientId || fichaIdForActivation;
+      if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
+      const res = await apiRequest("PATCH", `/api/clients/${fichaId}/market-sub-users`, { enabled });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      toast({
+        title: data?.enabled ? "Creación de usuarios habilitada" : "Creación de usuarios deshabilitada",
+        description: data?.enabled
+          ? "El cliente ya puede crear usuarios desde su panel; sus pedidos quedan pendientes de aprobación del titular."
+          : data?.desactivados
+            ? `Se desactivaron ${data.desactivados} usuario(s) del cliente.`
+            : "El cliente ya no puede crear usuarios.",
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo actualizar", description: e?.message || "Error al cambiar el permiso", variant: "destructive" });
     },
   });
 
@@ -727,9 +787,24 @@ export default function ClientDetail() {
                 {/* Status badges — the four client contexts */}
                 <div className="flex items-center gap-2 flex-wrap md:justify-end">
                   {accountStatus?.inEcommerce ? (
-                    <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
-                      <KeyRound className="h-3 w-3 mr-1" /> En eCommerce
-                    </Badge>
+                    // Con permisos, el badge es el acceso directo a restablecer la clave
+                    // del panel del cliente: es lo que se pide cuando la pierde.
+                    canManage ? (
+                      <button
+                        type="button"
+                        onClick={() => { setNuevaClaveCliente(""); setResetPassOpen(true); }}
+                        title="Cambiar la clave del panel del cliente"
+                        className="inline-flex items-center rounded-full border border-green-500/30 bg-green-500/20 px-3 py-1 text-xs font-semibold text-green-300 transition-colors hover:bg-green-500/30 hover:text-green-200"
+                        data-testid="button-market-password"
+                      >
+                        <KeyRound className="h-3 w-3 mr-1" /> En eCommerce
+                        <Pencil className="h-3 w-3 ml-1.5 opacity-70" />
+                      </button>
+                    ) : (
+                      <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
+                        <KeyRound className="h-3 w-3 mr-1" /> En eCommerce
+                      </Badge>
+                    )
                   ) : accountStatus?.pendingRequest ? (
                     <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 px-3 py-1">
                       <Clock className="h-3 w-3 mr-1" /> Solicitó unirse
@@ -1311,6 +1386,41 @@ export default function ClientDetail() {
                   </CardContent>
                 </Card>
 
+                {/* Panorámica Market — permisos de la cuenta del cliente */}
+                {canManage && accountStatus?.inEcommerce && (
+                  <Card className="border-0 shadow-sm md:col-span-2">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-[#FF6E23]" /> Panorámica Market
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200/70 p-3.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
+                            al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
+                            antes de llegar a Panorámica.
+                          </p>
+                          {!!accountStatus?.subUsersCount && (
+                            <p className="text-xs text-gray-500 mt-1.5">
+                              Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
+                              usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
+                            </p>
+                          )}
+                        </div>
+                        <Switch
+                          checked={!!accountStatus?.canCreateSubUsers}
+                          disabled={toggleSubUsers.isPending}
+                          onCheckedChange={(v) => toggleSubUsers.mutate(v)}
+                          data-testid="switch-allow-sub-users"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Cuentas por Cobrar — detalle de facturas pendientes */}
                 <Card className="border-0 shadow-sm md:col-span-2">
                   <CardHeader className="pb-3">
@@ -1566,18 +1676,84 @@ export default function ClientDetail() {
           </DialogContent>
         </Dialog>
 
+        {/* Restablecer la clave del panel del cliente */}
+        <Dialog open={resetPassOpen} onOpenChange={(open) => { if (!open) setResetPassOpen(false); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-[#FF6E23]" /> Clave del panel del cliente
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Definí una clave nueva para que <strong className="text-foreground">{decodedClientName}</strong> entre
+                a Panorámica Market. La anterior deja de funcionar apenas guardes.
+              </p>
+
+              <div>
+                <Label htmlFor="nueva-clave-cliente" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Clave nueva (mínimo 6 caracteres)
+                </Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    id="nueva-clave-cliente"
+                    type="text"
+                    value={nuevaClaveCliente}
+                    onChange={(e) => setNuevaClaveCliente(e.target.value)}
+                    placeholder="Ej: panoramica2026"
+                    className="rounded-xl"
+                    data-testid="input-market-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl shrink-0"
+                    onClick={() => setNuevaClaveCliente(`pano-${Math.random().toString(36).slice(2, 8)}`)}
+                  >
+                    Generar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Esta es la clave del <strong>titular</strong>. Los usuarios que el cliente haya creado
+                  desde su panel mantienen las suyas.
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" className="rounded-xl" onClick={() => setResetPassOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                  disabled={resetMarketPassword.isPending || nuevaClaveCliente.trim().length < 6}
+                  onClick={() => resetMarketPassword.mutate(nuevaClaveCliente.trim())}
+                  data-testid="button-save-market-password"
+                >
+                  {resetMarketPassword.isPending ? "Guardando…" : "Guardar clave"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Credenciales de acceso a Panorámica Market */}
         <Dialog open={!!marketCreds} onOpenChange={(open) => !open && setMarketCreds(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-[#FF6E23]" />
-                {marketCreds?.created ? "Acceso creado" : "Acceso ya existente"}
+                {marketCreds?.reset ? "Clave actualizada" : marketCreds?.created ? "Acceso creado" : "Acceso ya existente"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {marketCreds?.created
+                {marketCreds?.reset
+                  ? "Pasale estas credenciales al cliente. La clave anterior ya no funciona y esta no vuelve a mostrarse."
+                  : marketCreds?.created
                   ? "Entregá estas credenciales al cliente para que ingrese a Panorámica Market. La contraseña no vuelve a mostrarse."
                   : "Este cliente ya tenía acceso. Por seguridad, la contraseña está cifrada y no se puede recuperar."}
               </p>

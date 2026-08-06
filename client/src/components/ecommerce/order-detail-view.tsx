@@ -166,6 +166,9 @@ export const statusConfig: Record<string, { label: string; color: string; bg: st
   modified: { label: "Modificado", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
   rejected: { label: "Rechazado", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: XCircle },
   suggested_pending: { label: "Sugerido pendiente", color: "text-orange-700", bg: "bg-orange-50 border-orange-200", icon: Clock },
+  // Pedido armado por un comprador del cliente: espera el visto bueno del titular
+  // y todavía no llegó a Panorámica.
+  pending_client: { label: "Por aprobar", color: "text-orange-700", bg: "bg-orange-50 border-orange-200", icon: Clock },
   sent: { label: "Enviado", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: Truck },
   // ERP Specific statuses mapping 
   ingresado: { label: "Ingresado ERP", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },

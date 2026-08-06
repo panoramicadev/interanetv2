@@ -252,8 +252,9 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
   const validOrders = useMemo(() => {
     return webOrders.filter((o: any) => {
       const s = (o.status || '').toLowerCase();
-      // Excluimos sugeridos pendientes: aún no son pedidos confirmados por el cliente.
-      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending';
+      // Excluimos lo que todavía no es un pedido en firme: sugeridos sin aceptar y
+      // pedidos de usuarios de la empresa sin la aprobación del titular.
+      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending' && s !== 'pending_client';
     });
   }, [webOrders]);
 
@@ -261,7 +262,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
   const unifiedOrders = useMemo<EcommerceOrder[]>(
     () => buildUnifiedOrders(webOrders, erpData).filter((o: any) => {
       const s = (o.status || '').toLowerCase();
-      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending';
+      return s !== 'rejected' && s !== 'archived' && s !== 'suggested_pending' && s !== 'pending_client';
     }),
     [webOrders, erpData],
   );
@@ -617,6 +618,7 @@ import { SuggestedOrderModal } from "@/components/panoramica-market/suggested-or
 import { groupFacturas } from "@/components/ecommerce/client-documents";
 import SuggestedOrderPayment, { type SuggestedPaymentValue } from "@/components/panoramica-market/suggested-order-payment";
 import CreditTab from "@/components/ecommerce/credit-tab";
+import ClientUsersTab from "@/components/ecommerce/client-users-tab";
 import { FacturaDownloadButton } from "@/components/ecommerce/factura-download-button";
 
 // ==========================================
@@ -1009,6 +1011,187 @@ function SuggestedOrdersPanel({ orders }: { orders: any[] }) {
   );
 }
 
+// ==========================================
+// Pedidos por aprobar — los armó un usuario del cliente y esperan al titular
+// ==========================================
+
+function PendingApprovalPanel({ orders }: { orders: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [rechazando, setRechazando] = useState<any | null>(null);
+  const [motivo, setMotivo] = useState("");
+
+  const invalidar = () => {
+    qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/orders"] });
+    qc.invalidateQueries({ queryKey: ["/api/ecommerce/client/sub-users"] });
+  };
+
+  const resolver = useMutation({
+    mutationFn: async ({ id, accion, reason }: { id: string; accion: "approve" | "reject"; reason?: string }) => {
+      const res = await fetch(`/api/ecommerce/orders/${id}/client-${accion}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(accion === "reject" ? { reason } : {}),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.message || "No se pudo procesar el pedido");
+      return json;
+    },
+    onSuccess: (_d, vars) => {
+      toast({
+        title: vars.accion === "approve" ? "Pedido aprobado" : "Pedido rechazado",
+        description: vars.accion === "approve"
+          ? "Ya está en Panorámica para su preparación."
+          : "Le avisamos a quien lo armó.",
+      });
+      setRechazando(null);
+      setMotivo("");
+      invalidar();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+  });
+
+  if (!orders || orders.length === 0) return null;
+
+  return (
+    <>
+      <div className="relative overflow-hidden rounded-3xl border border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-white p-5 sm:p-6 shadow-sm">
+        <div className="absolute -top-12 -right-8 w-48 h-48 bg-[#FF6E23]/10 rounded-full blur-3xl" />
+        <div className="relative flex items-start gap-3 mb-5">
+          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#FF6E23] to-[#E55E13] flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/30">
+            <ClipboardList className="h-5 w-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black text-slate-900">
+              {orders.length} pedido{orders.length !== 1 ? "s" : ""} esperando tu aprobación
+            </h3>
+            <p className="text-sm text-slate-600 mt-0.5">
+              Los armaron usuarios de tu empresa. <strong className="text-slate-800">No llegan a Panorámica hasta que los apruebes.</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="relative grid grid-cols-1 gap-4">
+          {orders.map((o) => {
+            const items = getOrderItems(o);
+            const totalUnits = items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0);
+            return (
+              <div key={o.id} className="rounded-2xl bg-white border border-orange-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-orange-50/80 to-transparent border-b border-orange-100/70">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold bg-[#FF6E23]/10 text-[#E55E13] px-2 py-0.5 rounded-md">
+                        #{getNumericOrderId(o.id)}
+                      </span>
+                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {formatDate(o.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      Armado por <strong className="text-slate-700">{o.createdByName || "un usuario"}</strong>
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xl font-black text-[#FF6E23] leading-none">{formatCurrency(Number(o.total))}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {totalUnits} unidad{totalUnits !== 1 ? "es" : ""} · {items.length} ítem{items.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 space-y-2 max-h-[220px] overflow-y-auto">
+                  {items.slice(0, 8).map((it: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-700 truncate">{it.productName}</p>
+                        {(it.selectedColor || it.selectedPackaging) && (
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {[it.selectedColor, it.selectedPackaging].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-500 flex-shrink-0 tabular-nums">
+                        {it.quantity} × {formatCurrency(Number(it.unitPrice || 0))}
+                      </span>
+                    </div>
+                  ))}
+                  {items.length > 8 && (
+                    <p className="text-[10px] text-slate-400 text-center pt-1">
+                      + {items.length - 8} producto{items.length - 8 !== 1 ? "s" : ""} más
+                    </p>
+                  )}
+                </div>
+
+                {o.notes && (
+                  <div className="mx-4 mb-3 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-0.5">Nota del pedido</p>
+                    <p className="text-xs text-amber-900 whitespace-pre-wrap">{o.notes}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 px-4 py-3 bg-slate-50/60 border-t border-slate-100">
+                  <Button
+                    onClick={() => resolver.mutate({ id: o.id, accion: "approve" })}
+                    disabled={resolver.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm h-9 rounded-xl flex-[2] min-w-[150px] font-bold shadow-sm shadow-emerald-500/20"
+                  >
+                    {resolver.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileCheck className="h-4 w-4 mr-1.5" />}
+                    Aprobar y enviar
+                  </Button>
+                  <Button
+                    onClick={() => { setRechazando(o); setMotivo(""); }}
+                    variant="ghost"
+                    disabled={resolver.isPending}
+                    className="text-sm h-9 rounded-xl flex-1 min-w-[110px] text-red-600 hover:bg-red-50 font-semibold"
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Dialog open={!!rechazando} onOpenChange={(o) => !o && setRechazando(null)}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Rechazar pedido</DialogTitle>
+            <DialogDescription>
+              Le avisamos a quien lo armó. Podés contarle por qué (opcional).
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label htmlFor="motivo-rechazo">Motivo</Label>
+            <Input
+              id="motivo-rechazo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej: pedir la semana que viene"
+              className="rounded-xl mt-1"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRechazando(null)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => rechazando && resolver.mutate({ id: rechazando.id, accion: "reject", reason: motivo })}
+              disabled={resolver.isPending}
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold"
+            >
+              {resolver.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Rechazar pedido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function PedidosTab({ salesperson }: { salesperson: string }) {
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -1063,14 +1246,23 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   // Sugeridos pendientes se muestran en panel aparte arriba de la lista principal
   const suggestedPendingOrders = webOrders.filter((o: any) => o.status === 'suggested_pending');
 
+  // Pedidos armados por usuarios de la empresa que esperan el visto bueno del titular.
+  // Un comprador ve los suyos (sin botones, sólo el estado); el titular los resuelve.
+  const { user: portalUser } = useAuth();
+  const esTitular = !(portalUser as any)?.parentUserId;
+  const porAprobarOrders = webOrders.filter((o: any) => o.status === 'pending_client');
+
   // Documento de respaldo (factura) para el detalle del pedido, indexado por número.
   const facturaByNum = new Map(groupFacturas(erpData?.transactions || []).map((d) => [d.numero, d]));
 
   // Historial consolidado y deduplicado: pedidos web + facturas ERP (FCV, una fila por
   // documento, con idmaeedo para descargar el DTE oficial) + notas de venta (NVV) pendientes.
   // Las guías de despacho (GDV) no se listan como filas propias (el despacho es un sub-estado).
+  // Los "por aprobar" del titular ya van en su propio panel arriba; para el comprador
+  // siguen en la lista, que es donde ve en qué quedó lo que armó.
   const allOrders: EcommerceOrder[] = buildUnifiedOrders(webOrders, erpData)
-    .filter((o: any) => o.status !== 'suggested_pending');
+    .filter((o: any) => o.status !== 'suggested_pending')
+    .filter((o: any) => !(esTitular && o.status === 'pending_client'));
   allOrders.forEach((o: any) => {
     if (o._docType === 'FCV' && o._facturaNudo) {
       o._document = facturaByNum.get(String(o._facturaNudo));
@@ -1105,6 +1297,9 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     <div className="space-y-4">
       {/* Sugeridos pendientes (admin/supervisor envía pre-armado al cliente) */}
       <SuggestedOrdersPanel orders={suggestedPendingOrders} />
+
+      {/* Pedidos de los usuarios de la empresa esperando el visto bueno del titular */}
+      {esTitular && <PendingApprovalPanel orders={porAprobarOrders} />}
 
       {/* Encabezado de la lista */}
       <div className="flex items-end justify-between gap-3 px-1">
@@ -1249,25 +1444,33 @@ export default function ClientPortal() {
   const getInitialTab = () => {
     if (location === '/mis-pedidos') return 'pedidos';
     if (location === '/mi-credito') return 'credito';
+    if (location === '/mis-usuarios') return 'usuarios';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
     if (tab === 'pedidos') return 'pedidos';
     if (tab === 'credito') return 'credito';
+    if (tab === 'usuarios') return 'usuarios';
     return 'dashboard';
   };
   const activeTab = getInitialTab();
+  // Los compradores (sub-usuarios) sólo compran: su panel es la lista de pedidos.
+  const esComprador = !!(user as any)?.parentUserId;
+  const tabEfectivo = esComprador && activeTab !== 'pedidos' ? 'pedidos' : activeTab;
 
   return (
     <div className="space-y-4">
       {/* Content — tabs are already in the header via ClientEcommerceLayout */}
       <div className="min-h-[500px]">
-        {activeTab === "dashboard" && (
+        {tabEfectivo === "dashboard" && (
           <DashboardTab salesperson={salespersonName} />
         )}
-        {activeTab === "pedidos" && (
+        {tabEfectivo === "pedidos" && (
           <PedidosTab salesperson={salespersonName} />
         )}
-        {activeTab === "credito" && (
+        {tabEfectivo === "credito" && (
           <CreditTab />
+        )}
+        {tabEfectivo === "usuarios" && (
+          <ClientUsersTab />
         )}
       </div>
     </div>

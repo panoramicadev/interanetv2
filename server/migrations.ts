@@ -1868,6 +1868,31 @@ export async function uploadLocalImagesToObjectStorage(): Promise<{ uploaded: nu
  * criterio que ya se usa con `sessions` en bootstrapDatabase: lo que hace falta para
  * autenticar se crea de forma idempotente y aparte de la cadena numerada.
  */
+/**
+ * Columnas de los compradores (sub-usuarios) del Market — ver 079_market_sub_usuarios.sql.
+ *
+ * Va aparte del bucle de migraciones a propósito, igual que ensureOAuthTables: ese
+ * bucle corta en la primera migración que falle, y varias consultas del listado de
+ * clientes y de la ficha ya filtran por parent_user_id. Sin estas columnas, esas
+ * pantallas se caen. Es idempotente.
+ */
+export async function ensureMarketSubUserColumns(): Promise<void> {
+  await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS parent_user_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS can_create_sub_users BOOLEAN DEFAULT FALSE`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_salespeople_parent_user" ON salespeople_users (parent_user_id)`);
+
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS created_by_name VARCHAR`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS client_approved_at TIMESTAMP`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS client_approved_by_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS client_rejected_at TIMESTAMP`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS client_rejected_by_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS client_rejected_reason TEXT`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_ecommerce_orders_created_by" ON ecommerce_orders (created_by_user_id)`);
+
+  console.log('👥 Columnas de compradores del Market verificadas');
+}
+
 export async function ensureOAuthTables(): Promise<void> {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS oauth_clients (
