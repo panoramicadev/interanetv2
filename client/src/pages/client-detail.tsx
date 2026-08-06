@@ -427,8 +427,8 @@ export default function ClientDetail() {
   // pierde es ponerle una nueva y pasársela.
   const resetMarketPassword = useMutation({
     mutationFn: async (password: string) => {
-      const fichaId = accountStatus?.clientId || fichaIdForActivation;
-      if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
+      const fichaId = accountStatus?.clientId || fichaIdForActivation || accountStatus?.ecommerceUserId;
+      if (!fichaId) throw new Error("Este cliente no tiene cuenta de Market para configurar.");
       // Mandamos el id de la cuenta que la ficha ya resolvió: es más confiable que
       // hacer que el backend la busque de nuevo por RUT.
       const res = await apiRequest("POST", `/api/clients/${fichaId}/market-password`, {
@@ -460,8 +460,10 @@ export default function ClientDetail() {
   // el switch quedaba en "no" pero su gente seguía entrando.
   const toggleSubUsers = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const fichaId = accountStatus?.clientId || fichaIdForActivation;
-      if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
+      // Sin ficha SAP no hay clientId, pero el backend resuelve igual con el id de
+      // la cuenta que va en el body; el segmento de la ruta queda de respaldo.
+      const fichaId = accountStatus?.clientId || fichaIdForActivation || accountStatus?.ecommerceUserId;
+      if (!fichaId) throw new Error("Este cliente no tiene cuenta de Market para configurar.");
       const res = await apiRequest("PATCH", `/api/clients/${fichaId}/market-sub-users`, {
         enabled,
         ecommerceUserId: accountStatus?.ecommerceUserId ?? null,
@@ -1157,7 +1159,44 @@ export default function ClientDetail() {
           </TabsContent>
 
           {/* Información tab — general + commercial from ficha */}
-          <TabsContent value="info" className="mt-4">
+          <TabsContent value="info" className="mt-4 space-y-4">
+                {/* Panorámica Market — permisos de la cuenta del cliente.
+                  Va primero: es lo que se viene a buscar a esta pestaña cuando el
+                  cliente pide poder crear su propia gente. */}
+              {canManage && accountStatus?.inEcommerce && (
+                <Card className="border border-orange-200/70 bg-orange-50/30 shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex items-start gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-[#FF6E23]/10 text-[#FF6E23] flex items-center justify-center shrink-0">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
+                            al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
+                            antes de llegar a Panorámica.
+                          </p>
+                          {!!accountStatus?.subUsersCount && (
+                            <p className="text-xs text-gray-500 mt-1.5">
+                              Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
+                              usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Switch
+                        checked={!!accountStatus?.canCreateSubUsers}
+                        disabled={toggleSubUsers.isPending}
+                        onCheckedChange={(v) => toggleSubUsers.mutate(v)}
+                        data-testid="switch-allow-sub-users"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
             {!accountStatus?.hasFicha ? (
               <Card className="border-amber-200 bg-amber-50/50 shadow-sm">
                 <CardContent className="p-4 flex items-start gap-3">
@@ -1172,43 +1211,6 @@ export default function ClientDetail() {
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Panorámica Market — permisos de la cuenta del cliente.
-                    Va primero: es lo que se viene a buscar a esta pestaña cuando el
-                    cliente pide poder crear su propia gente. */}
-                {canManage && accountStatus?.inEcommerce && (
-                  <Card className="border border-orange-200/70 bg-orange-50/30 shadow-sm md:col-span-2">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex items-start gap-3">
-                          <div className="h-9 w-9 rounded-xl bg-[#FF6E23]/10 text-[#FF6E23] flex items-center justify-center shrink-0">
-                            <Users className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
-                              al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
-                              antes de llegar a Panorámica.
-                            </p>
-                            {!!accountStatus?.subUsersCount && (
-                              <p className="text-xs text-gray-500 mt-1.5">
-                                Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
-                                usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <Switch
-                          checked={!!accountStatus?.canCreateSubUsers}
-                          disabled={toggleSubUsers.isPending}
-                          onCheckedChange={(v) => toggleSubUsers.mutate(v)}
-                          data-testid="switch-allow-sub-users"
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between gap-2">

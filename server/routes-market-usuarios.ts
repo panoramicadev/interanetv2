@@ -23,7 +23,8 @@ import { z } from 'zod';
 import { db } from './db';
 import { requireAuth } from './auth';
 import { storage } from './storage';
-import { clients, ecommerceOrders, salespeopleUsers } from '../shared/schema';
+import { ecommerceOrders, salespeopleUsers } from '../shared/schema';
+import { rutColumnsMatchSql } from './utils/rut-sql';
 import { avisarPedidoNuevo, consumirCupoDeCredito } from './services/ecommerce-order-flow';
 
 /** Roles de la intranet que pueden habilitar la función en la ficha del cliente. */
@@ -111,31 +112,21 @@ async function resolverTitularDeFicha(fichaId: string, ecommerceUserId?: string 
     .limit(1);
   if (porVinculo) return porVinculo;
 
-  const [ficha] = await db
-    .select({ rten: clients.rten })
-    .from(clients)
-    .where(eq(clients.id, fichaId))
-    .limit(1);
-  const rutLimpio = (ficha?.rten || '').replace(/[.\-\s]/g, '').toUpperCase();
-  if (!rutLimpio) return undefined;
-
-  // El ERP a veces guarda el RUT sin dígito verificador ("77454264") y la cuenta
-  // del Market con él ("77.454.264-7"). Comparamos ambos lados por el cuerpo del
-  // RUT —sin el último carácter cuando corresponde— para que igual calcen.
-  const cuerpo = (v: string) => (v.length > 8 ? v.slice(0, -1) : v);
+  // Último intento, por RUT: el ERP guarda el RUT sin dígito verificador
+  // ("77454264") y el alta manual lo formatea completo ("77.454.264-7"). La
+  // tolerancia al DV vive en rutColumnsMatchSql, que es la misma que usa el
+  // barrido que vincula las cuentas al final del ETL de clientes.
   const [porRut] = await db
     .select()
     .from(salespeopleUsers)
     .where(and(
       eq(salespeopleUsers.role, 'client'),
       isNull(salespeopleUsers.parentUserId),
-      sql`
-        CASE
-          WHEN LENGTH(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')) > 8
-          THEN LEFT(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', ''), LENGTH(REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')) - 1)
-          ELSE REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '')
-        END = ${cuerpo(rutLimpio)}
-      `,
+      sql`EXISTS (
+        SELECT 1 FROM clients c
+         WHERE c.id = ${fichaId}
+           AND ${rutColumnsMatchSql(sql`${salespeopleUsers.clientRut}`, sql`c.rten`)}
+      )`,
     ))
     .orderBy(salespeopleUsers.createdAt)
     .limit(1);
