@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
+import { rutContainsCondition } from "./utils/rut-sql";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
@@ -37755,14 +37756,25 @@ export function registerRoutes(app: Express): Server {
     }
     if (busqueda) {
       const search = `%${busqueda}%`;
-      conditions.push(
-        or(
-          ilike(crmSeguimientoClientes.nombre, search),
-          ilike(crmSeguimientoClientes.empresa, search),
-          ilike(crmSeguimientoClientes.rut, search),
-          ilike(crmSeguimientoClientes.email, search)
-        )!
-      );
+      const searchParts: any[] = [
+        ilike(crmSeguimientoClientes.nombre, search),
+        ilike(crmSeguimientoClientes.empresa, search),
+        ilike(crmSeguimientoClientes.rut, search),
+        ilike(crmSeguimientoClientes.email, search),
+        // El seguimiento guarda su propia copia del nombre y el RUT, tomada de la
+        // ficha el día que se creó. Si después el ERP renombra al cliente, esa
+        // copia queda vieja y buscarlo por el nombre nuevo no lo encontraba.
+        // Se busca también contra la ficha vinculada (leftJoin de abajo).
+        ilike(clients.nokoen, search),
+      ];
+      // Y por cuerpo de RUT en las dos tablas: conviven el formato del ERP
+      // ("77454264") y el formateado a mano ("77.454.264-7"), así que con ILIKE
+      // literal buscar uno no encontraba al otro.
+      for (const col of [crmSeguimientoClientes.rut, clients.rten]) {
+        const rutCondition = rutContainsCondition(col, busqueda as string);
+        if (rutCondition) searchParts.push(rutCondition);
+      }
+      conditions.push(or(...searchParts)!);
     }
 
     const queryLimit = parseInt(limitStr as string) || 100;
