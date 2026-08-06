@@ -97,7 +97,7 @@ import * as NotifyHelper from "./notifications-helper";
 import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
 import { format } from "date-fns";
 import { wrapEmailContent, buildSaleNotificationEmail, buildCobranzaEmail } from "./email-templates";
-import { avisarPedidoNuevo, consumirCupoDeCredito, notificarPedidoPorAprobar } from "./services/ecommerce-order-flow";
+import { avisarPedidoNuevo, consumirCupoDeCredito, notificarPedidoPorAprobar, notificarEquipoComercial } from "./services/ecommerce-order-flow";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import { parseOrdenDeCompra } from "./oc-parser";
@@ -10209,6 +10209,25 @@ export function registerRoutes(app: Express): Server {
       } catch (notifErr) {
         console.warn('Warning: notify on suggested-accept failed:', notifErr);
       }
+
+      // El sugerido recién aceptado ya es un pedido confirmado: el vendedor y el
+      // supervisor del área se enteran igual que en el checkout normal.
+      await notificarEquipoComercial({
+        order: updated,
+        client: clientRecord,
+        clientName: updated.clientName,
+        clientEmail: updated.clientEmail,
+        assignedSalespersonId: updated.assignedSalespersonId,
+        items: (updated.items as any[]) || [],
+        total: Number(updated.total) || 0,
+        subtotal: Number(updated.subtotal) || 0,
+        tax: Number(updated.tax) || 0,
+        paymentCondition: updated.paymentCondition,
+        shippingAddress: updated.shippingAddress,
+        notes: updated.notes,
+        status: updated.status || 'pending',
+        hasPurchaseOrder,
+      });
 
       res.json(updated);
     } catch (error: any) {
