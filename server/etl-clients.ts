@@ -371,6 +371,16 @@ export async function executeClientETL(): Promise<ClientETLResult> {
       }
     }
 
+    // Con las fichas ya al día, vincular las cuentas de Market que se crearon
+    // antes de que el cliente existiera en la intranet y quedaron sin ficha.
+    // Best-effort: si falla, la sincronización de clientes igual fue exitosa.
+    try {
+      const { linkPendingEcommerceAccounts } = await import('./services/link-ecommerce-fichas');
+      await linkPendingEcommerceAccounts();
+    } catch (linkError: any) {
+      console.error('[ETL Clientes] vinculación de cuentas de Market falló:', linkError.message);
+    }
+
     const recordsProcessed = newClients + updatedClients + crossedClients;
 
     console.log(`\n📊 Resultado de sincronización:`);

@@ -30,3 +30,32 @@ export function rutContainsCondition(column: unknown, term: string): SQL | null 
   if (!looksLikeRut(trimmed) || key.length < 6) return null;
   return sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${column}, '')), '.', ''), '-', ''), ' ', '') LIKE ${`%${key}%`}`;
 }
+
+/** RUT sin puntos, guion ni espacios, en mayúscula. */
+function normalizedSql(column: unknown): SQL {
+  return sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${column}, '')), '.', ''), '-', ''), ' ', '')`;
+}
+
+/**
+ * Igualdad de RUT entre DOS COLUMNAS, tolerante al dígito verificador.
+ *
+ * Para comparar una columna contra un RUT conocido está `rutContainsCondition`,
+ * que puede calcular el cuerpo en JS con módulo 11. Acá los dos lados son
+ * columnas, así que no se puede: se acepta que coincidan tal cual, o que a una
+ * le sobre exactamente el último carácter respecto de la otra. Eso cubre el
+ * caso real —un lado con DV y el otro sin— sin necesidad de módulo 11 en SQL.
+ *
+ * Se exige un largo mínimo de 7 para no aparear cadenas cortas o vacías.
+ */
+export function rutColumnsMatchSql(a: unknown, b: unknown): SQL {
+  const na = normalizedSql(a);
+  const nb = normalizedSql(b);
+  return sql`(
+    LENGTH(${na}) >= 7 AND LENGTH(${nb}) >= 7
+    AND (
+      ${na} = ${nb}
+      OR ${na} = LEFT(${nb}, LENGTH(${nb}) - 1)
+      OR LEFT(${na}, LENGTH(${na}) - 1) = ${nb}
+    )
+  )`;
+}
