@@ -283,7 +283,7 @@ async function initializeBackgroundServices() {
 
       // Ventas Incremental
       try {
-        log('📊 [ETL-SCHEDULER] (1/3) Starting Ventas Incremental...');
+        log('📊 [ETL-SCHEDULER] (1/4) Starting Ventas Incremental...');
         const ventasResult = await executeIncrementalETL();
         if (ventasResult.success) {
           log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
@@ -297,7 +297,7 @@ async function initializeBackgroundServices() {
       // GDV
       try {
         const { executeGDVETL } = await import('./etl-gdv');
-        log('📊 [ETL-SCHEDULER] (2/3) Starting GDV...');
+        log('📊 [ETL-SCHEDULER] (2/4) Starting GDV...');
         const gdvResult = await executeGDVETL();
         if (gdvResult.success) {
           log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
@@ -310,7 +310,7 @@ async function initializeBackgroundServices() {
 
       // NVV
       try {
-        log('📊 [ETL-SCHEDULER] (3/3) Starting NVV...');
+        log('📊 [ETL-SCHEDULER] (3/4) Starting NVV...');
         const nvvResult = await executeNVVETL();
         if (nvvResult.success) {
           log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
@@ -319,6 +319,22 @@ async function initializeBackgroundServices() {
         }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] NVV ETL failed:', error.message);
+      }
+
+      // Clientes (maestro MAEEN). Sin esto, un cliente creado en el ERP no
+      // aparecía en la intranet hasta que alguien corría el ETL a mano desde
+      // Monitor ETL → pestaña Clientes.
+      try {
+        const { executeClientETL } = await import('./etl-clients');
+        log('📊 [ETL-SCHEDULER] (4/4) Starting Clientes...');
+        const clientesResult = await executeClientETL();
+        if (clientesResult.success) {
+          log(`✅ [ETL-SCHEDULER] Clientes: ${clientesResult.recordsProcessed} registros en ${clientesResult.executionTimeMs}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] Clientes falló: ${(clientesResult as any).error}`);
+        }
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] Clientes ETL failed:', error.message);
       }
 
       log('✅ [ETL-SCHEDULER] All ETLs completed');

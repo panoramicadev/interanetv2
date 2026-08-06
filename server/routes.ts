@@ -33821,7 +33821,7 @@ export function registerRoutes(app: Express): Server {
         if (!alive()) return; // corrida vieja: ignorar
         console.error('[SYNC-ALL] Watchdog: timeout alcanzado — liberando candado colgado');
         if (syncAllStatus) {
-          for (const k of ['ventas', 'gdv', 'nvv'] as const) {
+          for (const k of ['ventas', 'gdv', 'nvv', 'clientes'] as const) {
             if (syncAllStatus[k] && syncAllStatus[k].status === 'running') {
               syncAllStatus[k] = { ...syncAllStatus[k], status: 'error', error: 'Tiempo de espera agotado (timeout)', progress: 0, progressMessage: '' };
             }
@@ -33837,6 +33837,7 @@ export function registerRoutes(app: Express): Server {
         ventas: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         gdv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         nvv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
+        clientes: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         totalRecords: 0,
         totalTimeMs: 0,
         completedAt: null,
@@ -33847,10 +33848,10 @@ export function registerRoutes(app: Express): Server {
       (async () => {
         const startTime = Date.now();
 
-        // 1/3 — Ventas
+        // 1/4 — Ventas
         try {
           if (alive()) syncAllStatus.ventas.status = 'running';
-          console.log('📊 [SYNC-ALL] (1/3) Starting Ventas...');
+          console.log('📊 [SYNC-ALL] (1/4) Starting Ventas...');
           // Listen to progress events
           const ventasProgressListener = (event: any) => {
             if (!alive()) return;
@@ -33881,10 +33882,10 @@ export function registerRoutes(app: Express): Server {
         // Cancelada/supersedida: cortar la cadena (no lanzar GDV/NVV)
         if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — se detiene antes de GDV'); return; }
 
-        // 2/3 — GDV
+        // 2/4 — GDV
         try {
           if (alive()) syncAllStatus.gdv.status = 'running';
-          console.log('📊 [SYNC-ALL] (2/3) Starting GDV...');
+          console.log('📊 [SYNC-ALL] (2/4) Starting GDV...');
           const gdvProgressListener = (event: any) => {
             if (!alive()) return;
             syncAllStatus.gdv.progress = event.percentage || 0;
@@ -33911,10 +33912,10 @@ export function registerRoutes(app: Express): Server {
         }
         if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — se detiene antes de NVV'); return; }
 
-        // 3/3 — NVV
+        // 3/4 — NVV
         try {
           if (alive()) syncAllStatus.nvv.status = 'running';
-          console.log('📊 [SYNC-ALL] (3/3) Starting NVV...');
+          console.log('📊 [SYNC-ALL] (3/4) Starting NVV...');
           const nvvProgressListener = (event: any) => {
             if (!alive()) return;
             syncAllStatus.nvv.progress = event.percentage || 0;
@@ -33939,10 +33940,41 @@ export function registerRoutes(app: Express): Server {
           if (alive()) syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
           console.error('[SYNC-ALL] NVV failed:', error.message);
         }
+        if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — se detiene antes de Clientes'); return; }
+
+        // 4/4 — Clientes (maestro MAEEN). Va al final porque no alimenta a los
+        // otros ETL: si falla, ventas/GDV/NVV ya quedaron sincronizados.
+        try {
+          if (alive()) syncAllStatus.clientes.status = 'running';
+          console.log('📊 [SYNC-ALL] (4/4) Starting Clientes...');
+          const clientesProgressListener = (event: any) => {
+            if (!alive()) return;
+            syncAllStatus.clientes.progress = event.percentage || 0;
+            syncAllStatus.clientes.progressMessage = event.message || '';
+          };
+          clientEtlProgressEmitter.on('progress', clientesProgressListener);
+          try {
+            const clientesResult = await executeClientETL();
+            if (alive()) {
+              if (clientesResult.success) {
+                syncAllStatus.clientes = { status: 'done', recordsProcessed: clientesResult.recordsProcessed, executionTimeMs: clientesResult.executionTimeMs, error: null, progress: 100, progressMessage: 'Completado' };
+                console.log(`✅ [SYNC-ALL] Clientes: ${clientesResult.recordsProcessed} registros`);
+              } else {
+                syncAllStatus.clientes = { status: 'error', recordsProcessed: 0, executionTimeMs: clientesResult.executionTimeMs, error: clientesResult.error || 'Error desconocido', progress: 0, progressMessage: '' };
+                console.error('[SYNC-ALL] Clientes failed:', clientesResult.error);
+              }
+            }
+          } finally {
+            clientEtlProgressEmitter.off('progress', clientesProgressListener);
+          }
+        } catch (error: any) {
+          if (alive()) syncAllStatus.clientes = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          console.error('[SYNC-ALL] Clientes failed:', error.message);
+        }
 
         // Si la corrida fue cancelada, no tocar estado ni candado (ya lo hizo el cancel)
         if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — resultado descartado'); return; }
-        syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0);
+        syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0) + (syncAllStatus.clientes.recordsProcessed || 0);
         syncAllStatus.totalTimeMs = Date.now() - startTime;
         syncAllStatus.completedAt = new Date().toISOString();
         releaseSyncAll();
@@ -33955,7 +33987,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json({
         success: true,
-        message: 'Sincronización completa iniciada (Ventas → GDV → NVV)',
+        message: 'Sincronización completa iniciada (Ventas → GDV → NVV → Clientes)',
         isRunning: true,
       });
     } catch (error: any) {
@@ -33985,7 +34017,7 @@ export function registerRoutes(app: Express): Server {
     console.log(`\n🛑 [SYNC-ALL] Cancelado por: ${req.user.email}`);
     syncAllRunId++; // invalida la corrida actual (su closure deja de tocar estado/candado)
     if (syncAllStatus) {
-      for (const k of ['ventas', 'gdv', 'nvv'] as const) {
+      for (const k of ['ventas', 'gdv', 'nvv', 'clientes'] as const) {
         if (syncAllStatus[k] && (syncAllStatus[k].status === 'running' || syncAllStatus[k].status === 'pending')) {
           syncAllStatus[k] = { ...syncAllStatus[k], status: 'error', error: 'Cancelado por el usuario', progress: 0, progressMessage: '' };
         }
