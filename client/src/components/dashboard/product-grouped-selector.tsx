@@ -121,10 +121,11 @@ export default function ProductGroupedSelector({ value, onChange, className, tri
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal", triggerClassName)}
+          className={cn("h-9 w-64 justify-between overflow-hidden rounded-lg border-gray-200 text-sm font-normal", triggerClassName)}
           data-testid="button-product-grouped-search"
+          title={value || undefined}
         >
-          <span className="truncate max-w-[180px]">{value || "Selecciona producto..."}</span>
+          <span className="min-w-0 flex-1 truncate text-left">{value || "Selecciona producto..."}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
