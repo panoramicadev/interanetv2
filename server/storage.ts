@@ -386,7 +386,7 @@ import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
-import { normalizeRut } from "@shared/rut";
+import { normalizeRut, rutMatchKey } from "@shared/rut";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { SIN_COMUNA, SIN_REGION, regionDeComuna, resolveComuna } from "@shared/chile-geo";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -12252,7 +12252,11 @@ export class DatabaseStorage implements IStorage {
       accentInsensitiveContains(clients.koen, term),
     ];
 
-    const rutTerm = normalizeRut(term);
+    // Se compara por el CUERPO del RUT (sin dígito verificador) porque el ERP
+    // guarda RTEN sin DV ("77454264") y el alta manual con DV ("77.454.264-7").
+    // El LIKE por cuerpo encuentra las dos formas; usar el RUT completo dejaba
+    // fuera las fichas que bajan del ERP.
+    const rutTerm = rutMatchKey(term);
     if (/^[\d.\-\s]+[kK]?$/.test(term) && rutTerm.length >= 6) {
       const stripped = (col: AnyColumn) =>
         sql`REPLACE(REPLACE(REPLACE(UPPER(COALESCE(${col}, '')), '.', ''), '-', ''), ' ', '')`;
@@ -12919,35 +12923,36 @@ export class DatabaseStorage implements IStorage {
     return undefined;
   }
 
-  async getClientByRut(rut: string) {
-    // Clean RUT for comparison (remove dots, dashes, spaces)
-    const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').replace(/\s/g, '').toUpperCase();
+  // Un mismo RUT convive en la tabla en dos formatos: el ERP guarda RTEN sin
+  // dígito verificador ("77454264") y el alta manual lo formatea completo
+  // ("77.454.264-7"). Se compara contra las dos formas para que buscar por RUT
+  // encuentre la ficha sin importar de dónde vino.
+  private rutEqualsCondition(rut: string) {
+    const forms = Array.from(new Set([normalizeRut(rut), rutMatchKey(rut)].filter(Boolean)));
+    if (forms.length === 0) return sql`FALSE`; // RUT vacío: no matchea nada
+    return sql`REPLACE(REPLACE(REPLACE(UPPER(${clients.rten}), '.', ''), '-', ''), ' ', '') IN (${sql.join(
+      forms.map((f) => sql`${f}`),
+      sql`, `
+    )})`;
+  }
 
-    // Search with LIKE to handle different RUT formats stored in DB
+  async getClientByRut(rut: string) {
     const result = await db
       .select()
       .from(clients)
-      .where(
-        sql`REPLACE(REPLACE(REPLACE(UPPER(${clients.rten}), '.', ''), '-', ''), ' ', '') = ${cleanRut}`
-      )
+      .where(this.rutEqualsCondition(rut))
       .limit(1);
 
     return result[0];
   }
 
   async getClientsByRut(rut: string) {
-    // Clean RUT for comparison (remove dots, dashes, spaces)
-    const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').replace(/\s/g, '').toUpperCase();
-
-    // Search with LIKE to handle different RUT formats stored in DB
     // Return all matches, as a single RUT can have multiple branches
     const result = await db
       .select()
       .from(clients)
-      .where(
-        sql`REPLACE(REPLACE(REPLACE(UPPER(${clients.rten}), '.', ''), '-', ''), ' ', '') = ${cleanRut}`
-      )
-      .orderBy(sql`${clients.parentClientId} NULLS FIRST`); 
+      .where(this.rutEqualsCondition(rut))
+      .orderBy(sql`${clients.parentClientId} NULLS FIRST`);
 
     return result;
   }
