@@ -74,6 +74,48 @@ const vistaComprador = (fila: any) => ({
   createdAt: fila.createdAt,
 });
 
+/**
+ * Cuenta titular del Market de una ficha de cliente.
+ *
+ * Primero por el vínculo directo (client_id) y, si no, por RUT normalizado: las
+ * cuentas viejas quedaron sin client_id y así es como las reconoce el listado de
+ * clientes. Siempre parent_user_id IS NULL — los compradores heredan el client_id
+ * y el RUT del titular, y sin ese filtro se devolvería a uno de ellos.
+ */
+async function resolverTitularDeFicha(fichaId: string) {
+  const [porVinculo] = await db
+    .select()
+    .from(salespeopleUsers)
+    .where(and(
+      eq(salespeopleUsers.role, 'client'),
+      eq(salespeopleUsers.clientId, fichaId),
+      isNull(salespeopleUsers.parentUserId),
+    ))
+    .orderBy(salespeopleUsers.createdAt)
+    .limit(1);
+  if (porVinculo) return porVinculo;
+
+  const [ficha] = await db
+    .select({ rten: clients.rten })
+    .from(clients)
+    .where(eq(clients.id, fichaId))
+    .limit(1);
+  const rutLimpio = (ficha?.rten || '').replace(/[.\-\s]/g, '').toUpperCase();
+  if (!rutLimpio) return undefined;
+
+  const [porRut] = await db
+    .select()
+    .from(salespeopleUsers)
+    .where(and(
+      eq(salespeopleUsers.role, 'client'),
+      isNull(salespeopleUsers.parentUserId),
+      sql`REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '') = ${rutLimpio}`,
+    ))
+    .orderBy(salespeopleUsers.createdAt)
+    .limit(1);
+  return porRut;
+}
+
 export function registerMarketUsuariosRoutes(app: Express): void {
   // ==========================================================================
   // INTRANET — habilitar/deshabilitar la creación de usuarios para un cliente
@@ -87,43 +129,7 @@ export function registerMarketUsuariosRoutes(app: Express): void {
       const enabled = req.body?.enabled === true;
       const fichaId = req.params.id;
 
-      // Titular del Market de esta ficha (el que creó "Activar Market").
-      let [titular] = await db
-        .select()
-        .from(salespeopleUsers)
-        .where(and(
-          eq(salespeopleUsers.role, 'client'),
-          eq(salespeopleUsers.clientId, fichaId),
-          isNull(salespeopleUsers.parentUserId),
-        ))
-        .orderBy(salespeopleUsers.createdAt)
-        .limit(1);
-
-      // Cuentas antiguas quedaron sin client_id (se vinculan por RUT). Sin este
-      // segundo intento, el switch tiraba "no tiene cuenta en el Market" en clientes
-      // que sí la tienen — que es como el listado de clientes las reconoce.
-      if (!titular) {
-        const [ficha] = await db
-          .select({ rten: clients.rten })
-          .from(clients)
-          .where(eq(clients.id, fichaId))
-          .limit(1);
-        const rutLimpio = (ficha?.rten || '').replace(/[.\-\s]/g, '').toUpperCase();
-        if (rutLimpio) {
-          const filas = await db
-            .select()
-            .from(salespeopleUsers)
-            .where(and(
-              eq(salespeopleUsers.role, 'client'),
-              isNull(salespeopleUsers.parentUserId),
-              sql`REPLACE(REPLACE(REPLACE(UPPER(${salespeopleUsers.clientRut}), '.', ''), '-', ''), ' ', '') = ${rutLimpio}`,
-            ))
-            .orderBy(salespeopleUsers.createdAt)
-            .limit(1);
-          titular = filas[0];
-        }
-      }
-
+      const titular = await resolverTitularDeFicha(fichaId);
       if (!titular) {
         return res.status(404).json({
           message: 'El cliente todavía no tiene cuenta en Panorámica Market. Actívala primero.',
@@ -155,6 +161,50 @@ export function registerMarketUsuariosRoutes(app: Express): void {
     } catch (error: any) {
       console.error('Error al cambiar permiso de sub-usuarios:', error);
       res.status(500).json({ message: 'No se pudo actualizar el permiso' });
+    }
+  });
+
+  // ==========================================================================
+  // INTRANET — restablecer la clave del panel del cliente
+  //
+  // Hasta ahora la única forma de dar una clave era "Activar Market", que sólo
+  // corre la primera vez: si el cliente la perdía, había que tocar la base.
+  // ==========================================================================
+  app.post('/api/clients/:id/market-password', requireAuth, async (req: any, res) => {
+    try {
+      if (!ROLES_INTRANET.includes(req.user?.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const parsed = z.object({ password: z.string().min(6, 'La clave debe tener al menos 6 caracteres').max(100) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || 'Datos inválidos' });
+      }
+
+      const titular = await resolverTitularDeFicha(req.params.id);
+      if (!titular) {
+        return res.status(404).json({
+          message: 'El cliente todavía no tiene cuenta en Panorámica Market. Actívala primero.',
+        });
+      }
+
+      await db
+        .update(salespeopleUsers)
+        .set({ password: await bcrypt.hash(parsed.data.password, 12), updatedAt: new Date() })
+        .where(eq(salespeopleUsers.id, titular.id));
+
+      console.log(`[market-password] clave del cliente ${titular.id} restablecida por ${req.user.id}`);
+      // Devolvemos con qué entra, que es lo que el ejecutivo le tiene que pasar.
+      res.json({
+        success: true,
+        ecommerceUserId: titular.id,
+        loginEmail: titular.email,
+        username: titular.username,
+      });
+    } catch (error: any) {
+      console.error('Error al restablecer la clave del cliente:', error);
+      res.status(500).json({ message: 'No se pudo restablecer la clave' });
     }
   });
 
