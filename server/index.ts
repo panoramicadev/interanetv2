@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -68,6 +68,13 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error al verificar las tablas OAuth:', error.message);
     }
+    // Idem: el listado de clientes y la ficha filtran por parent_user_id, así que
+    // estas columnas no pueden depender de que el bucle de migraciones llegue al final.
+    try {
+      await ensureMarketSubUserColumns();
+    } catch (error: any) {
+      console.error('❌ Error al verificar columnas de compradores del Market:', error.message);
+    }
   }
 
   const server = registerRoutes(app);
@@ -98,6 +105,10 @@ app.use((req, res, next) => {
   // Solicitud de crédito: el vendedor pide, Finanzas resuelve
   const { registerSolicitudesCreditoRoutes } = await import('./routes-solicitudes-credito');
   registerSolicitudesCreditoRoutes(app);
+
+  // Compradores del Market: el cliente crea usuarios y aprueba sus pedidos
+  const { registerMarketUsuariosRoutes } = await import('./routes-market-usuarios');
+  registerMarketUsuariosRoutes(app);
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

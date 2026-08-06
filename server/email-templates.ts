@@ -757,6 +757,67 @@ export function buildSuggestedTeamCopyEmail(data: SuggestedTeamCopyData): { subj
   return { subject, html };
 }
 
+interface OrderPendingClientApprovalData {
+  clientName: string;
+  buyerName: string;
+  orderNumber: string;
+  total: number;
+  items: Array<{ name: string; quantity: number; price?: number }>;
+}
+
+// Un comprador (sub-usuario) armó un pedido y espera el visto bueno del titular.
+// El pedido NO llegó a Panorámica todavía: este correo es el que lo desatasca.
+export function buildOrderPendingClientApprovalEmail(data: OrderPendingClientApprovalData): { subject: string; html: string } {
+  const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+  const subject = `Pedido #${data.orderNumber} pendiente de tu aprobación — ${data.buyerName}`;
+  const orderUrl = `${PUBLIC_BASE_URL.replace(/\/$/, '')}/mis-pedidos`;
+
+  const itemsRows = (data.items || []).slice(0, 50).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${it.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+      ${typeof it.price === 'number' ? `<td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: right;">${fmt(it.price)}</td>` : ''}
+    </tr>`).join('');
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">Tienes un pedido esperando tu aprobación</h2>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+      Hola <strong>${data.clientName}</strong>, <strong>${data.buyerName}</strong> armó un pedido desde la cuenta de tu empresa en Panorámica Market.
+    </p>
+    <p style="color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      <strong>Todavía no llegó a Panorámica.</strong> Se envía cuando tú lo apruebas desde tu panel; también puedes rechazarlo.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0;">
+      <tr><td style="padding: 10px 12px; background-color: #f8f9fa; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">N° Pedido:</span>
+        <span style="color: #333; margin-left: 8px;">${data.orderNumber}</span>
+      </td></tr>
+      <tr><td style="height: 6px;"></td></tr>
+      <tr><td style="padding: 12px; background-color: #fff7ed; border-left: 4px solid #fd6301; border-radius: 4px;">
+        <span style="font-weight: bold; color: #fd6301;">Total:</span>
+        <span style="color: #1a1f2e; margin-left: 8px; font-size: 17px;"><strong>${fmt(data.total)}</strong></span>
+      </td></tr>
+    </table>
+    ${itemsRows ? `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+          ${(data.items || []).some(i => typeof i.price === 'number') ? '<th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRECIO</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>` : ''}
+    <p style="text-align: center; margin: 24px 0 8px 0;">
+      <a href="${orderUrl}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 14px 34px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+        Revisar y aprobar
+      </a>
+    </p>
+  `);
+  return { subject, html };
+}
+
 export function wrapEmailContent(bodyContent: string): string {
   return `
     <!DOCTYPE html>

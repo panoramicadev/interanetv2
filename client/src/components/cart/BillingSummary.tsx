@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2 } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote, FileUp, FileText, Loader2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import { getAttachedOc, setAttachedOc, clearAttachedOc, OC_ATTACHED_EVENT, type AttachedOcMetadata } from "@/lib/attached-oc";
@@ -552,8 +552,10 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       const createdOrder = await response.json();
 
       toast({
-        title: "¡Pedido confirmado!",
-        description: `Tu pedido ha sido enviado correctamente.`,
+        title: (user as any)?.parentUserId ? "Pedido enviado a aprobación" : "¡Pedido confirmado!",
+        description: (user as any)?.parentUserId
+          ? "El titular de la cuenta debe aprobarlo para que llegue a Panorámica."
+          : `Tu pedido ha sido enviado correctamente.`,
       });
 
       setTimeout(() => {
@@ -1300,6 +1302,18 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
         {/* Confirm Order Button */}
         <div className="pt-4">
+          {/* Comprador (usuario creado por el cliente): su pedido no sale a Panorámica
+              hasta que el titular de la cuenta lo aprueba. Decirlo acá evita que crea
+              que el pedido ya está en producción. */}
+          {(user as any)?.parentUserId && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <Clock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-900">
+                Tu pedido quedará <strong>pendiente de aprobación</strong> del titular de la cuenta.
+                Recién cuando lo apruebe se envía a Panorámica.
+              </p>
+            </div>
+          )}
           <Button
             onClick={handleConfirmOrder}
             disabled={isSubmitting || state.items.length === 0 || isMissingRequiredOC}
@@ -1311,6 +1325,8 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
               ? 'Procesando...'
               : isMissingRequiredOC
               ? 'Adjunta la OC para continuar'
+              : (user as any)?.parentUserId
+              ? 'Enviar a aprobación'
               : 'Confirmar pedido'}
           </Button>
         </div>

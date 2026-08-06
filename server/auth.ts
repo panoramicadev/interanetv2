@@ -86,6 +86,14 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Contraseña incorrecta" });
           }
 
+          // Comprador dado de baja por su titular. El chequeo se limita a los
+          // compradores del Market (parentUserId) A PROPÓSITO: aplicarlo a todas las
+          // cuentas dejaría afuera a cualquier usuario histórico de la intranet que
+          // hoy tenga is_active = false y siga entrando.
+          if ((user as any).parentUserId && (user as any).isActive === false) {
+            return done(null, false, { message: "Tu cuenta está desactivada. Contacta al titular de la cuenta." });
+          }
+
           return done(null, {
             ...user,
             firstName: user.firstName || undefined,
@@ -211,6 +219,13 @@ export function setupAuth(app: Express) {
             firstName: userForLogin.firstName,
             lastName: userForLogin.lastName,
             role: userForLogin.role,
+            salespersonName: (userForLogin as any).salespersonName,
+            // Mismo contrato que GET /api/auth/user: el front cachea esta respuesta
+            // como usuario actual, así que si faltan estos campos el portal del cliente
+            // arranca sin la sección de usuarios hasta el siguiente refetch.
+            parentUserId: (userForLogin as any).parentUserId ?? null,
+            isSubUser: !!(userForLogin as any).parentUserId,
+            canCreateSubUsers: !!(userForLogin as any).canCreateSubUsers,
           });
         });
       })(req, res, next);
@@ -250,6 +265,12 @@ export function setupAuth(app: Express) {
       publicSlug: (user as any).publicSlug,
       assignedSegment: (user as any).assignedSegment,
       supervisorId: (user as any).supervisorId,
+      // Panorámica Market: si es comprador (parentUserId) el front oculta crédito y
+      // documentos, y avisa que sus pedidos pasan por el titular. canCreateSubUsers
+      // habilita la sección "Usuarios" del titular.
+      parentUserId: (user as any).parentUserId ?? null,
+      isSubUser: !!(user as any).parentUserId,
+      canCreateSubUsers: !!(user as any).canCreateSubUsers,
     });
   });
 

@@ -133,6 +133,9 @@ interface AccountStatus {
   linked: boolean;
   ecommerceUserId: string | null;
   clientId: string | null;
+  /** Si el cliente puede crear sus propios usuarios (compradores) en el Market. */
+  canCreateSubUsers?: boolean;
+  subUsersCount?: number;
   pendingRequest: {
     id: string;
     empresa: string;
@@ -413,6 +416,32 @@ export default function ClientDetail() {
     },
     onError: (e: any) => {
       toast({ title: "No se pudo activar", description: e?.message || "Error al activar acceso", variant: "destructive" });
+    },
+  });
+
+  // Permite (o corta) que el cliente cree sus propios usuarios en Panorámica Market.
+  // Al apagarlo, el backend además desactiva a los compradores que ya existían: si no,
+  // el switch quedaba en "no" pero su gente seguía entrando.
+  const toggleSubUsers = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const fichaId = accountStatus?.clientId || fichaIdForActivation;
+      if (!fichaId) throw new Error("Este cliente no tiene ficha para configurar.");
+      const res = await apiRequest("PATCH", `/api/clients/${fichaId}/market-sub-users`, { enabled });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/account-status?name=${encodeURIComponent(decodedClientName)}`] });
+      toast({
+        title: data?.enabled ? "Creación de usuarios habilitada" : "Creación de usuarios deshabilitada",
+        description: data?.enabled
+          ? "El cliente ya puede crear usuarios desde su panel; sus pedidos quedan pendientes de aprobación del titular."
+          : data?.desactivados
+            ? `Se desactivaron ${data.desactivados} usuario(s) del cliente.`
+            : "El cliente ya no puede crear usuarios.",
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "No se pudo actualizar", description: e?.message || "Error al cambiar el permiso", variant: "destructive" });
     },
   });
 
@@ -1310,6 +1339,41 @@ export default function ClientDetail() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Panorámica Market — permisos de la cuenta del cliente */}
+                {canManage && accountStatus?.inEcommerce && (
+                  <Card className="border-0 shadow-sm md:col-span-2">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-[#FF6E23]" /> Panorámica Market
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200/70 p-3.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">Permitir crear usuarios</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            El cliente podrá crear usuarios de su empresa desde su panel. Esos usuarios entran sólo
+                            al Market a armar pedidos, y cada pedido queda esperando la aprobación del titular
+                            antes de llegar a Panorámica.
+                          </p>
+                          {!!accountStatus?.subUsersCount && (
+                            <p className="text-xs text-gray-500 mt-1.5">
+                              Hoy tiene <span className="font-semibold text-gray-700">{accountStatus.subUsersCount}</span>{" "}
+                              usuario{accountStatus.subUsersCount === 1 ? "" : "s"} creado{accountStatus.subUsersCount === 1 ? "" : "s"}.
+                            </p>
+                          )}
+                        </div>
+                        <Switch
+                          checked={!!accountStatus?.canCreateSubUsers}
+                          disabled={toggleSubUsers.isPending}
+                          onCheckedChange={(v) => toggleSubUsers.mutate(v)}
+                          data-testid="switch-allow-sub-users"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Cuentas por Cobrar — detalle de facturas pendientes */}
                 <Card className="border-0 shadow-sm md:col-span-2">

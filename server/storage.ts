@@ -2462,6 +2462,9 @@ export class DatabaseStorage implements IStorage {
           supervisorId: salesperson.supervisorId,
           assignedSegment: salesperson.assignedSegment,
           publicSlug: salesperson.publicSlug,
+          clientId: salesperson.clientId,
+          parentUserId: salesperson.parentUserId,
+          canCreateSubUsers: salesperson.canCreateSubUsers,
           role: effectiveRole,
         } as User;
       }
@@ -2489,6 +2492,11 @@ export class DatabaseStorage implements IStorage {
         supervisorId: salespersonUser.supervisorId,
         assignedSegment: salespersonUser.assignedSegment,
         publicSlug: salespersonUser.publicSlug,
+        // Cuenta de Panorámica Market: ficha vinculada y, si es un comprador,
+        // el titular que debe aprobar sus pedidos.
+        clientId: salespersonUser.clientId,
+        parentUserId: salespersonUser.parentUserId,
+        canCreateSubUsers: salespersonUser.canCreateSubUsers,
       } as User;
     }
 
@@ -2517,6 +2525,9 @@ export class DatabaseStorage implements IStorage {
           supervisorId: salesperson.supervisorId,
           assignedSegment: salesperson.assignedSegment,
           publicSlug: salesperson.publicSlug,
+          clientId: salesperson.clientId,
+          parentUserId: salesperson.parentUserId,
+          canCreateSubUsers: salesperson.canCreateSubUsers,
           role: effectiveRole,
         } as User;
       }
@@ -2544,6 +2555,11 @@ export class DatabaseStorage implements IStorage {
         supervisorId: salespersonUser.supervisorId,
         assignedSegment: salespersonUser.assignedSegment,
         publicSlug: salespersonUser.publicSlug,
+        // Cuenta de Panorámica Market: ficha vinculada y, si es un comprador,
+        // el titular que debe aprobar sus pedidos.
+        clientId: salespersonUser.clientId,
+        parentUserId: salespersonUser.parentUserId,
+        canCreateSubUsers: salespersonUser.canCreateSubUsers,
       } as User;
     }
 
@@ -9926,8 +9942,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         gte(ecommerceOrders.createdAt, startOfMonth),
         lte(ecommerceOrders.createdAt, endOfMonth),
-        // Excluimos sugeridos pendientes: aún no son ventas confirmadas por el cliente.
-        ne(ecommerceOrders.status, 'suggested_pending')
+        // Excluimos lo que aún no es una venta confirmada: sugeridos sin aceptar y
+        // pedidos de compradores sin el visto bueno de su titular.
+        notInArray(ecommerceOrders.status, ['suggested_pending', 'pending_client'])
       ));
 
     return {
@@ -12318,7 +12335,7 @@ export class DatabaseStorage implements IStorage {
           )
         )
       JOIN ecommerce_orders eo ON eo.client_id = su.id
-      WHERE COALESCE(eo.status, '') NOT IN ('archived', 'rejected')
+      WHERE COALESCE(eo.status, '') NOT IN ('archived', 'rejected', 'pending_client')
       ${statusFilter}
     `);
     const rows = (Array.isArray(res) ? res : res.rows) || [];
@@ -12682,6 +12699,9 @@ export class DatabaseStorage implements IStorage {
           SELECT id, client_id, client_rut
           FROM salespeople_users
           WHERE role = 'client'
+            -- Sólo titulares: los compradores que crea el cliente comparten su
+            -- client_id y su RUT, y pisarían al titular en el mapa cliente→usuario.
+            AND parent_user_id IS NULL
             AND (
               client_id IN (${sql.join(clientIds.map((i: string) => sql`${i}`), sql`, `)})
               ${ruts.length > 0 ? sql`OR REPLACE(REPLACE(REPLACE(UPPER(client_rut), '.', ''), '-', ''), ' ', '') IN (${sql.join(ruts.map((r: string) => sql`${r}`), sql`, `)})` : sql``}
@@ -18416,6 +18436,10 @@ export class DatabaseStorage implements IStorage {
       if (orderData.suggestedByName) cleanData.suggestedByName = orderData.suggestedByName;
       if (orderData.suggestedAt) cleanData.suggestedAt = orderData.suggestedAt;
 
+      // Comprador (sub-usuario) que armó el pedido a nombre del titular.
+      if (orderData.createdByUserId) cleanData.createdByUserId = orderData.createdByUserId;
+      if (orderData.createdByName) cleanData.createdByName = orderData.createdByName;
+
       const [newOrder] = await db
         .insert(ecommerceOrders)
         .values(cleanData)
@@ -18448,10 +18472,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.status) {
       conditions.push(eq(ecommerceOrders.status, filters.status));
     } else if (!filters?.includeSuggestedPending) {
-      // Por defecto excluimos los "suggested_pending": son pedidos pre-armados por
-      // admin/supervisor que aún no fueron aceptados por el cliente. No deben aparecer
-      // en panel del tomador de pedidos, contadores ni listados generales.
-      conditions.push(ne(ecommerceOrders.status, 'suggested_pending'));
+      // Por defecto excluimos los pedidos que todavía no son un pedido en firme:
+      // - "suggested_pending": pre-armados por admin/supervisor, sin aceptar por el cliente.
+      // - "pending_client": armados por un comprador y sin el visto bueno de su titular.
+      // No deben aparecer en el panel del tomador de pedidos, contadores ni listados.
+      conditions.push(notInArray(ecommerceOrders.status, ['suggested_pending', 'pending_client']));
     }
 
     let query = db

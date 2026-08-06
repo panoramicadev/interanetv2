@@ -1254,6 +1254,15 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   clientRut: varchar("client_rut"), // RUT del cliente asociado (solo para role="client")
   clientId: varchar("client_id"), // FK directa a clients.id para vinculación confiable eCommerce↔SAP
 
+  // Sub-usuarios de un cliente del Market (compradores).
+  // El titular (usuario creado con "Activar Market") puede crear compradores si
+  // la intranet le habilitó canCreateSubUsers. Cada comprador es otro registro
+  // role='client' con parentUserId = id del titular y el MISMO clientId, así
+  // hereda ficha, lista de precios, crédito y convenios sin duplicar nada.
+  // Sus pedidos NO se envían a Panorámica hasta que el titular los aprueba.
+  parentUserId: varchar("parent_user_id"), // id del titular (solo para compradores)
+  canCreateSubUsers: boolean("can_create_sub_users").default(false), // solo para titulares
+
   // Campos para catálogo público
   publicSlug: varchar("public_slug").unique(), // URL amigable (ej: "pablo-soto")
   profileImageUrl: varchar("profile_image_url"), // Foto de perfil del vendedor
@@ -1266,6 +1275,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   publicSlugIdx: index("IDX_salespeople_public_slug").on(table.publicSlug),
+  parentUserIdx: index("IDX_salespeople_parent_user").on(table.parentUserId),
 }));
 
 export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
@@ -4146,8 +4156,16 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   tax: numeric("tax", { precision: 15, scale: 2 }).notNull(),
   total: numeric("total", { precision: 15, scale: 2 }).notNull(),
 
+  // Quién armó el pedido. Normalmente es el propio titular (clientId), pero si lo
+  // hizo un comprador (sub-usuario del cliente) acá queda su identidad: el pedido
+  // sigue perteneciendo a la cuenta del titular para precios, crédito y panel.
+  createdByUserId: varchar("created_by_user_id"),
+  createdByName: varchar("created_by_name"),
+
   // Order status flow
-  status: varchar("status").default("pending"), // pending, approved, modified, rejected, sent
+  // pending_client → esperando la aprobación del titular (pedido armado por un comprador).
+  // Recién cuando el titular aprueba entra al flujo normal (pending / approved).
+  status: varchar("status").default("pending"), // pending_client, pending, approved, modified, rejected, sent
   notes: text("notes"), // Client notes or special instructions
   shippingAddress: text("shipping_address"), // Shipping/delivery address
 
@@ -4166,6 +4184,15 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   rejectedAt: timestamp("rejected_at"),
   rejectedById: varchar("rejected_by_id"),
   rejectedReason: text("rejected_reason"),
+
+  // Visto bueno del titular sobre un pedido armado por uno de sus compradores.
+  // Es previo (y distinto) a la aprobación de Panorámica: recién cuando el titular
+  // aprueba, el pedido sale de 'pending_client' y le llega al equipo comercial.
+  clientApprovedAt: timestamp("client_approved_at"),
+  clientApprovedById: varchar("client_approved_by_id"),
+  clientRejectedAt: timestamp("client_rejected_at"),
+  clientRejectedById: varchar("client_rejected_by_id"),
+  clientRejectedReason: text("client_rejected_reason"),
 
   // Pedido sugerido: admin/supervisor envía pre-armado al cliente; cliente acepta/modifica/rechaza
   isSuggested: boolean("is_suggested").notNull().default(false),

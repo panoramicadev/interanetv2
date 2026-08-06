@@ -197,6 +197,9 @@ function Router() {
           <Route path="/mi-cuenta">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/mi-credito">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          {/* Usuarios de la empresa: el titular crea compradores y aprueba sus pedidos.
+              El propio portal manda a "Mis Pedidos" si la cuenta no es titular. */}
+          <Route path="/mis-usuarios">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/seguimiento">{() => <ClientEcommerceLayout><ClientOrderTracking /></ClientEcommerceLayout>}</Route>
           <Route path="/mis-documentos">{() => <ClientEcommerceLayout><ClientDocumentos /></ClientEcommerceLayout>}</Route>
           <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
