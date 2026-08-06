@@ -388,7 +388,7 @@ import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { normalizeRut, rutMatchKey } from "@shared/rut";
-import { rutContainsCondition } from "./utils/rut-sql";
+import { rutContainsCondition, rutColumnsMatchSql } from "./utils/rut-sql";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { SIN_COMUNA, SIN_REGION, regionDeComuna, resolveComuna } from "@shared/chile-geo";
 import { generateTrackingCode } from "./utils/tracking-code";
@@ -12929,6 +12929,28 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  // Deja firme el vínculo cuenta eCommerce <-> ficha cuando se resolvió por RUT
+  // o por nombre. Escribe el mismo par de columnas que el vínculo manual
+  // (POST /api/users/clients/:userId/link-client): salespeople_users.client_id y,
+  // si está libre, clients.user_id. Nunca le saca la ficha a otro usuario.
+  // Es best-effort: si falla, la lectura ya se resolvió igual.
+  private async persistEcommerceLink(userId: string, clientId: string) {
+    try {
+      await db.update(salespeopleUsers)
+        .set({ clientId, updatedAt: new Date() })
+        .where(and(eq(salespeopleUsers.id, userId), isNull(salespeopleUsers.clientId)));
+
+      await db.update(clients)
+        .set({ userId })
+        .where(and(
+          eq(clients.id, clientId),
+          or(isNull(clients.userId), eq(clients.userId, ''))
+        ));
+    } catch (e) {
+      console.warn('[persistEcommerceLink] no se pudo fijar el vínculo:', e);
+    }
+  }
+
   async getClientByUserId(userId: string) {
     // Attempt 0: Lookup via salespeopleUsers.clientId (most reliable for branch users)
     const spLookup = await db
@@ -12957,6 +12979,37 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (result.length > 0) return result[0];
+
+    // Attempt 1.5: por el RUT de la cuenta eCommerce.
+    //
+    // Las cuentas creadas ANTES de que la ficha existiera en la intranet quedan
+    // con client_id NULL y sin userId en la ficha, así que ni el intento 0 ni el
+    // 1 las resuelven. El portal del cliente arrancaba desde acá, se quedaba sin
+    // ficha y mostraba todo en cero, mientras el panel de admin sí la reconocía
+    // (ahí el match es por RUT). Este intento cierra esa diferencia.
+    //
+    // El match es tolerante al DV: el ERP guarda rten sin dígito verificador y
+    // el alta manual con formato. Se prefiere la casa matriz.
+    const accountRut = spLookup.length > 0 ? (spLookup[0].clientRut || '').trim() : '';
+    if (accountRut) {
+      const byRut = await db
+        .select()
+        .from(clients)
+        // ::text explícito: el parámetro va dentro de COALESCE/UPPER y sin el
+        // cast Postgres no puede inferirle el tipo.
+        .where(rutColumnsMatchSql(clients.rten, sql`${accountRut}::text`))
+        .orderBy(sql`${clients.parentClientId} NULLS FIRST`, asc(clients.createdAt))
+        .limit(1);
+
+      if (byRut.length > 0) {
+        // Se persiste el vínculo para que la próxima resolución tome el camino
+        // exacto y para que la ficha deje de figurar como "Sin ficha" en el
+        // panel. Mismo par de columnas que usa el vínculo manual (link-client).
+        await this.persistEcommerceLink(userId, byRut[0].id);
+        console.log(`[getClientByUserId] Match por RUT: user ${userId} -> client ${byRut[0].id} (${byRut[0].nokoen})`);
+        return byRut[0];
+      }
+    }
 
     // Attempt 2: Fallback to salespeople_users by name
     // Only match clients that don't already have a userId assigned (prevents ambiguous matches)
