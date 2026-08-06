@@ -492,13 +492,15 @@ export const clients = pgTable("clients", {
   cnen: varchar("cnen"), // Contact number
   cnen2: varchar("cnen2"), // Contact number 2
 
-  // Credit management (key business fields)
-  crsd: numeric("crsd", { precision: 15, scale: 2 }), // Credit balance/debt
-  crch: numeric("crch", { precision: 15, scale: 2 }), // Credit checks
-  crlt: numeric("crlt", { precision: 15, scale: 2 }), // Credit limit total
-  crpa: numeric("crpa", { precision: 15, scale: 2 }), // Credit paid
-  crto: numeric("crto", { precision: 15, scale: 2 }), // Credit total
-  cren: numeric("cren", { precision: 15, scale: 2 }), // Available credit
+  // Crédito — espejo de dbo.MAEEN. TODAS son CUPOS AUTORIZADOS por instrumento
+  // de pago, no saldos: acá no hay ni un peso de deuda. La deuda se calcula
+  // desde ventas.fact_ventas. La línea de crédito es crto. Ver shared/credito.ts.
+  crsd: numeric("crsd", { precision: 15, scale: 2 }), // Cupo sin documentar (cta. cte.)
+  crch: numeric("crch", { precision: 15, scale: 2 }), // Cupo en cheques
+  crlt: numeric("crlt", { precision: 15, scale: 2 }), // Cupo en letras (0 en toda la base: no se usan)
+  crpa: numeric("crpa", { precision: 15, scale: 2 }), // Cupo en pagarés
+  crto: numeric("crto", { precision: 15, scale: 2 }), // ← LÍNEA DE CRÉDITO: cupo total autorizado
+  cren: numeric("cren", { precision: 15, scale: 2 }), // Viene vacía desde el ERP; no usar
   fevecren: varchar("fevecren"), // Credit expiry date
   feultr: varchar("feultr"), // Last transaction date
   nuvecr: numeric("nuvecr", { precision: 15, scale: 2 }), // Credit times
@@ -666,10 +668,12 @@ export const clients = pgTable("clients", {
   // Beneficios comerciales
   freeShipping: boolean("free_shipping").notNull().default(false), // Envío gratis permanente para este cliente
 
-  // Ediciones manuales de la ficha (solo campos de contacto) que sobreviven al ETL.
-  // El ETL de clientes (etl-clients.ts) nunca escribe esta columna, así que los
-  // overrides prevalecen sobre los valores de Softland al construir la ficha.
-  fichaOverrides: jsonb("ficha_overrides"), // { clientName?, email?, phone?, address?, commune? }
+  // Ediciones manuales de la ficha que sobreviven al ETL. El ETL de clientes
+  // (etl-clients.ts) nunca escribe esta columna, así que los overrides
+  // prevalecen sobre los valores de Softland al construir la ficha. Es el único
+  // lugar donde la intranet puede pisar al ERP: creditLimit y priceList se
+  // muestran marcados como manuales para que se note quién los fijó.
+  fichaOverrides: jsonb("ficha_overrides"), // { clientName?, email?, phone?, address?, commune?, priceList?, creditLimit? }
 }, (table) => ({
   // Indexes for performance
   clientCodeIdx: index("IDX_clients_koen").on(table.koen),

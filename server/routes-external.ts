@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { db } from './db';
 import { resolvePriceListForClient } from './price-list-resolver';
+import { resolverLineaCredito } from '@shared/credito';
 import { ubicacionCanonicaDe } from '@shared/chile-geo';
 import {
   users,
@@ -5143,7 +5144,7 @@ router.get('/clientes/estado-cuenta', async (req: ApiAuthRequest, res) => {
     try {
       const fichaResult = await db.execute(sql`
         SELECT id, koen, nokoen, rten, foen, dien, cmen, comuna, email,
-               cpen, kofuen, lcen, crlt, cren, crsd, ficha_overrides
+               cpen, kofuen, lcen, crto, ficha_overrides
         FROM clients
         WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
            OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
@@ -5248,6 +5249,8 @@ router.get('/clientes/estado-cuenta', async (req: ApiAuthRequest, res) => {
     } catch (e) { console.error('[estado-cuenta] pending request lookup failed:', e); }
 
     const linked = !!(ecommerceAccount && ecommerceAccount.client_id);
+    // Línea de crédito: override manual > CRTO del ERP (ver shared/credito.ts).
+    const lineaCredito = resolverLineaCredito(ficha);
 
     res.json({
       hasFicha: !!ficha,
@@ -5268,13 +5271,15 @@ router.get('/clientes/estado-cuenta', async (req: ApiAuthRequest, res) => {
         // si difiere de priceList, esa lista no tiene precios en la intranet.
         priceListCharged: fichaPriceList.code,
         priceListUsable: fichaPriceList.usable,
-        creditLimit: ficha.crlt != null ? Number(ficha.crlt) : null,
+        creditLimit: lineaCredito.limit,
+        creditLimitSource: lineaCredito.origen,
+        creditLimitErp: lineaCredito.erp,
         creditUsed: carteraUsado,
         creditOverdue: carteraVencido,
         overdueSince: carteraVencidoDesde,
         creditUpcoming: carteraPorVencer,
         nextDueDate: carteraProximoVenc,
-        creditAvailable: ficha.crlt != null ? Number(ficha.crlt) - (carteraUsado ?? 0) : null,
+        creditAvailable: lineaCredito.limit != null ? lineaCredito.limit - (carteraUsado ?? 0) : null,
       } : null,
       inEcommerce: !!ecommerceAccount,
       linked,
@@ -5481,7 +5486,7 @@ router.get('/clientes/:id/ficha', async (req: ApiAuthRequest, res) => {
       } catch (e) { console.error('[ficha] cartera lookup failed:', e); }
     }
 
-    const creditLimit = ficha.crlt != null ? Number(ficha.crlt) : null;
+    const creditLimit = resolverLineaCredito(ficha).limit;
     // Lista que realmente se cobra: misma resolución que el catálogo y el checkout.
     const fichaPriceList = await resolvePriceListForClient(ficha);
     res.json({

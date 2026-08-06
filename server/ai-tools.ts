@@ -5,6 +5,7 @@
  * Tools query the database directly via the storage layer (no HTTP round-trips).
  */
 import { storage } from "./storage";
+import { resolverLineaCredito } from "@shared/credito";
 import { tool_listModules, tool_searchHelp, tool_getModuleGuide } from "./ai-modules";
 
 // ─── Helper: format currency for AI responses ───
@@ -604,11 +605,14 @@ export async function tool_searchClients(args: {
                 email: c.email || null,
                 paymentCondition: c.cpen?.trim() || null,
                 paymentDays: c.diprve ? Number(c.diprve) : null,
-                totalCredit: c.crto ? fmtCLP(Number(c.crto)) : null,
-                creditBalance: c.crsd ? fmtCLP(Number(c.crsd)) : null,
-                creditLimit: c.crlt ? fmtCLP(Number(c.crlt)) : null,
-                creditAvailable: c.cren ? fmtCLP(Number(c.cren)) : null,
-                debtBalance: c.crsd ? fmtCLP(Number(c.crsd)) : null,
+                // Línea de crédito: override manual > CRTO del ERP (ver shared/credito.ts).
+                // La deuda NO sale de la ficha: las columnas CR* son cupos por
+                // instrumento de pago, no saldos. Para deuda y disponible reales
+                // está get_client_account_status, que consulta la cartera.
+                creditLimit: (() => {
+                    const l = resolverLineaCredito(c).limit;
+                    return l != null ? fmtCLP(l) : null;
+                })(),
                 businessType: c.gien || null,
                 entityType: c.tien || null,
                 salesperson: c.nokofu || null,
