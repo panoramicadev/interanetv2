@@ -1682,12 +1682,15 @@ export default function Dashboard() {
                         variant="outline"
                         role="combobox"
                         aria-expanded={clientSearchOpen}
-                        className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal"
+                        className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal overflow-hidden"
                         data-testid="button-client-search"
+                        title={globalFilter.type === "client" && globalFilter.value ? globalFilter.value : undefined}
                       >
-                        {globalFilter.type === "client" && globalFilter.value
-                          ? globalFilter.value
-                          : "Buscar cliente..."}
+                        <span className="min-w-0 flex-1 truncate text-left">
+                          {globalFilter.type === "client" && globalFilter.value
+                            ? globalFilter.value
+                            : "Buscar cliente..."}
+                        </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
