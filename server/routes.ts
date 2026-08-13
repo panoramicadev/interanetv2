@@ -94,6 +94,7 @@ import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
 import { executeCostosETL, costosEtlProgressEmitter } from "./etl-costos";
+import { LINE_COST_GRI_EXPR } from "./costo-linea";
 import * as NotifyHelper from "./notifications-helper";
 import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
 import { format } from "date-fns";
@@ -30694,7 +30695,7 @@ export function registerRoutes(app: Express): Server {
           fv."monto" AS revenue,
           CASE WHEN fv."tido" = 'NCV' THEN -COALESCE(fv."caprco2", 0)
                ELSE COALESCE(fv."caprco2", 0) END AS qty,
-          gpc."price" AS unit_cost
+          ${LINE_COST_GRI_EXPR} * (CASE WHEN fv."tido" = 'NCV' THEN -1 ELSE 1 END) AS line_cost
         FROM ventas.fact_ventas fv
         LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
         WHERE fv."tido" <> 'GDV'
@@ -30712,11 +30713,11 @@ export function registerRoutes(app: Express): Server {
              prev AS (${buildLineas(prevStart, prevEnd)})
         SELECT
           COALESCE(SUM(curr.revenue), 0)::TEXT AS curr_revenue,
-          COALESCE(SUM(curr.unit_cost * curr.qty), 0)::TEXT AS curr_cost,
+          COALESCE(SUM(curr.line_cost), 0)::TEXT AS curr_cost,
           COUNT(DISTINCT curr.sku) AS curr_sku_count,
           COUNT(curr.*) AS curr_line_count,
           (SELECT COALESCE(SUM(prev.revenue), 0) FROM prev)::TEXT AS prev_revenue,
-          (SELECT COALESCE(SUM(prev.unit_cost * prev.qty), 0) FROM prev)::TEXT AS prev_cost,
+          (SELECT COALESCE(SUM(prev.line_cost), 0) FROM prev)::TEXT AS prev_cost,
           (SELECT COUNT(DISTINCT prev.sku) FROM prev) AS prev_sku_count
         FROM curr
       `);
@@ -30763,7 +30764,7 @@ export function registerRoutes(app: Express): Server {
                  MAX(producto) AS producto,
                  SUM(revenue) AS revenue,
                  SUM(qty) AS qty,
-                 SUM(unit_cost * qty) AS cost
+                 SUM(line_cost) AS cost
                FROM curr
                GROUP BY sku
                HAVING SUM(revenue) > 0
@@ -30802,14 +30803,14 @@ export function registerRoutes(app: Express): Server {
              curr_agg AS (
                SELECT segment,
                       SUM(revenue) AS revenue,
-                      SUM(unit_cost * qty) AS cost,
+                      SUM(line_cost) AS cost,
                       COUNT(*) AS line_count
                FROM curr GROUP BY segment
              ),
              prev_agg AS (
                SELECT segment,
                       SUM(revenue) AS revenue,
-                      SUM(unit_cost * qty) AS cost
+                      SUM(line_cost) AS cost
                FROM prev GROUP BY segment
              )
         SELECT
@@ -30855,14 +30856,14 @@ export function registerRoutes(app: Express): Server {
         curr_agg AS (
           SELECT salesperson,
                  SUM(revenue) AS revenue,
-                 SUM(unit_cost * qty) AS cost,
+                 SUM(line_cost) AS cost,
                  COUNT(*) AS line_count
           FROM curr GROUP BY salesperson
         ),
         prev_agg AS (
           SELECT salesperson,
                  SUM(revenue) AS revenue,
-                 SUM(unit_cost * qty) AS cost
+                 SUM(line_cost) AS cost
           FROM prev GROUP BY salesperson
         )
         SELECT
@@ -30909,7 +30910,7 @@ export function registerRoutes(app: Express): Server {
                  MAX(producto) AS producto,
                  SUM(revenue) AS revenue,
                  SUM(qty) AS qty,
-                 SUM(unit_cost * qty) AS cost
+                 SUM(line_cost) AS cost
                FROM curr
                GROUP BY sku
                HAVING SUM(revenue) > 0

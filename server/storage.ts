@@ -385,6 +385,7 @@ import {
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
+import { LINE_COST_EXPR } from "./costo-linea";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { normalizeRut, rutMatchKey } from "@shared/rut";
@@ -28924,7 +28925,8 @@ export class DatabaseStorage implements IStorage {
   // de cada línea de FCV (monto = caprco2 * ppprne en la fuente).
   // Costo unitario (cadena COALESCE): gri_prices_cache.price (mismo costo que muestra
   // Lista Comercial) → fv.ppprpm → fv.listacost → price_list.costo_produccion → 0.
-  // Costo por línea = costo_unitario * caprco2.
+  // Costo por línea: manda el costo del documento; el GRI queda de respaldo.
+  // Las líneas de concepto (ZZ*) van con costo 0 — ver server/costo-linea.ts.
 
   async getMarginMetrics(filters: {
     startDate?: string;
@@ -28955,14 +28957,7 @@ export class DatabaseStorage implements IStorage {
           fv."nokoprct" AS product,
           fv."monto" AS revenue,
           (
-            COALESCE(
-              gpc."price",
-              NULLIF(fv."ppprpm", 0),
-              NULLIF(fv."listacost", 0),
-              pl."costo_produccion",
-              0
-            )
-            * COALESCE(fv."caprco2", 0)
+            ${LINE_COST_EXPR}
           ) AS cost
         FROM ventas.fact_ventas fv
         LEFT JOIN price_list pl ON UPPER(TRIM(pl."codigo")) = UPPER(TRIM(fv."koprct"))
@@ -29087,14 +29082,7 @@ export class DatabaseStorage implements IStorage {
         COALESCE(NULLIF(TRIM(fv."noruen"), ''), 'SIN SEGMENTO') AS segment,
         SUM(fv."monto") AS revenue,
         SUM(
-          COALESCE(
-            gpc."price",
-            NULLIF(fv."ppprpm", 0),
-            NULLIF(fv."listacost", 0),
-            pl."costo_produccion",
-            0
-          )
-          * COALESCE(fv."caprco2", 0)
+          ${LINE_COST_EXPR}
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoprct") AS product_count
@@ -29154,14 +29142,7 @@ export class DatabaseStorage implements IStorage {
         fv."nokofu" AS salesperson,
         SUM(fv."monto") AS revenue,
         SUM(
-          COALESCE(
-            gpc."price",
-            NULLIF(fv."ppprpm", 0),
-            NULLIF(fv."listacost", 0),
-            pl."costo_produccion",
-            0
-          )
-          * COALESCE(fv."caprco2", 0)
+          ${LINE_COST_EXPR}
         ) AS cost,
         COUNT(*) AS transaction_count,
         COUNT(DISTINCT fv."nokoen") AS client_count,
@@ -29234,14 +29215,7 @@ export class DatabaseStorage implements IStorage {
           fv."nokoprct" AS product,
           SUM(fv."monto") AS revenue,
           SUM(
-            COALESCE(
-              gpc."price",
-              NULLIF(fv."ppprpm", 0),
-              NULLIF(fv."listacost", 0),
-              pl."costo_produccion",
-              0
-            )
-            * COALESCE(fv."caprco2", 0)
+            ${LINE_COST_EXPR}
           ) AS cost,
           SUM(COALESCE(fv."caprco2", 0)) AS units_sold
         FROM ventas.fact_ventas fv

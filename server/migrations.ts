@@ -101,6 +101,9 @@ export async function bootstrapDatabase(): Promise<void> {
       )
     `);
     await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS kofulido TEXT`);
+    // Costo del documento (promedio ponderado del ERP al emitir la venta).
+    // Es la fuente de la verdad del costo; el snapshot GRI queda de respaldo.
+    await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS ppprpm NUMERIC(18, 6)`);
     
     // 2.1 Crear tabla fact_ventas (tabla principal de ventas para análisis)
     console.log('  📋 Verificando tabla fact_ventas...');

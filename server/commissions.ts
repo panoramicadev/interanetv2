@@ -16,9 +16,11 @@
  *     `caprco2` (cantidad) queda en positivo — por eso el costo se
  *     invierte explícitamente para NCV (ver COST_EXPR).
  *   - Cálculo sobre el margen: comisión = margen_ajustado × % / 100.
- *   - Costo unitario: misma cadena COALESCE que el módulo de Margen
- *     (gri_prices_cache → ppprpm → listacost → costo_produccion → 0)
- *     multiplicada por la cantidad (caprco2).
+ *   - Costo por línea: manda el costo del documento (ppprpm × caprco1), que
+ *     es lo que costó esa venta según el ERP. Si la línea no lo trae, cae al
+ *     último costo GRI (× caprco2 — otra unidad). Las líneas de concepto
+ *     (ZZ*) van con costo 0: no salió mercadería de bodega.
+ *     Ver server/costo-linea.ts.
  *   - Piso en 0 por vendedor: si las NC superan a las ventas la comisión
  *     del período da negativa; se informa (commissionRaw) pero se paga 0.
  *     No arrastra saldo en contra al período siguiente.
@@ -57,6 +59,7 @@ import { db } from "./db";
 import { commissionSettings, commissionOverrides, commissionFleteRates } from "../shared/schema";
 import { requireAuth } from "./auth";
 import { requirePermission } from "./permissions";
+import { LINE_COST_EXPR } from "./costo-linea";
 
 // Documentos que forman la base: facturas menos notas de crédito.
 const BASE_TIDOS = sql`fv."tido" IN ('FCV', 'NCV')`;
@@ -68,15 +71,9 @@ const DOC_SIGN = sql`(CASE WHEN fv."tido" = 'NCV' THEN -1 ELSE 1 END)`;
 
 // Costo por línea: misma expresión que getMarginBySalesperson (storage.ts),
 // con el signo del documento aplicado para que una NC reste costo.
-const COST_EXPR = sql`(
-  COALESCE(
-    gpc."price",
-    NULLIF(fv."ppprpm", 0),
-    NULLIF(fv."listacost", 0),
-    pl."costo_produccion",
-    0
-  ) * COALESCE(fv."caprco2", 0) * ${DOC_SIGN}
-)`;
+// Las líneas de concepto (ZZ*: fletes, servicios, descuentos) no llevan
+// costo de mercadería — ver server/costo-linea.ts.
+const COST_EXPR = sql`(${LINE_COST_EXPR} * ${DOC_SIGN})`;
 
 const FACT_JOINS = sql`
   ventas.fact_ventas fv
