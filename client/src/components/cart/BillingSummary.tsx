@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreditoCliente } from "@/hooks/useCreditoCliente";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,8 +192,14 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     staleTime: 300_000,
   });
 
-  // Fetch client data to get addresses, payment condition and credit info
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string; nokoen?: string; gien?: string; parentNokoen?: string; freeShipping?: boolean }>({
+  // Cupo del cliente: línea, usado y disponible, con la misma cuenta que la
+  // pestaña Crédito del portal (ver useCreditoCliente).
+  const { creditLimit, creditAvailable, hasCredit, tieneCupoQueMostrar } = useCreditoCliente();
+
+  // Ficha del cliente: direcciones, condición de pago y segmento. El CUPO no sale
+  // de acá — va por useCreditoCliente (ver el hook: las columnas CR* de la ficha
+  // no sirven para calcular disponible).
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crsd?: string; pickupWarehouseId?: string; nokoen?: string; gien?: string; parentNokoen?: string; freeShipping?: boolean }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -646,8 +653,9 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
   const total = state.total + effectiveShipping;
 
   // Determine payment instructions based on condition
-  const isCredit = clientData?.cpen?.toUpperCase().includes('CREDITO') || clientData?.cpen?.toUpperCase().includes('CRÉDITO') || (Number(clientData?.crlt) > 0);
+  const isCredit = hasCredit;
   const requiresReceipt = !isCredit; // Default to expecting receipt if not credit
+  const creditRemaining = creditAvailable != null ? creditAvailable - total : null;
 
   // Default to Crédito for clients with credit available (until user manually changes)
   useEffect(() => {
@@ -976,18 +984,18 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                   )}
 
                   {/* Credit Balance Breakdown */}
-                  {(clientData?.crlt || clientData?.cren) && (
+                  {tieneCupoQueMostrar && (
                     <div className="bg-white/60 dark:bg-blue-900/30 rounded-lg p-2.5 space-y-1.5 border border-blue-100 dark:border-blue-800">
-                      {clientData?.crlt && (
+                      {creditLimit != null && (
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-blue-600/70 dark:text-blue-400/70">Límite de crédito</span>
-                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.crlt))}</span>
+                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(creditLimit)}</span>
                         </div>
                       )}
-                      {clientData?.cren && (
+                      {creditAvailable != null && (
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-blue-600/70 dark:text-blue-400/70">Disponible actual</span>
-                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.cren))}</span>
+                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(creditAvailable)}</span>
                         </div>
                       )}
                       <Separator className="bg-blue-200/50 dark:bg-blue-700/50" />
@@ -995,31 +1003,20 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                         <span className="text-blue-600/70 dark:text-blue-400/70">Monto de esta compra</span>
                         <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-xs pt-0.5">
-                        <span className="font-semibold text-blue-700 dark:text-blue-300">Saldo después de compra</span>
-                        {(() => {
-                          const available = Number(clientData?.cren || clientData?.crlt || 0);
-                          const remaining = available - total;
-                          return (
-                            <span className={`font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatPrice(remaining)}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      {(() => {
-                        const available = Number(clientData?.cren || clientData?.crlt || 0);
-                        const remaining = available - total;
-                        if (remaining < 0) {
-                          return (
-                            <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-950/30 p-1.5 rounded mt-1">
-                              <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                              <span>El monto excede tu crédito disponible. Tu ejecutivo deberá autorizarlo manualmente.</span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                      {creditRemaining != null && (
+                        <div className="flex justify-between items-center text-xs pt-0.5">
+                          <span className="font-semibold text-blue-700 dark:text-blue-300">Saldo después de compra</span>
+                          <span className={`font-bold ${creditRemaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {formatPrice(creditRemaining)}
+                          </span>
+                        </div>
+                      )}
+                      {creditRemaining != null && creditRemaining < 0 && (
+                        <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-950/30 p-1.5 rounded mt-1">
+                          <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                          <span>El monto excede tu crédito disponible. Tu ejecutivo deberá autorizarlo manualmente.</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1469,31 +1466,29 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                   </div>
 
                   {/* Credit Balance Summary in Confirmation */}
-                  {(clientData?.crlt || clientData?.cren) && (
+                  {tieneCupoQueMostrar && (
                     <div className="bg-white/80 rounded-lg p-3 space-y-1.5 border border-blue-100">
-                      {clientData.cren && (
+                      {creditAvailable != null && (
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-slate-500">Crédito disponible</span>
-                          <span className="font-semibold text-blue-700">{formatPrice(Number(clientData.cren))}</span>
+                          <span className="font-semibold text-blue-700">{formatPrice(creditAvailable)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500">Monto de esta compra</span>
                         <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
                       </div>
-                      <Separator className="bg-blue-200/50" />
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-semibold text-slate-700">Saldo después de compra</span>
-                        {(() => {
-                          const available = Number(clientData.cren || clientData.crlt || 0);
-                          const remaining = available - total;
-                          return (
-                            <span className={`font-bold text-sm ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatPrice(remaining)}
+                      {creditRemaining != null && (
+                        <>
+                          <Separator className="bg-blue-200/50" />
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-slate-700">Saldo después de compra</span>
+                            <span className={`font-bold text-sm ${creditRemaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatPrice(creditRemaining)}
                             </span>
-                          );
-                        })()}
-                      </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 

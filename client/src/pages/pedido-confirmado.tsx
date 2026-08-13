@@ -74,18 +74,6 @@ export default function PedidoConfirmado() {
     enabled: !!orderId,
   });
 
-  // Fetch client data to get credit limit (similar to BillingSummary logic)
-  const { data: clientData } = useQuery<{ crlt?: string }>({
-    queryKey: ['/api/clients/by-user', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const res = await fetch(`/api/clients/by-user/${user.id}`, { credentials: 'include' });
-      if (!res.ok) return null;
-      return res.json();
-    },
-    enabled: !!user?.id && user?.role === 'client',
-  });
-
   // Determine if payment is NOT credit based directly on the explicit order saving
   const paymentCondition = orderData?.paymentCondition || '';
   const isCredit = paymentCondition.toUpperCase().includes('CREDITO') || 
