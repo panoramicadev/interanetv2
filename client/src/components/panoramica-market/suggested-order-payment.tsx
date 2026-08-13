@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreditoCliente } from "@/hooks/useCreditoCliente";
 import { useToast } from "@/hooks/use-toast";
 import {
   Banknote, CreditCard, CheckCircle2, Info, FileUp, FileText, Loader2, X,
@@ -15,10 +16,9 @@ export interface SuggestedPaymentValue {
   purchaseOrderFileName: string | null;
 }
 
+// Solo lo que hace falta para detectar MCT. El cupo va por useCreditoCliente:
+// clients.crlt y clients.cren no sirven para calcular disponible (ver el hook).
 interface ClientData {
-  cpen?: string | null;
-  crlt?: string | null;
-  cren?: string | null;
   nokoen?: string | null;
   gien?: string | null;
   parentNokoen?: string | null;
@@ -53,10 +53,10 @@ export default function SuggestedOrderPayment({ total, value, onChange, onValidi
     enabled: !!user?.id && (user as any)?.role === "client",
   });
 
-  const isCredit =
-    !!clientData?.cpen?.toUpperCase().includes("CREDITO") ||
-    !!clientData?.cpen?.toUpperCase().includes("CRÉDITO") ||
-    Number(clientData?.crlt) > 0;
+  const { creditAvailable, hasCredit, paymentCondition, tieneCupoQueMostrar } = useCreditoCliente();
+  const isCredit = hasCredit;
+  // "CREDITO 30 DIAS" → "30". Sin número, no se muestra plazo.
+  const plazoCredito = paymentCondition?.match(/\d+/)?.[0] ?? null;
 
   const mctTokens = `${clientData?.nokoen || ""} ${clientData?.gien || ""} ${clientData?.parentNokoen || ""}`.toUpperCase();
   const isMCT = /\bMCT\b/.test(mctTokens);
@@ -77,8 +77,7 @@ export default function SuggestedOrderPayment({ total, value, onChange, onValidi
     onValidityChange?.(!isMissingRequiredOC);
   }, [isMissingRequiredOC, onValidityChange]);
 
-  const available = Number(clientData?.cren || clientData?.crlt || 0);
-  const remaining = available - total;
+  const remaining = creditAvailable != null ? creditAvailable - total : null;
 
   const handleOcFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -139,8 +138,8 @@ export default function SuggestedOrderPayment({ total, value, onChange, onValidi
             <CreditCard className={`h-4 w-4 ${!isCredit ? "text-gray-400" : value.paymentMethod === "credit" ? "text-blue-500" : "text-gray-400"}`} />
             <div className="text-left">
               <div className="font-semibold">Crédito</div>
-              {isCredit && clientData?.cpen && clientData.cpen.match(/\d+/) && (
-                <div className="text-[10px] text-blue-600 mt-0.5 leading-tight">Plazo: {clientData.cpen.match(/\d+/)?.[0]} días</div>
+              {isCredit && plazoCredito && (
+                <div className="text-[10px] text-blue-600 mt-0.5 leading-tight">Plazo: {plazoCredito} días</div>
               )}
               {!isCredit && <div className="text-[10px] text-gray-400 leading-tight">No disponible</div>}
             </div>
@@ -154,25 +153,27 @@ export default function SuggestedOrderPayment({ total, value, onChange, onValidi
               <CheckCircle2 className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-semibold">Aprobación Inmediata</span>
             </div>
-            {(clientData?.crlt || clientData?.cren) && (
+            {tieneCupoQueMostrar && (
               <div className="bg-white/60 rounded-lg p-2.5 space-y-1.5 border border-blue-100">
-                {clientData?.cren && (
+                {creditAvailable != null && (
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-blue-600/70">Disponible actual</span>
-                    <span className="font-semibold text-blue-800">{formatPrice(Number(clientData.cren))}</span>
+                    <span className="font-semibold text-blue-800">{formatPrice(creditAvailable)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-blue-600/70">Monto de esta compra</span>
                   <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
                 </div>
-                <div className="flex justify-between items-center text-xs pt-0.5 border-t border-blue-100">
-                  <span className="font-semibold text-blue-700">Saldo después de compra</span>
-                  <span className={`font-bold ${remaining >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {formatPrice(remaining)}
-                  </span>
-                </div>
-                {remaining < 0 && (
+                {remaining != null && (
+                  <div className="flex justify-between items-center text-xs pt-0.5 border-t border-blue-100">
+                    <span className="font-semibold text-blue-700">Saldo después de compra</span>
+                    <span className={`font-bold ${remaining >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {formatPrice(remaining)}
+                    </span>
+                  </div>
+                )}
+                {remaining != null && remaining < 0 && (
                   <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 p-1.5 rounded mt-1">
                     <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
                     <span>El monto excede tu crédito disponible. Tu ejecutivo deberá autorizarlo manualmente.</span>

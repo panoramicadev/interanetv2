@@ -10669,6 +10669,109 @@ export function registerRoutes(app: Express): Server {
     };
   };
 
+  /**
+   * Crédito de la empresa del usuario logueado: línea, usado y disponible.
+   *
+   * Fuente única del "disponible" que se muestra en el portal y en la tienda.
+   * La línea sale de shared/credito.ts (override manual > CRTO del ERP) y lo
+   * usado se calcula desde ventas.fact_ventas — NUNCA de las columnas CR* de la
+   * ficha: crlt es el cupo en letras (0 en toda la base) y cren viene vacía
+   * desde el ERP. El checkout leía justamente esas dos y por eso mostraba el
+   * cupo en blanco mientras la pestaña Crédito lo mostraba bien.
+   */
+  const calcularCreditoCliente = async (userId: string) => {
+    const vacio = {
+      hasFicha: false, clientName: null as string | null, rut: null as string | null,
+      paymentCondition: null as string | null,
+      creditLimit: null as number | null, creditUsed: null as number | null,
+      creditOverdue: null as number | null, creditUpcoming: null as number | null,
+      creditAvailable: null as number | null,
+      nextDueDate: null as string | null, overdueSince: null as string | null,
+      hasCredit: false, hasDebt: false, hasOverdue: false,
+    };
+    const scope = await resolveClientScope(userId);
+    if (!scope) return vacio;
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const { client, koens } = scope;
+
+    let usado = 0, vencido = 0, porVencer = 0;
+    let proxVenc: string | null = null, vencidoDesde: string | null = null;
+    if (koens.length > 0) {
+      try {
+        const r = await db.execute(sql`
+          WITH docs AS (
+            SELECT idmaeedo,
+                   MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                   MAX(fe01vedo) AS venc
+            FROM ventas.fact_ventas
+            WHERE endo IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})
+              AND tido IN ('FCV', 'FDV')
+              AND espgdo = 'P'
+            GROUP BY idmaeedo
+          )
+          SELECT
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
+            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
+            MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc,
+            MIN(venc) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE) AS vencido_desde
+          FROM docs
+        `);
+        const row = (Array.isArray(r) ? r : (r as any).rows || [])[0];
+        if (row) {
+          const fmt = (v: any) => v == null ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+          usado = Number(row.usado) || 0;
+          vencido = Number(row.vencido) || 0;
+          porVencer = Number(row.por_vencer) || 0;
+          proxVenc = fmt(row.proximo_venc);
+          vencidoDesde = fmt(row.vencido_desde);
+        }
+      } catch (e) {
+        console.error('[credito-cliente] cartera lookup failed:', e);
+      }
+    }
+
+    // Línea de crédito con la MISMA regla que la ficha (/api/clients/credito):
+    // override manual > CRTO del ERP, y si la ficha del usuario no tiene línea,
+    // la de la primera sucursal de la empresa que sí la tenga. El cliente no
+    // puede ver un cupo distinto del que ve el vendedor en la intranet.
+    let linea = resolverLineaCredito(client as any);
+    if (linea.limit == null && scope.clientIds.length > 0) {
+      try {
+        const r = await db.execute(sql`
+          SELECT crto, ficha_overrides FROM clients
+          WHERE id IN (${sql.join(scope.clientIds.map((id) => sql`${id}`), sql`, `)})
+          ORDER BY parent_client_id NULLS FIRST
+        `);
+        const filas = (Array.isArray(r) ? r : (r as any).rows || []) as any[];
+        linea = filas.map(resolverLineaCredito).find((l) => l.limit != null) ?? linea;
+      } catch (e) {
+        console.error('[credito-cliente] credit line lookup failed:', e);
+      }
+    }
+    const creditLimit = linea.limit;
+    const cpen = (client.cpen || '') as string;
+
+    return {
+      hasFicha: true,
+      clientName: scope.clientName || null,
+      rut: scope.rut || null,
+      paymentCondition: cpen || null,
+      creditLimit,
+      creditUsed: usado,
+      creditOverdue: vencido,
+      creditUpcoming: porVencer,
+      creditAvailable: creditLimit != null ? creditLimit - usado : null,
+      nextDueDate: proxVenc,
+      overdueSince: vencidoDesde,
+      hasCredit: /CR[EÉ]DITO/i.test(cpen) || (creditLimit != null && creditLimit > 0),
+      hasDebt: usado > 0,
+      hasOverdue: vencido > 0,
+    };
+  };
+
   // Scope de datos para el rol encargado_area: códigos de cliente (koen = endo) cuyas
   // ventas debe ver. Se usa para acotar TODO el dashboard (KPIs, gráficos, metas, top-N).
   //   - Devuelve [] (sin restricción => ve todo) SOLO si el usuario NO es
@@ -10841,93 +10944,29 @@ export function registerRoutes(app: Express): Server {
       // Compradores: su acceso es para comprar. El estado de cuenta lo ve el titular.
       return res.status(403).json({ message: 'No autorizado. Esta información la ve el titular de la cuenta.' });
     }
-    const emptyPayload = {
-      hasFicha: false, clientName: null, rut: null, paymentCondition: null,
-      creditLimit: null, creditUsed: null, creditOverdue: null, creditUpcoming: null,
-      creditAvailable: null, nextDueDate: null, overdueSince: null,
-      hasCredit: false, hasDebt: false, hasOverdue: false,
-    };
-    const scope = await resolveClientScope(user.id);
-    if (!scope) return res.json(emptyPayload);
+    res.json(await calcularCreditoCliente(user.id));
+  }));
 
-    const { db } = await import('./db');
-    const { sql } = await import('drizzle-orm');
-    const { client, koens } = scope;
-
-    let usado = 0, vencido = 0, porVencer = 0;
-    let proxVenc: string | null = null, vencidoDesde: string | null = null;
-    if (koens.length > 0) {
-      try {
-        const r = await db.execute(sql`
-          WITH docs AS (
-            SELECT idmaeedo,
-                   MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
-                   MAX(fe01vedo) AS venc
-            FROM ventas.fact_ventas
-            WHERE endo IN (${sql.join(koens.map((k) => sql`${k}`), sql`, `)})
-              AND tido IN ('FCV', 'FDV')
-              AND espgdo = 'P'
-            GROUP BY idmaeedo
-          )
-          SELECT
-            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0), 0) AS usado,
-            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE), 0) AS vencido,
-            COALESCE(SUM(saldo) FILTER (WHERE saldo > 0 AND (venc >= CURRENT_DATE OR venc IS NULL)), 0) AS por_vencer,
-            MIN(venc) FILTER (WHERE saldo > 0 AND venc >= CURRENT_DATE) AS proximo_venc,
-            MIN(venc) FILTER (WHERE saldo > 0 AND venc < CURRENT_DATE) AS vencido_desde
-          FROM docs
-        `);
-        const row = (Array.isArray(r) ? r : (r as any).rows || [])[0];
-        if (row) {
-          const fmt = (v: any) => v == null ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
-          usado = Number(row.usado) || 0;
-          vencido = Number(row.vencido) || 0;
-          porVencer = Number(row.por_vencer) || 0;
-          proxVenc = fmt(row.proximo_venc);
-          vencidoDesde = fmt(row.vencido_desde);
-        }
-      } catch (e) {
-        console.error('[client account-status] cartera lookup failed:', e);
-      }
+  // Cupo para el CHECKOUT de la tienda: línea, usado y disponible, nada más.
+  //
+  // Va aparte de /account-status por dos razones. Una, el checkout no necesita
+  // vencidos ni fechas. Y dos, account-status es el estado de cuenta y solo lo
+  // ve el titular; acá el comprador (sub-cuenta) SÍ tiene que ver el cupo,
+  // porque es la plata contra la que está comprando y sin eso no puede saber si
+  // el pedido se le va a pasar de la línea.
+  app.get('/api/ecommerce/client/credit-summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (user.role !== 'client') {
+      return res.status(403).json({ message: 'No autorizado.' });
     }
-
-    // Línea de crédito con la MISMA regla que la ficha (/api/clients/credito):
-    // override manual > CRTO del ERP, y si la ficha del usuario no tiene línea,
-    // la de la primera sucursal de la empresa que sí la tenga. El cliente no
-    // puede ver un cupo distinto del que ve el vendedor en la intranet.
-    let linea = resolverLineaCredito(client as any);
-    if (linea.limit == null && scope.clientIds.length > 0) {
-      try {
-        const r = await db.execute(sql`
-          SELECT crto, ficha_overrides FROM clients
-          WHERE id IN (${sql.join(scope.clientIds.map((id) => sql`${id}`), sql`, `)})
-          ORDER BY parent_client_id NULLS FIRST
-        `);
-        const filas = (Array.isArray(r) ? r : (r as any).rows || []) as any[];
-        linea = filas.map(resolverLineaCredito).find((l) => l.limit != null) ?? linea;
-      } catch (e) {
-        console.error('[client account-status] credit line lookup failed:', e);
-      }
-    }
-    const creditLimit = linea.limit;
-    const cpen = (client.cpen || '') as string;
-    const hasCredit = /CR[EÉ]DITO/i.test(cpen) || (creditLimit != null && creditLimit > 0);
-
+    const c = await calcularCreditoCliente(user.id);
     res.json({
-      hasFicha: true,
-      clientName: scope.clientName || null,
-      rut: scope.rut || null,
-      paymentCondition: cpen || null,
-      creditLimit,
-      creditUsed: usado,
-      creditOverdue: vencido,
-      creditUpcoming: porVencer,
-      creditAvailable: creditLimit != null ? creditLimit - usado : null,
-      nextDueDate: proxVenc,
-      overdueSince: vencidoDesde,
-      hasCredit,
-      hasDebt: usado > 0,
-      hasOverdue: vencido > 0,
+      hasFicha: c.hasFicha,
+      paymentCondition: c.paymentCondition,
+      creditLimit: c.creditLimit,
+      creditUsed: c.creditUsed,
+      creditAvailable: c.creditAvailable,
+      hasCredit: c.hasCredit,
     });
   }));
 
