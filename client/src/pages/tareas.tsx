@@ -2896,14 +2896,18 @@ export default function TareasPage() {
                   || availableUsers?.find((u) => u.id === id)?.salespersonName
                   || id;
 
+                // Al crear un seguimiento se marca también al supervisor para que le llegue,
+                // pero acá el equipo son los vendedores: sus cards duplicaban toda la cartera.
+                // Un cliente asignado SOLO al supervisor queda en "Sin asignar", que es lo que
+                // realmente pasa: nadie del equipo lo está siguiendo.
                 filteredTasks.forEach((task) => {
-                  if (task.assignments.length === 0) {
+                  const vendedores = task.assignments.filter((a) => a.assigneeType !== 'supervisor');
+                  if (vendedores.length === 0) {
                     addTo('__none__', 'Sin asignar', 'salesperson', task);
                     return;
                   }
-                  task.assignments.forEach((a) => {
-                    const role: PersonGroup['role'] = a.assigneeType === 'supervisor' ? 'supervisor' : 'salesperson';
-                    addTo(a.assigneeId, nameFor(a.assigneeId), role, task);
+                  vendedores.forEach((a) => {
+                    addTo(a.assigneeId, nameFor(a.assigneeId), 'salesperson', task);
                   });
                 });
 
@@ -2920,7 +2924,9 @@ export default function TareasPage() {
                   if (user.role === 'supervisor' || user.role === 'encargado_area') {
                     (supervisorSalespeople || []).forEach((sp) => ensureMember(sp.id, sp.salespersonName, 'salesperson'));
                   }
-                  extraSeguimientoMembers.forEach((m) => ensureMember(m.id, m.name, m.type));
+                  extraSeguimientoMembers
+                    .filter((m) => m.type !== 'supervisor')
+                    .forEach((m) => ensureMember(m.id, m.name, m.type));
                 }
 
                 // Resumen accionable de un colaborador: cuántos de sus clientes
@@ -2975,10 +2981,9 @@ export default function TareasPage() {
 
                 // Pool del buscador "agregar puntual": cualquier usuario del sistema no listado aún.
                 const alreadyIn = new Set(Object.keys(byPerson));
-                const addPool = [
-                  ...((availableSupervisors || []).map((s) => ({ id: s.id, name: s.salespersonName, type: 'supervisor' as const }))),
-                  ...((availableUsers || []).map((u) => ({ id: u.id, name: u.salespersonName, type: 'salesperson' as const }))),
-                ].filter((p) => !alreadyIn.has(p.id) && (!addMemberSearch || p.name.toLowerCase().includes(addMemberSearch.toLowerCase())));
+                // Solo vendedores: sumar un supervisor dejaría una card que nunca se llena.
+                const addPool = ((availableUsers || []).map((u) => ({ id: u.id, name: u.salespersonName, type: 'salesperson' as const })))
+                  .filter((p) => !alreadyIn.has(p.id) && (!addMemberSearch || p.name.toLowerCase().includes(addMemberSearch.toLowerCase())));
 
                 // Card de colaborador — foco en la persona y sus clientes en seguimiento.
                 const renderPersonRow = (id: string, grp: PersonGroup) => {
@@ -3261,12 +3266,12 @@ export default function TareasPage() {
                                     }}
                                     className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-orange-50/60 transition-colors text-left"
                                   >
-                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${p.type === 'supervisor' ? 'bg-gradient-to-br from-slate-700 to-slate-900' : 'bg-gradient-to-br from-orange-400 to-[#fd6301]'}`}>
+                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 bg-gradient-to-br from-orange-400 to-[#fd6301]`}>
                                       {p.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
                                       <p className="text-sm font-medium text-slate-700 truncate">{p.name}</p>
-                                      <p className="text-[10px] text-slate-400 font-medium">{p.type === 'supervisor' ? 'Supervisor' : 'Vendedor'}</p>
+                                      <p className="text-[10px] text-slate-400 font-medium">Vendedor</p>
                                     </div>
                                     <Plus className="h-4 w-4 text-orange-500 ml-auto flex-shrink-0" />
                                   </button>
