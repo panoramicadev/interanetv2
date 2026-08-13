@@ -5060,6 +5060,22 @@ function TaskDetailDialog({
   const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
   const [selectedSegmento, setSelectedSegmento] = useState<string>((task as any).segmento || "__none__");
 
+  // Pestaña activa del panel derecho. En móvil el chat es una pestaña más y es la
+  // que se abre primero (en desktop vive en su columna fija y arranca en Detalle).
+  const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 1024;
+  const [activeDetailTab, setActiveDetailTab] = useState<string>(() => (isNarrow() ? "chat" : "detalle"));
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    // Al pasar a desktop el chat deja de ser pestaña: hay que mover el foco o el
+    // área queda en blanco.
+    const onChange = () => setActiveDetailTab((t) => (mql.matches && t === "chat" ? "detalle" : t));
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  // Cobranza y Productos se resuelven por nombre de cliente (no necesitan clienteId).
+  const hasClienteNombre = Boolean(String((task as any).clienteNombre || "").trim());
+
   // Quién puede editar el contenido de la tarea (descripción, enlaces, etc.)
   const canEditTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
 
@@ -5207,11 +5223,15 @@ function TaskDetailDialog({
   const actividadesCompletadas = actividades.filter((a) => a.estado === 'completada').length;
 
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100vh-1rem)]">
+    // Alto fijo para que el chat y las pestañas tengan su propio scroll. Fuera de
+    // desktop se descuentan los paddings del layout (main p-3 + página p-2 = 2.5rem;
+    // desde sm la página usa p-3 = 3rem) y se mide en dvh: con 100vh la barra del
+    // navegador móvil tapaba el input del chat y parecía que "faltaba info".
+    <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100dvh-2.5rem)] sm:h-[calc(100dvh-3rem)] lg:h-[calc(100vh-1rem)]">
         {/* Header */}
-        <div className="px-6 py-4 border-b bg-muted/30 flex-shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-2 sm:gap-4">
+            <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
               <button onClick={onClose} className="mt-0.5 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0" title="Volver al listado">
                 <ArrowLeft className="h-5 w-5" />
               </button>
@@ -5236,7 +5256,7 @@ function TaskDetailDialog({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
               {isSeguimientoCliente ? (
                 <Badge className="text-xs font-semibold border-0 bg-orange-100 text-orange-700 flex items-center gap-1.5 px-3 py-1.5">
                   <CheckSquare className="h-3.5 w-3.5" /> {actividadesCompletadas}/{actividadesTotal} tareas
@@ -5285,26 +5305,32 @@ function TaskDetailDialog({
           <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} />
         </div>
 
-        {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der) */}
+        {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der).
+            En móvil no caben las dos columnas: el chat pasa a ser una pestaña más
+            (la que se abre por defecto) para que cada sección use todo el alto. */}
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
-          {/* Left Panel: Chat / Bitácora (permanente) */}
-          <div className="lg:w-[400px] lg:flex-shrink-0 flex flex-col min-h-0 border-r border-slate-200 bg-slate-50/40">
+          {/* Left Panel: Chat / Bitácora (permanente en desktop) */}
+          <div className="hidden lg:flex lg:w-[400px] lg:flex-shrink-0 flex-col min-h-0 border-r border-slate-200 bg-slate-50/40">
             <div className="px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0 flex items-center gap-2">
               <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-orange-600" /> Bitácora / Chat
               </h4>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <DetailChatPanel taskId={task.id} userRole={user.role} />
+              <DetailChatPanel taskId={task.id} />
             </div>
             <DetailChatInput taskId={task.id} />
           </div>
 
           {/* Right Panel: pestañas (Detalle + info del cliente) */}
           <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
-            <Tabs defaultValue="detalle" className="flex-1 flex flex-col min-h-0">
-              <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
-                <TabsList className="bg-slate-100/80 h-9 p-1">
+            <Tabs value={activeDetailTab} onValueChange={setActiveDetailTab} className="flex-1 flex flex-col min-h-0">
+              <div className="px-2 sm:px-4 pt-2 sm:pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
+                <TabsList className="bg-slate-100/80 h-9 p-1 w-max">
+                  {/* El chat solo es pestaña en móvil; en desktop vive en la columna izquierda. */}
+                  <TabsTrigger value="chat" className="lg:hidden text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" /> Chat
+                  </TabsTrigger>
                   <TabsTrigger value="detalle" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
                     <Edit className="h-3.5 w-3.5 mr-1" /> Detalle
                   </TabsTrigger>
@@ -5313,10 +5339,17 @@ function TaskDetailDialog({
                       <CheckSquare className="h-3.5 w-3.5 mr-1" /> Tareas{actividadesTotal > 0 ? ` ${actividadesCompletadas}/${actividadesTotal}` : ''}
                     </TabsTrigger>
                   )}
-                  {(task as any).clienteId && (
+                  {/* Cobranza y Productos solo necesitan el nombre del cliente: los
+                      seguimientos que llegan sin clienteId también los muestran, que
+                      era justo lo que faltaba para no ir a vender a alguien que debe. */}
+                  {hasClienteNombre && (
                     <>
                       <TabsTrigger value="cobranza" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><DollarSign className="h-3.5 w-3.5 mr-1" /> Cobranza</TabsTrigger>
                       <TabsTrigger value="productos" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Package className="h-3.5 w-3.5 mr-1" /> Productos</TabsTrigger>
+                    </>
+                  )}
+                  {(task as any).clienteId && (
+                    <>
                       <TabsTrigger value="rutas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><MapPin className="h-3.5 w-3.5 mr-1" /> Rutas</TabsTrigger>
                       <TabsTrigger value="marketing" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Palette className="h-3.5 w-3.5 mr-1" /> Marketing</TabsTrigger>
                     </>
@@ -5324,8 +5357,16 @@ function TaskDetailDialog({
                 </TabsList>
               </div>
               <div className="relative flex-1 min-h-0">
+                {/* Chat en móvil: usa todo el alto disponible, con su input abajo */}
+                <TabsContent value="chat" className="lg:hidden absolute inset-0 flex flex-col min-h-0 mt-0 bg-slate-50/40 data-[state=inactive]:hidden">
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <DetailChatPanel taskId={task.id} />
+                  </div>
+                  <DetailChatInput taskId={task.id} />
+                </TabsContent>
+
                 {/* Detalle: descripción, enlaces, asignaciones, eliminar */}
-                <TabsContent value="detalle" className="absolute inset-0 overflow-y-auto p-5 space-y-6 mt-0 data-[state=inactive]:hidden">
+                <TabsContent value="detalle" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 space-y-6 mt-0 data-[state=inactive]:hidden">
             {/* Información del cliente */}
             {(task as any).clienteId && (
               <ClienteInfoPanel clienteId={String((task as any).clienteId)} clienteNombre={String((task as any).clienteNombre || "")} />
@@ -5585,18 +5626,22 @@ function TaskDetailDialog({
 
                 {/* Tareas del cliente (subtareas / actividades tipadas) */}
                 {isSeguimientoCliente && (
-                  <TabsContent value="tareas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden">
+                  <TabsContent value="tareas" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden">
                     <ActividadesPanel taskId={task.id} canManage={canManageSeguimiento} clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} />
                   </TabsContent>
                 )}
 
                 {/* Info del cliente — cada pestaña usa toda el área */}
+                {hasClienteNombre && (
+                  <>
+                    <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                    <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
+                  </>
+                )}
                 {(task as any).clienteId && (
                   <>
-                    <TabsContent value="cobranza" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><CobranzaPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
-                    <TabsContent value="productos" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><ProductosPanel clienteNombre={String((task as any).clienteNombre || "")} /></TabsContent>
-                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} taskId={task.id} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
-                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
+                    <TabsContent value="rutas" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden"><RutasClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} taskId={task.id} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || (isSeguimientoCliente && isAssignedToMe)} /></TabsContent>
+                    <TabsContent value="marketing" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden"><MarketingClientePanel clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} canManage={user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area'} /></TabsContent>
                   </>
                 )}
               </div>
@@ -5610,23 +5655,16 @@ function TaskDetailDialog({
 // ==================================================================================
 // DetailChatPanel - Panel de mensajes del chat en el detalle
 // ==================================================================================
-function DetailChatPanel({ taskId, userRole }: { taskId: string; userRole: string }) {
-  const { toast } = useToast();
+// La conversación es la bitácora del cliente: se lee para saber qué se le dijo y
+// qué contestó. Por eso NO se puede borrar (ni el autor ni el admin) — antes se
+// podía y quedaban acuerdos con clientes sin rastro. El backend también lo
+// rechaza (DELETE /api/tasks/:id/comments/:commentId responde 403).
+function DetailChatPanel({ taskId }: { taskId: string }) {
   const { user } = useAuth();
   // Hilo único de la tarea (todas las asignaciones) estilo WhatsApp: no se filtra por miembro.
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
     queryKey: ['/api/tasks', taskId, 'comments'],
     refetchInterval: 3000,
-  });
-
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      return apiRequest('DELETE', `/api/tasks/${taskId}/comments/${commentId}`);
-    },
-    onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
-      toast({ title: "Comentario eliminado" });
-    },
   });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -5659,37 +5697,18 @@ function DetailChatPanel({ taskId, userRole }: { taskId: string; userRole: strin
     <div className="p-4 space-y-2">
       {comments.map((comment) => {
         const isMine = comment.authorId === user?.id;
-        const canDelete = isMine || userRole === 'admin';
         return (
           <div key={comment.id} className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
             {!isMine && (
               <span className="text-[11px] font-semibold text-slate-500 ml-1 mb-0.5">{comment.authorName}</span>
             )}
             <div className="flex items-end gap-1.5 max-w-[85%]">
-              {isMine && canDelete && (
-                <button
-                  onClick={() => deleteCommentMutation.mutate(comment.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
-                  title="Eliminar mensaje"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
               <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#fd6301] text-white rounded-br-md' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md'}`}>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
                 <span className={`block text-[10px] mt-0.5 text-right ${isMine ? 'text-white/70' : 'text-slate-400'}`}>
                   {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
                 </span>
               </div>
-              {!isMine && userRole === 'admin' && (
-                <button
-                  onClick={() => deleteCommentMutation.mutate(comment.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
-                  title="Eliminar mensaje"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
             </div>
           </div>
         );
@@ -5742,7 +5761,9 @@ function DetailChatInput({ taskId }: { taskId: string }) {
   };
 
   return (
-    <div className="px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+    // En móvil el botón flotante del menú (fixed bottom-5 left-5) queda encima de
+    // esta barra: se deja libre su esquina para poder escribir.
+    <div className="pl-16 pr-4 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
         <Textarea
           value={text}
@@ -5827,29 +5848,6 @@ function CommentsThread({
     }
   });
 
-  // Delete comment mutation
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      return apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments/${commentId}`, {
-        method: 'DELETE',
-      });
-    },
-    onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
-      toast({
-        title: "Comentario eliminado",
-        description: "El comentario ha sido eliminado",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el comentario",
-        variant: "destructive"
-      });
-    }
-  });
-
   const handleSubmitComment = () => {
     if (editingText.trim()) {
       addCommentMutation.mutate(editingText.trim());
@@ -5893,15 +5891,7 @@ function CommentsThread({
                       {comment.content}
                     </p>
                   </div>
-                  {user?.role === 'admin' && (
-                    <button
-                      onClick={() => deleteCommentMutation.mutate(comment.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
-                      data-testid={`button-delete-comment-${comment.id}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  {/* Sin botón de borrar: los comentarios del hilo son bitácora. */}
                 </div>
               </div>
             ))}
@@ -6374,7 +6364,7 @@ function ClientIntelTabs({ task, user }: { task: any; user: any }) {
           </TabsList>
         </div>
         <div className="px-4 py-3 max-h-72 overflow-y-auto">
-          <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} /></TabsContent>
+          <TabsContent value="cobranza" className="mt-0"><CobranzaPanel clienteNombre={clienteNombre} variant="compact" /></TabsContent>
           <TabsContent value="productos" className="mt-0"><ProductosPanel clienteNombre={clienteNombre} /></TabsContent>
           <TabsContent value="rutas" className="mt-0"><RutasClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} taskId={task.id} /></TabsContent>
           <TabsContent value="marketing" className="mt-0"><MarketingClientePanel clienteId={clienteId} clienteNombre={clienteNombre} canManage={canManage} /></TabsContent>
@@ -6506,12 +6496,13 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
 }
 
 // Cobranza del cliente dentro del modal de tarea. Es el MISMO panel (y la misma
-// query) que la pestaña Crédito de la ficha del cliente: la ficha es la fuente
-// de verdad y acá se ve su versión compacta, así los dos nunca muestran cifras
-// distintas para el mismo cliente.
-function CobranzaPanel({ clienteNombre }: { clienteNombre: string }) {
+// query) que la pestaña Crédito de la ficha del cliente, así los dos nunca
+// muestran cifras distintas para el mismo cliente. La pestaña usa la versión
+// completa (misma info que en Clientes: línea, antigüedad y documentos); la
+// compacta queda para bloques con poco alto.
+function CobranzaPanel({ clienteNombre, variant = "full" }: { clienteNombre: string; variant?: "full" | "compact" }) {
   if (!clienteNombre) return <p className="text-xs text-slate-400 italic">Sin cliente asociado.</p>;
-  return <CreditoPanel clientName={clienteNombre} variant="compact" />;
+  return <CreditoPanel clientName={clienteNombre} variant={variant} />;
 }
 
 function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
@@ -7848,7 +7839,7 @@ function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?
     updateDueDate.mutate(new Date(isSeguimiento ? `${dateValue}T12:00:00` : dateValue).toISOString());
   };
   return (
-    <div className="flex items-center gap-x-6 gap-y-2 mt-3 flex-wrap pl-[52px]">
+    <div className="flex items-center gap-x-4 sm:gap-x-6 gap-y-2 mt-3 flex-wrap pl-0 sm:pl-[52px]">
       {task.clienteNombre && (
         <div className="flex items-center gap-1.5 text-sm min-w-0">
           <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />

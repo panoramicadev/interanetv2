@@ -52,6 +52,7 @@ import {
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
 import { ComunaSelect } from "@/components/shared/comuna-select";
+import { CreditoPanel, useCredito, type CreditoResponse } from "@/components/clients/credito-panel";
 
 // Constructor de presupuesto del Tomador 2, en modo modal embebido (se
 // abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
@@ -138,6 +139,54 @@ function parseEtiquetas(raw: unknown): string[] {
   }
 }
 
+// ─── Semáforo de cobranza ─────────────────────────────────────────────
+// Rojo / amarillo / verde según cómo está el cliente con sus pagos, para
+// decidir de un vistazo si conviene salir a venderle. Los montos son los del
+// mismo panel de crédito (documentos pendientes del ERP), no un cálculo aparte.
+type SemaforoDeuda = {
+  nivel: "rojo" | "amarillo" | "verde";
+  label: string;
+  detalle: string | null;
+  punto: string;
+  chip: string;
+  badge: string;
+};
+
+function semaforoDeCobranza(credito: CreditoResponse | undefined): SemaforoDeuda | null {
+  // Sin ficha en el ERP no se sabe nada de su deuda: un "verde" mentiría.
+  if (!credito?.client) return null;
+  const { overdue, upcoming, used, exceeded } = credito.credit;
+
+  if (overdue > 0 || exceeded) {
+    return {
+      nivel: "rojo",
+      label: overdue > 0 ? "Deuda vencida" : "Crédito excedido",
+      detalle: formatCLP(overdue > 0 ? overdue : used),
+      punto: "bg-red-500",
+      chip: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400",
+      badge: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400",
+    };
+  }
+  if (used > 0 || upcoming > 0) {
+    return {
+      nivel: "amarillo",
+      label: "Deuda por vencer",
+      detalle: formatCLP(upcoming > 0 ? upcoming : used),
+      punto: "bg-amber-400",
+      chip: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+      badge: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+    };
+  }
+  return {
+    nivel: "verde",
+    label: "Sin deuda",
+    detalle: null,
+    punto: "bg-emerald-500",
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+  };
+}
+
 // ─── Página de detalle ────────────────────────────────────────────────
 export default function SeguimientoClienteDetalle() {
   const { user } = useAuth();
@@ -188,6 +237,9 @@ export default function SeguimientoClienteDetalle() {
   const [etiquetaInput, setEtiquetaInput] = useState("");
   // Constructor de presupuesto embebido (etapa "Cotización")
   const [showCotizador, setShowCotizador] = useState(false);
+  // Pestaña activa del bloque inferior; el chip de deuda del encabezado salta a Cobranza.
+  const [tabInferior, setTabInferior] = useState("pedidos");
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Cortar el reconocimiento de voz si se desmonta la página
   useEffect(() => {
@@ -216,6 +268,16 @@ export default function SeguimientoClienteDetalle() {
     },
     enabled: isAdminOrSupervisor,
   });
+
+  // ─── Crédito / cobranza ─────────────────────────────────────────
+  // Mismo endpoint y mismo panel que la pestaña Crédito de la ficha del cliente:
+  // en Seguimiento se estaba saliendo a vender sin ver que el cliente debía.
+  // El nombre que entiende el ERP es el de la ficha vinculada (nokoen); si no hay
+  // vínculo se prueba con el nombre del CRM y el RUT.
+  const creditoNombre = client?.clienteVinculado?.nokoen || client?.empresa || client?.nombre || null;
+  const { data: credito } = useCredito(creditoNombre, client?.rut);
+  // Semáforo de la deuda: de un vistazo, si conviene o no salir a venderle.
+  const semaforoDeuda = semaforoDeCobranza(credito);
 
   // ─── Bitácora ───────────────────────────────────────────────────
   // El documentoId efectivo cambia cuando se vincula un RUT (clienteId se
@@ -907,6 +969,24 @@ export default function SeguimientoClienteDetalle() {
                     <Clock className="w-3 h-3" />
                     Últ. contacto: {timeAgo(client.ultimoContacto)}
                   </span>
+                  {/* Semáforo de cobranza: antes había que entrar a Clientes para
+                      enterarse de que el cliente al que se le iba a vender debía. */}
+                  {semaforoDeuda && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTabInferior("cobranza");
+                        tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${semaforoDeuda.chip}`}
+                      title="Ver el detalle en la pestaña Cobranza"
+                      data-testid={`chip-semaforo-deuda-${semaforoDeuda.nivel}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${semaforoDeuda.punto}`} />
+                      {semaforoDeuda.label}
+                      {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1849,13 +1929,19 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras ═══ */}
+        {/* ═══ Pestañas: Pedidos / NVV / Cobranza / RUT-Compras ═══ */}
         {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
-        <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
-          <Tabs defaultValue="pedidos" className="w-full">
-            <TabsList className="w-full grid grid-cols-3 h-auto">
+        <div ref={tabsRef} className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 scroll-mt-4">
+          <Tabs value={tabInferior} onValueChange={setTabInferior} className="w-full">
+            <TabsList className="w-full grid grid-cols-4 h-auto">
               <TabsTrigger value="pedidos" className="text-xs px-1.5">Pedidos</TabsTrigger>
               <TabsTrigger value="nvv" className="text-xs px-1.5">NVV</TabsTrigger>
+              <TabsTrigger value="cobranza" className="text-xs px-1.5 gap-1.5">
+                Cobranza
+                {semaforoDeuda && (
+                  <span className={`h-2 w-2 rounded-full ${semaforoDeuda.punto}`} title={semaforoDeuda.label} />
+                )}
+              </TabsTrigger>
               <TabsTrigger value="rut" className="text-xs px-1.5">
                 <span className="sm:hidden">RUT</span>
                 <span className="hidden sm:inline">RUT / Compras</span>
@@ -1870,6 +1956,59 @@ export default function SeguimientoClienteDetalle() {
             {/* ─── NVV ─── */}
             <TabsContent value="nvv" className="mt-4">
               <NVVTab client={client} />
+            </TabsContent>
+
+            {/* ─── Cobranza ─── */}
+            {/* Es el MISMO panel (y la misma query) que la pestaña Crédito de la
+                ficha del cliente, para que Seguimiento y Clientes no muestren
+                cifras distintas del mismo cliente. */}
+            <TabsContent value="cobranza" className="mt-4 space-y-3" data-testid="tab-cobranza">
+              {/* Etiqueta del semáforo: el mismo estado que se ve en el encabezado,
+                  con la lectura en palabras de lo que dicen los números de abajo. */}
+              {semaforoDeuda && (
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${semaforoDeuda.badge}`}
+                  data-testid={`badge-semaforo-deuda-${semaforoDeuda.nivel}`}
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${semaforoDeuda.punto}`} />
+                  {semaforoDeuda.label}
+                  {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
+                  <span className="font-normal opacity-70">
+                    {semaforoDeuda.nivel === "rojo"
+                      ? "· cobrar antes de vender"
+                      : semaforoDeuda.nivel === "amarillo"
+                        ? "· al día, con documentos por vencer"
+                        : "· sin documentos pendientes"}
+                  </span>
+                </div>
+              )}
+              {creditoNombre || client.rut ? (
+                <CreditoPanel
+                  clientName={creditoNombre}
+                  rut={client.rut}
+                  footer={
+                    // "Enviar cobranza" vive en la ficha de Clientes (con su flujo de
+                    // correo); desde acá se salta allá en vez de duplicarlo.
+                    creditoNombre && (credito?.docs.length ?? 0) > 0 ? (
+                      <div className="pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/client/${encodeURIComponent(creditoNombre)}`)}
+                          className="w-full rounded-2xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
+                          data-testid="btn-ir-a-cobranza"
+                        >
+                          <Send className="w-3.5 h-3.5 mr-2" /> Gestionar cobranza en Clientes
+                        </Button>
+                      </div>
+                    ) : null
+                  }
+                />
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Vincula un RUT para ver la cobranza de este cliente.
+                </p>
+              )}
             </TabsContent>
 
             {/* ─── RUT / Compras ─── */}

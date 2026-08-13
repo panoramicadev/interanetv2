@@ -14766,19 +14766,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Eliminar un comentario del hilo único: el autor puede borrar el suyo; el admin, cualquiera.
-  app.delete('/api/tasks/:taskId/comments/:commentId', requireAuth, async (req: any, res) => {
-    try {
-      if (req.user.role === 'admin') {
-        await storage.deleteTaskCommentById(req.params.commentId);
-      } else {
-        await storage.deleteTaskComment(req.params.commentId, req.user.id);
-      }
-      res.json({ message: "Comment deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting task comment:", error);
-      res.status(500).json({ message: "Failed to delete comment" });
-    }
+  // La conversación de la tarea es la bitácora del cliente: no se borra. Antes el
+  // autor podía borrar lo suyo y el admin cualquier mensaje, y así se perdían
+  // acuerdos con el cliente sin dejar rastro. Se responde 403 (y la UI ya no
+  // ofrece el botón) en vez de sacar la ruta, para que un cliente viejo cacheado
+  // reciba un mensaje claro y no un 404.
+  app.delete('/api/tasks/:taskId/comments/:commentId', requireAuth, async (_req: any, res) => {
+    res.status(403).json({ message: "Los mensajes de la bitácora no se pueden eliminar." });
   });
 
   // Get comments for an assignment
@@ -14840,18 +14834,9 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Delete a comment (only author can delete)
-  app.delete('/api/tasks/:taskId/assignments/:assignmentId/comments/:commentId', requireAuth, async (req: any, res) => {
-    try {
-      const { commentId } = req.params;
-      const user = req.user;
-
-      await storage.deleteTaskComment(commentId, user.id);
-      res.json({ message: "Comment deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting comment:", error);
-      res.status(500).json({ message: "Failed to delete comment" });
-    }
+  // Los comentarios por asignación son la misma bitácora: tampoco se borran.
+  app.delete('/api/tasks/:taskId/assignments/:assignmentId/comments/:commentId', requireAuth, async (_req: any, res) => {
+    res.status(403).json({ message: "Los comentarios de la bitácora no se pueden eliminar." });
   });
 
   // ==================================================================================
