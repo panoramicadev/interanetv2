@@ -11,13 +11,11 @@
  * ajustado, que es la base con la que el módulo calcula en pantalla.
  */
 import ExcelJS from "exceljs";
+import { diasSemanaCorrida } from "./feriados-chile";
 import fs from "fs";
 import path from "path";
 
 const EMPRESA = "PINTURERIA PANORAMICA LTDA.";
-// Días del mes y días de semana corrida del cálculo histórico de la planilla.
-const DIAS_MES = 22;
-const DIAS_SEMANA_CORRIDA = 5;
 
 const MONEDA = '_ "$"* #,##0_ ;_ "$"* -#,##0_ ;_ "$"* "-"_ ;_ @_ ';
 const PORCENTAJE = "0%";
@@ -111,6 +109,8 @@ function agregarHojaLiquidacion(
   item: any,
   clientes: any[],
   periodo: string,
+  startDate: string,
+  endDate: string,
   logo: { id: number; alto: number } | null,
   usados: Set<string>,
 ) {
@@ -216,12 +216,18 @@ function agregarHojaLiquidacion(
   ws.getCell(filaComision, 6).value = item.commissionPct / 100;
   ws.getCell(filaComision, 7).value = { formula: `E${filaComision}*F${filaComision}`, result: comision };
 
+  // Días del período, no constantes: el divisor y el multiplicador cambian mes a
+  // mes según dónde caen los domingos y los feriados — ver server/feriados-chile.ts.
+  const dsc = diasSemanaCorrida(startDate, endDate);
   ws.getCell(filaSemana, 4).value = "SEMANA CORRIDA";
-  ws.getCell(filaSemana, 5).value = { formula: `G${filaComision}/${DIAS_MES}`, result: comision / DIAS_MES };
-  ws.getCell(filaSemana, 6).value = DIAS_SEMANA_CORRIDA;
+  ws.getCell(filaSemana, 5).value = {
+    formula: `G${filaComision}/${dsc.diasLaborables}`,
+    result: comision / dsc.diasLaborables,
+  };
+  ws.getCell(filaSemana, 6).value = dsc.domingosYFestivos;
   ws.getCell(filaSemana, 7).value = {
     formula: `F${filaSemana}*E${filaSemana}`,
-    result: (comision / DIAS_MES) * DIAS_SEMANA_CORRIDA,
+    result: (comision / dsc.diasLaborables) * dsc.domingosYFestivos,
   };
 
   for (const f of [filaComision, filaSemana]) {
@@ -291,7 +297,7 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     const suyos = clients
       .filter((c) => c.salesperson === item.salesperson)
       .sort((a, b) => String(a.rut || "").localeCompare(String(b.rut || "")));
-    agregarHojaLiquidacion(wb, item, suyos, periodo, logo, usados);
+    agregarHojaLiquidacion(wb, item, suyos, periodo, data.startDate, data.endDate, logo, usados);
   }
 
   // ── Respaldo: los mismos números que muestra la pantalla ──
