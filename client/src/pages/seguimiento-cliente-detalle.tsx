@@ -52,7 +52,7 @@ import {
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
 import { ComunaSelect } from "@/components/shared/comuna-select";
-import { CreditoPanel, useCredito } from "@/components/clients/credito-panel";
+import { CreditoPanel, useCredito, type CreditoResponse } from "@/components/clients/credito-panel";
 
 // Constructor de presupuesto del Tomador 2, en modo modal embebido (se
 // abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
@@ -137,6 +137,54 @@ function parseEtiquetas(raw: unknown): string[] {
   } catch {
     return [];
   }
+}
+
+// ─── Semáforo de cobranza ─────────────────────────────────────────────
+// Rojo / amarillo / verde según cómo está el cliente con sus pagos, para
+// decidir de un vistazo si conviene salir a venderle. Los montos son los del
+// mismo panel de crédito (documentos pendientes del ERP), no un cálculo aparte.
+type SemaforoDeuda = {
+  nivel: "rojo" | "amarillo" | "verde";
+  label: string;
+  detalle: string | null;
+  punto: string;
+  chip: string;
+  badge: string;
+};
+
+function semaforoDeCobranza(credito: CreditoResponse | undefined): SemaforoDeuda | null {
+  // Sin ficha en el ERP no se sabe nada de su deuda: un "verde" mentiría.
+  if (!credito?.client) return null;
+  const { overdue, upcoming, used, exceeded } = credito.credit;
+
+  if (overdue > 0 || exceeded) {
+    return {
+      nivel: "rojo",
+      label: overdue > 0 ? "Deuda vencida" : "Crédito excedido",
+      detalle: formatCLP(overdue > 0 ? overdue : used),
+      punto: "bg-red-500",
+      chip: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400",
+      badge: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400",
+    };
+  }
+  if (used > 0 || upcoming > 0) {
+    return {
+      nivel: "amarillo",
+      label: "Deuda por vencer",
+      detalle: formatCLP(upcoming > 0 ? upcoming : used),
+      punto: "bg-amber-400",
+      chip: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+      badge: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+    };
+  }
+  return {
+    nivel: "verde",
+    label: "Sin deuda",
+    detalle: null,
+    punto: "bg-emerald-500",
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+  };
 }
 
 // ─── Página de detalle ────────────────────────────────────────────────
@@ -228,7 +276,8 @@ export default function SeguimientoClienteDetalle() {
   // vínculo se prueba con el nombre del CRM y el RUT.
   const creditoNombre = client?.clienteVinculado?.nokoen || client?.empresa || client?.nombre || null;
   const { data: credito } = useCredito(creditoNombre, client?.rut);
-  const deudaVencida = credito?.credit.overdue ?? 0;
+  // Semáforo de la deuda: de un vistazo, si conviene o no salir a venderle.
+  const semaforoDeuda = semaforoDeCobranza(credito);
 
   // ─── Bitácora ───────────────────────────────────────────────────
   // El documentoId efectivo cambia cuando se vincula un RUT (clienteId se
@@ -920,21 +969,22 @@ export default function SeguimientoClienteDetalle() {
                     <Clock className="w-3 h-3" />
                     Últ. contacto: {timeAgo(client.ultimoContacto)}
                   </span>
-                  {/* Deuda vencida a la vista: antes había que entrar a Clientes
-                      para enterarse de que el cliente al que se le iba a vender debía. */}
-                  {deudaVencida > 0 && (
+                  {/* Semáforo de cobranza: antes había que entrar a Clientes para
+                      enterarse de que el cliente al que se le iba a vender debía. */}
+                  {semaforoDeuda && (
                     <button
                       type="button"
                       onClick={() => {
                         setTabInferior("cobranza");
                         tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${semaforoDeuda.chip}`}
                       title="Ver el detalle en la pestaña Cobranza"
-                      data-testid="chip-deuda-vencida"
+                      data-testid={`chip-semaforo-deuda-${semaforoDeuda.nivel}`}
                     >
-                      <AlertTriangle className="w-3 h-3" />
-                      Debe {formatCLP(deudaVencida)} vencidos
+                      <span className={`w-2 h-2 rounded-full ${semaforoDeuda.punto}`} />
+                      {semaforoDeuda.label}
+                      {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
                     </button>
                   )}
                 </div>
@@ -1886,9 +1936,11 @@ export default function SeguimientoClienteDetalle() {
             <TabsList className="w-full grid grid-cols-4 h-auto">
               <TabsTrigger value="pedidos" className="text-xs px-1.5">Pedidos</TabsTrigger>
               <TabsTrigger value="nvv" className="text-xs px-1.5">NVV</TabsTrigger>
-              <TabsTrigger value="cobranza" className="text-xs px-1.5 gap-1">
+              <TabsTrigger value="cobranza" className="text-xs px-1.5 gap-1.5">
                 Cobranza
-                {deudaVencida > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="Con deuda vencida" />}
+                {semaforoDeuda && (
+                  <span className={`h-2 w-2 rounded-full ${semaforoDeuda.punto}`} title={semaforoDeuda.label} />
+                )}
               </TabsTrigger>
               <TabsTrigger value="rut" className="text-xs px-1.5">
                 <span className="sm:hidden">RUT</span>
@@ -1910,7 +1962,26 @@ export default function SeguimientoClienteDetalle() {
             {/* Es el MISMO panel (y la misma query) que la pestaña Crédito de la
                 ficha del cliente, para que Seguimiento y Clientes no muestren
                 cifras distintas del mismo cliente. */}
-            <TabsContent value="cobranza" className="mt-4" data-testid="tab-cobranza">
+            <TabsContent value="cobranza" className="mt-4 space-y-3" data-testid="tab-cobranza">
+              {/* Etiqueta del semáforo: el mismo estado que se ve en el encabezado,
+                  con la lectura en palabras de lo que dicen los números de abajo. */}
+              {semaforoDeuda && (
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${semaforoDeuda.badge}`}
+                  data-testid={`badge-semaforo-deuda-${semaforoDeuda.nivel}`}
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${semaforoDeuda.punto}`} />
+                  {semaforoDeuda.label}
+                  {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
+                  <span className="font-normal opacity-70">
+                    {semaforoDeuda.nivel === "rojo"
+                      ? "· cobrar antes de vender"
+                      : semaforoDeuda.nivel === "amarillo"
+                        ? "· al día, con documentos por vencer"
+                        : "· sin documentos pendientes"}
+                  </span>
+                </div>
+              )}
               {creditoNombre || client.rut ? (
                 <CreditoPanel
                   clientName={creditoNombre}
