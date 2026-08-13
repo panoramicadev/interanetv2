@@ -225,6 +225,20 @@ export async function userHasPermission(
 }
 
 /**
+ * ¿Puede este usuario escribir sobre precios? Cubre lista comercial, listas
+ * personalizadas (Mix, MCT, Store…) y ofertas: crear, editar, borrar, ajuste
+ * masivo e importación. Antes era un chequeo de rol fijo
+ * (admin/supervisor/encargado_area); ahora vive en el permiso
+ * "precios.editar", que se prende o apaga por rol o por usuario desde
+ * Configuración → Roles y Permisos.
+ */
+export async function canEditPricing(
+  user: { email?: string | null; role?: string | null } | null | undefined,
+): Promise<boolean> {
+  return userHasPermission(user, "precios.editar");
+}
+
+/**
  * Middleware: exige que el usuario tenga el permiso indicado, combinando
  * los permisos de su rol con sus overrides personales. Úsalo además de
  * requireAuth/requireRoles en endpoints de módulos cuya visibilidad es

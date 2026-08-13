@@ -13,6 +13,9 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   DollarSign, ChevronDown, ChevronRight, Users, FileText, Download, Percent, RotateCcw,
   Receipt, TrendingUp, Truck, Scale, BadgeDollarSign, SlidersHorizontal, Search, X,
   type LucideIcon,
@@ -68,20 +71,6 @@ interface SalespersonDetail {
   defaultPct: number; defaultFletePct: number;
   clients: DetailClient[]; documents: DetailDocument[];
 }
-interface ExportLine {
-  fecha: string; tido: string; isCreditNote: boolean; document: string; numero: string;
-  salesperson: string; client: string; sku: string; producto: string;
-  cantidad: number; revenue: number; cost: number; margin: number; esFlete: boolean;
-}
-interface CommissionExport {
-  startDate: string; endDate: string; defaultFletePct: number;
-  summary: CommissionSummary;
-  clients: (DetailClient & { salesperson: string })[];
-  documents: (DetailDocument & { salesperson: string })[];
-  lines: ExportLine[];
-  linesTruncated: boolean;
-  lineLimit: number;
-}
 
 // ─── Encabezado de columna con su explicación ───
 // Cada columna del módulo dice de dónde sale su número: son cifras que terminan
@@ -118,123 +107,6 @@ function ColHead({ children, className }: { children: string; className?: string
   );
 }
 
-// ─── Hoja de liquidación por vendedor (formato que usa Finanzas) ───
-// Todo va en FÓRMULAS, no en valores calculados: finanzas edita el % de flete,
-// el % de comisión o los festivos del mes y la planilla recalcula sola. Los
-// parámetros editables van en amarillo, igual que en la planilla que ya usan.
-//
-// La regularización de flete se aplica DOCUMENTO A DOCUMENTO, con el piso
-// espejado de las notas de crédito (factura: nunca acredita; NC: nunca
-// castiga), que es como lo calcula el módulo. Sumar primero y aplicar el piso
-// al total daría otro número.
-function buildLiquidacionSheet(
-  XLSX: any,
-  salesperson: string,
-  docs: DetailDocument[],
-  startDate: string,
-  endDate: string,
-  commissionPct: number,
-) {
-  const rows: any[][] = [];
-  const fmtNum = "#,##0";
-
-  rows.push(["PINTURERIA PANORAMICA LTDA."]);
-  rows.push([salesperson]);
-  rows.push([`Período: ${formatFecha(startDate)} al ${formatFecha(endDate)}`]);
-  rows.push([]);
-  rows.push(["Tipo", "Documento", "Fecha", "Cliente", "Venta neta", "Costo", "Margen",
-             "Flete cobrado", "% Flete", "Flete objetivo", "Reg. flete", "Margen ajustado"]);
-
-  const first = rows.length + 1; // 1-indexed para las fórmulas
-  for (const d of docs) {
-    const r = rows.length + 1;
-    rows.push([
-      d.tido,
-      d.numero,
-      formatFecha(d.fecha),
-      d.client,
-      Math.round(d.revenue),
-      Math.round(d.cost),
-      { f: `E${r}-F${r}`, z: fmtNum },
-      Math.round(d.fleteCobrado),
-      d.fleteEffectivePct,
-      { f: `E${r}*I${r}/100`, z: fmtNum },
-      // Piso espejado: la NC devuelve la regularización, nunca vuelve a castigar
-      { f: `IF(E${r}>=0,MAX(0,J${r}-H${r}),MIN(0,J${r}-H${r}))`, z: fmtNum },
-      { f: `G${r}-K${r}`, z: fmtNum },
-    ]);
-  }
-  const last = rows.length;
-  const sum = (col: string) => ({ f: `SUM(${col}${first}:${col}${last})`, z: fmtNum });
-
-  rows.push(["TOTAL", "", "", "", sum("E"), sum("F"), sum("G"), sum("H"), "", sum("J"), sum("K"), sum("L")]);
-  const totalRow = rows.length;
-  rows.push([]);
-
-  const label = (t: string, cell: any, note?: string) => {
-    rows.push(["", "", "", t, cell, note || ""]);
-    return rows.length;
-  };
-
-  const rVenta  = label("Venta neta",      { f: `E${totalRow}`, z: fmtNum });
-  const rCosto  = label("Costo",           { f: `F${totalRow}`, z: fmtNum });
-  const rMargen = label("Margen",          { f: `G${totalRow}`, z: fmtNum });
-  label("% Margen", { f: `IF(E${rVenta}=0,0,E${rMargen}/E${rVenta})`, z: "0.0%" });
-  const rReg    = label("Regularización flete", { f: `K${totalRow}`, z: fmtNum }, "suma del déficit documento a documento");
-  const rMajus  = label("Margen ajustado", { f: `E${rMargen}-E${rReg}`, z: fmtNum }, "base de la comisión");
-  rows.push([]);
-
-  const rPct    = label("% Comisión", commissionPct, "editable");
-  const rCom    = label("Comisión",   { f: `E${rMajus}*E${rPct}/100`, z: fmtNum });
-  rows.push([]);
-
-  // Semana corrida (Art. 45 del Código del Trabajo): el promedio diario de lo
-  // devengado se paga por cada domingo y festivo del período. Los festivos van
-  // a mano — son legales, cambian cada año y varios se trasladan.
-  const d0 = new Date(startDate + "T00:00:00");
-  const d1 = new Date(endDate + "T00:00:00");
-  let dias = 0, domingos = 0, sabados = 0;
-  for (const d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
-    dias++;
-    if (d.getDay() === 0) domingos++;
-    if (d.getDay() === 6) sabados++;
-  }
-  rows.push(["", "", "", "SEMANA CORRIDA (Art. 45 C. del Trabajo)"]);
-  const rDias = label("Días del período",   dias);
-  const rDom  = label("Domingos",           domingos);
-  const rSab  = label("Sábados no laborables", sabados, "0 si la jornada incluye el sábado");
-  // Dos casillas distintas a propósito. Un festivo que cae sábado o domingo ya
-  // está descontado del divisor: volver a restarlo lo descuenta dos veces. Pero
-  // sí suma al multiplicador, porque igual es un día que se paga.
-  const rFerH = label("Festivos en día laborable", 0, "editable — solo los que caen de lunes a viernes");
-  const rFer  = label("Festivos del período",      0, "editable — todos los feriados legales del mes");
-  const rLab  = label("Días laborables",    { f: `E${rDias}-E${rDom}-E${rSab}-E${rFerH}` }, "divisor");
-  const rDF   = label("Domingos + festivos", { f: `E${rDom}+E${rFer}` }, "multiplicador");
-  const rSC   = label("Semana corrida", { f: `IF(E${rLab}=0,0,E${rCom}/E${rLab}*E${rDF})`, z: fmtNum });
-  rows.push([]);
-  const rTot  = label("TOTAL A PAGAR", { f: `E${rCom}+E${rSC}`, z: fmtNum });
-  rows.push([]);
-  rows.push([]);
-  rows.push(["", "", "", "FIRMA TRABAJADOR", "", "FIRMA EMPLEADOR"]);
-
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [{ wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 34 }, { wch: 16 },
-                 { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 9 }, { wch: 14 },
-                 { wch: 14 }, { wch: 16 }];
-  // Amarillo en lo que finanzas puede editar: % de flete por documento,
-  // % de comisión, sábados y festivos.
-  const editables = [`E${rPct}`, `E${rSab}`, `E${rFerH}`, `E${rFer}`];
-  for (let r = first; r <= last; r++) editables.push(`I${r}`);
-  for (const ref of editables) {
-    if (!ws[ref]) continue;
-    ws[ref].s = { fill: { fgColor: { rgb: "FFFF00" } } };
-  }
-  for (const ref of [`E${rTot}`, `E${rCom}`, `E${rSC}`]) {
-    if (ws[ref]) ws[ref].s = { font: { bold: true } };
-  }
-  return ws;
-}
-
 // ─── Helpers de fecha ───
 function pad(n: number) { return String(n).padStart(2, "0"); }
 function isoDate(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -254,6 +126,22 @@ function yearRange() {
   const now = new Date();
   return { startDate: `${now.getFullYear()}-01-01`, endDate: isoDate(now) };
 }
+function sumTotals(items: CommissionItem[]): CommissionTotals {
+  return items.reduce<CommissionTotals>((acc, it) => ({
+    netRevenue: acc.netRevenue + it.netRevenue,
+    netMargin: acc.netMargin + it.netMargin,
+    fleteObjetivo: acc.fleteObjetivo + it.fleteObjetivo,
+    fleteCobrado: acc.fleteCobrado + it.fleteCobrado,
+    fleteDeficit: acc.fleteDeficit + it.fleteDeficit,
+    marginAdjusted: acc.marginAdjusted + it.marginAdjusted,
+    commissionAmount: acc.commissionAmount + it.commissionAmount,
+    commissionRaw: acc.commissionRaw + it.commissionRaw,
+  }), {
+    netRevenue: 0, netMargin: 0, fleteObjetivo: 0, fleteCobrado: 0,
+    fleteDeficit: 0, marginAdjusted: 0, commissionAmount: 0, commissionRaw: 0,
+  });
+}
+
 function formatFecha(s: string | null | undefined) {
   if (!s) return "—";
   const d = new Date(s);
@@ -264,6 +152,7 @@ function formatFecha(s: string | null | undefined) {
 export default function Comisiones() {
   const { toast } = useToast();
   const [{ startDate, endDate }, setRange] = useState(currentMonthRange());
+  const [vendedor, setVendedor] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   // Buffer local del % que se está editando por vendedor
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({});
@@ -320,7 +209,27 @@ export default function Comisiones() {
     onError: (e: any) => toast({ title: "Error", description: e?.message || "No se pudo guardar la tasa de flete", variant: "destructive" }),
   });
 
-  const items = summary?.items || [];
+  const allItems = summary?.items || [];
+  const items = useMemo(
+    () => (vendedor === "all" ? allItems : allItems.filter((it) => it.salesperson === vendedor)),
+    [allItems, vendedor],
+  );
+
+  // Con un vendedor filtrado, los KPIs y el pie de la tabla tienen que mostrar
+  // lo que se ve en pantalla, no el total del período.
+  const totals: CommissionTotals | undefined = useMemo(() => {
+    if (vendedor === "all") return summary?.totals;
+    if (!summary) return undefined;
+    return sumTotals(items);
+  }, [summary, items, vendedor]);
+
+  // Si el vendedor filtrado no vendió en el período nuevo, igual se muestra en
+  // la lista para que el filtro no quede con un valor invisible.
+  const vendedorOptions = useMemo(() => {
+    const names = allItems.map((it) => it.salesperson);
+    if (vendedor !== "all" && !names.includes(vendedor)) names.push(vendedor);
+    return names;
+  }, [allItems, vendedor]);
 
   const commitPct = (salesperson: string, current: number) => {
     const raw = pctDraft[salesperson];
@@ -335,144 +244,34 @@ export default function Comisiones() {
     savePct.mutate({ salespersonName: salesperson, commissionPct: value });
   };
 
-  // Export a Excel: pide al servidor el volcado completo del período y arma un
-  // libro con Resumen + Clientes + Documentos + Líneas.
+  // Export a Excel: el servidor arma el libro (una hoja de liquidación por
+  // vendedor, con el formato que se firma, más las hojas de respaldo).
   const [exporting, setExporting] = useState(false);
   const exportExcel = async () => {
     if (!items.length || exporting) return;
     setExporting(true);
     try {
-      const res = await fetch(
-        `/api/hr/commissions/export?startDate=${startDate}&endDate=${endDate}`,
-        { credentials: "include" },
-      );
+      const params = new URLSearchParams({ startDate, endDate });
+      if (vendedor !== "all") params.set("salesperson", vendedor);
+      const res = await fetch(`/api/hr/commissions/export.xlsx?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("No se pudo generar la exportación");
-      const data: CommissionExport = await res.json();
-      const XLSX = await import("xlsx");
-      const round = (n: number) => Math.round(n);
-      const wb = XLSX.utils.book_new();
 
-      // Hoja 1 — Resumen por vendedor
-      const resumen = data.summary.items.map((it) => ({
-        "Vendedor": it.salesperson,
-        "Facturado neto (FCV − NCV)": round(it.netRevenue),
-        "Costo neto": round(it.netCost),
-        "Margen neto": round(it.netMargin),
-        "% Margen": Number(it.netMarginPct.toFixed(2)),
-        "Flete cobrado": round(it.fleteCobrado),
-        "Flete objetivo": round(it.fleteObjetivo),
-        "Regularización flete": round(it.fleteDeficit),
-        "Margen ajustado": round(it.marginAdjusted),
-        "% Comisión": it.commissionPct,
-        "Comisión calculada": round(it.commissionRaw),
-        "Comisión a pagar": round(it.commissionAmount),
-      }));
-      const t = data.summary.totals;
-      resumen.push({
-        "Vendedor": "TOTAL",
-        "Facturado neto (FCV − NCV)": round(t.netRevenue),
-        "Costo neto": round(t.netRevenue - t.netMargin),
-        "Margen neto": round(t.netMargin),
-        "% Margen": t.netRevenue !== 0 ? Number(((t.netMargin / t.netRevenue) * 100).toFixed(2)) : 0,
-        "Flete cobrado": round(t.fleteCobrado),
-        "Flete objetivo": round(t.fleteObjetivo),
-        "Regularización flete": round(t.fleteDeficit),
-        "Margen ajustado": round(t.marginAdjusted),
-        "% Comisión": "",
-        "Comisión calculada": round(t.commissionRaw),
-        "Comisión a pagar": round(t.commissionAmount),
-      } as any);
-      const wsResumen = XLSX.utils.json_to_sheet(resumen);
-      wsResumen["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
-        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 16 }];
-      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = match?.[1] || `comisiones_${startDate}_${endDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
 
-      // Hoja 2 — Clientes de cada vendedor
-      const wsClientes = XLSX.utils.json_to_sheet(data.clients.map((c) => ({
-        "Vendedor": c.salesperson,
-        "Cliente": c.client,
-        "Facturado neto": round(c.revenue),
-        "Costo": round(c.cost),
-        "Margen": round(c.margin),
-        "Flete cobrado": round(c.fleteCobrado),
-        "% Flete": c.fleteEffectivePct,
-        "Flete objetivo": round(c.fleteObjetivo),
-        "Regularización flete": round(c.fleteDeficit),
-        "Margen ajustado": round(c.marginAdjusted),
-        "% Comisión": c.effectivePct,
-        "Comisión": round(c.marginAdjusted * c.effectivePct / 100),
-        "Líneas": c.lineCount,
-      })));
-      wsClientes["!cols"] = [{ wch: 28 }, { wch: 34 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-        { wch: 14 }, { wch: 9 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
-      XLSX.utils.book_append_sheet(wb, wsClientes, "Clientes");
-
-      // Hoja 3 — Documento por documento (facturas y notas de crédito)
-      const wsDocs = XLSX.utils.json_to_sheet(data.documents.map((d) => ({
-        "Vendedor": d.salesperson,
-        "Tipo": d.tido,
-        "Documento": d.numero,
-        "Fecha": formatFecha(d.fecha),
-        "Cliente": d.client,
-        "Neto": round(d.revenue),
-        "Costo": round(d.cost),
-        "Margen": round(d.margin),
-        "Flete cobrado": round(d.fleteCobrado),
-        "% Flete": d.fleteEffectivePct,
-        "Flete objetivo": round(d.fleteObjetivo),
-        "Regularización flete": round(d.fleteDeficit),
-        "Margen ajustado": round(d.marginAdjusted),
-        "% Comisión": d.effectivePct,
-        "Comisión": round(d.marginAdjusted * d.effectivePct / 100),
-        "Líneas": d.lineCount,
-      })));
-      wsDocs["!cols"] = [{ wch: 28 }, { wch: 7 }, { wch: 12 }, { wch: 12 }, { wch: 34 },
-        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 9 }, { wch: 14 },
-        { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
-      XLSX.utils.book_append_sheet(wb, wsDocs, "Documentos");
-
-      // Hoja 4 — Detalle línea a línea
-      const wsLineas = XLSX.utils.json_to_sheet(data.lines.map((l) => ({
-        "Fecha": formatFecha(l.fecha),
-        "Tipo": l.tido,
-        "Documento": l.numero,
-        "Vendedor": l.salesperson,
-        "Cliente": l.client,
-        "SKU": l.sku,
-        "Producto": l.producto,
-        "Es flete": l.esFlete ? "Sí" : "",
-        "Cantidad": l.cantidad,
-        "Neto": round(l.revenue),
-        "Costo": round(l.cost),
-        "Margen": round(l.margin),
-      })));
-      wsLineas["!cols"] = [{ wch: 12 }, { wch: 7 }, { wch: 12 }, { wch: 28 }, { wch: 34 },
-        { wch: 14 }, { wch: 40 }, { wch: 9 }, { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
-      XLSX.utils.book_append_sheet(wb, wsLineas, "Líneas");
-
-      // Hoja de liquidación por vendedor — el documento que firma finanzas.
-      // Nombre corto y único: Excel corta en 31 caracteres y no admite repetidos.
-      const usados = new Set<string>();
-      for (const it of data.summary.items) {
-        const docsVendedor = data.documents.filter((d) => d.salesperson === it.salesperson);
-        if (!docsVendedor.length) continue;
-        let nombre = `L. ${it.salesperson}`.slice(0, 31);
-        let n = 2;
-        while (usados.has(nombre)) nombre = `${`L. ${it.salesperson}`.slice(0, 28)} ${n++}`;
-        usados.add(nombre);
-        XLSX.utils.book_append_sheet(
-          wb,
-          buildLiquidacionSheet(XLSX, it.salesperson, docsVendedor, data.startDate, data.endDate, it.commissionPct),
-          nombre,
-        );
-      }
-
-      XLSX.writeFile(wb, `comisiones_${startDate}_${endDate}.xlsx`);
-
-      if (data.linesTruncated) {
+      if (res.headers.get("X-Lines-Truncated") === "1") {
         toast({
           title: "Detalle de líneas recortado",
-          description: `El período supera las ${data.lineLimit.toLocaleString("es-CL")} líneas: la hoja "Líneas" trae solo las más recientes. Las otras tres hojas están completas.`,
+          description: 'El período trae demasiadas líneas: la hoja "Líneas" solo incluye las más recientes. Las demás hojas están completas.',
         });
       }
     } catch (e: any) {
@@ -520,6 +319,34 @@ export default function Comisiones() {
               <PresetButton active={activePreset === "last"} onClick={() => setRange(lastMonthRange())}>Mes anterior</PresetButton>
               <PresetButton active={activePreset === "year"} onClick={() => setRange(yearRange())}>Este año</PresetButton>
             </div>
+
+            {/* Filtro por vendedor */}
+            <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex-shrink-0 dark:bg-orange-950/40 dark:text-orange-300">
+                <Users className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                <Select value={vendedor} onValueChange={setVendedor}>
+                  <SelectTrigger
+                    className="h-5 border-0 shadow-none p-0 gap-2 w-auto min-w-[9rem] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los vendedores</SelectItem>
+                    {vendedorOptions.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {vendedor !== "all" && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-600"
+                  onClick={() => setVendedor("all")} title="Quitar el filtro de vendedor">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <div className="flex items-end gap-2 ml-auto">
               <div>
                 <label className="text-xs text-slate-500 block mb-1">Desde</label>
@@ -538,13 +365,13 @@ export default function Comisiones() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(summary?.totals.netRevenue)} loading={isLoading} accent="orange" />
-        <KpiCard icon={TrendingUp} label="Margen neto total" value={formatCLP(summary?.totals.netMargin)} loading={isLoading} />
-        <KpiCard icon={Truck} label="Regularización flete (4%)" value={formatCLP(summary?.totals.fleteDeficit)} loading={isLoading}
-          sub={summary ? `Cobrado ${formatCLP(summary.totals.fleteCobrado)} · objetivo ${formatCLP(summary.totals.fleteObjetivo)}` : undefined}
+        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(totals?.netRevenue)} loading={isLoading} accent="orange" />
+        <KpiCard icon={TrendingUp} label="Margen neto total" value={formatCLP(totals?.netMargin)} loading={isLoading} />
+        <KpiCard icon={Truck} label="Regularización flete (4%)" value={formatCLP(totals?.fleteDeficit)} loading={isLoading}
+          sub={totals ? `Cobrado ${formatCLP(totals.fleteCobrado)} · objetivo ${formatCLP(totals.fleteObjetivo)}` : undefined}
           accent="amber" showMinus />
-        <KpiCard icon={Scale} label="Margen ajustado (base comisión)" value={formatCLP(summary?.totals.marginAdjusted)} loading={isLoading} />
-        <KpiCard icon={BadgeDollarSign} label="Comisión total a pagar" value={formatCLP(summary?.totals.commissionAmount)} loading={isLoading}
+        <KpiCard icon={Scale} label="Margen ajustado (base comisión)" value={formatCLP(totals?.marginAdjusted)} loading={isLoading} />
+        <KpiCard icon={BadgeDollarSign} label="Comisión total a pagar" value={formatCLP(totals?.commissionAmount)} loading={isLoading}
           accent="emerald" />
       </div>
 
@@ -587,7 +414,9 @@ export default function Comisiones() {
                 {!isLoading && items.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center text-slate-500 py-10">
-                      No hay ventas facturadas en el período seleccionado.
+                      {vendedor !== "all"
+                        ? `${vendedor} no tiene ventas facturadas en el período seleccionado.`
+                        : "No hay ventas facturadas en el período seleccionado."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -705,17 +534,17 @@ export default function Comisiones() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={2} className="font-semibold">Total</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netRevenue)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(totals?.netRevenue)}</TableCell>
                     <TableCell></TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.netMargin)}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums text-slate-500">{formatCLP(summary?.totals.fleteCobrado)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(totals?.netMargin)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-slate-500">{formatCLP(totals?.fleteCobrado)}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
-                      <FleteDeficit value={summary?.totals.fleteDeficit || 0} />
+                      <FleteDeficit value={totals?.fleteDeficit || 0} />
                     </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(summary?.totals.marginAdjusted)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCLP(totals?.marginAdjusted)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right font-bold tabular-nums text-emerald-600">
-                      {formatCLP(summary?.totals.commissionAmount)}
+                      {formatCLP(totals?.commissionAmount)}
                     </TableCell>
                   </TableRow>
                 </TableFooter>
