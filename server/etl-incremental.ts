@@ -563,6 +563,10 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       // CORREGIDO: VANELI contiene el valor neto ya calculado (con signo correcto para NCV)
       // Calcular preuni retrocompatible usando CAPRCO1 (unidad principal)
       preuni: cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO) !== 0 ? cleanNumeric(row.VANELI) / cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO) : 0,
+      // Costo del documento: lo que de verdad costó ESA venta, congelado por el
+      // ERP al emitirla. Es la fuente de la verdad del costo — el snapshot GRI
+      // solo se usa cuando el documento no lo trae.
+      ppprpm: cleanNumeric(row.PPPRPM),
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
       feerli: row.FEERLI || null,
@@ -817,7 +821,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(NULL AS NUMERIC(20,0)),
         dd.feemli,
         dd.feerli,
-        CAST(NULL AS NUMERIC(18,6)),
+        dd.ppprpm,
         CAST(NULL AS NUMERIC(18,6)),
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS TEXT),

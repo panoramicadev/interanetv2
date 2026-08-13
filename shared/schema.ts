@@ -6731,6 +6731,9 @@ export const stgMaeddo = ventasSchema.table("stg_maeddo", {
   caprco1: numeric("caprco1", { precision: 18, scale: 4 }),
   caprco2: numeric("caprco2", { precision: 18, scale: 4 }),
   preuni: numeric("preuni", { precision: 18, scale: 6 }),
+  // Costo promedio ponderado del ERP al momento de la venta. Viene por UNIDAD 1
+  // (el galón), no por unidad 2 — ver server/costo-linea.ts.
+  ppprpm: numeric("ppprpm", { precision: 18, scale: 6 }),
   vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
   feemli: timestamp("feemli"),
   feerli: timestamp("feerli"),

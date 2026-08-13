@@ -38,7 +38,10 @@ function emitProgress(step: number, totalSteps: number, message: string, details
 }
 
 /**
- * ETL de Costos: extrae el último precio unitario de GRI (Bodega 006) por SKU
+ * ETL de Costos: extrae el último precio unitario de GRI (Bodega 006) por SKU.
+ * Excluye los códigos de concepto (ZZ*: fletes, servicios, descuentos): no son
+ * mercadería y su "precio" contamina el costo — ZZSERVICIOS llegó a arrastrar
+ * un costo de $1.547.550 por unidad desde una recepción de 2022.
  * desde SQL Server, persiste el snapshot actual en gri_prices_cache (latest)
  * y agrega un nuevo registro a gri_price_history (historial) cuando el precio
  * cambia respecto al último snapshot. Cada snapshot se muestra como columna
@@ -127,6 +130,7 @@ export async function executeCostosETL(): Promise<CostosETLResult> {
         WHERE e.TIDO = 'GRI'
           AND d.BOSULIDO = '006'
           AND d.KOPRCT IS NOT NULL
+          AND d.KOPRCT NOT LIKE 'ZZ%'
           AND d.PPPRNE > 0
       )
       SELECT sku, precio_unitario, fecha
