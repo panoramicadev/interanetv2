@@ -83,6 +83,158 @@ interface CommissionExport {
   lineLimit: number;
 }
 
+// ─── Encabezado de columna con su explicación ───
+// Cada columna del módulo dice de dónde sale su número: son cifras que terminan
+// en una liquidación de sueldo, así que nadie debería tener que adivinar cómo
+// se calcularon ni pedir que se las expliquen por correo.
+const COL_HELP: Record<string, string> = {
+  "Facturado neto": "Facturas (FCV) menos notas de crédito (NCV) del período. Solo mercadería: las líneas de flete se cuentan aparte.",
+  "Venta neta": "Facturas (FCV) menos notas de crédito (NCV) del período. Solo mercadería: las líneas de flete se cuentan aparte.",
+  "Facturado": "Facturas menos notas de crédito de este cliente en el período, sin las líneas de flete.",
+  "Costo neto": "Costo de la mercadería vendida: cantidad × costo unitario de cada línea. Los conceptos (fletes, servicios, descuentos) no llevan costo.",
+  "Costo": "Costo de la mercadería vendida: cantidad × costo unitario de cada línea. Los conceptos (fletes, servicios, descuentos) no llevan costo.",
+  "Margen neto": "Facturado neto − Costo neto.",
+  "Margen": "Facturado − Costo.",
+  "Flete cobrado": "Lo que se le cobró al cliente por despacho (líneas de flete del documento).",
+  "% Flete": "Porcentaje de la venta que la empresa asume como costo de despacho. Por defecto 4%, editable por cliente o por venta.",
+  "Reg. flete": "Flete que absorbe la empresa. Por documento: objetivo (venta × % flete) − flete cobrado. Si el cliente pagó de más, el excedente no suma. En las notas de crédito devuelve la regularización en vez de castigar de nuevo.",
+  "Margen ajustado": "Margen − Regularización de flete. Es la base sobre la que se calcula la comisión.",
+  "% Comisión": "Porcentaje que se aplica. Manda el de la venta, si no el del cliente, y si no el del vendedor. En 0 no paga comisión.",
+  "Comisión a pagar": "Se calcula documento por documento: margen ajustado × % efectivo de cada uno. Si el total da negativo se informa pero se paga 0, y no arrastra saldo al mes siguiente.",
+};
+
+function ColHead({ children, className }: { children: string; className?: string }) {
+  const help = COL_HELP[children];
+  if (!help) return <TableHead className={className}>{children}</TableHead>;
+  return (
+    <TableHead className={className}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">{children}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs leading-relaxed">{help}</TooltipContent>
+      </Tooltip>
+    </TableHead>
+  );
+}
+
+// ─── Hoja de liquidación por vendedor (formato que usa Finanzas) ───
+// Todo va en FÓRMULAS, no en valores calculados: finanzas edita el % de flete,
+// el % de comisión o los festivos del mes y la planilla recalcula sola. Los
+// parámetros editables van en amarillo, igual que en la planilla que ya usan.
+//
+// La regularización de flete se aplica DOCUMENTO A DOCUMENTO, con el piso
+// espejado de las notas de crédito (factura: nunca acredita; NC: nunca
+// castiga), que es como lo calcula el módulo. Sumar primero y aplicar el piso
+// al total daría otro número.
+function buildLiquidacionSheet(
+  XLSX: any,
+  salesperson: string,
+  docs: DetailDocument[],
+  startDate: string,
+  endDate: string,
+  commissionPct: number,
+) {
+  const rows: any[][] = [];
+  const fmtNum = "#,##0";
+
+  rows.push(["PINTURERIA PANORAMICA LTDA."]);
+  rows.push([salesperson]);
+  rows.push([`Período: ${formatFecha(startDate)} al ${formatFecha(endDate)}`]);
+  rows.push([]);
+  rows.push(["Tipo", "Documento", "Fecha", "Cliente", "Venta neta", "Costo", "Margen",
+             "Flete cobrado", "% Flete", "Flete objetivo", "Reg. flete", "Margen ajustado"]);
+
+  const first = rows.length + 1; // 1-indexed para las fórmulas
+  for (const d of docs) {
+    const r = rows.length + 1;
+    rows.push([
+      d.tido,
+      d.numero,
+      formatFecha(d.fecha),
+      d.client,
+      Math.round(d.revenue),
+      Math.round(d.cost),
+      { f: `E${r}-F${r}`, z: fmtNum },
+      Math.round(d.fleteCobrado),
+      d.fleteEffectivePct,
+      { f: `E${r}*I${r}/100`, z: fmtNum },
+      // Piso espejado: la NC devuelve la regularización, nunca vuelve a castigar
+      { f: `IF(E${r}>=0,MAX(0,J${r}-H${r}),MIN(0,J${r}-H${r}))`, z: fmtNum },
+      { f: `G${r}-K${r}`, z: fmtNum },
+    ]);
+  }
+  const last = rows.length;
+  const sum = (col: string) => ({ f: `SUM(${col}${first}:${col}${last})`, z: fmtNum });
+
+  rows.push(["TOTAL", "", "", "", sum("E"), sum("F"), sum("G"), sum("H"), "", sum("J"), sum("K"), sum("L")]);
+  const totalRow = rows.length;
+  rows.push([]);
+
+  const label = (t: string, cell: any, note?: string) => {
+    rows.push(["", "", "", t, cell, note || ""]);
+    return rows.length;
+  };
+
+  const rVenta  = label("Venta neta",      { f: `E${totalRow}`, z: fmtNum });
+  const rCosto  = label("Costo",           { f: `F${totalRow}`, z: fmtNum });
+  const rMargen = label("Margen",          { f: `G${totalRow}`, z: fmtNum });
+  label("% Margen", { f: `IF(E${rVenta}=0,0,E${rMargen}/E${rVenta})`, z: "0.0%" });
+  const rReg    = label("Regularización flete", { f: `K${totalRow}`, z: fmtNum }, "suma del déficit documento a documento");
+  const rMajus  = label("Margen ajustado", { f: `E${rMargen}-E${rReg}`, z: fmtNum }, "base de la comisión");
+  rows.push([]);
+
+  const rPct    = label("% Comisión", commissionPct, "editable");
+  const rCom    = label("Comisión",   { f: `E${rMajus}*E${rPct}/100`, z: fmtNum });
+  rows.push([]);
+
+  // Semana corrida (Art. 45 del Código del Trabajo): el promedio diario de lo
+  // devengado se paga por cada domingo y festivo del período. Los festivos van
+  // a mano — son legales, cambian cada año y varios se trasladan.
+  const d0 = new Date(startDate + "T00:00:00");
+  const d1 = new Date(endDate + "T00:00:00");
+  let dias = 0, domingos = 0, sabados = 0;
+  for (const d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+    dias++;
+    if (d.getDay() === 0) domingos++;
+    if (d.getDay() === 6) sabados++;
+  }
+  rows.push(["", "", "", "SEMANA CORRIDA (Art. 45 C. del Trabajo)"]);
+  const rDias = label("Días del período",   dias);
+  const rDom  = label("Domingos",           domingos);
+  const rSab  = label("Sábados no laborables", sabados, "0 si la jornada incluye el sábado");
+  // Dos casillas distintas a propósito. Un festivo que cae sábado o domingo ya
+  // está descontado del divisor: volver a restarlo lo descuenta dos veces. Pero
+  // sí suma al multiplicador, porque igual es un día que se paga.
+  const rFerH = label("Festivos en día laborable", 0, "editable — solo los que caen de lunes a viernes");
+  const rFer  = label("Festivos del período",      0, "editable — todos los feriados legales del mes");
+  const rLab  = label("Días laborables",    { f: `E${rDias}-E${rDom}-E${rSab}-E${rFerH}` }, "divisor");
+  const rDF   = label("Domingos + festivos", { f: `E${rDom}+E${rFer}` }, "multiplicador");
+  const rSC   = label("Semana corrida", { f: `IF(E${rLab}=0,0,E${rCom}/E${rLab}*E${rDF})`, z: fmtNum });
+  rows.push([]);
+  const rTot  = label("TOTAL A PAGAR", { f: `E${rCom}+E${rSC}`, z: fmtNum });
+  rows.push([]);
+  rows.push([]);
+  rows.push(["", "", "", "FIRMA TRABAJADOR", "", "FIRMA EMPLEADOR"]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{ wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 34 }, { wch: 16 },
+                 { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 9 }, { wch: 14 },
+                 { wch: 14 }, { wch: 16 }];
+  // Amarillo en lo que finanzas puede editar: % de flete por documento,
+  // % de comisión, sábados y festivos.
+  const editables = [`E${rPct}`, `E${rSab}`, `E${rFerH}`, `E${rFer}`];
+  for (let r = first; r <= last; r++) editables.push(`I${r}`);
+  for (const ref of editables) {
+    if (!ws[ref]) continue;
+    ws[ref].s = { fill: { fgColor: { rgb: "FFFF00" } } };
+  }
+  for (const ref of [`E${rTot}`, `E${rCom}`, `E${rSC}`]) {
+    if (ws[ref]) ws[ref].s = { font: { bold: true } };
+  }
+  return ws;
+}
+
 // ─── Helpers de fecha ───
 function pad(n: number) { return String(n).padStart(2, "0"); }
 function isoDate(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -298,6 +450,23 @@ export default function Comisiones() {
         { wch: 14 }, { wch: 40 }, { wch: 9 }, { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
       XLSX.utils.book_append_sheet(wb, wsLineas, "Líneas");
 
+      // Hoja de liquidación por vendedor — el documento que firma finanzas.
+      // Nombre corto y único: Excel corta en 31 caracteres y no admite repetidos.
+      const usados = new Set<string>();
+      for (const it of data.summary.items) {
+        const docsVendedor = data.documents.filter((d) => d.salesperson === it.salesperson);
+        if (!docsVendedor.length) continue;
+        let nombre = `L. ${it.salesperson}`.slice(0, 31);
+        let n = 2;
+        while (usados.has(nombre)) nombre = `${`L. ${it.salesperson}`.slice(0, 28)} ${n++}`;
+        usados.add(nombre);
+        XLSX.utils.book_append_sheet(
+          wb,
+          buildLiquidacionSheet(XLSX, it.salesperson, docsVendedor, data.startDate, data.endDate, it.commissionPct),
+          nombre,
+        );
+      }
+
       XLSX.writeFile(wb, `comisiones_${startDate}_${endDate}.xlsx`);
 
       if (data.linesTruncated) {
@@ -397,14 +566,14 @@ export default function Comisiones() {
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Facturado neto</TableHead>
-                  <TableHead className="text-right">Costo neto</TableHead>
-                  <TableHead className="text-right">Margen neto</TableHead>
-                  <TableHead className="text-right">Flete cobrado</TableHead>
-                  <TableHead className="text-right">Reg. flete</TableHead>
-                  <TableHead className="text-right">Margen ajustado</TableHead>
-                  <TableHead className="text-right w-28">% Comisión</TableHead>
-                  <TableHead className="text-right">Comisión a pagar</TableHead>
+                  <ColHead className="text-right">Facturado neto</ColHead>
+                  <ColHead className="text-right">Costo neto</ColHead>
+                  <ColHead className="text-right">Margen neto</ColHead>
+                  <ColHead className="text-right">Flete cobrado</ColHead>
+                  <ColHead className="text-right">Reg. flete</ColHead>
+                  <ColHead className="text-right">Margen ajustado</ColHead>
+                  <ColHead className="text-right w-28">% Comisión</ColHead>
+                  <ColHead className="text-right">Comisión a pagar</ColHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -824,13 +993,14 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Facturado</TableHead>
-                <TableHead className="text-right">Margen</TableHead>
-                <TableHead className="text-right">Flete cobrado</TableHead>
-                <TableHead className="text-right w-28">% Flete</TableHead>
-                <TableHead className="text-right">Reg. flete</TableHead>
-                <TableHead className="text-right">Margen ajustado</TableHead>
-                <TableHead className="text-right w-40">% Comisión</TableHead>
+                <ColHead className="text-right">Facturado</ColHead>
+                <ColHead className="text-right">Costo</ColHead>
+                <ColHead className="text-right">Margen</ColHead>
+                <ColHead className="text-right">Flete cobrado</ColHead>
+                <ColHead className="text-right w-28">% Flete</ColHead>
+                <ColHead className="text-right">Reg. flete</ColHead>
+                <ColHead className="text-right">Margen ajustado</ColHead>
+                <ColHead className="text-right w-40">% Comisión</ColHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -838,6 +1008,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
                   <TableCell>{c.client}</TableCell>
                   <TableCell className={`text-right tabular-nums ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.cost)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(c.margin)}</TableCell>
                   <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
                   <TableCell className="text-right">
@@ -863,7 +1034,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 </TableRow>
               ))}
               {data && clients.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">
+                <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">
                   {needle ? `Ningún cliente coincide con "${search}"` : "Sin clientes"}
                 </TableCell></TableRow>
               )}
@@ -880,13 +1051,14 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                 <TableHead>Documento</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Neto</TableHead>
-                <TableHead className="text-right">Margen</TableHead>
-                <TableHead className="text-right">Flete cobrado</TableHead>
-                <TableHead className="text-right w-28">% Flete</TableHead>
-                <TableHead className="text-right">Reg. flete</TableHead>
-                <TableHead className="text-right">Margen ajustado</TableHead>
-                <TableHead className="text-right w-40">% Comisión</TableHead>
+                <ColHead className="text-right">Venta neta</ColHead>
+                <ColHead className="text-right">Costo</ColHead>
+                <ColHead className="text-right">Margen</ColHead>
+                <ColHead className="text-right">Flete cobrado</ColHead>
+                <ColHead className="text-right w-28">% Flete</ColHead>
+                <ColHead className="text-right">Reg. flete</ColHead>
+                <ColHead className="text-right">Margen ajustado</ColHead>
+                <ColHead className="text-right w-40">% Comisión</ColHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -905,6 +1077,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   <TableCell>{formatFecha(d.fecha)}</TableCell>
                   <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
                   <TableCell className={`text-right tabular-nums ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(d.cost)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
                   <TableCell className="text-right tabular-nums text-slate-500" title={`Objetivo ${d.fleteEffectivePct}%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
                   <TableCell className="text-right">
