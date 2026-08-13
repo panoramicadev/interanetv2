@@ -127,6 +127,12 @@ export const PERMISSIONS: PermissionDef[] = [
     href: "/lista-precios",
   },
   {
+    key: "precios.editar",
+    label: "Editar precios",
+    description: "Crear, editar y eliminar SKU, ofertas y listas de precios (sin esto la lista es de solo lectura)",
+    group: "comercial",
+  },
+  {
     key: "inventario",
     label: "Inventarios",
     description: "Stock por bodega y disponibilidad de productos",
@@ -543,6 +549,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "productos",
     ...CATALOGO_CONSULTA,
     "productos.costos",
+    "precios.editar",
     "clientes",
     "finanzas",
     "margen",
@@ -565,6 +572,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "productos",
     ...CATALOGO_CONSULTA,
     "productos.costos",
+    "precios.editar",
     "clientes",
     "finanzas",
     "tomador_pedidos",
@@ -596,11 +604,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "clientes",
     "gastos",
   ],
+  // Recepción administra la lista de precios: crea SKU, edita precios y arma
+  // ofertas por cliente (las que después ve ese cliente en su tienda). Por eso
+  // lleva "precios.editar" y ve costos y márgenes como un supervisor.
   reception: [
     "dashboard",
     ...MARKET_ALL,
     "productos",
     ...CATALOGO_CONSULTA,
+    "productos.costos",
+    "precios.editar",
     "clientes",
     "finanzas",
     "gastos",

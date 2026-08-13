@@ -108,7 +108,7 @@ import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
-import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser } from "./permissions";
+import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser, canEditPricing } from "./permissions";
 import { registerCommissionRoutes } from "./commissions";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -19074,7 +19074,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -19148,7 +19148,7 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/price-list/bulk-offer-price', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "No autorizado para modificar precios de oferta" });
       }
 
@@ -19281,8 +19281,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Only admin and supervisor can create price list items
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      // Requiere el permiso "precios.editar" para crear ítems de la lista de precios
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized to create price list items" });
       }
 
@@ -19312,8 +19312,8 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const user = req.user;
 
-      // Only admin and supervisor can update price list items
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      // Requiere el permiso "precios.editar" para editar ítems de la lista de precios
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized to update price list items" });
       }
 
@@ -19348,8 +19348,8 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const user = req.user;
 
-      // Only admin and supervisor can delete price list items
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      // Requiere el permiso "precios.editar" para eliminar ítems de la lista de precios
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
 
@@ -19371,8 +19371,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Only admin and supervisor can delete all price list items
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      // Requiere el permiso "precios.editar" para vaciar la lista de precios
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
 
@@ -19389,8 +19389,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Only admin and supervisor can import price list
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      // Requiere el permiso "precios.editar" para importar la lista de precios
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized to import price list" });
       }
 
@@ -19645,7 +19645,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-mix', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix, insertPriceListMixSchema } = await import('@shared/schema');
@@ -19663,7 +19663,7 @@ export function registerRoutes(app: Express): Server {
 
   app.patch('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -19681,7 +19681,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -19695,7 +19695,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-mix', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListMix } = await import('@shared/schema');
@@ -19711,7 +19711,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-mix/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -19752,7 +19752,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-mix/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       if (!req.file) {
@@ -19908,7 +19908,7 @@ export function registerRoutes(app: Express): Server {
   // Create a new custom price list
   app.post('/api/custom-price-lists', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { name } = req.body;
@@ -19938,7 +19938,7 @@ export function registerRoutes(app: Express): Server {
   // Update a custom price list
   app.patch('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -19964,7 +19964,7 @@ export function registerRoutes(app: Express): Server {
   // Delete a custom price list and all its items
   app.delete('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -20078,7 +20078,7 @@ export function registerRoutes(app: Express): Server {
   // Add item to a custom price list
   app.post('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -20101,7 +20101,7 @@ export function registerRoutes(app: Express): Server {
   // Update item in a custom price list
   app.patch('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { customPriceListItems } = await import('@shared/schema');
@@ -20120,7 +20120,7 @@ export function registerRoutes(app: Express): Server {
   // Delete single item from a custom price list
   app.delete('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { customPriceListItems } = await import('@shared/schema');
@@ -20135,7 +20135,7 @@ export function registerRoutes(app: Express): Server {
   // Delete all items from a custom price list
   app.delete('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -20151,7 +20151,7 @@ export function registerRoutes(app: Express): Server {
   // Bulk price adjustment for a specific custom price list
   app.post('/api/custom-price-lists/:code/items/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { code } = req.params;
@@ -20190,7 +20190,7 @@ export function registerRoutes(app: Express): Server {
   // Import CSV for a specific custom price list
   app.post('/api/custom-price-lists/:code/items/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
-      if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       if (!req.file) {
@@ -20394,7 +20394,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/price-list-offers', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers, priceListOfferClients, insertPriceListOffersSchema } = await import('@shared/schema');
@@ -20459,7 +20459,7 @@ export function registerRoutes(app: Express): Server {
 
   app.patch('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers, priceListOfferClients } = await import('@shared/schema');
@@ -20547,7 +20547,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers } = await import('@shared/schema');
@@ -20561,7 +20561,7 @@ export function registerRoutes(app: Express): Server {
 
   app.delete('/api/price-list-offers', requireAuth, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && (req.user.role !== 'supervisor' && req.user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(req.user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { priceListOffers } = await import('@shared/schema');
@@ -20577,7 +20577,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-offers/bulk-adjust', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
@@ -20629,7 +20629,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list-offers/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      if (user.role !== 'admin' && (user.role !== 'supervisor' && user.role !== 'encargado_area')) {
+      if (!(await canEditPricing(user))) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
