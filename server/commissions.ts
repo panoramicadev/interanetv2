@@ -57,6 +57,7 @@ import { db } from "./db";
 import { commissionSettings, commissionOverrides, commissionFleteRates } from "../shared/schema";
 import { requireAuth } from "./auth";
 import { requirePermission } from "./permissions";
+import { buildCommissionWorkbook } from "./commissions-excel";
 
 // Documentos que forman la base: facturas menos notas de crédito.
 const BASE_TIDOS = sql`fv."tido" IN ('FCV', 'NCV')`;
@@ -437,6 +438,8 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     doc_base AS (
       SELECT
         COALESCE(fv."nokoen", 'SIN CLIENTE') AS client,
+        MAX(fv."endo") AS rut,
+        MAX(fv."kofudo") AS salesperson_code,
         fv."idmaeedo"::text AS document,
         SUM(fv."monto") AS revenue,
         SUM(${COST_EXPR}) AS cost,
@@ -448,6 +451,8 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     doc_rated AS (
       SELECT
         d.client,
+        d.rut,
+        d.salesperson_code,
         d.document,
         d.revenue,
         d.cost,
@@ -463,6 +468,8 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     )
     SELECT
       d.client,
+      MAX(d.rut) AS rut,
+      MAX(d.salesperson_code) AS salesperson_code,
       SUM(d.revenue) AS revenue,
       SUM(d.cost) AS cost,
       SUM(d.line_count) AS line_count,
@@ -529,6 +536,9 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     const fleteOverridePct = r.flete_override_pct == null ? null : num(r.flete_override_pct);
     return {
       client: r.client as string,
+      // Datos del machote de liquidación: RUT del cliente y código del vendedor
+      rut: (r.rut as string) || "",
+      salespersonCode: (r.salesperson_code as string) || "",
       revenue,
       cost,
       margin,
@@ -860,6 +870,32 @@ export function registerCommissionRoutes(app: Express) {
     } catch (error: any) {
       console.error("Error armando la exportación de comisiones:", error);
       res.status(500).json({ message: "Error armando la exportación: " + (error?.message || "desconocido") });
+    }
+  });
+
+  // Libro Excel ya armado: liquidación por vendedor + hojas de respaldo.
+  // `salesperson` arrastra el filtro de la pantalla.
+  app.get("/api/hr/commissions/export.xlsx", requireAuth, guard, async (req: any, res) => {
+    try {
+      await ensureTables();
+      const { startDate, endDate } = parseDateRange(req.query);
+      const salesperson = typeof req.query.salesperson === "string" && req.query.salesperson.trim()
+        ? req.query.salesperson.trim()
+        : undefined;
+      const data = await getCommissionExport(startDate, endDate);
+      const wb = await buildCommissionWorkbook(data, salesperson);
+      const slug = salesperson
+        ? `_${salesperson.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`
+        : "";
+      if (data.linesTruncated) res.setHeader("X-Lines-Truncated", "1");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="comisiones${slug}_${startDate}_${endDate}.xlsx"`);
+      await wb.xlsx.write(res);
+      res.end();
+    } catch (error: any) {
+      console.error("Error generando el Excel de comisiones:", error);
+      if (res.headersSent) return res.end();
+      res.status(500).json({ message: "Error generando el Excel: " + (error?.message || "desconocido") });
     }
   });
 }
