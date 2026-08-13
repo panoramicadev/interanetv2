@@ -103,6 +103,29 @@ function formatFecha(s: string | null | undefined) {
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/** Celda con fórmula, guardando el valor calculado por el servidor como caché. */
+const F = (formula: string, result: number): ExcelJS.CellFormulaValue =>
+  ({ formula, result } as ExcelJS.CellFormulaValue);
+
+/** Relleno de las celdas que el usuario puede pisar a mano. */
+const RELLENO_EDITABLE: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFF3E0" },
+};
+
+/** Dónde vive cada fila del libro, para que las fórmulas se apunten entre hojas. */
+type Refs = {
+  /** Fila de cada vendedor en la hoja Resumen. */
+  vendedor: Map<string, number>;
+  /** Fila de cada cliente en la hoja Clientes, por "vendedor|cliente". */
+  cliente: Map<string, number>;
+  /** Fila del parámetro "% Flete por defecto" en la hoja Resumen. */
+  filaFleteDefecto: number;
+};
+
+const claveCliente = (vendedor: string, cliente: string) => `${vendedor}|||${cliente}`;
+
 /** Hoja de liquidación de un vendedor, calcada del formato en papel. */
 function agregarHojaLiquidacion(
   wb: ExcelJS.Workbook,
@@ -113,6 +136,7 @@ function agregarHojaLiquidacion(
   endDate: string,
   logo: { id: number; alto: number } | null,
   usados: Set<string>,
+  refs: Refs,
 ) {
   const ws = wb.addWorksheet(nombreHoja(item.salesperson, usados));
   ws.views = [{ showGridLines: false }];
@@ -142,6 +166,8 @@ function agregarHojaLiquidacion(
   titulo("D7", EMPRESA);
   titulo("D8", periodo);
 
+  const filaVendedor = refs.vendedor.get(item.salesperson);
+
   // ── Ventas por cliente ──
   const FILA_ENCABEZADO = 10;
   const encabezados = ["", "KOFULIDO", "ENDO", "CLIENTE", "VALORNETO"];
@@ -155,7 +181,10 @@ function agregarHojaLiquidacion(
 
   let fila = FILA_ENCABEZADO + 1;
   for (const cli of clientes) {
-    const valores = [null, cli.salespersonCode || "", cli.rut || "", cli.client, round(cli.revenue)];
+    // El neto sale de la hoja Clientes: si allá se cambia un %, acá se refleja.
+    const filaCli = refs.cliente.get(claveCliente(item.salesperson, cli.client));
+    const neto: any = filaCli ? F(`Clientes!$D$${filaCli}`, cli.revenue) : round(cli.revenue);
+    const valores = [null, cli.salespersonCode || "", cli.rut || "", cli.client, neto];
     valores.forEach((valor, i) => {
       const c = ws.getCell(fila, i + 1);
       if (valor !== null) c.value = valor as any;
@@ -168,7 +197,7 @@ function agregarHojaLiquidacion(
   const filaTotal = fila;
   const celdaTotal = ws.getCell(filaTotal, 5);
   celdaTotal.value = clientes.length
-    ? { formula: `SUM(E${FILA_ENCABEZADO + 1}:E${filaTotal - 1})`, result: round(item.netRevenue) }
+    ? F(`SUM(E${FILA_ENCABEZADO + 1}:E${filaTotal - 1})`, round(item.netRevenue))
     : 0;
   celdaTotal.font = { name: "Arial Narrow", size: 8, bold: true };
   celdaTotal.numFmt = '"$"#,##0_);[Red]("$"#,##0)';
@@ -189,11 +218,12 @@ function agregarHojaLiquidacion(
   const etiqueta = ws.getCell(filaValores, 4);
   etiqueta.value = periodo;
   etiqueta.font = { name: "Arial", size: 10, bold: true };
-  const valoresResumen: [number, string][] = [
-    [round(item.netRevenue), MONEDA],
-    [round(item.netCost), MONEDA],
-    [round(item.netMargin), MONEDA],
-    [item.netRevenue !== 0 ? item.netMargin / item.netRevenue : 0, PORCENTAJE],
+  const margenPct = item.netRevenue !== 0 ? item.netMargin / item.netRevenue : 0;
+  const valoresResumen: [any, string][] = [
+    [filaVendedor ? F(`Resumen!$B$${filaVendedor}`, item.netRevenue) : round(item.netRevenue), MONEDA],
+    [filaVendedor ? F(`Resumen!$C$${filaVendedor}`, item.netCost) : round(item.netCost), MONEDA],
+    [F(`E${filaValores}-F${filaValores}`, item.netMargin), MONEDA],
+    [F(`IF(E${filaValores}=0,0,G${filaValores}/E${filaValores})`, margenPct), PORCENTAJE],
   ];
   valoresResumen.forEach(([valor, fmt], i) => {
     const c = ws.getCell(filaValores, i + 5);
@@ -212,23 +242,25 @@ function agregarHojaLiquidacion(
   const grande = { name: "Arial", size: 12, bold: true };
 
   ws.getCell(filaComision, 4).value = "COMISION";
-  ws.getCell(filaComision, 5).value = round(item.netMargin);
-  ws.getCell(filaComision, 6).value = item.commissionPct / 100;
-  ws.getCell(filaComision, 7).value = { formula: `E${filaComision}*F${filaComision}`, result: comision };
+  ws.getCell(filaComision, 5).value = F(`G${filaValores}`, item.netMargin);
+  ws.getCell(filaComision, 6).value = filaVendedor
+    ? F(`Resumen!$J$${filaVendedor}/100`, item.commissionPct / 100)
+    : item.commissionPct / 100;
+  ws.getCell(filaComision, 7).value = F(`E${filaComision}*F${filaComision}`, comision);
 
   // Días del período, no constantes: el divisor y el multiplicador cambian mes a
   // mes según dónde caen los domingos y los feriados — ver server/feriados-chile.ts.
   const dsc = diasSemanaCorrida(startDate, endDate);
   ws.getCell(filaSemana, 4).value = "SEMANA CORRIDA";
-  ws.getCell(filaSemana, 5).value = {
-    formula: `G${filaComision}/${dsc.diasLaborables}`,
-    result: comision / dsc.diasLaborables,
-  };
+  ws.getCell(filaSemana, 5).value = F(
+    `G${filaComision}/${dsc.diasLaborables}`,
+    comision / dsc.diasLaborables,
+  );
   ws.getCell(filaSemana, 6).value = dsc.domingosYFestivos;
-  ws.getCell(filaSemana, 7).value = {
-    formula: `F${filaSemana}*E${filaSemana}`,
-    result: (comision / dsc.diasLaborables) * dsc.domingosYFestivos,
-  };
+  ws.getCell(filaSemana, 7).value = F(
+    `F${filaSemana}*E${filaSemana}`,
+    (comision / dsc.diasLaborables) * dsc.domingosYFestivos,
+  );
 
   for (const f of [filaComision, filaSemana]) {
     for (let col = 4; col <= 7; col++) ws.getCell(f, col).font = grande;
@@ -255,24 +287,40 @@ function agregarHojaLiquidacion(
   ws.getRow(filaFirmas).height = 15.6;
 }
 
-/** Hoja de respaldo: encabezado naranja de marca y anchos fijos. */
+/**
+ * Hoja de respaldo: encabezado naranja de marca y anchos fijos.
+ * `editables` son las columnas (1-based) que el usuario puede pisar a mano;
+ * salen pintadas para que se vea dónde se puede escribir.
+ */
 function agregarHojaDetalle(
   wb: ExcelJS.Workbook,
   nombre: string,
   columnas: Partial<ExcelJS.Column>[],
   filas: any[],
+  editables: number[] = [],
 ) {
   const ws = wb.addWorksheet(nombre, { views: [{ state: "frozen", ySplit: 1 }] });
   ws.columns = columnas as ExcelJS.Column[];
   const encabezado = ws.getRow(1);
   encabezado.font = { bold: true, color: { argb: "FFFFFFFF" } };
   encabezado.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFD6301" } };
-  for (const fila of filas) ws.addRow(fila);
+  for (const fila of filas) {
+    const agregada = ws.addRow(fila);
+    for (const col of editables) agregada.getCell(col).fill = RELLENO_EDITABLE;
+  }
+  return ws;
 }
 
 /**
  * Arma el libro completo. `salesperson` limita la exportación a un vendedor
  * (el filtro de la pantalla); sin él salen todos los del período.
+ *
+ * El libro es "vivo": las hojas de respaldo están encadenadas por fórmula, de
+ * Líneas → Documentos → Clientes → Resumen → liquidación. Las celdas pintadas
+ * (% Flete y % Comisión) son las entradas: al cambiar una, se recalcula todo lo
+ * que cuelga de ella, incluida la hoja del vendedor que se firma. El % que no
+ * está fijado a mano hereda por fórmula del nivel de arriba (documento ← cliente
+ * ← vendedor / % de flete por defecto), así que tocar el general baja a todos.
  */
 export async function buildCommissionWorkbook(data: any, salesperson?: string): Promise<ExcelJS.Workbook> {
   const soloUno = (nombre: string) => !salesperson || nombre === salesperson;
@@ -284,6 +332,8 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
   const wb = new ExcelJS.Workbook();
   wb.creator = EMPRESA;
   wb.created = new Date();
+  // Sin esto Excel muestra el valor cacheado y no recalcula al abrir.
+  wb.calcProperties.fullCalcOnLoad = true;
 
   const logoPng = leerLogo();
   const logo = logoPng
@@ -291,30 +341,88 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     : null;
   const periodo = etiquetaPeriodo(data.startDate, data.endDate);
 
+  // ── Mapa de filas: las hojas se referencian entre sí, así que hay que saber
+  //    de antemano en qué fila cae cada vendedor y cada cliente. ──
+  const FILA_1 = 2; // fila 1 = encabezado
+  const refs: Refs = {
+    vendedor: new Map(items.map((it, i) => [it.salesperson, FILA_1 + i])),
+    cliente: new Map(clients.map((c, i) => [claveCliente(c.salesperson, c.client), FILA_1 + i])),
+    // El parámetro va debajo de la tabla (vendedores + fila TOTAL + una en blanco).
+    filaFleteDefecto: FILA_1 + items.length + 2,
+  };
+  const filaTotalResumen = FILA_1 + items.length;
+
+  const nLineas = lines.length;
+  const nDocs = documents.length;
+  const nClientes = clients.length;
+  const rangoLineas = (col: string) => `Líneas!$${col}$${FILA_1}:$${col}$${FILA_1 + nLineas - 1}`;
+  const rangoDocs = (col: string) => `Documentos!$${col}$${FILA_1}:$${col}$${FILA_1 + nDocs - 1}`;
+  const rangoClientes = (col: string) => `Clientes!$${col}$${FILA_1}:$${col}$${FILA_1 + nClientes - 1}`;
+
+  // Se agrupa con SUMPRODUCT y no con SUMIFS porque los criterios son nombres de
+  // cliente y de vendedor: SUMIFS los leería como patrones y un "*" o un "?" en
+  // la razón social sumaría filas de otro. La comparación con "=" es literal.
+  // Sin filas debajo no hay rango que sumar: ahí la celda se queda con el valor
+  // del servidor en vez de una fórmula rota.
+  const sumaPorCliente = (col: string, r: number, valor: number) =>
+    nDocs
+      ? F(`SUMPRODUCT((${rangoDocs("A")}=$A${r})*(${rangoDocs("E")}=$C${r})*${rangoDocs(col)})`, valor)
+      : valor;
+  const sumaPorVendedor = (col: string, r: number, valor: number) =>
+    nClientes
+      ? F(`SUMPRODUCT((${rangoClientes("A")}=$A${r})*${rangoClientes(col)})`, valor)
+      : valor;
+
+  // ── ¿Se puede encadenar Documentos con Líneas? ──
+  // Solo si la hoja de líneas trae el detalle completo del documento. Si el
+  // período se recortó por tamaño, o si el documento tiene líneas que la hoja
+  // no muestra, ese documento se queda con los valores del servidor: mejor un
+  // número fijo y correcto que una fórmula que no cuadra con la pantalla.
+  const porDocumento = new Map<string, { revenue: number; cost: number; flete: number }>();
+  for (const l of lines) {
+    const acc = porDocumento.get(l.document) || { revenue: 0, cost: 0, flete: 0 };
+    if (l.esFlete) acc.flete += l.revenue;
+    else {
+      acc.revenue += l.revenue;
+      acc.cost += l.cost;
+    }
+    porDocumento.set(l.document, acc);
+  }
+  const cuadra = (a: number, b: number) => Math.abs((a || 0) - (b || 0)) < 1;
+  const desdeLineas = (d: any) => {
+    if (data.linesTruncated || !nLineas) return false;
+    const acc = porDocumento.get(d.document);
+    return !!acc && cuadra(acc.revenue, d.revenue) && cuadra(acc.cost, d.cost)
+      && cuadra(acc.flete, d.fleteCobrado);
+  };
+
   // ── Liquidaciones (una hoja por vendedor) ──
   const usados = new Set<string>();
   for (const item of items) {
     const suyos = clients
       .filter((c) => c.salesperson === item.salesperson)
       .sort((a, b) => String(a.rut || "").localeCompare(String(b.rut || "")));
-    agregarHojaLiquidacion(wb, item, suyos, periodo, data.startDate, data.endDate, logo, usados);
+    agregarHojaLiquidacion(wb, item, suyos, periodo, data.startDate, data.endDate, logo, usados, refs);
   }
 
-  // ── Respaldo: los mismos números que muestra la pantalla ──
-  const resumen = items.map((it) => ({
-    vendedor: it.salesperson,
-    netRevenue: round(it.netRevenue),
-    netCost: round(it.netCost),
-    netMargin: round(it.netMargin),
-    marginPct: Number(it.netMarginPct.toFixed(2)),
-    fleteCobrado: round(it.fleteCobrado),
-    fleteObjetivo: round(it.fleteObjetivo),
-    fleteDeficit: round(it.fleteDeficit),
-    marginAdjusted: round(it.marginAdjusted),
-    commissionPct: it.commissionPct,
-    commissionRaw: round(it.commissionRaw),
-    commissionAmount: round(it.commissionAmount),
-  }));
+  // ── Resumen: se alimenta de Clientes; el % del vendedor es la entrada ──
+  const resumen = items.map((it, i) => {
+    const r = FILA_1 + i;
+    return {
+      vendedor: it.salesperson,
+      netRevenue: sumaPorVendedor("D", r, it.netRevenue),
+      netCost: sumaPorVendedor("E", r, it.netCost),
+      netMargin: F(`B${r}-C${r}`, it.netMargin),
+      marginPct: F(`IF(B${r}=0,0,D${r}/B${r}*100)`, it.netMarginPct),
+      fleteCobrado: sumaPorVendedor("G", r, it.fleteCobrado),
+      fleteObjetivo: sumaPorVendedor("I", r, it.fleteObjetivo),
+      fleteDeficit: sumaPorVendedor("J", r, it.fleteDeficit),
+      marginAdjusted: F(`D${r}-H${r}`, it.marginAdjusted),
+      commissionPct: it.commissionPct,
+      commissionRaw: sumaPorVendedor("M", r, it.commissionRaw),
+      commissionAmount: F(`MAX(0,K${r})`, it.commissionAmount),
+    } as any;
+  });
   const totales = items.reduce(
     (acc, it) => ({
       netRevenue: acc.netRevenue + it.netRevenue,
@@ -330,22 +438,27 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     { netRevenue: 0, netCost: 0, netMargin: 0, fleteCobrado: 0, fleteObjetivo: 0,
       fleteDeficit: 0, marginAdjusted: 0, commissionRaw: 0, commissionAmount: 0 },
   );
+  const rt = filaTotalResumen;
+  const sumaHasta = (col: string) => `SUM(${col}${FILA_1}:${col}${rt - 1})`;
   resumen.push({
     vendedor: "TOTAL",
-    netRevenue: round(totales.netRevenue),
-    netCost: round(totales.netCost),
-    netMargin: round(totales.netMargin),
-    marginPct: totales.netRevenue !== 0 ? Number(((totales.netMargin / totales.netRevenue) * 100).toFixed(2)) : 0,
-    fleteCobrado: round(totales.fleteCobrado),
-    fleteObjetivo: round(totales.fleteObjetivo),
-    fleteDeficit: round(totales.fleteDeficit),
-    marginAdjusted: round(totales.marginAdjusted),
-    commissionPct: "" as any,
-    commissionRaw: round(totales.commissionRaw),
-    commissionAmount: round(totales.commissionAmount),
-  });
+    netRevenue: F(sumaHasta("B"), totales.netRevenue),
+    netCost: F(sumaHasta("C"), totales.netCost),
+    netMargin: F(sumaHasta("D"), totales.netMargin),
+    marginPct: F(
+      `IF(B${rt}=0,0,D${rt}/B${rt}*100)`,
+      totales.netRevenue !== 0 ? (totales.netMargin / totales.netRevenue) * 100 : 0,
+    ),
+    fleteCobrado: F(sumaHasta("F"), totales.fleteCobrado),
+    fleteObjetivo: F(sumaHasta("G"), totales.fleteObjetivo),
+    fleteDeficit: F(sumaHasta("H"), totales.fleteDeficit),
+    marginAdjusted: F(sumaHasta("I"), totales.marginAdjusted),
+    commissionPct: "",
+    commissionRaw: F(sumaHasta("K"), totales.commissionRaw),
+    commissionAmount: F(sumaHasta("L"), totales.commissionAmount),
+  } as any);
 
-  agregarHojaDetalle(wb, "Resumen", [
+  const hojaResumen = agregarHojaDetalle(wb, "Resumen", [
     { header: "Vendedor", key: "vendedor", width: 28 },
     { header: "Facturado neto (FCV − NCV)", key: "netRevenue", width: 24, style: { numFmt: MONEDA } },
     { header: "Costo neto", key: "netCost", width: 14, style: { numFmt: MONEDA } },
@@ -358,8 +471,22 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     { header: "% Comisión", key: "commissionPct", width: 12 },
     { header: "Comisión calculada", key: "commissionRaw", width: 18, style: { numFmt: MONEDA } },
     { header: "Comisión a pagar", key: "commissionAmount", width: 16, style: { numFmt: MONEDA } },
-  ], resumen);
+  ], resumen, [10]);
+  // La fila TOTAL no lleva % de vendedor: no es una entrada.
+  hojaResumen.getCell(rt, 10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
 
+  // Parámetro global: el % de flete que se aplica cuando el cliente no tiene uno propio.
+  const etiquetaFlete = hojaResumen.getCell(refs.filaFleteDefecto, 1);
+  etiquetaFlete.value = "% Flete por defecto";
+  etiquetaFlete.font = { bold: true };
+  const celdaFlete = hojaResumen.getCell(refs.filaFleteDefecto, 2);
+  celdaFlete.value = data.defaultFletePct;
+  celdaFlete.fill = RELLENO_EDITABLE;
+  celdaFlete.numFmt = "0.##";
+  celdaFlete.alignment = { horizontal: "left" };
+
+  // ── Clientes: suma sus documentos; los % son entradas y, si no hay uno
+  //    fijado a mano, heredan del vendedor / del parámetro global ──
   agregarHojaDetalle(wb, "Clientes", [
     { header: "Vendedor", key: "vendedor", width: 28 },
     { header: "RUT", key: "rut", width: 14 },
@@ -375,23 +502,35 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     { header: "% Comisión", key: "commissionPct", width: 12 },
     { header: "Comisión", key: "commission", width: 14, style: { numFmt: MONEDA } },
     { header: "Líneas", key: "lineCount", width: 8 },
-  ], clients.map((c) => ({
-    vendedor: c.salesperson,
-    rut: c.rut || "",
-    cliente: c.client,
-    revenue: round(c.revenue),
-    cost: round(c.cost),
-    margin: round(c.margin),
-    fleteCobrado: round(c.fleteCobrado),
-    fletePct: c.fleteEffectivePct,
-    fleteObjetivo: round(c.fleteObjetivo),
-    fleteDeficit: round(c.fleteDeficit),
-    marginAdjusted: round(c.marginAdjusted),
-    commissionPct: c.effectivePct,
-    commission: round(c.marginAdjusted * c.effectivePct / 100),
-    lineCount: c.lineCount,
-  })));
+  ], clients.map((c, i) => {
+    const r = FILA_1 + i;
+    const filaVendedor = refs.vendedor.get(c.salesperson);
+    return {
+      vendedor: c.salesperson,
+      rut: c.rut || "",
+      cliente: c.client,
+      revenue: sumaPorCliente("F", r, c.revenue),
+      cost: sumaPorCliente("G", r, c.cost),
+      margin: F(`D${r}-E${r}`, c.margin),
+      fleteCobrado: sumaPorCliente("I", r, c.fleteCobrado),
+      // Sin tasa propia hereda el parámetro global; escribir acá la fija.
+      fletePct: c.fleteOverridePct != null
+        ? c.fleteOverridePct
+        : F(`Resumen!$B$${refs.filaFleteDefecto}`, c.fleteEffectivePct),
+      fleteObjetivo: sumaPorCliente("K", r, c.fleteObjetivo),
+      fleteDeficit: sumaPorCliente("L", r, c.fleteDeficit),
+      marginAdjusted: F(`F${r}-J${r}`, c.marginAdjusted),
+      // Sin % propio hereda el del vendedor en Resumen.
+      commissionPct: c.overridePct != null || !filaVendedor
+        ? c.effectivePct
+        : F(`Resumen!$J$${filaVendedor}`, c.effectivePct),
+      commission: sumaPorCliente("O", r, c.marginAdjusted * c.effectivePct / 100),
+      lineCount: sumaPorCliente("P", r, c.lineCount),
+    } as any;
+  }), [8, 12]);
 
+  // ── Documentos: la base del cálculo. El flete y la comisión se resuelven
+  //    documento a documento, igual que en el servidor. ──
   agregarHojaDetalle(wb, "Documentos", [
     { header: "Vendedor", key: "vendedor", width: 28 },
     { header: "Tipo", key: "tido", width: 7 },
@@ -409,25 +548,44 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     { header: "% Comisión", key: "commissionPct", width: 12 },
     { header: "Comisión", key: "commission", width: 14, style: { numFmt: MONEDA } },
     { header: "Líneas", key: "lineCount", width: 8 },
-  ], documents.map((d) => ({
-    vendedor: d.salesperson,
-    tido: d.tido,
-    numero: d.numero,
-    fecha: formatFecha(d.fecha),
-    cliente: d.client,
-    revenue: round(d.revenue),
-    cost: round(d.cost),
-    margin: round(d.margin),
-    fleteCobrado: round(d.fleteCobrado),
-    fletePct: d.fleteEffectivePct,
-    fleteObjetivo: round(d.fleteObjetivo),
-    fleteDeficit: round(d.fleteDeficit),
-    marginAdjusted: round(d.marginAdjusted),
-    commissionPct: d.effectivePct,
-    commission: round(d.marginAdjusted * d.effectivePct / 100),
-    lineCount: d.lineCount,
-  })));
+    { header: "ID documento", key: "idDoc", width: 14 },
+  ], documents.map((d, i) => {
+    const r = FILA_1 + i;
+    const filaCli = refs.cliente.get(claveCliente(d.salesperson, d.client));
+    const conLineas = desdeLineas(d);
+    const sumaLineas = (col: string, esFlete: string) =>
+      `SUMIFS(${rangoLineas(col)},${rangoLineas("M")},$Q${r},${rangoLineas("H")},"${esFlete}")`;
+    return {
+      vendedor: d.salesperson,
+      tido: d.tido,
+      numero: d.numero,
+      fecha: formatFecha(d.fecha),
+      cliente: d.client,
+      revenue: conLineas ? F(sumaLineas("J", "No"), d.revenue) : round(d.revenue),
+      cost: conLineas ? F(sumaLineas("K", "No"), d.cost) : round(d.cost),
+      margin: F(`F${r}-G${r}`, d.margin),
+      fleteCobrado: conLineas ? F(sumaLineas("J", "Sí"), d.fleteCobrado) : round(d.fleteCobrado),
+      // Sin tasa propia hereda la del cliente; escribir acá la fija para esta venta.
+      fletePct: d.fleteOverridePct != null || !filaCli
+        ? d.fleteEffectivePct
+        : F(`Clientes!$H$${filaCli}`, d.fleteEffectivePct),
+      fleteObjetivo: F(`F${r}*J${r}/100`, d.fleteObjetivo),
+      // Piso espejado: la factura nunca acredita flete, la NC nunca lo castiga.
+      fleteDeficit: F(
+        `IF(F${r}>=0,MAX(0,K${r}-I${r}),MIN(0,K${r}-I${r}))`,
+        d.fleteDeficit,
+      ),
+      marginAdjusted: F(`H${r}-L${r}`, d.marginAdjusted),
+      commissionPct: d.overridePct != null || !filaCli
+        ? d.effectivePct
+        : F(`Clientes!$L$${filaCli}`, d.effectivePct),
+      commission: F(`M${r}*N${r}/100`, d.marginAdjusted * d.effectivePct / 100),
+      lineCount: d.lineCount,
+      idDoc: d.document,
+    } as any;
+  }), [10, 14]);
 
+  // ── Líneas: el dato crudo del ERP. Es el piso de la cadena. ──
   agregarHojaDetalle(wb, "Líneas", [
     { header: "Fecha", key: "fecha", width: 12 },
     { header: "Tipo", key: "tido", width: 7 },
@@ -441,20 +599,25 @@ export async function buildCommissionWorkbook(data: any, salesperson?: string): 
     { header: "Neto", key: "revenue", width: 14, style: { numFmt: MONEDA } },
     { header: "Costo", key: "cost", width: 14, style: { numFmt: MONEDA } },
     { header: "Margen", key: "margin", width: 14, style: { numFmt: MONEDA } },
-  ], lines.map((l) => ({
-    fecha: formatFecha(l.fecha),
-    tido: l.tido,
-    numero: l.numero,
-    vendedor: l.salesperson,
-    cliente: l.client,
-    sku: l.sku,
-    producto: l.producto,
-    esFlete: l.esFlete ? "Sí" : "",
-    cantidad: l.cantidad,
-    revenue: round(l.revenue),
-    cost: round(l.cost),
-    margin: round(l.margin),
-  })));
+    { header: "ID documento", key: "idDoc", width: 14 },
+  ], lines.map((l, i) => {
+    const r = FILA_1 + i;
+    return {
+      fecha: formatFecha(l.fecha),
+      tido: l.tido,
+      numero: l.numero,
+      vendedor: l.salesperson,
+      cliente: l.client,
+      sku: l.sku,
+      producto: l.producto,
+      esFlete: l.esFlete ? "Sí" : "No",
+      cantidad: l.cantidad,
+      revenue: l.revenue,
+      cost: l.cost,
+      margin: F(`J${r}-K${r}`, l.margin),
+      idDoc: l.document,
+    } as any;
+  }));
 
   return wb;
 }

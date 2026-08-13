@@ -94,9 +94,10 @@ const COL_HELP: Record<string, string> = {
 
 function ColHead({ children, className }: { children: string; className?: string }) {
   const help = COL_HELP[children];
-  if (!help) return <TableHead className={className}>{children}</TableHead>;
+  const base = `whitespace-nowrap align-bottom ${className ?? ""}`;
+  if (!help) return <TableHead className={base}>{children}</TableHead>;
   return (
-    <TableHead className={className}>
+    <TableHead className={base}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">{children}</span>
@@ -391,8 +392,8 @@ export default function Comisiones() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Vendedor</TableHead>
+                  <TableHead className="w-8 align-bottom"></TableHead>
+                  <TableHead className="whitespace-nowrap align-bottom">Vendedor</TableHead>
                   <ColHead className="text-right">Facturado neto</ColHead>
                   <ColHead className="text-right">Costo neto</ColHead>
                   <ColHead className="text-right">Margen neto</ColHead>
@@ -434,7 +435,7 @@ export default function Comisiones() {
                         </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span>{it.salesperson}</span>
+                            <span className="whitespace-nowrap">{it.salesperson}</span>
                             {it.overriddenClientCount > 0 && (
                               <TooltipProvider delayDuration={100}>
                                 <Tooltip>
@@ -442,7 +443,7 @@ export default function Comisiones() {
                                     <Badge
                                       variant="outline"
                                       onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : it.salesperson); }}
-                                      className="gap-1 cursor-help border-orange-300 bg-orange-50 text-orange-700 font-medium hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+                                      className="gap-1 whitespace-nowrap cursor-help border-orange-300 bg-orange-50 text-orange-700 font-medium hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
                                     >
                                       <SlidersHorizontal className="w-3 h-3" />
                                       {it.overriddenClientCount} {it.overriddenClientCount === 1 ? "cliente con % especial" : "clientes con % especial"}
@@ -461,17 +462,17 @@ export default function Comisiones() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className={`text-right tabular-nums ${it.netRevenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(it.netRevenue)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.netCost)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className={`text-right tabular-nums whitespace-nowrap ${it.netRevenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(it.netRevenue)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(it.netCost)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">
                           {formatCLP(it.netMargin)}
                           <span className="text-xs text-slate-400 ml-1">({it.netMarginPct.toFixed(1)}%)</span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(it.fleteCobrado)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(it.fleteCobrado)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">
                           <FleteDeficit value={it.fleteDeficit} />
                         </TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
+                        <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
                           {formatCLP(it.marginAdjusted)}
                           <span className="text-xs text-slate-400 ml-1">({it.marginAdjustedPct.toFixed(1)}%)</span>
                         </TableCell>
@@ -821,7 +822,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cliente</TableHead>
+                <TableHead className="whitespace-nowrap align-bottom">Cliente</TableHead>
                 <ColHead className="text-right">Facturado</ColHead>
                 <ColHead className="text-right">Costo</ColHead>
                 <ColHead className="text-right">Margen</ColHead>
@@ -836,10 +837,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
               {clients.map((c) => (
                 <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
                   <TableCell>{c.client}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.cost)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCLP(c.margin)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
+                  <TableCell className={`text-right tabular-nums whitespace-nowrap ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(c.cost)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(c.margin)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
                   <TableCell className="text-right">
                     <FletePctCell
                       value={c.fleteEffectivePct}
@@ -848,10 +849,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                       onReset={() => onSaveFleteRate("client", c.client, null)}
                     />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="text-right tabular-nums whitespace-nowrap">
                     <FleteDeficit value={c.fleteDeficit} />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">{formatCLP(c.marginAdjusted)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">{formatCLP(c.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
                     <PctCell
                       value={c.effectivePct}
@@ -877,9 +878,9 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Documento</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Cliente</TableHead>
+                <TableHead className="whitespace-nowrap align-bottom">Documento</TableHead>
+                <TableHead className="whitespace-nowrap align-bottom">Fecha</TableHead>
+                <TableHead className="whitespace-nowrap align-bottom">Cliente</TableHead>
                 <ColHead className="text-right">Venta neta</ColHead>
                 <ColHead className="text-right">Costo</ColHead>
                 <ColHead className="text-right">Margen</ColHead>
@@ -905,10 +906,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   </TableCell>
                   <TableCell>{formatFecha(d.fecha)}</TableCell>
                   <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-slate-500">{formatCLP(d.cost)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCLP(d.margin)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-slate-500" title={`Objetivo ${d.fleteEffectivePct}%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
+                  <TableCell className={`text-right tabular-nums whitespace-nowrap ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(d.cost)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(d.margin)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500" title={`Objetivo ${d.fleteEffectivePct}%: ${formatCLP(d.fleteObjetivo)}`}>{formatCLP(d.fleteCobrado)}</TableCell>
                   <TableCell className="text-right">
                     <FletePctCell
                       value={d.fleteEffectivePct}
@@ -917,10 +918,10 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                       onReset={() => onSaveFleteRate("document", d.document, null)}
                     />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="text-right tabular-nums whitespace-nowrap">
                     <FleteDeficit value={d.fleteDeficit} />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">{formatCLP(d.marginAdjusted)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">{formatCLP(d.marginAdjusted)}</TableCell>
                   <TableCell className="text-right">
                     <PctCell
                       value={d.effectivePct}
