@@ -3061,6 +3061,58 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Semáforo de crédito para listados (Seguimiento). Mismo cálculo que
+  // /api/clients/credito —documentos pendientes del ERP, saldo = vabrdo - vaabdo,
+  // dedup por idmaeedo— pero para muchos clientes de una vez: una fila por cliente
+  // en el listado no puede disparar una consulta por cliente.
+  // Recibe códigos de cliente (koen) y devuelve, por código, cuánto debe vencido y
+  // cuánto por vencer. Un código que no vuelve en la respuesta está al día.
+  app.post('/api/clients/credito-semaforo', requireAuth, async (req, res) => {
+    try {
+      const raw = Array.isArray(req.body?.codes) ? req.body.codes : [];
+      const codes = Array.from(
+        new Set(raw.map((c: any) => String(c ?? '').trim()).filter((c: string) => c !== ''))
+      ).slice(0, 500) as string[];
+      if (codes.length === 0) return res.json({ credito: {} });
+
+      const result: any = await db.execute(sql`
+        WITH docs AS (
+          SELECT endo,
+                 idmaeedo,
+                 MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo,
+                 MAX(fe01vedo) AS venc
+          FROM ventas.fact_ventas
+          WHERE endo IN (${sql.join(codes.map((k) => sql`${k}`), sql`, `)})
+            AND tido IN ('FCV', 'FDV')
+            AND espgdo = 'P'
+          GROUP BY endo, idmaeedo
+        )
+        SELECT endo,
+               COALESCE(SUM(saldo) FILTER (WHERE venc IS NOT NULL AND venc < CURRENT_DATE), 0) AS vencido,
+               COALESCE(SUM(saldo) FILTER (WHERE venc IS NULL OR venc >= CURRENT_DATE), 0) AS por_vencer,
+               COUNT(*) AS documentos
+        FROM docs
+        WHERE saldo > 0
+        GROUP BY endo
+      `);
+      const rows = (Array.isArray(result) ? result : result.rows) || [];
+
+      const credito: Record<string, { overdue: number; upcoming: number; documentCount: number }> = {};
+      for (const r of rows as any[]) {
+        credito[String(r.endo).trim()] = {
+          overdue: Number(r.vencido) || 0,
+          upcoming: Number(r.por_vencer) || 0,
+          documentCount: Number(r.documentos) || 0,
+        };
+      }
+      res.json({ credito });
+    } catch (error) {
+      console.error('[credito-semaforo] error:', error);
+      // No bloquea el listado: sin datos, las filas simplemente no muestran semáforo.
+      res.json({ credito: {} });
+    }
+  });
+
   // Check if RUT exists in clients database
   app.get('/api/clients/check-rut', requireAuth, async (req, res) => {
     try {

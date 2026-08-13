@@ -79,6 +79,8 @@ import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/ru
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
 import { CreditoPanel } from "@/components/clients/credito-panel";
+import { useCredito } from "@/components/clients/credito-panel";
+import { nivelCredito, useCreditoSemaforo } from "@/components/clients/credito-semaforo";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
 import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seguimiento-clientes";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -1235,6 +1237,21 @@ export default function TareasPage() {
       .filter((t) => (t as any).clienteNombre)
       .map((t) => (t as any).clienteNombre)
   ));
+
+  // Semáforo de crédito de la lista de Seguimiento: la cartera de todos los
+  // clientes en seguimiento en UNA consulta (una fila no puede pedir la suya).
+  // Se arma con todos los seguimientos, no con los filtrados, para que buscar no
+  // dispare una consulta nueva por cada tecla.
+  const codigosEnSeguimiento = useMemo(
+    () => Array.from(new Set(
+      (tasksQuery.data || [])
+        .filter((t) => (t as any).payload?.kind === 'seguimiento_cliente')
+        .map((t) => String((t as any).clienteId || "").trim())
+        .filter((c) => c && c !== 'PROSPECTO')
+    )),
+    [tasksQuery.data],
+  );
+  const { data: creditoPorCliente } = useCreditoSemaforo(codigosEnSeguimiento);
 
   // Clientes que hoy están en seguimiento — alimentan las sugerencias del
   // buscador de esa pestaña (el título del seguimiento es el nombre del cliente
@@ -2589,6 +2606,14 @@ export default function TareasPage() {
                 // Seguimiento: tareas internas sin completar y tiempo sin interacción.
                 const pendientes = isSeguimientoCard ? pendientesDeCliente(task) : 0;
                 const dias = isSeguimientoCard ? diasSinMovimiento(task) : null;
+                // Semáforo de crédito: sale de la cartera del ERP que ya se pidió para
+                // toda la lista. Un cliente con código y sin fila en la respuesta no
+                // tiene documentos pendientes → está al día. Sin código (prospecto) no
+                // se sabe nada de su deuda y no se muestra semáforo.
+                const codigoCliente = String((task as any).clienteId || "").trim();
+                const credito = isSeguimientoCard && creditoPorCliente && codigoCliente && codigoCliente !== 'PROSPECTO'
+                  ? nivelCredito(creditoPorCliente[codigoCliente] ?? { overdue: 0, upcoming: 0 })
+                  : null;
                 const isOverdue = !isSeguimientoCard && task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
                 const lockedByGroup = !!(task as any).groupId && selectedGroupIds.has((task as any).groupId);
                 const isTaskSelected = selectedTaskIds.has(task.id) || lockedByGroup;
@@ -2778,6 +2803,16 @@ export default function TareasPage() {
                           <AlertCircle className="h-3 w-3" />
                           {etiquetaMovimiento(dias)}
                         </span>
+                        {credito && (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${credito.chip}`}
+                            title="Estado de la deuda del cliente en el ERP"
+                            data-testid={`badge-credito-${task.id}`}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${credito.punto}`} />
+                            Crédito: {credito.label}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       /* Right badges - show on hover */
@@ -6381,9 +6416,13 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
     queryFn: async () => { const r = await apiRequest(`/api/clients/${encodeURIComponent(clienteId)}`); return r.json(); },
     enabled: !!clienteId,
   });
+  // Crédito: los mismos números que la pestaña Cobranza (misma query, mismos
+  // documentos del ERP). Antes esta ficha leía crlt/cren/crsd de la tabla clients,
+  // que viene incompleta, y las dos pestañas mostraban cifras distintas del mismo
+  // cliente: acá salía "límite $0 · deuda $100.000" y en Cobranza lo contrario.
+  const { data: credito } = useCredito(clienteNombre);
 
   const val = (v: any) => (v === null || v === undefined || String(v).trim() === "" ? null : String(v).trim());
-  const num = (v: any) => (v === null || v === undefined || String(v).trim() === "" || isNaN(Number(v)) ? null : Number(v));
 
   if (isLoading) {
     return (
@@ -6415,10 +6454,10 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
   ];
   const shown = fields.filter(([, v]) => v);
 
-  const crlt = num(client?.crlt); // límite de crédito
-  const cren = num(client?.cren); // crédito disponible
-  const crsd = num(client?.crsd); // deuda / saldo
-  const hasCredito = crlt !== null || cren !== null || crsd !== null;
+  const limite = credito?.credit.limit ?? null;      // línea asignada (ficha/ERP)
+  const disponible = credito?.credit.available ?? null; // línea − deuda
+  const deuda = credito ? credito.credit.used : null;   // documentos pendientes del ERP
+  const hasCredito = !!credito;
   const observaciones = val(client?.oben);
   const bloqueado = Number(client?.bloqueado) === 1;
 
@@ -6454,15 +6493,15 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
           <div className="grid grid-cols-3 gap-2 pt-1">
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
               <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Límite crédito</p>
-              <p className="text-xs font-bold text-slate-800">{crlt !== null ? fmtCLP(crlt) : "—"}</p>
+              <p className="text-xs font-bold text-slate-800">{limite !== null ? fmtCLP(limite) : "Sin línea"}</p>
             </div>
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2">
               <p className="text-[9px] text-emerald-500 uppercase font-bold tracking-wider">Disponible</p>
-              <p className="text-xs font-bold text-emerald-700">{cren !== null ? fmtCLP(cren) : "—"}</p>
+              <p className="text-xs font-bold text-emerald-700">{disponible !== null ? fmtCLP(disponible) : "Sin línea"}</p>
             </div>
             <div className="rounded-lg bg-red-50 border border-red-200 p-2">
               <p className="text-[9px] text-red-500 uppercase font-bold tracking-wider">Deuda</p>
-              <p className="text-xs font-bold text-red-700">{crsd !== null ? fmtCLP(crsd) : "—"}</p>
+              <p className="text-xs font-bold text-red-700">{deuda !== null ? fmtCLP(deuda) : "—"}</p>
             </div>
           </div>
         )}
