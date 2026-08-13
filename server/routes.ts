@@ -1021,8 +1021,31 @@ export function registerRoutes(app: Express): Server {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
+  /**
+   * multer corta como middleware, así que su error no pasa por el try del
+   * handler: caía en el manejador global y salía como 500 "Internal Server
+   * Error" con el motivo real escondido. Un archivo por encima de los 50 MB
+   * tiene que decir que se pasó de tamaño, no fallar sin explicación.
+   */
+  const recibirArchivo = (campo: string) => (req: any, res: any, next: any) => {
+    upload.single(campo)(req, res, (err: any) => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError) {
+        console.warn(`[UPLOAD] multer rechazó el archivo (${err.code}) en ${req.originalUrl}`);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({ message: 'El archivo supera el máximo de 50 MB.' });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ message: `El archivo debe venir en el campo "${campo}".` });
+        }
+        return res.status(400).json({ message: `No se pudo leer el archivo (${err.code}).` });
+      }
+      return next(err);
+    });
+  };
+
   // Generic file upload endpoint for authenticated users
-  app.post('/api/upload', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/upload', requireAuth, recibirArchivo('file'), asyncHandler(async (req: any, res: any) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
@@ -1118,8 +1141,11 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ url: fileUrl, previewUrl });
     } catch (error: any) {
+      // El motivo va en `message`: es lo que el front muestra. Antes quedaba solo
+      // en `error` y en pantalla se leía siempre "Error al subir archivo".
       console.error('Error uploading file:', error);
-      res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+      const motivo = error?.message || 'causa desconocida';
+      res.status(500).json({ message: `Error al subir archivo: ${motivo}`, error: motivo });
     }
   }));
 

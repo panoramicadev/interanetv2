@@ -77,6 +77,73 @@ const BADGE_ESTADO: Record<string, string> = {
   rechazada: "bg-red-100 text-red-700 border-red-200",
 };
 
+/** Tope de /api/upload (multer). Se avisa acá para no mandar al pedo un archivo grande. */
+const MAX_ARCHIVO_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Campo y Sección viven ACÁ, a nivel de módulo, no dentro del render.
+ *
+ * Definidos adentro, React veía un tipo de componente nuevo en cada render y
+ * desmontaba y volvía a montar todos los inputs con cada tecla: el foco se
+ * perdía y había que hacer clic para escribir cada letra. Si se vuelven a mover
+ * adentro del componente, el formulario vuelve a quedar imposible de tipear.
+ */
+function CampoTexto({
+  k,
+  label,
+  valor,
+  onValor,
+  obligatorio,
+  placeholder,
+  tipo = "text",
+}: {
+  k: keyof FormSolicitud;
+  label: string;
+  valor: string;
+  onValor: (k: keyof FormSolicitud, valor: string) => void;
+  obligatorio?: boolean;
+  placeholder?: string;
+  tipo?: string;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
+        {label} {obligatorio && <span className="text-[#fd6301]">obligatorio</span>}
+      </div>
+      <Input
+        value={valor}
+        onChange={(e) => onValor(k, e.target.value)}
+        placeholder={placeholder}
+        type={tipo}
+        className="h-9 rounded-xl text-sm"
+        data-testid={`input-credito-${k}`}
+      />
+    </div>
+  );
+}
+
+function Seccion({
+  icono,
+  titulo,
+  children,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+        <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center">
+          {icono}
+        </span>
+        {titulo}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
+}
+
 export default function SolicitudCreditoPage() {
   return <SolicitudCreditoContent />;
 }
@@ -140,17 +207,46 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
   const campo = (k: keyof FormSolicitud, valor: string) => setForm((p) => ({ ...p, [k]: valor }));
 
   const subirCarpeta = async (file: File) => {
+    // El tope lo pone multer en /api/upload. Chequearlo acá evita subir 80 MB
+    // para que el servidor los rechace recién al final.
+    if (file.size > MAX_ARCHIVO_BYTES) {
+      toast({
+        title: "El archivo es muy grande",
+        description: `"${file.name}" pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo son 50 MB. Comprimí la carpeta o subila en partes.`,
+        variant: "destructive",
+      });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setSubiendo(true);
     try {
       const datos = new FormData();
       datos.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: datos, credentials: "include" });
-      if (!res.ok) throw new Error("No se pudo subir el archivo");
+      if (!res.ok) {
+        // El motivo real viene del servidor. Tragárselo con un "No se pudo subir
+        // el archivo" genérico dejaba el fallo imposible de diagnosticar.
+        let detalle = "";
+        try {
+          const cuerpo = await res.text();
+          try {
+            detalle = JSON.parse(cuerpo)?.message || cuerpo;
+          } catch {
+            detalle = cuerpo;
+          }
+        } catch {}
+        detalle = (detalle || "").trim().slice(0, 200);
+        if (res.status === 401) {
+          throw new Error("Se cerró tu sesión. Volvé a entrar y adjuntá la carpeta de nuevo.");
+        }
+        throw new Error(detalle ? `${detalle} (error ${res.status})` : `El servidor rechazó el archivo (error ${res.status})`);
+      }
       const json = await res.json();
       const url = json.fileUrl || json.url;
       if (!url) throw new Error("El servidor no devolvió la ubicación del archivo");
       setCarpeta({ url, nombre: file.name });
     } catch (error: any) {
+      console.error("[solicitud-credito] falló la subida de la carpeta tributaria:", error);
       toast({ title: "No se pudo adjuntar la carpeta", description: error?.message, variant: "destructive" });
     } finally {
       setSubiendo(false);
@@ -183,54 +279,6 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
       carpetaTributariaNombre: carpeta?.nombre ?? null,
     });
   };
-
-  const Campo = ({
-    k,
-    label,
-    obligatorio,
-    placeholder,
-    tipo = "text",
-  }: {
-    k: keyof FormSolicitud;
-    label: string;
-    obligatorio?: boolean;
-    placeholder?: string;
-    tipo?: string;
-  }) => (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
-        {label} {obligatorio && <span className="text-[#fd6301]">obligatorio</span>}
-      </div>
-      <Input
-        value={form[k]}
-        onChange={(e) => campo(k, e.target.value)}
-        placeholder={placeholder}
-        type={tipo}
-        className="h-9 rounded-xl text-sm"
-        data-testid={`input-credito-${k}`}
-      />
-    </div>
-  );
-
-  const Seccion = ({
-    icono,
-    titulo,
-    children,
-  }: {
-    icono: React.ReactNode;
-    titulo: string;
-    children: React.ReactNode;
-  }) => (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-        <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center">
-          {icono}
-        </span>
-        {titulo}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
-    </div>
-  );
 
   return (
     <div className={embedded ? "space-y-4 max-w-5xl" : "p-3 sm:p-5 space-y-4 max-w-5xl mx-auto"}>
@@ -267,31 +315,31 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
 
         <TabsContent value="nueva" className="mt-4 space-y-3">
           <Seccion icono={<Building2 className="h-3.5 w-3.5" />} titulo="Datos de la empresa">
-            <Campo k="razonSocial" label="Razón social" obligatorio placeholder="Constructora ..." />
-            <Campo k="rut" label="RUT" obligatorio placeholder="76.123.456-7" />
-            <Campo k="direccion" label="Dirección" obligatorio />
-            <Campo k="ciudad" label="Ciudad" obligatorio />
-            <Campo k="telefono" label="Teléfono" obligatorio placeholder="+56 9 ..." />
-            <Campo k="correo" label="Correo" placeholder="contacto@empresa.cl" />
-            <Campo k="giro" label="Giro" />
+            <CampoTexto k="razonSocial" valor={form.razonSocial} onValor={campo} label="Razón social" obligatorio placeholder="Constructora ..." />
+            <CampoTexto k="rut" valor={form.rut} onValor={campo} label="RUT" obligatorio placeholder="76.123.456-7" />
+            <CampoTexto k="direccion" valor={form.direccion} onValor={campo} label="Dirección" obligatorio />
+            <CampoTexto k="ciudad" valor={form.ciudad} onValor={campo} label="Ciudad" obligatorio />
+            <CampoTexto k="telefono" valor={form.telefono} onValor={campo} label="Teléfono" obligatorio placeholder="+56 9 ..." />
+            <CampoTexto k="correo" valor={form.correo} onValor={campo} label="Correo" placeholder="contacto@empresa.cl" />
+            <CampoTexto k="giro" valor={form.giro} onValor={campo} label="Giro" />
           </Seccion>
 
           <Seccion icono={<Users className="h-3.5 w-3.5" />} titulo="Socios y representante legal">
-            <Campo k="socio1Nombre" label="Socio 1" />
-            <Campo k="socio1Direccion" label="Dirección socio 1" />
-            <Campo k="socio2Nombre" label="Socio 2" />
-            <Campo k="socio2Direccion" label="Dirección socio 2" />
-            <Campo k="representanteNombre" label="Representante legal" />
-            <Campo k="representanteCedula" label="Cédula del representante" />
+            <CampoTexto k="socio1Nombre" valor={form.socio1Nombre} onValor={campo} label="Socio 1" />
+            <CampoTexto k="socio1Direccion" valor={form.socio1Direccion} onValor={campo} label="Dirección socio 1" />
+            <CampoTexto k="socio2Nombre" valor={form.socio2Nombre} onValor={campo} label="Socio 2" />
+            <CampoTexto k="socio2Direccion" valor={form.socio2Direccion} onValor={campo} label="Dirección socio 2" />
+            <CampoTexto k="representanteNombre" valor={form.representanteNombre} onValor={campo} label="Representante legal" />
+            <CampoTexto k="representanteCedula" valor={form.representanteCedula} onValor={campo} label="Cédula del representante" />
           </Seccion>
 
           <Seccion icono={<Banknote className="h-3.5 w-3.5" />} titulo="Bancos">
-            <Campo k="banco1" label="Banco 1" />
-            <Campo k="cuenta1" label="Cuenta 1" />
-            <Campo k="sucursal1" label="Sucursal 1" />
-            <Campo k="banco2" label="Banco 2" />
-            <Campo k="cuenta2" label="Cuenta 2" />
-            <Campo k="sucursal2" label="Sucursal 2" />
+            <CampoTexto k="banco1" valor={form.banco1} onValor={campo} label="Banco 1" />
+            <CampoTexto k="cuenta1" valor={form.cuenta1} onValor={campo} label="Cuenta 1" />
+            <CampoTexto k="sucursal1" valor={form.sucursal1} onValor={campo} label="Sucursal 1" />
+            <CampoTexto k="banco2" valor={form.banco2} onValor={campo} label="Banco 2" />
+            <CampoTexto k="cuenta2" valor={form.cuenta2} onValor={campo} label="Cuenta 2" />
+            <CampoTexto k="sucursal2" valor={form.sucursal2} onValor={campo} label="Sucursal 2" />
           </Seccion>
 
           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
@@ -302,7 +350,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
               Crédito y carpeta tributaria
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Campo k="creditoSolicitado" label="Crédito solicitado" obligatorio tipo="number" placeholder="0" />
+              <CampoTexto k="creditoSolicitado" valor={form.creditoSolicitado} onValor={campo} label="Crédito solicitado" obligatorio tipo="number" placeholder="0" />
 
               {/* La carpeta tributaria es el adjunto con el que Finanzas evalúa;
                   sube por el mismo /api/upload que el resto de los adjuntos. */}
