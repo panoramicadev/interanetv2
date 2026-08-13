@@ -52,6 +52,7 @@ import {
 } from "@/lib/crm-seguimiento";
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
 import { ComunaSelect } from "@/components/shared/comuna-select";
+import { CreditoPanel, useCredito } from "@/components/clients/credito-panel";
 
 // Constructor de presupuesto del Tomador 2, en modo modal embebido (se
 // abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
@@ -188,6 +189,9 @@ export default function SeguimientoClienteDetalle() {
   const [etiquetaInput, setEtiquetaInput] = useState("");
   // Constructor de presupuesto embebido (etapa "Cotización")
   const [showCotizador, setShowCotizador] = useState(false);
+  // Pestaña activa del bloque inferior; el chip de deuda del encabezado salta a Cobranza.
+  const [tabInferior, setTabInferior] = useState("pedidos");
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Cortar el reconocimiento de voz si se desmonta la página
   useEffect(() => {
@@ -216,6 +220,15 @@ export default function SeguimientoClienteDetalle() {
     },
     enabled: isAdminOrSupervisor,
   });
+
+  // ─── Crédito / cobranza ─────────────────────────────────────────
+  // Mismo endpoint y mismo panel que la pestaña Crédito de la ficha del cliente:
+  // en Seguimiento se estaba saliendo a vender sin ver que el cliente debía.
+  // El nombre que entiende el ERP es el de la ficha vinculada (nokoen); si no hay
+  // vínculo se prueba con el nombre del CRM y el RUT.
+  const creditoNombre = client?.clienteVinculado?.nokoen || client?.empresa || client?.nombre || null;
+  const { data: credito } = useCredito(creditoNombre, client?.rut);
+  const deudaVencida = credito?.credit.overdue ?? 0;
 
   // ─── Bitácora ───────────────────────────────────────────────────
   // El documentoId efectivo cambia cuando se vincula un RUT (clienteId se
@@ -907,6 +920,23 @@ export default function SeguimientoClienteDetalle() {
                     <Clock className="w-3 h-3" />
                     Últ. contacto: {timeAgo(client.ultimoContacto)}
                   </span>
+                  {/* Deuda vencida a la vista: antes había que entrar a Clientes
+                      para enterarse de que el cliente al que se le iba a vender debía. */}
+                  {deudaVencida > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTabInferior("cobranza");
+                        tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                      title="Ver el detalle en la pestaña Cobranza"
+                      data-testid="chip-deuda-vencida"
+                    >
+                      <AlertTriangle className="w-3 h-3" />
+                      Debe {formatCLP(deudaVencida)} vencidos
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1849,13 +1879,17 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Pestañas: Pedidos / NVV / RUT-Compras ═══ */}
+        {/* ═══ Pestañas: Pedidos / NVV / Cobranza / RUT-Compras ═══ */}
         {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
-        <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
-          <Tabs defaultValue="pedidos" className="w-full">
-            <TabsList className="w-full grid grid-cols-3 h-auto">
+        <div ref={tabsRef} className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 scroll-mt-4">
+          <Tabs value={tabInferior} onValueChange={setTabInferior} className="w-full">
+            <TabsList className="w-full grid grid-cols-4 h-auto">
               <TabsTrigger value="pedidos" className="text-xs px-1.5">Pedidos</TabsTrigger>
               <TabsTrigger value="nvv" className="text-xs px-1.5">NVV</TabsTrigger>
+              <TabsTrigger value="cobranza" className="text-xs px-1.5 gap-1">
+                Cobranza
+                {deudaVencida > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="Con deuda vencida" />}
+              </TabsTrigger>
               <TabsTrigger value="rut" className="text-xs px-1.5">
                 <span className="sm:hidden">RUT</span>
                 <span className="hidden sm:inline">RUT / Compras</span>
@@ -1870,6 +1904,40 @@ export default function SeguimientoClienteDetalle() {
             {/* ─── NVV ─── */}
             <TabsContent value="nvv" className="mt-4">
               <NVVTab client={client} />
+            </TabsContent>
+
+            {/* ─── Cobranza ─── */}
+            {/* Es el MISMO panel (y la misma query) que la pestaña Crédito de la
+                ficha del cliente, para que Seguimiento y Clientes no muestren
+                cifras distintas del mismo cliente. */}
+            <TabsContent value="cobranza" className="mt-4" data-testid="tab-cobranza">
+              {creditoNombre || client.rut ? (
+                <CreditoPanel
+                  clientName={creditoNombre}
+                  rut={client.rut}
+                  footer={
+                    // "Enviar cobranza" vive en la ficha de Clientes (con su flujo de
+                    // correo); desde acá se salta allá en vez de duplicarlo.
+                    creditoNombre && (credito?.docs.length ?? 0) > 0 ? (
+                      <div className="pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/client/${encodeURIComponent(creditoNombre)}`)}
+                          className="w-full rounded-2xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
+                          data-testid="btn-ir-a-cobranza"
+                        >
+                          <Send className="w-3.5 h-3.5 mr-2" /> Gestionar cobranza en Clientes
+                        </Button>
+                      </div>
+                    ) : null
+                  }
+                />
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Vincula un RUT para ver la cobranza de este cliente.
+                </p>
+              )}
             </TabsContent>
 
             {/* ─── RUT / Compras ─── */}
