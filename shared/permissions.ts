@@ -39,11 +39,10 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
   { key: "general", label: "General", description: "Acceso base a la intranet" },
   { key: "market", label: "Panorámica Market", description: "Módulos del eCommerce B2B/B2C" },
   { key: "comercial", label: "Comercial y Ventas", description: "Productos, clientes y pedidos" },
-  { key: "finanzas", label: "Finanzas", description: "Facturación, márgenes y gastos" },
+  { key: "finanzas", label: "Finanzas", description: "Facturación, márgenes, comisiones y gastos" },
   { key: "postventa", label: "Post-Venta", description: "Visitas técnicas y reclamos" },
   { key: "tintometria", label: "Tintometría", description: "Herramientas de color y costos" },
   { key: "mantencion", label: "Mantención (CMMS)", description: "Gestión de mantenimiento de planta" },
-  { key: "rrhh", label: "Recursos Humanos", description: "Comisiones y gestión de personal" },
   { key: "administracion", label: "Administración", description: "Configuración del sistema (pestañas de Configuración)" },
 ];
 
@@ -210,6 +209,18 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/margen",
   },
+  // La clave sigue siendo "rrhh.comisiones" porque está persistida en
+  // role_permissions y en los overrides por usuario: no se renombra. Vive en
+  // Finanzas —junto a Margen, sobre el que se calcula— porque ahí es donde se
+  // busca al configurar un rol; el grupo "rrhh" tenía este único módulo y
+  // quedaba enterrado bajo las nueve filas de Mantención.
+  {
+    key: "rrhh.comisiones",
+    label: "Comisiones de Vendedores",
+    description: "Cálculo de comisiones por vendedor sobre el margen facturado (información sensible)",
+    group: "finanzas",
+    href: "/comisiones",
+  },
   {
     key: "gastos",
     label: "Rendición de Gastos",
@@ -327,15 +338,6 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Calendario de mantenciones",
     group: "mantencion",
     href: "/cmms/calendario",
-  },
-
-  // ── Recursos Humanos ─────────────────────────────────────────
-  {
-    key: "rrhh.comisiones",
-    label: "Comisiones de Vendedores",
-    description: "Cálculo de comisiones por vendedor sobre el margen facturado (información sensible)",
-    group: "rrhh",
-    href: "/comisiones",
   },
 
   // ── Administración ───────────────────────────────────────────
