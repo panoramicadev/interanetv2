@@ -15,7 +15,7 @@
 import { storage } from '../storage';
 import * as NotifyHelper from '../notifications-helper';
 import { emailService } from './email';
-import { formatRutDisplay } from '@shared/rut';
+import { formatRutDisplay, rutMatchKey } from '@shared/rut';
 
 /*
  * ── Por qué acá ya no se descuenta cupo ──────────────────────────────────────
@@ -283,13 +283,14 @@ export async function avisarPedidoNuevo(datos: AvisoPedidoNuevo): Promise<void> 
 
   // Internal staff notification — pedidos de Panorámica Market.
   // Va siempre (no depende del toggle de emailNotificationSettings) a
-  // contacto@pinturaspanoramica.cl con copia a fparra@pinturaspanoramica.cl.
+  // contacto@pinturaspanoramica.cl con copia a fparra@pinturaspanoramica.cl,
+  // más las copias por cliente que correspondan (ver COPIAS_POR_CLIENTE).
   try {
     const { buildOrderInternalNotifyEmail } = await import('../email-templates');
     const built = buildOrderInternalNotifyEmail(datosCorreoInterno(datos, itemsParaCorreo));
     await emailService.sendEmail({
       to: 'contacto@pinturaspanoramica.cl',
-      cc: 'fparra@pinturaspanoramica.cl',
+      cc: copiasAvisoInterno(datos).join(', '),
       subject: built.subject,
       html: built.html,
     });
@@ -298,6 +299,49 @@ export async function avisarPedidoNuevo(datos: AvisoPedidoNuevo): Promise<void> 
   }
 
   await notificarEquipoComercial(datos);
+}
+
+/** Copia fija del aviso interno, para todos los pedidos. */
+const COPIA_FIJA_AVISO_INTERNO = 'fparra@pinturaspanoramica.cl';
+
+/**
+ * Copias extra del aviso interno que dependen de QUÉ CLIENTE hizo el pedido.
+ *
+ * Se identifica por RUT y no por nombre, porque un mismo cliente entra con el
+ * nombre de cada sucursal ("ELECTROCOM S.A. - MCT LOS ANGELES") y así la copia
+ * sale igual desde cualquiera de ellas. `nombre` es solo el respaldo para las
+ * fichas que llegan sin RUT.
+ */
+const COPIAS_POR_CLIENTE: Array<{ rut: string; nombre: RegExp; emails: string[] }> = [
+  {
+    // ELECTROCOM S.A. y sus sucursales.
+    rut: '96355000-6',
+    nombre: /electrocom/i,
+    emails: ['lchaparro@pinturaspanoramica.cl'],
+  },
+];
+
+/**
+ * Destinatarios en copia del aviso interno de un pedido del Market: la copia de
+ * siempre más las que ese cliente en particular tenga configuradas.
+ */
+function copiasAvisoInterno(datos: AvisoPedidoNuevo): string[] {
+  const copias = [COPIA_FIJA_AVISO_INTERNO];
+
+  const claveRut = rutMatchKey(datos.client?.rten);
+  const nombre = datos.clientName || '';
+
+  for (const regla of COPIAS_POR_CLIENTE) {
+    const coincide = claveRut
+      ? claveRut === rutMatchKey(regla.rut)
+      : regla.nombre.test(nombre);
+    if (!coincide) continue;
+    for (const email of regla.emails) {
+      if (!copias.includes(email)) copias.push(email);
+    }
+  }
+
+  return copias;
 }
 
 /**
