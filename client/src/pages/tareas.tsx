@@ -1123,6 +1123,35 @@ export default function TareasPage() {
     return null;
   }
 
+  // Área efectiva de una tarea, para el filtro de arriba.
+  //
+  // Antes se usaba `task.segmento` a secas y las tareas guardadas SIN área
+  // quedaban invisibles con cualquier área seleccionada: solo aparecían con el
+  // filtro en "todas", que casi nadie usa. Así se perdieron de vista 8
+  // seguimientos de obra cargados en lote, que ni el administrador ni el
+  // supervisor veían aunque el vendedor sí los tenía.
+  //
+  // Ahora, si la tarea no trae área, se deduce del área del colaborador que la
+  // tiene asignada. Si tampoco se puede deducir, la tarea se muestra en todas
+  // las áreas: preferimos que aparezca de más y no que desaparezca.
+  const raizArea = (s?: string | null) => normalizeSearchText(s || "").trim().replace(/s+$/, "");
+  const areaEfectivaDeTarea = (task: any): string | null => {
+    const propia = (task?.segmento || "").trim();
+    if (propia) return propia;
+    for (const a of task?.assignments || []) {
+      const persona =
+        availableUsers?.find((u) => u.id === a.assigneeId) ||
+        availableSupervisors?.find((u) => u.id === a.assigneeId);
+      const raiz = raizArea(segmentoDeUsuario(persona));
+      if (!raiz) continue;
+      const match = SEGMENTOS.find(
+        (seg) => raizArea(seg.value) === raiz || raizArea(seg.label) === raiz,
+      );
+      if (match) return match.value;
+    }
+    return null;
+  };
+
   // Filter tasks based on view mode and user role
   const filteredTasks = tasksQuery.data?.filter((task) => {
     // View mode filter
@@ -1180,7 +1209,8 @@ export default function TareasPage() {
 
     // Segmento filter (skip for salesperson - they see all their tasks regardless of segment)
     if (!isSalesperson && segmentoFilter !== "all") {
-      const matchesSegment = (task as any).segmento === segmentoFilter;
+      const areaEfectiva = areaEfectivaDeTarea(task);
+      const matchesSegment = areaEfectiva === segmentoFilter;
       if (isMarketing) {
         // Marketing ve su segmento MÁS las tareas que le asignaron/creó (de cualquier
         // segmento) — "sus tareas de marketing y las otras que le van asociando".
@@ -1194,7 +1224,7 @@ export default function TareasPage() {
               a.assigneeId === user.id,
           );
         if (!matchesSegment && !isMine) return false;
-      } else if (!(task as any).segmento || !matchesSegment) {
+      } else if (areaEfectiva && !matchesSegment) {
         return false;
       }
     }
