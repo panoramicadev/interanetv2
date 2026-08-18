@@ -26,12 +26,16 @@ interface PriceListResponse {
 }
 
 // vendorView: vista de solo lectura para vendedores — ve costos, márgenes y simulador,
-// pero sin acciones de edición (editar producto, importar, ajuste masivo, listas custom).
-// Además del prop (cuando se monta desde /productos), se fuerza si el rol
-// no tiene el permiso "productos.costos" (cubre la ruta directa /lista-precios).
+// pero sin acciones de edición (agregar, exportar, importar, ajuste masivo, listas custom)
+// y solo con las pestañas Lista Comercial y Lista Mix.
+// Se fuerza si el rol no tiene el permiso "precios.editar" — el mismo que el
+// backend exige en canEditPricing() para cualquier escritura sobre precios, así
+// no se muestran botones que igual iban a devolver 403. Antes dependía de
+// "productos.costos", lo que dejaba el módulo completo a quien solo debía VER
+// costos (el caso del vendedor).
 export default function ListaPrecios({ vendorView: vendorViewProp = false }: { vendorView?: boolean }) {
   const { can } = usePermissions();
-  const vendorView = vendorViewProp || !can("productos.costos");
+  const vendorView = vendorViewProp || !can("precios.editar");
   const [search, setSearch] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -89,6 +93,12 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
       }
     },
   });
+
+  // Vendedor: de las listas personalizadas solo ve Lista Mix. MCT y Panoramica
+  // Store son internas y no deben aparecerle como pestaña.
+  const visiblePriceLists = vendorView
+    ? customPriceLists.filter(l => l.code === 'LP02' || /mix/i.test(l.name))
+    : customPriceLists;
 
   // Query para obtener unidades disponibles para filtros
   const { data: availableUnits = [] } = useQuery({
@@ -458,23 +468,25 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
     <div className="space-y-4">
       <Tabs defaultValue="comercial" className="w-full">
         <div className="flex items-center gap-2">
-        <div className={`tab-strip flex-1 min-w-0 ${vendorView ? 'hidden' : ''}`}>
+        <div className="tab-strip flex-1 min-w-0">
         <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg w-max min-w-full">
           <TabsTrigger value="comercial" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <List className="h-3.5 w-3.5" />
             Lista Comercial
           </TabsTrigger>
-          {customPriceLists.map(list => (
+          {visiblePriceLists.map(list => (
             <TabsTrigger key={list.code} value={list.code} className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
               <DollarSign className="h-3.5 w-3.5" />
               {list.name}
               <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 h-4">{list.item_count}</Badge>
             </TabsTrigger>
           ))}
+          {!vendorView && (
           <TabsTrigger value="ofertas" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <Tag className="h-3.5 w-3.5" />
             Ofertas
           </TabsTrigger>
+          )}
         </TabsList>
         </div>
         {!vendorView && (
@@ -505,6 +517,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
             <span className="hidden sm:inline">Agregar</span>
           </Button>
           )}
+          {!vendorView && (
           <Button
             variant="outline" 
             size="sm" 
@@ -516,6 +529,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
           </Button>
+          )}
           {!vendorView && (
           <Button
             variant="outline"
@@ -1674,15 +1688,17 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
       </Dialog>
         </TabsContent>
 
-        {customPriceLists.map(list => (
+        {visiblePriceLists.map(list => (
           <TabsContent key={list.code} value={list.code} className="mt-3">
             <ListaPreciosMix listCode={list.code} listName={list.name} vendorView={vendorView} />
           </TabsContent>
         ))}
 
+        {!vendorView && (
         <TabsContent value="ofertas" className="mt-3">
           <ListaPreciosOfertas vendorView={vendorView} />
         </TabsContent>
+        )}
       </Tabs>
 
       {/* New List Dialog */}
