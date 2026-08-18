@@ -80,7 +80,15 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 FROM node:20-bookworm-slim AS runtime
 
-# Solo las libs runtime de Chromium (sin -dev, sin build-essential, sin python3).
+# Solo las libs runtime de Chromium (sin -dev, sin build-essential, sin python3),
+# MÁS las libs runtime contra las que queda linkeado `canvas` cuando el builder lo
+# compila desde fuente: libgif7, libjpeg62-turbo y librsvg2-2 (las contrapartes de
+# libgif-dev, libjpeg-dev y librsvg2-dev del stage builder). Sin ellas el binario
+# compilado que llega vía `COPY --from=builder .../node_modules` no puede abrir
+# libgif.so.7 y el server muere al arrancar con ERR_DLOPEN_FAILED: `canvas` se
+# carga en el import de server/pdf-to-image.ts, o sea en el arranque, no lazy.
+# Cuando npm baja el prebuilt de `canvas` esto no se nota, porque el prebuilt trae
+# sus propias libs adentro; el bug aparece solo en los builds que compilan.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
@@ -96,12 +104,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
     libgbm1 \
     libgcc1 \
+    libgif7 \
     libglib2.0-0 \
     libgtk-3-0 \
+    libjpeg62-turbo \
     libnspr4 \
     libnss3 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
+    librsvg2-2 \
     libstdc++6 \
     libx11-6 \
     libx11-xcb1 \
