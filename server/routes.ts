@@ -30279,10 +30279,10 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/inventory/gri-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      // Security: GRI costs are not visible to salespeople
-      if (req.user?.role === 'salesperson') {
-        return res.json({});
-      }
+      // El vendedor SÍ ve el costo GRI: lo necesita para el margen y el
+      // simulador de Lista de Precios (Comercial y Mix). Antes se le devolvía
+      // {} por rol, y por eso Costo y Margen le salían en "—".
+      // La escritura sobre precios sigue cerrada por "precios.editar".
 
       // Check cache
       if (griPriceCache && (Date.now() - griPriceCache.timestamp) < GRI_CACHE_TTL) {
