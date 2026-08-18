@@ -304,7 +304,7 @@ export default function TareasPage() {
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
   const tabTriggerClass =
-    "inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg whitespace-nowrap";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-slate-200 hover:text-white hover:bg-slate-800/70 data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // View state - vendedores always see "my-tasks"
@@ -1543,7 +1543,7 @@ export default function TareasPage() {
     if (!count) return null;
     return (
       <span
-        className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#fd6301] text-white text-[10px] font-bold shadow-sm shadow-orange-500/30"
+        className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#fd6301] text-white group-data-[state=active]:bg-white group-data-[state=active]:text-[#fd6301] text-[10px] font-bold shadow-sm shadow-orange-500/30"
         data-testid={`badge-tab-changes-${tab}`}
       >
         {count > 99 ? "99+" : count}
@@ -2144,7 +2144,7 @@ export default function TareasPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl ${tabsGridClass}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5 border border-slate-800/80 dark:border-slate-800/80 rounded-2xl ${tabsGridClass}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
               <CheckSquare className={tabIconClass} />
               Tareas
