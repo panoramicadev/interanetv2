@@ -33679,8 +33679,8 @@ export function registerRoutes(app: Express): Server {
             // Admin can delete any promesa
             canDelete = true;
           } else if (user.role === 'salesperson') {
-            // Salesperson can delete their own promesas
-            canDelete = item.promesa.vendedorId === user.id;
+            // El vendedor no elimina sus promesas (ver DELETE /api/promesas-compra/:id)
+            canDelete = false;
           } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
             // Supervisor can delete promesas of salespeople under their supervision
             const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
@@ -33700,6 +33700,178 @@ export function registerRoutes(app: Express): Server {
       console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
       res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
     }
+  }));
+
+  // Resumen de ventas reales del período de la Estimación (Ferreterías).
+  // El cuadro "Vendido" de las promesas solo mira a los clientes prometidos;
+  // esto responde la otra pregunta: cuánto se vendió EN TOTAL en esas fechas,
+  // abriendo facturado (todo lo que no es GDV), notas de venta abiertas (NVV) y
+  // guías de despacho (GDV). Además devuelve el avance del mes contra la meta
+  // cargada en Metas de Venta (goals), que es mensual.
+  //
+  // ⚠️ El total suma los tres componentes tal como se pidió, pero facturado y GDV
+  // pueden ser la misma venta en dos momentos (la guía se factura después): el
+  // total puede contener duplicados. Por eso la respuesta trae siempre el
+  // desglose y la UI lo muestra.
+  //
+  // IMPORTANTE: debe declararse ANTES de /:id para no ser capturada por esa ruta.
+  app.get('/api/promesas-compra/resumen-ventas', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { startDate, endDate, vendedorId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'startDate y endDate son requeridos' });
+    }
+
+    const SEGMENTO = 'FERRETERIAS';
+
+    // --- Alcance: mismas reglas de visibilidad que el reporte de cumplimiento ---
+    // vendedores === null → sin acotar por vendedor: se mide el segmento completo.
+    let vendedores: string[] | null = null;
+    let esVendedorUnico = false;
+
+    const nombreDeVendedor = async (id: string): Promise<string | null> => {
+      const u = await storage.getSalespersonUser(id);
+      return u?.salespersonName || null;
+    };
+
+    if (user.role === 'salesperson') {
+      // El vendedor solo ve lo suyo, venga o no filtro en la query.
+      vendedores = user.salespersonName ? [user.salespersonName] : [];
+      esVendedorUnico = true;
+    } else if (user.role === 'supervisor' || user.role === 'encargado_area') {
+      const equipo = await storage.getSalespeopleUnderSupervisor(user.id);
+      const nombresEquipo = equipo.map((s: any) => s.salespersonName).filter(Boolean);
+      let elegido: string | null = null;
+      if (vendedorId && vendedorId !== 'all') {
+        const nombre = await nombreDeVendedor(vendedorId);
+        // Un vendedor fuera de su equipo se ignora: queda el equipo completo.
+        if (nombre && nombresEquipo.includes(nombre)) elegido = nombre;
+      }
+      vendedores = elegido ? [elegido] : nombresEquipo;
+      esVendedorUnico = !!elegido;
+    } else if (vendedorId && vendedorId !== 'all') {
+      // Admin con un vendedor concreto seleccionado.
+      const nombre = await nombreDeVendedor(vendedorId);
+      vendedores = nombre ? [nombre] : [];
+      esVendedorUnico = true;
+    }
+
+    const sinAlcance = vendedores !== null && vendedores.length === 0;
+
+    const scopeVentas = vendedores === null
+      ? segmentSqlEq(sql`noruen`, SEGMENTO)
+      : sql`nokofu IN (${sql.join(vendedores.map((n) => sql`${n}`), sql`, `)})`;
+
+    const scopeNvv = vendedores === null
+      ? segmentSqlEq(sql`nombre_segmento_cliente`, SEGMENTO)
+      : sql`UPPER(TRIM(nombre_vendedor)) IN (${sql.join(vendedores.map((n) => sql`${n.toUpperCase().trim()}`), sql`, `)})`;
+
+    // Mes al que pertenece el período mostrado (la meta siempre es mensual).
+    const anioMes = String(startDate).slice(0, 7);
+    const anio = Number(anioMes.slice(0, 4));
+    const mes = Number(anioMes.slice(5, 7));
+    const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+    const inicioMes = `${anioMes}-01`;
+    const finMes = `${anioMes}-${String(ultimoDia).padStart(2, '0')}`;
+
+    // Un solo barrido que cubre el mes Y el período mostrado (una semana puede
+    // cruzar el fin de mes, por eso el rango es la unión de ambos) y separa cada
+    // total con un CASE. Antes eran cuatro consultas en paralelo: la ráfaga
+    // ocupaba varias conexiones a la vez y hacía fallar la sesión del usuario
+    // —la pantalla mostraba "No se pudo calcular"—. Se ejecutan de a una.
+    const desde = startDate < inicioMes ? String(startDate) : inicioMes;
+    const hasta = endDate > finMes ? String(endDate) : finMes;
+
+    const enPeriodo = sql`feemdo >= ${startDate}::date AND feemdo <= ${endDate}::date`;
+    const enMes = sql`feemdo >= ${inicioMes}::date AND feemdo <= ${finMes}::date`;
+
+    let ventasRow: any = {};
+    let nvvRow: any = {};
+
+    if (!sinAlcance) {
+      const ventasRes = await db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN tido <> 'GDV' AND ${enPeriodo} THEN monto ELSE 0 END), 0) AS facturado_periodo,
+          COALESCE(SUM(CASE WHEN tido = 'GDV' AND (esdo IS NULL OR esdo <> 'C') AND ${enPeriodo} THEN monto ELSE 0 END), 0) AS gdv_periodo,
+          COALESCE(SUM(CASE WHEN tido <> 'GDV' AND ${enMes} THEN monto ELSE 0 END), 0) AS facturado_mes,
+          COALESCE(SUM(CASE WHEN tido = 'GDV' AND (esdo IS NULL OR esdo <> 'C') AND ${enMes} THEN monto ELSE 0 END), 0) AS gdv_mes
+        FROM ventas.fact_ventas
+        WHERE feemdo >= ${desde}::date
+          AND feemdo <= ${hasta}::date
+          AND ${scopeVentas}
+      `);
+      ventasRow = (ventasRes.rows as any[])[0] || {};
+
+      const nvvRes = await db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN ${enPeriodo} THEN monto ELSE 0 END), 0) AS nvv_periodo,
+          COALESCE(SUM(CASE WHEN ${enMes} THEN monto ELSE 0 END), 0) AS nvv_mes
+        FROM nvv.fact_nvv
+        WHERE (eslido IS NULL OR eslido = '')
+          AND feemdo >= ${desde}::date
+          AND feemdo <= ${hasta}::date
+          AND ${scopeNvv}
+      `);
+      nvvRow = (nvvRes.rows as any[])[0] || {};
+    }
+
+    const armarTotales = (facturado: number, nvv: number, gdv: number) => ({
+      facturado, nvv, gdv, total: facturado + nvv + gdv,
+    });
+
+    const periodo = armarTotales(
+      Number(ventasRow.facturado_periodo || 0),
+      Number(nvvRow.nvv_periodo || 0),
+      Number(ventasRow.gdv_periodo || 0),
+    );
+    const mesTotales = armarTotales(
+      Number(ventasRow.facturado_mes || 0),
+      Number(nvvRow.nvv_mes || 0),
+      Number(ventasRow.gdv_mes || 0),
+    );
+
+    const todasLasMetas = await storage.getGoals();
+
+    // Meta del mes: la del segmento cuando se ven todos (admin), la del vendedor
+    // cuando hay uno seleccionado, y la suma del equipo para un supervisor.
+    const normalizar = (s: string | null | undefined) => (s || '')
+      .toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+    const metasDelMes = todasLasMetas.filter((g: any) => g.period === anioMes);
+    let meta = 0;
+    let metaOrigen: 'segmento' | 'vendedor' | 'equipo' | null = null;
+
+    if (vendedores === null) {
+      const delSegmento = metasDelMes.find((g: any) => g.type === 'segment' && normalizar(g.target) === normalizar(SEGMENTO));
+      if (delSegmento) {
+        meta = parseFloat(delSegmento.amount);
+        metaOrigen = 'segmento';
+      }
+    } else if (vendedores.length > 0) {
+      const nombres = new Set(vendedores.map(normalizar));
+      const propias = metasDelMes.filter((g: any) => g.type === 'salesperson' && nombres.has(normalizar(g.target)));
+      if (propias.length > 0) {
+        meta = propias.reduce((suma: number, g: any) => suma + parseFloat(g.amount), 0);
+        metaOrigen = esVendedorUnico ? 'vendedor' : 'equipo';
+      }
+    }
+
+    const porcentaje = meta > 0 ? (mesTotales.total / meta) * 100 : 0;
+    const falta = Math.max(0, meta - mesTotales.total);
+
+    // Qué se está midiendo. OJO: "segmento" son las ventas a clientes ferreteros
+    // las haga quien las haga, mientras que "vendedor" es TODO lo que vendió esa
+    // persona (incluidos clientes de otros segmentos), que es contra lo que se
+    // compara su meta. Por eso los vendedores no suman exactamente el total.
+    const alcance: 'segmento' | 'vendedor' | 'equipo' =
+      vendedores === null ? 'segmento' : (esVendedorUnico ? 'vendedor' : 'equipo');
+
+    res.json({
+      alcance,
+      periodo: { startDate, endDate, ...periodo },
+      mes: { periodo: anioMes, ...mesTotales, meta, metaOrigen, porcentaje, falta },
+    });
   }));
 
   // Get promesa de compra by ID
@@ -33724,6 +33896,10 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update promesa de compra
+  // Actualizar promesa de compra.
+  // Reglas (ago-2026): el monto prometido solo lo cambian admin y supervisor —el
+  // vendedor lo fija al crearla y después ya no puede moverlo—. El vendedor sí
+  // sigue registrando sus ventas reales y observaciones sobre su propia promesa.
   app.patch('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -33733,12 +33909,43 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Promesa no encontrada' });
       }
 
-      // Check authorization
+      const esSupervisor = user.role === 'supervisor' || user.role === 'encargado_area';
+
       if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      const updated = await storage.updatePromesaCompra(req.params.id, req.body);
+      if (esSupervisor) {
+        // El supervisor solo interviene promesas de vendedores a su cargo
+        const salespersonUser = await storage.getSalespersonUserById(promesa.vendedorId);
+        if (!salespersonUser || salespersonUser.supervisorId !== user.id) {
+          return res.status(403).json({ message: 'No autorizado para editar promesas de este vendedor' });
+        }
+      }
+
+      const puedeEditarMonto = user.role === 'admin' || esSupervisor;
+
+      // Lista blanca de campos: el body llega directo desde el cliente y
+      // updatePromesaCompra escribe cualquier columna que reciba.
+      const cambios: any = {};
+      if ('ventasRealesManual' in req.body) cambios.ventasRealesManual = req.body.ventasRealesManual;
+      if ('observaciones' in req.body) cambios.observaciones = req.body.observaciones;
+      if ('montoPrometido' in req.body) {
+        if (!puedeEditarMonto) {
+          return res.status(403).json({ message: 'Solo administradores y supervisores pueden cambiar el monto prometido' });
+        }
+        const monto = parseFloat(req.body.montoPrometido);
+        if (!isFinite(monto) || monto <= 0) {
+          return res.status(400).json({ message: 'El monto prometido debe ser un número mayor que cero' });
+        }
+        cambios.montoPrometido = monto.toString();
+      }
+
+      if (Object.keys(cambios).length === 0) {
+        return res.status(400).json({ message: 'No hay cambios para aplicar' });
+      }
+
+      const updated = await storage.updatePromesaCompra(req.params.id, cambios);
       await logPanelChange(user, {
         section: 'estimacion',
         action: 'updated',
@@ -33764,10 +33971,9 @@ export function registerRoutes(app: Express): Server {
 
       // Check authorization
       if (user.role === 'salesperson') {
-        // Salesperson solo puede eliminar sus propias promesas
-        if (promesa.vendedorId !== user.id) {
-          return res.status(403).json({ message: 'No autorizado para eliminar esta promesa' });
-        }
+        // Regla ago-2026: creada la promesa, el vendedor ya no puede eliminarla.
+        // Solo su supervisor o un administrador pueden hacerlo.
+        return res.status(403).json({ message: 'Solo administradores y supervisores pueden eliminar promesas' });
       } else if ((user.role === 'supervisor' || user.role === 'encargado_area')) {
         // Supervisor puede eliminar promesas de vendedores bajo su supervisión
         const salespersonUser = await storage.getSalespersonUserById(promesa.vendedorId);

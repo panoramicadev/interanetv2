@@ -68,7 +68,9 @@ import {
   Palette,
   HardHat,
   FileCheck,
-  RotateCcw
+  RotateCcw,
+  Target,
+  Wallet
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -239,6 +241,27 @@ interface PromesaCumplimiento {
   ventasReales: number;
   cumplimiento: number;
   estado: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
+}
+
+// Ventas reales del período completo (no solo las de los clientes prometidos) y
+// avance del mes contra la meta. Lo entrega /api/promesas-compra/resumen-ventas.
+interface TotalesVendido {
+  facturado: number;
+  nvv: number;
+  gdv: number;
+  total: number;
+}
+
+interface ResumenVentasEstimacion {
+  alcance: 'segmento' | 'vendedor' | 'equipo';
+  periodo: TotalesVendido & { startDate: string; endDate: string };
+  mes: TotalesVendido & {
+    periodo: string;
+    meta: number;
+    metaOrigen: 'segmento' | 'vendedor' | 'equipo' | null;
+    porcentaje: number;
+    falta: number;
+  };
 }
 
 interface Cliente {
@@ -3859,6 +3882,40 @@ function EstimacionSemanalTab({
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area'),
   });
 
+  // Rango de fechas del período mostrado (semana en Ferreterías, mes en Construcción)
+  const rangoPeriodo = esConstruccion
+    ? {
+        desde: format(startOfMonth(selectedWeek), 'yyyy-MM-dd'),
+        hasta: format(endOfMonth(selectedWeek), 'yyyy-MM-dd'),
+      }
+    : {
+        desde: format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+        hasta: format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      };
+
+  // Vendido TOTAL del período (facturado + NVV + GDV), no solo el de los clientes
+  // prometidos, más el avance del mes contra la meta. El backend acota por rol:
+  // el vendedor solo ve lo suyo y el supervisor lo de su equipo.
+  const {
+    data: resumenVentas,
+    isPending: isPendingResumenVentas,
+    isError: errorResumenVentas,
+  } = useQuery<ResumenVentasEstimacion>({
+    queryKey: ['/api/promesas-compra/resumen-ventas', rangoPeriodo.desde, rangoPeriodo.hasta, vendedorFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams({ startDate: rangoPeriodo.desde, endDate: rangoPeriodo.hasta });
+      if (vendedorFilter !== 'all') params.set('vendedorId', vendedorFilter);
+      const response = await apiRequest(`/api/promesas-compra/resumen-ventas?${params.toString()}`);
+      return response.json();
+    },
+    enabled: !!user,
+    // La consulta barre todo el mes del segmento y puede tardar: si falla
+    // (sesión recién renovada, corte de red) se reintenta en vez de dejar los
+    // cuadros en cero, que se lee como "no vendí nada".
+    retry: 2,
+    staleTime: 60_000,
+  });
+
   // Filtrar promesas válidas y por vendedor
   const promesasValidas = promesasCumplimiento.filter(p => p.promesa != null);
   const promesasFiltradas = vendedorFilter === "all"
@@ -3941,69 +3998,170 @@ function EstimacionSemanalTab({
         </CardHeader>
       </Card>
 
-      {/* Resumen de cumplimiento */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Prometido */}
-        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">Prometido</span>
-              <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-slate-500" />
+      {/* Resumen de cumplimiento — dos indicadores por marco */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* Prometido vs. Vendido de las promesas */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-2 divide-x divide-slate-200/70 dark:divide-slate-800">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">Prometido</span>
+                  <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="h-4 w-4 text-slate-500" />
+                  </div>
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+                  ${resumen.totalPrometido.toLocaleString('es-CL')}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">{resumen.totalPromesas} promesas</p>
+              </div>
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">Vendido</span>
+                  <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="h-4 w-4 text-[#fd6301]" />
+                  </div>
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+                  ${resumen.totalVendido.toLocaleString('es-CL')}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">NVV + GDV de lo prometido</p>
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-              ${resumen.totalPrometido.toLocaleString('es-CL')}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">{resumen.totalPromesas} promesas</p>
           </CardContent>
         </Card>
 
-        {/* Total Vendido */}
-        <Card className="border border-orange-200 dark:border-orange-900/40 shadow-sm rounded-2xl">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">Vendido</span>
-              <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center">
-                <Building2 className="h-4 w-4 text-[#fd6301]" />
+        {/* Cumplidas vs. Incumplidas */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-2 divide-x divide-slate-200/70 dark:divide-slate-800">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-600">Cumplidas</span>
+                  <div className="h-8 w-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  </div>
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-emerald-600 tracking-tight tabular-nums">
+                  {resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">{resumen.superadas} superadas · {resumen.cumplidasParcialmente} parcial</p>
+              </div>
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-red-600">Incumplidas</span>
+                  <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                  </div>
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-red-600 tracking-tight tabular-nums">
+                  {resumen.insuficientes + resumen.noCumplidas}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">{resumen.insuficientes} insufic. · {resumen.noCumplidas} sin ventas</p>
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-              ${resumen.totalVendido.toLocaleString('es-CL')}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">NVV + GDV</p>
           </CardContent>
         </Card>
 
-        {/* Cumplidas */}
-        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+        {/* Vendido TOTAL del período: no depende de lo prometido. Ojo: facturado y
+            GDV pueden ser la misma venta en dos momentos, por eso va el desglose. */}
+        <Card className="border border-orange-200 dark:border-orange-900/40 shadow-sm rounded-2xl" data-testid="card-total-vendido">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-600">Cumplidas</span>
-              <div className="h-8 w-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 text-emerald-600" />
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">
+                Total vendido {esConstruccion ? 'del mes' : 'de la semana'}
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
+                <Wallet className="h-4 w-4 text-[#fd6301]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">
-              {resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+              {isPendingResumenVentas
+                ? <span className="text-slate-300">—</span>
+                : errorResumenVentas
+                  ? <span className="text-base font-semibold text-red-600">No se pudo calcular</span>
+                  : `$${(resumenVentas?.periodo.total ?? 0).toLocaleString('es-CL')}`}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">{resumen.superadas} superadas · {resumen.cumplidasParcialmente} parcial</p>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {!resumenVentas
+                ? (errorResumenVentas ? 'Vuelve a entrar a la pestaña para reintentar' : 'Calculando…')
+                : resumenVentas.alcance === 'segmento'
+                  ? 'Todo el segmento Ferreterías'
+                  : resumenVentas.alcance === 'equipo'
+                    ? 'Todos los vendedores de tu equipo'
+                    : 'Solo el vendedor seleccionado'}
+            </p>
+            <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800">
+              {([
+                { etiqueta: 'Facturado', valor: resumenVentas?.periodo.facturado ?? 0 },
+                { etiqueta: 'NVV', valor: resumenVentas?.periodo.nvv ?? 0 },
+                { etiqueta: 'GDV', valor: resumenVentas?.periodo.gdv ?? 0 },
+              ]).map(({ etiqueta, valor }) => (
+                <div key={etiqueta} className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">{etiqueta}</p>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums truncate">
+                    ${valor.toLocaleString('es-CL')}
+                  </p>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Incumplidas */}
-        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+        {/* Avance contra la meta. La meta siempre es MENSUAL, así que se compara
+            con lo vendido en todo el mes al que pertenece el período mostrado. */}
+        <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl" data-testid="card-meta-mes">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-red-600">Incumplidas</span>
-              <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
-                <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Meta de {format(selectedWeek, 'MMMM', { locale: es })}
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <Target className="h-4 w-4 text-slate-500" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-red-600 tracking-tight">
-              {resumen.insuficientes + resumen.noCumplidas}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">{resumen.insuficientes} insufic. · {resumen.noCumplidas} sin ventas</p>
+            {(resumenVentas?.mes.meta ?? 0) > 0 ? (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+                    {(resumenVentas?.mes.porcentaje ?? 0).toFixed(1)}%
+                  </span>
+                  <span className="text-[11px] text-slate-400 tabular-nums truncate">
+                    de ${(resumenVentas?.mes.meta ?? 0).toLocaleString('es-CL')}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
+                  <div
+                    className="h-2 rounded-full bg-[#fd6301] transition-all"
+                    style={{ width: `${Math.min(100, Math.max(0, resumenVentas?.mes.porcentaje ?? 0))}%` }}
+                  />
+                </div>
+                <p className="text-[11px] mt-2 tabular-nums">
+                  {(resumenVentas?.mes.falta ?? 0) > 0 ? (
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Faltan <span className="font-semibold text-slate-700 dark:text-slate-200">${(resumenVentas?.mes.falta ?? 0).toLocaleString('es-CL')}</span> para la meta
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-emerald-600">Meta cumplida</span>
+                  )}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Sobre ${(resumenVentas?.mes.total ?? 0).toLocaleString('es-CL')} vendidos en el mes (facturado + NVV + GDV)
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-xl sm:text-2xl font-bold text-slate-300 dark:text-slate-600 tracking-tight">—</div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {isPendingResumenVentas
+                    ? 'Calculando…'
+                    : errorResumenVentas
+                      ? 'No se pudo calcular'
+                      : 'Sin meta cargada para este mes'}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -4763,11 +4921,15 @@ function EditPromesaDialog({
     promesa.promesa.ventasRealesManual ? parseFloat(promesa.promesa.ventasRealesManual as any).toString() : ""
   );
   const [observaciones, setObservaciones] = useState(promesa.promesa.observaciones || "");
+  const [montoPrometidoEdit, setMontoPrometidoEdit] = useState(
+    promesa.promesa.montoPrometido ? parseFloat(promesa.promesa.montoPrometido).toString() : ""
+  );
 
   // Reset form when promesa changes
   useEffect(() => {
     setVentasRealesManual(promesa.promesa.ventasRealesManual ? parseFloat(promesa.promesa.ventasRealesManual as any).toString() : "");
     setObservaciones(promesa.promesa.observaciones || "");
+    setMontoPrometidoEdit(promesa.promesa.montoPrometido ? parseFloat(promesa.promesa.montoPrometido).toString() : "");
   }, [promesa]);
 
   const updateMutation = useMutation({
@@ -4824,27 +4986,50 @@ function EditPromesaDialog({
     },
   });
 
+  // Permisos (ago-2026): el vendedor fija el monto al crear la promesa y después
+  // ya no lo mueve ni la elimina; sí sigue registrando sus ventas reales y notas.
+  const esAdminOSupervisor = ['admin', 'supervisor', 'encargado_area'].includes(user?.role || '');
+  const esVendedorDeLaPromesa = user?.role === 'salesperson' && promesa.promesa.vendedorId === user?.id;
+  const puedeEditarMonto = esAdminOSupervisor;
+  const puedeEditarSeguimiento = esAdminOSupervisor || esVendedorDeLaPromesa;
+  const puedeEliminar = esAdminOSupervisor;
+
   const handleSubmit = () => {
-    // Solo admin y supervisor pueden editar
-    if (!['admin', 'supervisor', 'encargado_area'].includes(user?.role || '')) {
+    if (!puedeEditarSeguimiento) {
       toast({
         title: "No autorizado",
-        description: "Solo administradores y supervisores pueden editar promesas",
+        description: "No puedes editar esta promesa",
         variant: "destructive",
       });
       return;
     }
 
-    updateMutation.mutate({
+    const cambios: any = {
       ventasRealesManual: ventasRealesManual ? parseFloat(ventasRealesManual) : null,
       observaciones: observaciones || null,
-    });
+    };
+
+    if (puedeEditarMonto) {
+      const monto = parseFloat(montoPrometidoEdit);
+      if (!montoPrometidoEdit || !isFinite(monto) || monto <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "El monto prometido debe ser mayor que cero",
+          variant: "destructive",
+        });
+        return;
+      }
+      cambios.montoPrometido = monto;
+    }
+
+    updateMutation.mutate(cambios);
   };
 
-  const canEdit = ['admin', 'supervisor', 'encargado_area'].includes(user?.role || '');
-
   // Calcular cumplimiento y estado con los datos actuales del formulario
-  const montoPrometido = parseFloat(promesa.promesa.montoPrometido);
+  const montoEditado = parseFloat(montoPrometidoEdit);
+  const montoPrometido = puedeEditarMonto && isFinite(montoEditado) && montoEditado > 0
+    ? montoEditado
+    : parseFloat(promesa.promesa.montoPrometido);
   const ventasActuales = ventasRealesManual ? parseFloat(ventasRealesManual) : promesa.ventasReales;
   const cumplimientoActual = montoPrometido > 0 ? (ventasActuales / montoPrometido) * 100 : 0;
 
@@ -4865,7 +5050,11 @@ function EditPromesaDialog({
         <DialogHeader>
           <DialogTitle className="text-xl">Detalle de Promesa de Compra</DialogTitle>
           <DialogDescription className="text-sm">
-            {canEdit ? 'Puede actualizar las ventas reales y observaciones' : 'Vista de solo lectura'}
+            {puedeEditarMonto
+              ? 'Puede actualizar el monto prometido, las ventas reales y las observaciones'
+              : puedeEditarSeguimiento
+                ? 'Puede actualizar las ventas reales y observaciones'
+                : 'Vista de solo lectura'}
           </DialogDescription>
         </DialogHeader>
 
@@ -4900,20 +5089,39 @@ function EditPromesaDialog({
             </div>
           </div>
 
-          {/* Monto Prometido */}
+          {/* Monto Prometido — editable solo para admin/supervisor */}
           <div>
-            <Label className="text-sm font-semibold mb-2 block">Monto Prometido</Label>
-            <div className="p-3 border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl">
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">${montoPrometido.toLocaleString('es-CL')}</p>
-            </div>
+            <Label htmlFor="montoPrometido-edit" className="text-sm font-semibold mb-2 block">
+              Monto Prometido {puedeEditarMonto && '*'}
+            </Label>
+            {puedeEditarMonto ? (
+              <>
+                <Input
+                  id="montoPrometido-edit"
+                  type="number"
+                  placeholder="Monto comprometido por el cliente"
+                  value={montoPrometidoEdit}
+                  onChange={(e) => setMontoPrometidoEdit(e.target.value)}
+                  className="h-11 text-base"
+                  data-testid="input-monto-prometido-edit"
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Original: ${parseFloat(promesa.promesa.montoPrometido).toLocaleString('es-CL')}
+                </p>
+              </>
+            ) : (
+              <div className="p-3 border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">${montoPrometido.toLocaleString('es-CL')}</p>
+              </div>
+            )}
           </div>
 
           {/* Ventas Reales */}
           <div>
             <Label htmlFor="ventasReales" className="text-sm font-semibold mb-2 block">
-              Ventas Reales {canEdit && '*'}
+              Ventas Reales {puedeEditarSeguimiento && '*'}
             </Label>
-            {canEdit ? (
+            {puedeEditarSeguimiento ? (
               <>
                 <Input
                   id="ventasReales"
@@ -4998,7 +5206,7 @@ function EditPromesaDialog({
             <Label htmlFor="observaciones-edit" className="text-sm font-semibold mb-2 block">
               Observaciones
             </Label>
-            {canEdit ? (
+            {puedeEditarSeguimiento ? (
               <Textarea
                 id="observaciones-edit"
                 placeholder="Notas adicionales (opcional)"
@@ -5018,7 +5226,7 @@ function EditPromesaDialog({
         <DialogFooter className="flex-col gap-3">
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-between w-full">
             {/* Botón de eliminar a la izquierda (solo para admin/supervisor) */}
-            {canEdit && (
+            {puedeEliminar && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -5066,9 +5274,9 @@ function EditPromesaDialog({
                 className="sm:w-auto rounded-2xl"
                 data-testid="button-cerrar"
               >
-                {canEdit ? 'Cancelar' : 'Cerrar'}
+                {puedeEditarSeguimiento ? 'Cancelar' : 'Cerrar'}
               </Button>
-              {canEdit && (
+              {puedeEditarSeguimiento && (
                 <Button
                   onClick={handleSubmit}
                   disabled={updateMutation.isPending}
