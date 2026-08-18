@@ -37652,7 +37652,12 @@ export function registerRoutes(app: Express): Server {
   // `vendedorIds` = el conjunto de vendedores CUYOS leads puede LEER: para un
   // supervisor/encargado incluye a su equipo (vendedores con supervisor_id =
   // su id); para un vendedor plano es solo él. Filtrar lecturas con este set.
-  const getVendedorScope = async (user: any): Promise<{ id: string; name: string; vendedorIds: string[]; isSupervisor: boolean } | null> => {
+  // `segmento` = solo para supervisor/encargado con área asignada: además de su
+  // equipo, LEE todo lo de su segmento aunque lo atienda un vendedor de otro
+  // equipo (un lead de Construcción en manos del equipo de Ferreterías tiene
+  // que aparecerle al supervisor de Construcción). No amplía la escritura:
+  // para editar/borrar sigue mandando `vendedorIds` (ver canAccessSeguimiento).
+  const getVendedorScope = async (user: any): Promise<{ id: string; name: string; vendedorIds: string[]; isSupervisor: boolean; segmento: string | null } | null> => {
     if (!user || user.role === 'admin') return null;
     const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
     if (spUser.length === 0) return null;
@@ -37669,16 +37674,79 @@ export function registerRoutes(app: Express): Server {
         .where(eq(salespeopleUsers.supervisorId, self.id));
       vendedorIds = Array.from(new Set([self.id, ...team.map(t => t.id)]));
     }
-    return { id: self.id, name: self.salespersonName, vendedorIds, isSupervisor };
+    return {
+      id: self.id,
+      name: self.salespersonName,
+      vendedorIds,
+      isSupervisor,
+      segmento: isSupervisor ? (self.assignedSegment || null) : null,
+    };
+  };
+
+  // Normaliza un segmento para poder compararlo: sin tildes, en minúscula y sin
+  // la "s" final. Conviven tres escrituras del mismo valor — el ERP lo guarda
+  // como "CONSTRUCCION"/"FERRETERIAS" (mayúscula, sin tilde), el lead lo guarda
+  // como "Construcción"/"Ferretería" y hay filas a mano con "Ferreterías" —, así
+  // que comparar el texto crudo dejaba fuera al mismo segmento escrito distinto.
+  const normalizarSegmento = (s?: string | null) =>
+    normalizeSearch(s || '').trim().replace(/s+$/, '');
+
+  // Segmento efectivo de un lead, en SQL: el suyo propio si lo tiene y, si no,
+  // el rubro del cliente del ERP al que está vinculado. Es autocontenido (no
+  // depende del leftJoin de la consulta que lo use).
+  const segmentoEfectivoSql = sql`COALESCE(
+    NULLIF(TRIM(${crmSeguimientoClientes.segmento}), ''),
+    (SELECT t.nokoru FROM ventas.stg_tabru t
+       JOIN clients c ON c.id = ${crmSeguimientoClientes.clienteId}
+      WHERE t.koru = c.ruen LIMIT 1)
+  )`;
+
+  // Condición de LECTURA para un usuario acotado: los leads de su gente y —si
+  // es supervisor/encargado con segmento asignado— además los de su segmento.
+  const condicionLecturaSeguimiento = (
+    scope: { vendedorIds: string[]; segmento: string | null },
+  ) => {
+    const porVendedor = inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds);
+    const raiz = normalizarSegmento(scope.segmento);
+    if (!raiz) return porVendedor;
+    return or(
+      porVendedor,
+      sql`regexp_replace(lower(translate(COALESCE(${segmentoEfectivoSql}, ''), 'áéíóúüÁÉÍÓÚÜñÑ', 'aeiouuAEIOUUnN')), 's+$', '') = ${raiz}`,
+    )!;
   };
 
   // Único punto de verdad del check de ownership sobre un lead: debe
   // aplicarse en TODO endpoint que reciba un :id de seguimiento.
+  // OJO: esto habilita ESCRIBIR (editar, borrar, agregar hitos). Se queda en el
+  // equipo a propósito — el supervisor lee lo de su segmento pero no edita leads
+  // de otro equipo. Para las lecturas usar canReadSeguimiento.
   const canAccessSeguimiento = async (user: any, vendedorId: string | null): Promise<boolean> => {
     const scope = await getVendedorScope(user);
     if (scope) return !!vendedorId && scope.vendedorIds.includes(vendedorId);
     // Sin vínculo a vendedor: un salesperson no opera nada; el resto sí.
     return user?.role !== 'salesperson';
+  };
+
+  // Espejo de canAccessSeguimiento para los GET de un lead concreto: mismo
+  // criterio que el listado, así el supervisor puede abrir la ficha de lo que
+  // ve en su tablero y no se topa con un 403 en una tarjeta que sí le aparece.
+  const canReadSeguimiento = async (
+    user: any,
+    lead: { vendedorId?: string | null; segmento?: string | null; clienteId?: string | null } | null,
+  ): Promise<boolean> => {
+    const scope = await getVendedorScope(user);
+    if (!scope) return user?.role !== 'salesperson';
+    if (lead?.vendedorId && scope.vendedorIds.includes(lead.vendedorId)) return true;
+    const raiz = normalizarSegmento(scope.segmento);
+    if (!raiz || !lead) return false;
+    let segLead = normalizarSegmento(lead.segmento);
+    if (!segLead && lead.clienteId) {
+      const r = await db.execute(
+        sql`SELECT t.nokoru FROM ventas.stg_tabru t JOIN clients c ON c.id = ${lead.clienteId} WHERE t.koru = c.ruen LIMIT 1`,
+      );
+      segLead = normalizarSegmento((r.rows?.[0] as any)?.nokoru);
+    }
+    return !!segLead && segLead === raiz;
   };
 
   // GET /api/geo/chile — Catálogo geográfico canónico (16 regiones, 346 comunas).
@@ -37724,13 +37792,13 @@ export function registerRoutes(app: Express): Server {
 
     const scope = await getVendedorScope(user);
     if (scope) {
-      // Usuario vinculado a vendedor: sus leads (y los de su equipo si es
-      // supervisor/encargado). Un supervisor puede además acotar a un vendedor
-      // concreto de su equipo con ?vendedor=.
+      // Usuario vinculado a vendedor: sus leads (y los de su equipo, más los de
+      // su segmento, si es supervisor/encargado). Un supervisor puede además
+      // acotar a un vendedor concreto de su equipo con ?vendedor=.
       if (vendedorFilter && scope.vendedorIds.includes(vendedorFilter)) {
         conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
       } else {
-        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+        conditions.push(condicionLecturaSeguimiento(scope));
       }
     } else if (user.role === 'salesperson') {
       return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
@@ -37836,12 +37904,12 @@ export function registerRoutes(app: Express): Server {
     // supervisor/encargado sin vínculo a vendedor).
     const scope = await getVendedorScope(user);
     if (scope) {
-      // Vendedor: solo los suyos. Supervisor/encargado: los de su equipo,
-      // con opción de acotar a un vendedor concreto vía ?vendedor=.
+      // Vendedor: solo los suyos. Supervisor/encargado: los de su equipo y los
+      // de su segmento, con opción de acotar a un vendedor concreto vía ?vendedor=.
       if (vendedor && scope.vendedorIds.includes(vendedor as string)) {
         conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
       } else {
-        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+        conditions.push(condicionLecturaSeguimiento(scope));
       }
     } else if (user.role === 'salesperson') {
       return res.json([]);
@@ -38007,7 +38075,7 @@ export function registerRoutes(app: Express): Server {
       if (vendedor && scope.vendedorIds.includes(vendedor as string)) {
         conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
       } else {
-        conditions.push(inArray(crmSeguimientoClientes.vendedorId, scope.vendedorIds));
+        conditions.push(condicionLecturaSeguimiento(scope));
       }
     } else if (user.role === 'salesperson') {
       // Vendedor sin vínculo: nada que exportar.
@@ -38288,8 +38356,8 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Cliente no encontrado' });
     }
 
-    // Verify access
-    if (!(await canAccessSeguimiento(user, cliente.vendedorId))) {
+    // Verify access (lectura: equipo o segmento del supervisor)
+    if (!(await canReadSeguimiento(user, cliente))) {
       return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
@@ -38808,7 +38876,7 @@ export function registerRoutes(app: Express): Server {
       return res.json({ compras: [], message: 'Sin RUT asociado' });
     }
 
-    if (!(await canAccessSeguimiento(req.user, existing.vendedorId))) {
+    if (!(await canReadSeguimiento(req.user, existing))) {
       return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
@@ -38898,7 +38966,7 @@ export function registerRoutes(app: Express): Server {
       return res.json({ nvvs: [], message: 'Sin RUT asociado' });
     }
 
-    if (!(await canAccessSeguimiento(req.user, existing.vendedorId))) {
+    if (!(await canReadSeguimiento(req.user, existing))) {
       return res.status(403).json({ message: 'No tienes acceso a este cliente' });
     }
 
