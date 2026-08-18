@@ -68,15 +68,41 @@ className="bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hov
 className="... data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
 ```
 
-### Tab activo (variante sutil sobre fondo claro — ej. Panel de Trabajo)
+### Tab activo (variante sutil sobre fondo claro — sub-pestañas)
 Sobre `TabsList` con `bg-slate-100/70`, el tab activo va **blanco con texto naranja**,
 no fondo naranja:
 ```
 className="... data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg"
 ```
-Son dos estilos de tab distintos y ambos son válidos según el contenedor: fondo
-sólido naranja cuando la TabsList es blanca/plana; blanco+texto-naranja cuando la
-TabsList es un track gris.
+Esta variante queda **solo para sub-pestañas** dentro de una vista (ficha de
+cliente, detalle). Para la barra principal de un módulo, ver abajo.
+
+### Barra de pestañas principal del módulo (negra, ago-2026)
+Corrección del usuario (ago-2026) sobre el Panel de Trabajo: la barra principal de
+pestañas **replica el sidebar** — track negro y el activo en píldora naranja de marca.
+Antes era un track gris con el activo blanco/texto naranja.
+
+```
+TabsList    → gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5
+              border border-slate-800/80 dark:border-slate-800/80 rounded-2xl
+TabsTrigger → group ... font-medium text-slate-200 hover:text-white hover:bg-slate-800/70
+              data-[state=active]:bg-[#fd6301] data-[state=active]:text-white
+              data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30
+              dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white
+              rounded-lg
+```
+Mismos tokens que el ítem activo del sidebar en `dashboard-layout.tsx`, **peso de
+fuente incluido**: los ítems del sidebar van `font-medium`, no `font-semibold`
+(corrección del usuario, ago-2026: sobre el track negro la seminegrita se lee como
+negrita y ensucia la barra).
+
+**Badge contador dentro de una pestaña:** naranja sobre el track negro, pero se
+**invierte a blanco con texto naranja** cuando la pestaña está activa (si no,
+naranja sobre naranja desaparece). Igual que el badge del sidebar. Requiere `group`
+en el trigger:
+```
+bg-[#fd6301] text-white group-data-[state=active]:bg-white group-data-[state=active]:text-[#fd6301]
+```
 
 ### Tab pastilla (`rounded-full` — Rendición de Gastos)
 Variante ovalada, aprobada por el usuario en jul-2026 al incorporar el sistema de
