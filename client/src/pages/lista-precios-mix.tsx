@@ -68,7 +68,6 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
       return response.json();
     },
     staleTime: 10 * 60 * 1000,
-    enabled: !vendorView,
   });
 
   const deleteMutation = useMutation({
@@ -211,6 +210,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
             <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
           </>)}
+          {!vendorView && (
           <Button
             variant="outline" 
             size="sm" 
@@ -222,6 +222,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
           </Button>
+          )}
           {!vendorView && (
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
@@ -325,14 +326,14 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
                     <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio {listName}</TableHead>
-                    {!vendorView && (<>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">
                       <span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span>
                     </TableHead>
+                    {!vendorView && (
                     <TableHead className="w-16 text-xs">Acc.</TableHead>
-                    </>)}
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -363,7 +364,6 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                         <TableCell className="text-right text-xs py-2 font-semibold text-blue-600 dark:text-blue-400">
                           {formatCurrency(item.precio)}
                         </TableCell>
-                        {!vendorView && (<>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
                           {costoNum ? (
                             <div>
@@ -401,6 +401,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                             )}
                           </div>
                         </TableCell>
+                        {!vendorView && (
                         <TableCell className="py-2">
                           <div className="flex gap-0.5">
                             <Button
@@ -422,7 +423,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                             </Button>
                           </div>
                         </TableCell>
-                        </>)}
+                        )}
                       </TableRow>
                     );
                   })}
@@ -479,21 +480,17 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">
                         <MobilePriceField label={`Precio ${listName}`} value={formatCurrency(item.precio)} className="text-blue-600 dark:text-blue-400" />
-                        {!vendorView && (
-                          <MobilePriceField
-                            label="Costo"
-                            value={costoNum ? formatCurrency(costoNum) : '-'}
-                            className="text-amber-700 dark:text-amber-400"
-                            sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
-                          />
-                        )}
-                        {!vendorView && (
-                          <MobilePriceField
-                            label="Margen"
-                            value={margen != null ? `${margen.toFixed(1)}%` : '-'}
-                            className={margen != null && margen < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
-                          />
-                        )}
+                        <MobilePriceField
+                          label="Costo"
+                          value={costoNum ? formatCurrency(costoNum) : '-'}
+                          className="text-amber-700 dark:text-amber-400"
+                          sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
+                        />
+                        <MobilePriceField
+                          label="Margen"
+                          value={margen != null ? `${margen.toFixed(1)}%` : '-'}
+                          className={margen != null && margen < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
+                        />
                       </div>
                     </div>
                   );
