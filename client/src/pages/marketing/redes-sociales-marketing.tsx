@@ -217,6 +217,8 @@ interface SeccionProps {
   resumen: (item: ItemRedes) => { label: string; valor: string }[];
   mes: number;
   anio: number;
+  /** Solo el admin y quien está a cargo de marketing pueden escribir. */
+  canEdit: boolean;
 }
 
 function SeccionRedes({
@@ -230,6 +232,7 @@ function SeccionRedes({
   resumen,
   mes,
   anio,
+  canEdit,
 }: SeccionProps) {
   const { toast } = useToast();
   const queryKey = [endpoint, { mes, anio }];
@@ -338,9 +341,11 @@ function SeccionRedes({
         <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
           {items.length} {items.length === 1 ? singular.toLowerCase() : titulo.toLowerCase()}
         </Badge>
-        <Button onClick={abrirNuevo} className={BOTON_MARCA} data-testid={`button-nuevo-${singular.toLowerCase()}`}>
-          <Plus className="h-4 w-4 mr-2" /> Nuevo {singular.toLowerCase()}
-        </Button>
+        {canEdit && (
+          <Button onClick={abrirNuevo} className={BOTON_MARCA} data-testid={`button-nuevo-${singular.toLowerCase()}`}>
+            <Plus className="h-4 w-4 mr-2" /> Nuevo {singular.toLowerCase()}
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -354,11 +359,15 @@ function SeccionRedes({
           </div>
           <p className="font-semibold text-slate-700 dark:text-slate-200">{vacio}</p>
           <p className="text-sm text-slate-400 mt-1">
-            Todo lo que agregues acá queda guardado por mes, con sus archivos.
+            {canEdit
+              ? "Todo lo que agregues acá queda guardado por mes, con sus archivos."
+              : "Lo que cargue el área de marketing va a aparecer acá."}
           </p>
-          <Button onClick={abrirNuevo} className={`${BOTON_MARCA} mt-4`}>
-            <Plus className="h-4 w-4 mr-2" /> Crear el primero
-          </Button>
+          {canEdit && (
+            <Button onClick={abrirNuevo} className={`${BOTON_MARCA} mt-4`}>
+              <Plus className="h-4 w-4 mr-2" /> Crear el primero
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -381,26 +390,28 @@ function SeccionRedes({
                       {plataformaLabel(item.plataforma)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#fd6301]"
-                      onClick={() => abrirEdicion(item)}
-                      data-testid={`button-editar-${item.id}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-600"
-                      onClick={() => setBorrarId(item.id)}
-                      data-testid={`button-eliminar-${item.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#fd6301]"
+                        onClick={() => abrirEdicion(item)}
+                        data-testid={`button-editar-${item.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-600"
+                        onClick={() => setBorrarId(item.id)}
+                        data-testid={`button-eliminar-${item.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {item.descripcion && (
@@ -574,7 +585,7 @@ function SeccionRedes({
 }
 
 // ── Página ─────────────────────────────────────────────────────────────────────
-export default function RedesSocialesMarketing() {
+export default function RedesSocialesMarketing({ canEdit }: { canEdit: boolean }) {
   const hoy = new Date();
   const [mes, setMes] = useState(hoy.getMonth() + 1);
   const [anio, setAnio] = useState(hoy.getFullYear());
@@ -660,6 +671,7 @@ export default function RedesSocialesMarketing() {
             resumen={(item) => [{ label: "Grabación", valor: fmtFecha(item.fecha) }]}
             mes={mes}
             anio={anio}
+            canEdit={canEdit}
           />
         </TabsContent>
 
@@ -679,6 +691,7 @@ export default function RedesSocialesMarketing() {
             resumen={(item) => [{ label: "Publicación", valor: fmtFecha(item.fechaPublicacion) }]}
             mes={mes}
             anio={anio}
+            canEdit={canEdit}
           />
         </TabsContent>
 
@@ -708,6 +721,7 @@ export default function RedesSocialesMarketing() {
             ]}
             mes={mes}
             anio={anio}
+            canEdit={canEdit}
           />
         </TabsContent>
       </Tabs>

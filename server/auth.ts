@@ -515,6 +515,15 @@ export const requireMarketingAccess = requireRoles([
   'marketing'
 ]);
 
+// Edición del contenido propio del área de Marketing.
+//
+// `requireMarketingAccess` es deliberadamente amplia: media empresa necesita VER
+// lo que hace el área. Escribir es otra cosa — el contenido de Redes Sociales
+// (guiones, carruseles, concursos) lo mantiene quien está a cargo del área, no
+// cualquiera que pase por el módulo. Por eso la lectura queda con el guard amplio
+// y la escritura con este.
+export const requireMarketingEdit = requireRoles(['admin', 'marketing']);
+
 // Plant Operations Access Control
 // Access to plant operational functions like inventory sync, CMMS, etc.
 // Allows: admin, supervisor, encargado_area, jefe_planta, mantencion, and all plant departmental roles

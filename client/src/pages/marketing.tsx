@@ -170,6 +170,10 @@ export default function Marketing() {
   const canCampanas = can('market.campanas');
   // Mover el estado de una solicitud es de Marketing y admin; el resto la ve y comenta.
   const canManageSolicitudes = user.role === 'admin' || user.role === 'marketing';
+  // Redes Sociales es contenido del área: lo mantiene el admin y quien está a
+  // cargo de marketing. El resto lo ve en modo consulta. La regla real está en el
+  // servidor (`requireMarketingEdit`); esto solo evita mostrar botones inútiles.
+  const canEditRedes = user.role === 'admin' || user.role === 'marketing';
 
   // /marketing sin sección (y cualquier sección desconocida o sin permiso) cae en Hoy,
   // que es la vista que sirve para empezar el día.
@@ -205,7 +209,7 @@ export default function Marketing() {
 
         {seccion === "mis-tareas" && <MisTareasMarketing />}
 
-        {seccion === "redes-sociales" && <RedesSocialesMarketing />}
+        {seccion === "redes-sociales" && <RedesSocialesMarketing canEdit={canEditRedes} />}
 
         {seccion === "email" && <CampanasPage embedded />}
 

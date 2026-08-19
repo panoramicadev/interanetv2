@@ -7,7 +7,7 @@ import { storage } from "./storage";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
-import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requireMarketingEdit, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -28724,7 +28724,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/guiones-reel', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/guiones-reel', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const now = new Date();
       const item = await storage.createGuionReelMarketing({
@@ -28739,7 +28739,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/guiones-reel/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/guiones-reel/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.updateGuionReelMarketing(req.params.id, req.body);
       res.json(item);
@@ -28748,7 +28748,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/guiones-reel/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/guiones-reel/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteGuionReelMarketing(req.params.id);
       res.status(204).send();
@@ -28768,7 +28768,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/carruseles', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/carruseles', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const now = new Date();
       const item = await storage.createCarruselMarketing({
@@ -28783,7 +28783,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/carruseles/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/carruseles/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.updateCarruselMarketing(req.params.id, req.body);
       res.json(item);
@@ -28792,7 +28792,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/carruseles/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/carruseles/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteCarruselMarketing(req.params.id);
       res.status(204).send();
@@ -28812,7 +28812,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/marketing/concursos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/concursos', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const now = new Date();
       const item = await storage.createConcursoMarketing({
@@ -28827,7 +28827,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/concursos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/concursos/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.updateConcursoMarketing(req.params.id, req.body);
       res.json(item);
@@ -28836,7 +28836,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/concursos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/concursos/:id', requireMarketingEdit, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteConcursoMarketing(req.params.id);
       res.status(204).send();
