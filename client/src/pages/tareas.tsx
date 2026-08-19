@@ -254,6 +254,8 @@ interface TotalesVendido {
 
 interface ResumenVentasEstimacion {
   alcance: 'segmento' | 'vendedor' | 'equipo';
+  // true = la base no respondió y se está mostrando el último valor conocido
+  desactualizado?: boolean;
   periodo: TotalesVendido & { startDate: string; endDate: string };
   mes: TotalesVendido & {
     periodo: string;
@@ -4113,11 +4115,12 @@ function EstimacionSemanalTab({
             <p className="text-[10px] text-slate-400 mt-1">
               {!resumenVentas
                 ? (errorResumenVentas ? 'Vuelve a entrar a la pestaña para reintentar' : 'Calculando…')
-                : resumenVentas.alcance === 'segmento'
-                  ? 'Todo el segmento Ferreterías'
-                  : resumenVentas.alcance === 'equipo'
-                    ? 'Todos los vendedores de tu equipo'
-                    : 'Solo el vendedor seleccionado'}
+                : (resumenVentas.desactualizado ? 'Dato de hace unos minutos · ' : '') + (
+                    resumenVentas.alcance === 'segmento'
+                      ? 'Todo el segmento Ferreterías'
+                      : resumenVentas.alcance === 'equipo'
+                        ? 'Todos los vendedores de tu equipo'
+                        : 'Solo el vendedor seleccionado')}
             </p>
             <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800">
               {([

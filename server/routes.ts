@@ -33855,6 +33855,14 @@ export function registerRoutes(app: Express): Server {
   // desglose y la UI lo muestra.
   //
   // IMPORTANTE: debe declararse ANTES de /:id para no ser capturada por esa ruta.
+  // Última respuesta buena por usuario+consulta. La base vive detrás de un pooler
+  // remoto: cuando la aplicación satura las conexiones, cualquier consulta falla
+  // por timeout. En vez de dejar el cuadro en "No se pudo calcular", se reintenta
+  // una vez y, si tampoco sale, se devuelve el último valor conocido marcado como
+  // desactualizado.
+  const resumenVentasUltimoBueno = new Map<string, { data: any; expires: number }>();
+  const RESUMEN_STALE_MS = 30 * 60 * 1000;
+
   app.get('/api/promesas-compra/resumen-ventas', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const user = req.user;
     const { startDate, endDate, vendedorId } = req.query;
@@ -33863,8 +33871,11 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'startDate y endDate son requeridos' });
     }
 
+    const claveCache = `${user.id}|${startDate}|${endDate}|${vendedorId || 'all'}`;
+
     const SEGMENTO = 'FERRETERIAS';
 
+    const calcular = async () => {
     // --- Alcance: mismas reglas de visibilidad que el reporte de cumplimiento ---
     // vendedores === null → sin acotar por vendedor: se mide el segmento completo.
     let vendedores: string[] | null = null;
@@ -34007,11 +34018,33 @@ export function registerRoutes(app: Express): Server {
     const alcance: 'segmento' | 'vendedor' | 'equipo' =
       vendedores === null ? 'segmento' : (esVendedorUnico ? 'vendedor' : 'equipo');
 
-    res.json({
+    return {
       alcance,
       periodo: { startDate, endDate, ...periodo },
       mes: { periodo: anioMes, ...mesTotales, meta, metaOrigen, porcentaje, falta },
-    });
+    };
+    };
+
+    let respuesta: any;
+    try {
+      respuesta = await calcular();
+    } catch (primerError: any) {
+      console.warn('[RESUMEN-VENTAS] Falló el cálculo, reintentando:', primerError?.message);
+      await new Promise((r) => setTimeout(r, 600));
+      try {
+        respuesta = await calcular();
+      } catch (segundoError: any) {
+        const ultimo = resumenVentasUltimoBueno.get(claveCache);
+        if (ultimo && Date.now() < ultimo.expires) {
+          console.warn('[RESUMEN-VENTAS] Base no disponible: se devuelve el último valor conocido');
+          return res.json({ ...ultimo.data, desactualizado: true });
+        }
+        throw segundoError;
+      }
+    }
+
+    resumenVentasUltimoBueno.set(claveCache, { data: respuesta, expires: Date.now() + RESUMEN_STALE_MS });
+    res.json(respuesta);
   }));
 
   // Get promesa de compra by ID
