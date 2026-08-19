@@ -58,14 +58,17 @@ function makeIcon(_color: string, logoUrl?: string | null, _isFerreteria = false
 function FlyTo({ center }: { center: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
-    if (center) map.flyTo(center, 15, { duration: 0.8 });
+    if (center) map.flyTo(center, 13, { duration: 0.8 });
   }, [center, map]);
   return null;
 }
 
+// Vista inicial centrada en la Araucanía (zona de mayor densidad de puntos de venta).
+const DEFAULT_CENTER: [number, number] = [-38.3, -72.3];
+const DEFAULT_ZOOM = 8;
+
 export default function DondeComprar() {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"todo" | RetailLocation["type"]>("todo");
   const [focus, setFocus] = useState<[number, number] | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const embed = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
@@ -76,28 +79,28 @@ export default function DondeComprar() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return locations.filter((l) => {
-      if (filter !== "todo" && l.type !== filter) return false;
-      if (!q) return true;
-      return (
-        l.name.toLowerCase().includes(q) ||
-        l.address.toLowerCase().includes(q) ||
-        (l.comuna || "").toLowerCase().includes(q) ||
-        (l.region || "").toLowerCase().includes(q)
-      );
-    });
-  }, [locations, search, filter]);
+    if (!q) return locations;
+    return locations.filter((l) =>
+      l.name.toLowerCase().includes(q) ||
+      l.address.toLowerCase().includes(q) ||
+      (l.comuna || "").toLowerCase().includes(q) ||
+      (l.region || "").toLowerCase().includes(q)
+    );
+  }, [locations, search]);
 
-  const firstWithCoords = filtered.find((l) => l.latitude && l.longitude);
-  const center: [number, number] = firstWithCoords
-    ? [Number(firstWithCoords.latitude), Number(firstWithCoords.longitude)]
-    : [-33.4489, -70.6693]; // Santiago
+  const firstMatch = useMemo(() => filtered.find((l) => l.latitude && l.longitude), [filtered]);
+
+  useEffect(() => {
+    if (search.trim() && firstMatch) {
+      setFocus([Number(firstMatch.latitude), Number(firstMatch.longitude)]);
+    }
+  }, [search, firstMatch]);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-dvh bg-white flex flex-col">
       {/* Top nav (oculta en modo embed para integrarse en sitios externos vía iframe) */}
       {!embed && (
-        <header className="border-b border-gray-100 bg-white sticky top-0 z-[1000]">
+        <header className="border-b border-gray-100 bg-white flex-shrink-0 z-[1000]">
           <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
             <Link href="/tienda" className="flex items-center gap-3">
               <img src="/panoramica-logo.png" alt="Panorámica" className="h-8 w-auto" />
@@ -118,24 +121,24 @@ export default function DondeComprar() {
       {/* Split layout */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Sidebar */}
-        <aside className={`lg:w-[420px] xl:w-[480px] lg:border-r border-gray-100 bg-white flex flex-col ${embed ? "lg:h-screen" : "lg:h-[calc(100vh-64px)]"}`}>
-          <div className="p-6 md:p-8 pb-4 border-b border-gray-100">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 mb-2">
+        <aside className="h-[42%] lg:h-full flex-shrink-0 lg:w-[420px] xl:w-[480px] lg:border-r border-b lg:border-b-0 border-gray-100 bg-white flex flex-col overflow-hidden">
+          <div className="p-4 md:p-8 pb-3 md:pb-4 border-b border-gray-100">
+            <h1 className="text-xl md:text-4xl font-bold tracking-tight text-gray-900 mb-1 md:mb-2">
               Dónde comprar
             </h1>
-            <p className="text-gray-500 text-sm mb-6">
+            <p className="text-gray-500 text-xs md:text-sm mb-3 md:mb-6 hidden md:block">
               Encuentra tu sucursal Panorámica, distribuidor o ferretería más cercana.
             </p>
 
             {/* Search */}
-            <div className="relative mb-4">
+            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por comuna, nombre, dirección..."
-                className="w-full h-12 pl-11 pr-11 rounded-full border border-gray-200 focus:border-[#ff7f33] focus:ring-2 focus:ring-[#ff7f33]/20 outline-none text-sm transition"
+                className="w-full h-11 md:h-12 pl-11 pr-11 rounded-full border border-gray-200 focus:border-[#ff7f33] focus:ring-2 focus:ring-[#ff7f33]/20 outline-none text-sm transition"
               />
               {search && (
                 <button
@@ -146,32 +149,10 @@ export default function DondeComprar() {
                 </button>
               )}
             </div>
-
-            {/* Filter chips */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "todo" as const, label: "Todo" },
-                { value: "sucursal_propia" as const, label: "Sucursales" },
-                { value: "distribuidor" as const, label: "Distribuidores" },
-                { value: "ferreteria" as const, label: "Ferreterías" },
-              ].map((chip) => (
-                <button
-                  key={chip.value}
-                  onClick={() => setFilter(chip.value)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
-                    filter === chip.value
-                      ? "bg-[#ff7f33] text-white shadow-sm"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Results list */}
-          <div ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+          <div ref={listRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3">
             {isLoading && (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -258,10 +239,10 @@ export default function DondeComprar() {
         </aside>
 
         {/* Map */}
-        <div className={`flex-1 h-[55vh] relative ${embed ? "lg:h-screen" : "lg:h-[calc(100vh-64px)]"}`}>
+        <div className="flex-1 min-h-0 relative">
           <MapContainer
-            center={center}
-            zoom={11}
+            center={DEFAULT_CENTER}
+            zoom={DEFAULT_ZOOM}
             scrollWheelZoom
             style={{ height: "100%", width: "100%" }}
             className="z-0"
