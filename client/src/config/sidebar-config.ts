@@ -37,7 +37,8 @@ import {
   Mail,
   Send,
   CalendarClock,
-  Inbox
+  Inbox,
+  Share2
 } from "lucide-react";
 
 export interface SidebarItem {
@@ -67,6 +68,7 @@ const MARKETING_CHILDREN: SidebarItem[] = [
   { href: "/marketing/hoy", label: "Hoy", icon: CalendarClock },
   { href: "/marketing/solicitudes", label: "Solicitudes", icon: Inbox },
   { href: "/marketing/mis-tareas", label: "Mis tareas", icon: CheckSquare },
+  { href: "/marketing/redes-sociales", label: "Redes Sociales", icon: Share2 },
   { href: "/marketing/email", label: "Email Marketing", icon: Send },
   { href: "/marketing/inventario", label: "Inventario", icon: Package },
   { href: "/marketing/gastos", label: "Gastos", icon: Receipt },

@@ -262,6 +262,16 @@ import {
   guionesMarketing,
   type GuionMarketing,
   type InsertGuionMarketing,
+  // Redes Sociales Marketing
+  guionesReelMarketing,
+  type GuionReelMarketing,
+  type InsertGuionReelMarketing,
+  carruselesMarketing,
+  type CarruselMarketing,
+  type InsertCarruselMarketing,
+  concursosMarketing,
+  type ConcursoMarketing,
+  type InsertConcursoMarketing,
   // Tareas de marketing
   tareasMarketing,
   type TareaMarketing,
@@ -1838,6 +1848,20 @@ export interface IStorage {
   createCreatividadMarketing(item: InsertCreatividadMarketing): Promise<CreatividadMarketing>;
   updateCreatividadMarketing(id: string, updates: Partial<InsertCreatividadMarketing>): Promise<CreatividadMarketing>;
   deleteCreatividadMarketing(id: string): Promise<void>;
+
+  // Redes Sociales Marketing operations (guiones de reel, carruseles y concursos)
+  getGuionesReelMarketing(mes: number, anio: number): Promise<GuionReelMarketing[]>;
+  createGuionReelMarketing(item: InsertGuionReelMarketing): Promise<GuionReelMarketing>;
+  updateGuionReelMarketing(id: string, updates: Partial<InsertGuionReelMarketing>): Promise<GuionReelMarketing>;
+  deleteGuionReelMarketing(id: string): Promise<void>;
+  getCarruselesMarketing(mes: number, anio: number): Promise<CarruselMarketing[]>;
+  createCarruselMarketing(item: InsertCarruselMarketing): Promise<CarruselMarketing>;
+  updateCarruselMarketing(id: string, updates: Partial<InsertCarruselMarketing>): Promise<CarruselMarketing>;
+  deleteCarruselMarketing(id: string): Promise<void>;
+  getConcursosMarketing(mes: number, anio: number): Promise<ConcursoMarketing[]>;
+  createConcursoMarketing(item: InsertConcursoMarketing): Promise<ConcursoMarketing>;
+  updateConcursoMarketing(id: string, updates: Partial<InsertConcursoMarketing>): Promise<ConcursoMarketing>;
+  deleteConcursoMarketing(id: string): Promise<void>;
 
   // Gastos Marketing operations
   getGastosMarketing(mes: number, anio: number): Promise<GastoMarketing[]>;
@@ -21614,6 +21638,88 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(creatividadesMarketing)
       .where(eq(creatividadesMarketing.id, id));
+  }
+
+  // ── Redes Sociales Marketing ──
+  // Las tres secciones se guardan igual: filtradas por mes/año y ordenadas de lo
+  // más nuevo a lo más viejo, que es como se revisan en pantalla.
+
+  async getGuionesReelMarketing(mes: number, anio: number): Promise<GuionReelMarketing[]> {
+    return await db
+      .select()
+      .from(guionesReelMarketing)
+      .where(and(eq(guionesReelMarketing.mes, mes), eq(guionesReelMarketing.anio, anio)))
+      .orderBy(desc(guionesReelMarketing.createdAt));
+  }
+
+  async createGuionReelMarketing(item: InsertGuionReelMarketing): Promise<GuionReelMarketing> {
+    const [result] = await db.insert(guionesReelMarketing).values(item).returning();
+    return result;
+  }
+
+  async updateGuionReelMarketing(id: string, updates: Partial<InsertGuionReelMarketing>): Promise<GuionReelMarketing> {
+    const [result] = await db
+      .update(guionesReelMarketing)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(guionesReelMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGuionReelMarketing(id: string): Promise<void> {
+    await db.delete(guionesReelMarketing).where(eq(guionesReelMarketing.id, id));
+  }
+
+  async getCarruselesMarketing(mes: number, anio: number): Promise<CarruselMarketing[]> {
+    return await db
+      .select()
+      .from(carruselesMarketing)
+      .where(and(eq(carruselesMarketing.mes, mes), eq(carruselesMarketing.anio, anio)))
+      .orderBy(desc(carruselesMarketing.createdAt));
+  }
+
+  async createCarruselMarketing(item: InsertCarruselMarketing): Promise<CarruselMarketing> {
+    const [result] = await db.insert(carruselesMarketing).values(item).returning();
+    return result;
+  }
+
+  async updateCarruselMarketing(id: string, updates: Partial<InsertCarruselMarketing>): Promise<CarruselMarketing> {
+    const [result] = await db
+      .update(carruselesMarketing)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(carruselesMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteCarruselMarketing(id: string): Promise<void> {
+    await db.delete(carruselesMarketing).where(eq(carruselesMarketing.id, id));
+  }
+
+  async getConcursosMarketing(mes: number, anio: number): Promise<ConcursoMarketing[]> {
+    return await db
+      .select()
+      .from(concursosMarketing)
+      .where(and(eq(concursosMarketing.mes, mes), eq(concursosMarketing.anio, anio)))
+      .orderBy(desc(concursosMarketing.createdAt));
+  }
+
+  async createConcursoMarketing(item: InsertConcursoMarketing): Promise<ConcursoMarketing> {
+    const [result] = await db.insert(concursosMarketing).values(item).returning();
+    return result;
+  }
+
+  async updateConcursoMarketing(id: string, updates: Partial<InsertConcursoMarketing>): Promise<ConcursoMarketing> {
+    const [result] = await db
+      .update(concursosMarketing)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(concursosMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteConcursoMarketing(id: string): Promise<void> {
+    await db.delete(concursosMarketing).where(eq(concursosMarketing.id, id));
   }
 
   // Gastos Marketing operations

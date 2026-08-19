@@ -5782,6 +5782,95 @@ export const guionesMarketing = pgTable("guiones_marketing", {
 export type GuionMarketing = typeof guionesMarketing.$inferSelect;
 export type InsertGuionMarketing = typeof guionesMarketing.$inferInsert;
 
+// ==================================================================================
+// Redes Sociales (Marketing)
+//
+// Tres cosas distintas que hoy se manejaban por WhatsApp y carpetas sueltas:
+// los guiones de los reels, los carruseles que se publican y los concursos
+// (normalmente uno por mes). Las tres guardan sus archivos en `archivos`, con la
+// misma forma, para que el adjuntar/descargar sea un solo componente en pantalla.
+// ==================================================================================
+
+/** Archivo adjunto: lo que devuelve `/api/upload` más el nombre original. */
+type ArchivoAdjunto = { url: string; nombre: string; tipo?: string; subidoEn?: string };
+
+// Guiones de Reel: el texto del guión y el documento adjunto.
+export const guionesReelMarketing = pgTable("guiones_reel_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  guion: text("guion"),
+  plataforma: varchar("plataforma", { length: 50 }).notNull().default("instagram"), // instagram, tiktok, youtube, facebook
+  estado: varchar("estado", { length: 50 }).notNull().default("borrador"), // borrador, aprobado, grabado, publicado
+  fecha: date("fecha"),
+  archivos: jsonb("archivos").$type<ArchivoAdjunto[]>().default(sql`'[]'::jsonb`),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  creadoPorId: varchar("creado_por_id").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  mesAnioIdx: index("IDX_guiones_reel_marketing_mes_anio").on(table.mes, table.anio),
+  estadoIdx: index("IDX_guiones_reel_marketing_estado").on(table.estado),
+}));
+
+export type GuionReelMarketing = typeof guionesReelMarketing.$inferSelect;
+export type InsertGuionReelMarketing = typeof guionesReelMarketing.$inferInsert;
+
+// Carruseles: las piezas que se arman para publicar, con sus imágenes adjuntas.
+export const carruselesMarketing = pgTable("carruseles_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  copy: text("copy"), // Texto que acompaña la publicación
+  plataforma: varchar("plataforma", { length: 50 }).notNull().default("instagram"),
+  estado: varchar("estado", { length: 50 }).notNull().default("borrador"), // borrador, aprobado, publicado
+  urlPublicacion: text("url_publicacion"),
+  fechaPublicacion: date("fecha_publicacion"),
+  archivos: jsonb("archivos").$type<ArchivoAdjunto[]>().default(sql`'[]'::jsonb`),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  creadoPorId: varchar("creado_por_id").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  mesAnioIdx: index("IDX_carruseles_marketing_mes_anio").on(table.mes, table.anio),
+  estadoIdx: index("IDX_carruseles_marketing_estado").on(table.estado),
+}));
+
+export type CarruselMarketing = typeof carruselesMarketing.$inferSelect;
+export type InsertCarruselMarketing = typeof carruselesMarketing.$inferInsert;
+
+// Concursos: normalmente uno por mes, así que acá sí se desarrolla el detalle
+// (mecánica, premio, fechas y ganador) además de las bases adjuntas.
+export const concursosMarketing = pgTable("concursos_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  mecanica: text("mecanica"), // Cómo se participa
+  premio: text("premio"),
+  bases: text("bases"), // Bases legales / condiciones
+  plataforma: varchar("plataforma", { length: 50 }).notNull().default("instagram"),
+  estado: varchar("estado", { length: 50 }).notNull().default("planificacion"), // planificacion, activo, finalizado
+  fechaInicio: date("fecha_inicio"),
+  fechaFin: date("fecha_fin"),
+  ganador: varchar("ganador", { length: 255 }),
+  participantes: integer("participantes"),
+  urlPublicacion: text("url_publicacion"),
+  archivos: jsonb("archivos").$type<ArchivoAdjunto[]>().default(sql`'[]'::jsonb`),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  creadoPorId: varchar("creado_por_id").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  mesAnioIdx: index("IDX_concursos_marketing_mes_anio").on(table.mes, table.anio),
+  estadoIdx: index("IDX_concursos_marketing_estado").on(table.estado),
+}));
+
+export type ConcursoMarketing = typeof concursosMarketing.$inferSelect;
+export type InsertConcursoMarketing = typeof concursosMarketing.$inferInsert;
+
 // ========================================
 // SISTEMA DE GESTIÓN DE FONDOS
 // ========================================

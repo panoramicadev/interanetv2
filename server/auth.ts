@@ -41,6 +41,31 @@ const loginSchema = z.object({
   password: z.string().min(1, "La contraseña es requerida"),
 });
 
+const USER_CACHE_TTL_MS = 60 * 1000;
+const USER_CACHE_FALLBACK_MS = 30 * 60 * 1000;
+const userCache = new Map<string, { user: any; expires: number; stale: number }>();
+
+const cacheUser = (id: string, user: any) => {
+  const now = Date.now();
+  userCache.set(id, { user, expires: now + USER_CACHE_TTL_MS, stale: now + USER_CACHE_FALLBACK_MS });
+};
+
+/**
+ * Olvida la copia en caché de un usuario. Llamar al cambiarle rol, permisos,
+ * supervisor o estado, para que el cambio se vea al instante y no en 1 minuto.
+ */
+export const invalidateSessionUser = (id?: string | null) => {
+  if (id) userCache.delete(id);
+};
+
+const limpiarUserCache = setInterval(() => {
+  const now = Date.now();
+  userCache.forEach((entry, id) => {
+    if (now >= entry.stale) userCache.delete(id);
+  });
+}, 5 * 60 * 1000);
+limpiarUserCache.unref?.();
+
 export function setupAuth(app: Express) {
   // Session configuration
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -111,13 +136,33 @@ export function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
+
+  // Caché corta del usuario de la sesión.
+  //
+  // deserializeUser corre en CADA request: una pantalla que dispara 30 llamadas
+  // hacía 30 consultas idénticas a la base. Con la base detrás del pooler remoto
+  // eso agota los cupos de conexión, y cuando el pool no entrega conexión a
+  // tiempo esta función caía por `catch` y devolvía `false` — o sea, el usuario
+  // pasaba a estar "no autenticado" y la app respondía 401 en todas partes sin
+  // que nadie hubiera cerrado sesión.
+  //
+  // TTL corto (1 min): un cambio de rol o permisos tarda a lo más eso en verse.
+  // Además guardamos la última copia buena por más tiempo, pero SOLO para usarla
+  // cuando la base no responde: ante un corte, la sesión sobrevive en vez de
+  // caerse. Si la base responde y dice que el usuario ya no existe, se respeta.
   passport.deserializeUser(async (id: string, done) => {
+    const cached = userCache.get(id);
+    if (cached && Date.now() < cached.expires) {
+      return done(null, cached.user);
+    }
+
     try {
       const user = await storage.getUser(id);
       if (!user) {
+        userCache.delete(id);
         return done(null, false);
       }
-      done(null, {
+      const sessionUser = {
         ...user,
         firstName: user.firstName || undefined,
         lastName: user.lastName || undefined,
@@ -125,8 +170,16 @@ export function setupAuth(app: Express) {
         salespersonName: user.salespersonName || undefined,
         publicSlug: (user as any).publicSlug || undefined,
         role: user.role || 'user'
-      });
+      };
+      cacheUser(id, sessionUser);
+      done(null, sessionUser);
     } catch (error) {
+      // La base no respondió (pool saturado, corte de red). Antes esto cerraba
+      // la sesión del usuario; ahora se sigue con la última copia conocida.
+      if (cached && Date.now() < cached.stale) {
+        console.warn("Deserialize: base no disponible, se usa la copia en caché del usuario");
+        return done(null, cached.user);
+      }
       console.error("Deserialize error:", error);
       done(null, false);
     }
@@ -461,6 +514,15 @@ export const requireMarketingAccess = requireRoles([
   'reception',
   'marketing'
 ]);
+
+// Edición del contenido propio del área de Marketing.
+//
+// `requireMarketingAccess` es deliberadamente amplia: media empresa necesita VER
+// lo que hace el área. Escribir es otra cosa — el contenido de Redes Sociales
+// (guiones, carruseles, concursos) lo mantiene quien está a cargo del área, no
+// cualquiera que pase por el módulo. Por eso la lectura queda con el guard amplio
+// y la escritura con este.
+export const requireMarketingEdit = requireRoles(['admin', 'marketing']);
 
 // Plant Operations Access Control
 // Access to plant operational functions like inventory sync, CMMS, etc.
