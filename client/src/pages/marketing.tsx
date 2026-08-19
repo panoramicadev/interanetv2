@@ -48,7 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send, LayoutDashboard, CalendarClock, Inbox } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List, ArrowLeftRight, PlusCircle, RotateCcw, User, Users, Send, LayoutDashboard, CalendarClock, Inbox, Share2 } from "lucide-react";
 import { useRoute } from "wouter";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
@@ -62,6 +62,7 @@ import ProveedoresTabMarketing from "./marketing/proveedores-tab-marketing";
 import BandejaSolicitudes from "./marketing/bandeja-solicitudes";
 import HoyMarketing from "./marketing/hoy-marketing";
 import MisTareasMarketing from "./marketing/mis-tareas-marketing";
+import RedesSocialesMarketing from "./marketing/redes-sociales-marketing";
 import CampanasPage from "./campanas";
 
 interface HitoMarketing {
@@ -110,6 +111,7 @@ type Seccion =
   | "hoy"
   | "solicitudes"
   | "mis-tareas"
+  | "redes-sociales"
   | "email"
   | "inventario"
   | "gastos"
@@ -122,6 +124,7 @@ const SECCIONES: Record<Seccion, { titulo: string; bajada: string; icon: any }> 
   "hoy": { titulo: "Hoy", bajada: "Lo que tienes que resolver, en orden de urgencia", icon: CalendarClock },
   "solicitudes": { titulo: "Solicitudes", bajada: "Pedidos que llegan a marketing desde el resto de la empresa", icon: Inbox },
   "mis-tareas": { titulo: "Mis tareas", bajada: "Tus tareas del área: las que te asignaron y las que creaste", icon: CheckSquare },
+  "redes-sociales": { titulo: "Redes Sociales", bajada: "Guiones de reel, carruseles y concursos, guardados por mes", icon: Share2 },
   "email": { titulo: "Email Marketing", bajada: "Campañas de correo y sus destinatarios", icon: Send },
   "inventario": { titulo: "Inventario", bajada: "Material POP y merchandising del área", icon: Package },
   "gastos": { titulo: "Gastos", bajada: "Gastos ejecutados del presupuesto de marketing", icon: Receipt },
@@ -201,6 +204,8 @@ export default function Marketing() {
         {seccion === "solicitudes" && <BandejaSolicitudes canManage={canManageSolicitudes} />}
 
         {seccion === "mis-tareas" && <MisTareasMarketing />}
+
+        {seccion === "redes-sociales" && <RedesSocialesMarketing />}
 
         {seccion === "email" && <CampanasPage embedded />}
 

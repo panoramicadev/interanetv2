@@ -1523,6 +1523,77 @@ export async function bootstrapDatabase(): Promise<void> {
       END $$
     `);
 
+    // ── Redes Sociales (Marketing) ──
+    // Guiones de reel, carruseles y concursos. Las tres guardan sus adjuntos en
+    // `archivos`, con la misma forma que devuelve /api/upload.
+    console.log('  📱 Verificando tablas de Redes Sociales (Marketing)...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS guiones_reel_marketing (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        guion TEXT,
+        plataforma VARCHAR(50) NOT NULL DEFAULT 'instagram',
+        estado VARCHAR(50) NOT NULL DEFAULT 'borrador',
+        fecha DATE,
+        archivos JSONB DEFAULT '[]'::jsonb,
+        mes INTEGER NOT NULL,
+        anio INTEGER NOT NULL,
+        creado_por_id VARCHAR,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_guiones_reel_marketing_mes_anio" ON guiones_reel_marketing (mes, anio)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_guiones_reel_marketing_estado" ON guiones_reel_marketing (estado)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS carruseles_marketing (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        copy TEXT,
+        plataforma VARCHAR(50) NOT NULL DEFAULT 'instagram',
+        estado VARCHAR(50) NOT NULL DEFAULT 'borrador',
+        url_publicacion TEXT,
+        fecha_publicacion DATE,
+        archivos JSONB DEFAULT '[]'::jsonb,
+        mes INTEGER NOT NULL,
+        anio INTEGER NOT NULL,
+        creado_por_id VARCHAR,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_carruseles_marketing_mes_anio" ON carruseles_marketing (mes, anio)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_carruseles_marketing_estado" ON carruseles_marketing (estado)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS concursos_marketing (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        mecanica TEXT,
+        premio TEXT,
+        bases TEXT,
+        plataforma VARCHAR(50) NOT NULL DEFAULT 'instagram',
+        estado VARCHAR(50) NOT NULL DEFAULT 'planificacion',
+        fecha_inicio DATE,
+        fecha_fin DATE,
+        ganador VARCHAR(255),
+        participantes INTEGER,
+        url_publicacion TEXT,
+        archivos JSONB DEFAULT '[]'::jsonb,
+        mes INTEGER NOT NULL,
+        anio INTEGER NOT NULL,
+        creado_por_id VARCHAR,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_concursos_marketing_mes_anio" ON concursos_marketing (mes, anio)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_concursos_marketing_estado" ON concursos_marketing (estado)`);
+
     console.log('✅ Bootstrap de base de datos completado');
 
   } catch (error: any) {

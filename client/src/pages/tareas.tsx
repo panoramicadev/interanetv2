@@ -3898,7 +3898,6 @@ function EstimacionSemanalTab({
   // el vendedor solo ve lo suyo y el supervisor lo de su equipo.
   const {
     data: resumenVentas,
-    isPending: isPendingResumenVentas,
     isError: errorResumenVentas,
   } = useQuery<ResumenVentasEstimacion>({
     queryKey: ['/api/promesas-compra/resumen-ventas', rangoPeriodo.desde, rangoPeriodo.hasta, vendedorFilter],
@@ -3914,6 +3913,7 @@ function EstimacionSemanalTab({
     // cuadros en cero, que se lee como "no vendí nada".
     retry: 2,
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // Filtrar promesas válidas y por vendedor
@@ -3964,10 +3964,37 @@ function EstimacionSemanalTab({
             </p>
           </div>
         </div>
-        <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all">
-          <Plus className="mr-1 sm:mr-2 h-4 w-4" />
-          Nueva Promesa
-        </Button>
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          {/* Filtro por vendedor (solo admin/supervisor): acota TODOS los cuadros
+              de la pestaña, por eso va en el encabezado y no sobre la tabla. */}
+          {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
+            <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+                <Users className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col leading-none min-w-0">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                  <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {salespeople.map((salesperson) => (
+                      <SelectItem key={salesperson.id} value={salesperson.id}>
+                        {salesperson.fullName || salesperson.salespersonName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all">
+            <Plus className="mr-1 sm:mr-2 h-4 w-4" />
+            Nueva Promesa
+          </Button>
+        </div>
       </div>
 
       {/* Selector de período */}
@@ -4077,11 +4104,11 @@ function EstimacionSemanalTab({
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
-              {isPendingResumenVentas
-                ? <span className="text-slate-300">—</span>
+              {resumenVentas
+                ? `$${resumenVentas.periodo.total.toLocaleString('es-CL')}`
                 : errorResumenVentas
                   ? <span className="text-base font-semibold text-red-600">No se pudo calcular</span>
-                  : `$${(resumenVentas?.periodo.total ?? 0).toLocaleString('es-CL')}`}
+                  : <span className="text-slate-300">—</span>}
             </div>
             <p className="text-[10px] text-slate-400 mt-1">
               {!resumenVentas
@@ -4154,11 +4181,11 @@ function EstimacionSemanalTab({
               <>
                 <div className="text-xl sm:text-2xl font-bold text-slate-300 dark:text-slate-600 tracking-tight">—</div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  {isPendingResumenVentas
-                    ? 'Calculando…'
+                  {resumenVentas
+                    ? 'Sin meta cargada para este mes'
                     : errorResumenVentas
                       ? 'No se pudo calcular'
-                      : 'Sin meta cargada para este mes'}
+                      : 'Calculando…'}
                 </p>
               </>
             )}
@@ -4174,30 +4201,6 @@ function EstimacionSemanalTab({
               <CardTitle className="text-base sm:text-lg text-slate-800 dark:text-slate-100">Detalle de Promesas</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-0.5">Comparación de compromisos vs. ventas reales</CardDescription>
             </div>
-            {/* Filtro por vendedor (solo para admin/supervisor) */}
-            {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
-              <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
-                  <Users className="h-4 w-4" />
-                </div>
-                <div className="flex flex-col leading-none">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
-                  <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                    <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {salespeople.map((salesperson) => (
-                        <SelectItem key={salesperson.id} value={salesperson.id}>
-                          {salesperson.fullName || salesperson.salespersonName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
           </div>
         </CardHeader>
         <CardContent>

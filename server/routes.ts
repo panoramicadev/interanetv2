@@ -6,6 +6,7 @@ import fs from "fs";
 import { storage } from "./storage";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
+import { invalidateSessionUser } from "./auth";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
@@ -6690,6 +6691,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
+      // La sesión guarda una copia del usuario por 1 minuto: al cambiarle rol,
+      // permisos o estado hay que olvidarla para que aplique de inmediato.
+      invalidateSessionUser(id);
 
       // If clientRut was set, link this user to the corresponding client (update both client_id and clients.user_id)
       if (validatedUser.clientRut) {
@@ -28702,6 +28706,142 @@ export function registerRoutes(app: Express): Server {
       res.json(guion);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar guión', error: error.message });
+    }
+  }));
+
+  // ── Redes Sociales (Marketing) ──
+  // Guiones de reel, carruseles y concursos. Mismo contrato en las tres: se listan
+  // por mes/año y los adjuntos viajan en `archivos`, ya subidos por /api/upload.
+
+  app.get('/api/marketing/guiones-reel', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.query.mes as string) || new Date().getMonth() + 1;
+      const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
+      const items = await storage.getGuionesReelMarketing(mes, anio);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener los guiones de reel', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/guiones-reel', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const now = new Date();
+      const item = await storage.createGuionReelMarketing({
+        ...req.body,
+        mes: req.body?.mes ?? now.getMonth() + 1,
+        anio: req.body?.anio ?? now.getFullYear(),
+        creadoPorId: req.user.id.toString(),
+      });
+      res.status(201).json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear los guiones de reel', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/guiones-reel/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const item = await storage.updateGuionReelMarketing(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar los guiones de reel', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/guiones-reel/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteGuionReelMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar los guiones de reel', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/carruseles', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.query.mes as string) || new Date().getMonth() + 1;
+      const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
+      const items = await storage.getCarruselesMarketing(mes, anio);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener los carruseles', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/carruseles', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const now = new Date();
+      const item = await storage.createCarruselMarketing({
+        ...req.body,
+        mes: req.body?.mes ?? now.getMonth() + 1,
+        anio: req.body?.anio ?? now.getFullYear(),
+        creadoPorId: req.user.id.toString(),
+      });
+      res.status(201).json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear los carruseles', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/carruseles/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const item = await storage.updateCarruselMarketing(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar los carruseles', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/carruseles/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteCarruselMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar los carruseles', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/concursos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.query.mes as string) || new Date().getMonth() + 1;
+      const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
+      const items = await storage.getConcursosMarketing(mes, anio);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener los concursos', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/concursos', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const now = new Date();
+      const item = await storage.createConcursoMarketing({
+        ...req.body,
+        mes: req.body?.mes ?? now.getMonth() + 1,
+        anio: req.body?.anio ?? now.getFullYear(),
+        creadoPorId: req.user.id.toString(),
+      });
+      res.status(201).json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear los concursos', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/concursos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const item = await storage.updateConcursoMarketing(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar los concursos', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/concursos/:id', requireMarketingAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteConcursoMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar los concursos', error: error.message });
     }
   }));
 
