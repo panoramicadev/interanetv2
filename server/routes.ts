@@ -14518,9 +14518,13 @@ export function registerRoutes(app: Express): Server {
       // cliente el asignado también puede (limitado más abajo a status/dueDate, para
       // que registre su fecha de revisión aunque no haya creado la tarea).
       const isSeguimientoCliente = (task.payload as any)?.kind === 'seguimiento_cliente';
+      // Un proyecto de Industrial es el mismo tipo de espacio de trabajo: su
+      // responsable lo administra aunque no lo haya creado.
+      const isProyecto = (task.payload as any)?.kind === 'proyecto';
+      const isEspacioTrabajo = isSeguimientoCliente || isProyecto;
       const isAssignedToTask = (task.assignments || []).some((a: any) => a.assigneeId === user.id);
       const canUpdate = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id
-        || (isSeguimientoCliente && isAssignedToTask);
+        || (isEspacioTrabajo && isAssignedToTask);
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
@@ -14565,7 +14569,7 @@ export function registerRoutes(app: Express): Server {
         const isAssigned = task.assignments.some(assignment =>
           (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
           (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment) ||
-          (isSeguimientoCliente && assignment.assigneeId === user.id)
+          (isEspacioTrabajo && assignment.assigneeId === user.id)
         );
 
         if (!isAssigned) {
@@ -14574,7 +14578,9 @@ export function registerRoutes(app: Express): Server {
 
         // Only allow status updates for assigned salesperson; en su seguimiento el
         // vendedor asignado también registra/edita la fecha de revisión (dueDate).
-        const allowedFields = isSeguimientoCliente ? ['status', 'dueDate'] : ['status'];
+        // En su espacio de trabajo (seguimiento o proyecto) el responsable también
+        // registra/edita la fecha (revisión del cliente / objetivo del proyecto).
+        const allowedFields = isEspacioTrabajo ? ['status', 'dueDate'] : ['status'];
         if (Object.keys(updates).some(key => !allowedFields.includes(key))) {
           return res.status(403).json({ message: "Salesperson can only update task status" });
         }
@@ -15350,12 +15356,15 @@ export function registerRoutes(app: Express): Server {
           }
         } catch (err) { console.error("Error registrando visita de ruta desde actividad:", err); }
       }
+      // La ficha dueña puede ser un seguimiento de cliente o un proyecto de
+      // Industrial: el aviso tiene que apuntar a la pestaña donde se ve.
+      const fichaCreate = await storage.getTask(req.params.id).catch(() => null);
       await logPanelChange(user, {
-        section: 'seguimiento',
+        section: fichaCreate ? panelSectionForTask(fichaCreate) : 'seguimiento',
         action: 'created',
         entityType: 'actividad',
-        entityId: req.params.id, // se destaca la tarjeta del seguimiento
-        title: `Actividad "${tipo}" registrada${descripcion ? `: ${String(descripcion).slice(0, 80)}` : ''}`,
+        entityId: req.params.id, // se destaca la tarjeta de la ficha
+        title: `Tarea "${tipo}" registrada${descripcion ? `: ${String(descripcion).slice(0, 80)}` : ''}`,
       });
       res.status(201).json(act);
     } catch (e) { console.error("Error creating actividad:", e); res.status(500).json({ message: "Failed" }); }
@@ -15382,12 +15391,13 @@ export function registerRoutes(app: Express): Server {
           if (clienteId) await storage.setRutaClienteVisitado(act.rutaId, clienteId, estado === 'completada');
         } catch (err) { console.error("Error sincronizando ruta desde actividad:", err); }
       }
+      const fichaPatch = await storage.getTask(act.taskId).catch(() => null);
       await logPanelChange(req.user, {
-        section: 'seguimiento',
+        section: fichaPatch ? panelSectionForTask(fichaPatch) : 'seguimiento',
         action: estado === 'completada' ? 'completed' : 'updated',
         entityType: 'actividad',
         entityId: act.taskId,
-        title: `Actividad "${act.tipo}" ${estado === 'completada' ? 'completada' : 'actualizada'}`,
+        title: `Tarea "${act.tipo}" ${estado === 'completada' ? 'completada' : 'actualizada'}`,
       });
       res.json(act);
     } catch (e) { console.error("Error updating actividad:", e); res.status(500).json({ message: "Failed" }); }
