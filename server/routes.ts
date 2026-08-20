@@ -32269,7 +32269,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { estado, fechaDesde, fechaHasta, categoria, segmentCode, centroCostos, userId, limit, offset } = req.query;
+      const { estado, fechaDesde, fechaHasta, categoria, segmentCode, centroCostos, userId, fundAllocationId, limit, offset } = req.query;
 
       const filters: any = {};
 
@@ -32289,6 +32289,7 @@ export function registerRoutes(app: Express): Server {
       if (categoria) filters.categoria = categoria;
       if (segmentCode) filters.segmentCode = segmentCode;
       if (centroCostos) filters.centroCostos = centroCostos;
+      if (fundAllocationId) filters.fundAllocationId = fundAllocationId;
       if (limit) filters.limit = parseInt(limit);
       if (offset) filters.offset = parseInt(offset);
 
@@ -32336,6 +32337,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const updated = await storage.updateGastoEmpresarial(req.params.id, req.body);
+      await storage.syncFundMovementForGasto(req.params.id, user.id);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
@@ -32374,6 +32376,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const gasto = await storage.aprobarGastoEmpresarial(req.params.id, user.id);
+      await storage.syncFundMovementForGasto(req.params.id, user.id);
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al aprobar gasto', error: error.message });
@@ -32395,6 +32398,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       const gasto = await storage.rechazarGastoEmpresarial(req.params.id, user.id, comentario);
+      // Rechazar libera el saldo: sin esto el fondo queda cargado para siempre.
+      await storage.syncFundMovementForGasto(req.params.id, user.id);
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al rechazar gasto', error: error.message });
@@ -32470,6 +32475,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const gasto = await storage.updateGastoEmpresarial(req.params.id, updates);
+      // Puede haber cambiado el monto, el fondo o la modalidad: el cargo tiene
+      // que seguir al gasto, no quedarse en el fondo y el monto originales.
+      await storage.syncFundMovementForGasto(req.params.id, user.id);
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al editar gasto', error: error.message });
@@ -33049,6 +33057,30 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Close fund allocation (Admin/HR only)
+  // Lo que hay que revisar antes de cerrar un fondo: entregado vs. rendido y los
+  // gastos que todavía esperan aprobación.
+  app.get('/api/fund-allocations/:id/rendicion', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const rendicion = await storage.getFundAllocationRendicion(req.params.id);
+
+      if (!rendicion.allocation) {
+        return res.status(404).json({ message: 'Asignación no encontrada' });
+      }
+
+      // El dueño del fondo puede mirar su propia rendición; el resto, sólo
+      // quien administra fondos.
+      const administra = ['admin', 'recursos_humanos'].includes(user.role);
+      if (!administra && rendicion.allocation.assignedToId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      res.json(rendicion);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener la rendición del fondo', error: error.message });
+    }
+  }));
+
   app.post('/api/fund-allocations/:id/close', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -33057,8 +33089,45 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      const closed = await storage.closeFundAllocation(req.params.id);
-      res.json(closed);
+      const { observacion, forzar } = req.body || {};
+      const rendicion = await storage.getFundAllocationRendicion(req.params.id);
+
+      if (!rendicion.allocation) {
+        return res.status(404).json({ message: 'Asignación no encontrada' });
+      }
+
+      if (rendicion.allocation.estado === 'cerrado') {
+        return res.status(400).json({ message: 'Este fondo ya está cerrado' });
+      }
+
+      // Cerrar es declarar el fondo rendido. Con gastos esperando aprobación la
+      // rendición todavía no está firme, así que no se cierra salvo que RRHH
+      // decida forzarlo a sabiendas.
+      if (rendicion.gastosPendientes > 0 && !forzar) {
+        return res.status(400).json({
+          message: `El fondo tiene ${rendicion.gastosPendientes} gasto${rendicion.gastosPendientes === 1 ? '' : 's'} pendiente${rendicion.gastosPendientes === 1 ? '' : 's'} de aprobación. Resolvelos antes de cerrarlo.`,
+          gastosPendientes: rendicion.gastosPendientes,
+        });
+      }
+
+      const closed = await storage.closeFundAllocation(req.params.id, {
+        cerradoPorId: user.id,
+        observacion,
+      });
+
+      try {
+        await storage.createNotification({
+          userId: rendicion.allocation.assignedToId,
+          title: 'Fondo cerrado',
+          message: `El fondo "${rendicion.allocation.nombre}" quedó cerrado y rendido. Ya podés solicitar uno nuevo.`,
+          type: 'success',
+          link: '/gastos-empresariales?tab=fondos',
+        });
+      } catch (notifError) {
+        console.error('Error al notificar el cierre de fondo:', notifError);
+      }
+
+      res.json({ ...closed, saldoNoRendido: rendicion.saldoDisponible });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al cerrar asignación', error: error.message });
     }

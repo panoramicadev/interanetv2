@@ -23847,6 +23847,7 @@ export class DatabaseStorage implements IStorage {
     categoria?: string;
     segmentCode?: string;
     centroCostos?: string;
+    fundAllocationId?: string;
     limit?: number;
     offset?: number;
   }): Promise<GastoEmpresarial[]> {
@@ -23888,6 +23889,15 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(gastosEmpresariales.centroCostos, filters.centroCostos));
     }
 
+    // Un vendedor puede tener varios fondos abiertos a la vez (uno por viaje más
+    // el del mes). Filtrar por fondo es lo que permite revisar y cerrar cada uno
+    // por separado. 'sin_fondo' aísla lo que va a reembolso.
+    if (filters?.fundAllocationId === 'sin_fondo') {
+      conditions.push(sql`${gastosEmpresariales.fundAllocationId} IS NULL`);
+    } else if (filters?.fundAllocationId) {
+      conditions.push(eq(gastosEmpresariales.fundAllocationId, filters.fundAllocationId));
+    }
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
@@ -23926,9 +23936,81 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteGastoEmpresarial(id: string): Promise<void> {
+    // El movimiento se borra junto con el gasto. Si queda huérfano, el fondo
+    // sigue descontando plata por un gasto que ya no existe: el saldo baja solo
+    // y el vendedor no tiene cómo explicarlo.
+    await db.delete(fundMovements).where(eq(fundMovements.gastoId, id));
     await db
       .delete(gastosEmpresariales)
       .where(eq(gastosEmpresariales.id, id));
+  }
+
+  /**
+   * Deja el libro de movimientos del fondo en línea con el gasto tal como está
+   * hoy: un solo movimiento, en el fondo que corresponde, por el monto que
+   * corresponde y con el tipo que refleja su estado de aprobación.
+   *
+   * Hay que llamarla después de cualquier cambio que toque monto, fondo,
+   * modalidad de financiamiento o estado. Sin esto el cargo original queda
+   * congelado: editar el monto no lo actualiza, cambiar de fondo deja el cargo
+   * en el fondo viejo y rechazar por la ruta legacy nunca libera el saldo.
+   */
+  async syncFundMovementForGasto(gastoId: string, actorId: string): Promise<void> {
+    const gasto = await this.getGastoEmpresarialById(gastoId);
+    const movimientos = await db
+      .select()
+      .from(fundMovements)
+      .where(eq(fundMovements.gastoId, gastoId));
+
+    const usaFondo = !!gasto && gasto.fundingMode === 'con_fondo' && !!gasto.fundAllocationId;
+
+    if (!usaFondo) {
+      if (movimientos.length > 0) {
+        await db.delete(fundMovements).where(eq(fundMovements.gastoId, gastoId));
+      }
+      return;
+    }
+
+    const rechazado = gasto!.estado === 'rechazado' || gasto!.estadoAprobacion === 'rechazado';
+    const aprobado = !rechazado && (gasto!.estado === 'aprobado' || gasto!.estadoAprobacion === 'aprobado');
+    const tipoMovimiento = rechazado
+      ? 'gasto_rechazado'
+      : aprobado
+        ? 'gasto_aprobado'
+        : 'gasto_pendiente';
+    const etiqueta = rechazado ? 'Gasto rechazado' : aprobado ? 'Gasto aprobado' : 'Gasto pendiente';
+    const montoAbs = Math.abs(parseFloat(gasto!.monto?.toString() || '0'));
+    // Un rechazo no consume fondo: se guarda en positivo, igual que la
+    // sincronización histórica, y el cálculo de saldo lo ignora.
+    const monto = rechazado ? `${montoAbs}` : `-${montoAbs}`;
+    const descripcion = `${etiqueta}: ${gasto!.descripcion || gasto!.categoria}`;
+
+    const [vigente, ...duplicados] = movimientos;
+    for (const duplicado of duplicados) {
+      await db.delete(fundMovements).where(eq(fundMovements.id, duplicado.id));
+    }
+
+    if (!vigente) {
+      await this.createFundMovement({
+        allocationId: gasto!.fundAllocationId!,
+        tipoMovimiento,
+        gastoId,
+        monto,
+        descripcion,
+        creadoPorId: actorId,
+      });
+      return;
+    }
+
+    await db
+      .update(fundMovements)
+      .set({
+        allocationId: gasto!.fundAllocationId!,
+        tipoMovimiento,
+        monto,
+        descripcion,
+      })
+      .where(eq(fundMovements.id, vigente.id));
   }
 
   async aprobarGastoEmpresarial(id: string, supervisorId: string): Promise<GastoEmpresarial> {
@@ -24469,13 +24551,60 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async closeFundAllocation(id: string): Promise<FundAllocation> {
+  async closeFundAllocation(
+    id: string,
+    opts?: { cerradoPorId?: string; observacion?: string },
+  ): Promise<FundAllocation> {
     const [closed] = await db
       .update(fundAllocations)
       .set({ estado: 'cerrado', updatedAt: new Date() })
       .where(eq(fundAllocations.id, id))
       .returning();
+
+    // El cierre queda en el libro del fondo con quién y por qué: es el registro
+    // de que el viaje se rindió, que es lo que habilita pedir el fondo siguiente.
+    if (opts?.cerradoPorId) {
+      await this.createFundMovement({
+        allocationId: id,
+        tipoMovimiento: 'cierre',
+        monto: '0',
+        descripcion: opts.observacion?.trim()
+          ? `Fondo cerrado (rendido): ${opts.observacion.trim()}`
+          : 'Fondo cerrado (rendido)',
+        creadoPorId: opts.cerradoPorId,
+      });
+    }
+
     return closed;
+  }
+
+  /**
+   * Lo que hay que mirar antes de cerrar un fondo: cuánto se entregó, cuánto se
+   * rindió, qué queda por devolver y qué gastos siguen esperando aprobación.
+   * Mientras haya gastos pendientes el fondo no se puede dar por rendido.
+   */
+  async getFundAllocationRendicion(allocationId: string): Promise<{
+    allocation: FundAllocation | undefined;
+    montoInicial: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+    gastos: GastoEmpresarial[];
+    gastosPendientes: number;
+  }> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    const balance = await this.getFundAllocationBalance(allocationId);
+    const gastos = await db
+      .select()
+      .from(gastosEmpresariales)
+      .where(eq(gastosEmpresariales.fundAllocationId, allocationId))
+      .orderBy(desc(gastosEmpresariales.createdAt));
+
+    const gastosPendientes = gastos.filter(
+      (g) => g.estado !== 'aprobado' && g.estado !== 'rechazado',
+    ).length;
+
+    return { allocation, ...balance, gastos, gastosPendientes };
   }
 
   async approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string, comprobantePreviewUrl?: string | null): Promise<FundAllocation> {
@@ -24573,6 +24702,10 @@ export class DatabaseStorage implements IStorage {
         case 'gasto_rechazado':
         case 'reintegro':
           // Estos liberan saldo
+          break;
+        case 'cierre':
+        case 'cierre_recurrente':
+          // Marcas de cierre, van en $0: no mueven el saldo.
           break;
       }
     });
