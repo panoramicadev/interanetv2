@@ -154,6 +154,10 @@ export default function GastosEmpresariales() {
   const setMes = (v: string) => updateGastosFilter({ mes: v });
   const setAnio = (v: string) => updateGastosFilter({ anio: v });
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
+  // El fondo se filtra igual que el mes o la persona: persiste al navegar,
+  // porque revisar un fondo es ir y volver del detalle de cada gasto.
+  const fondoFilter = gastosFilter.fondoFilter || 'all';
+  const setFondoFilter = (v: string) => updateGastosFilter({ fondoFilter: v });
   const setDiaDesde = (v: string) => updateGastosFilter({ diaDesde: v || undefined });
   const setDiaHasta = (v: string) => updateGastosFilter({ diaHasta: v || undefined });
   const [searchTerm, setSearchTerm] = useState("");
@@ -348,7 +352,7 @@ export default function GastosEmpresariales() {
   };
 
   const { data: gastos = [], isLoading } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter, diaDesde, diaHasta, vista, vistaValue],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter, fondoFilter, diaDesde, diaHasta, vista, vistaValue],
     queryFn: async () => {
       const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
       const params = new URLSearchParams();
@@ -357,6 +361,7 @@ export default function GastosEmpresariales() {
       if (usuarioFilter !== 'todos') params.append('userId', usuarioFilter);
       if (estadoFilter !== 'all') params.append('estado', estadoFilter);
       if (categoriaFilter !== 'all') params.append('categoria', categoriaFilter);
+      if (fondoFilter !== 'all') params.append('fundAllocationId', fondoFilter);
       // Apply Vista (dashboard-style slice) on top of existing filters
       if (vista !== 'all' && vistaValue) {
         if (vista === 'segmento') params.append('segmentCode', vistaValue);
@@ -404,6 +409,23 @@ export default function GastosEmpresariales() {
     },
     enabled: !!user?.id,
   });
+
+  // Fondos que se ofrecen en el filtro. A diferencia de los de arriba, acá van
+  // todos —también los cerrados—: revisar un fondo ya rendido es parte del
+  // trabajo de RR.HH., no una excepción.
+  const { data: fondosParaFiltrar = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations', 'filtro', usuarioFilter, canViewAllFunds],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (canViewAllFunds && usuarioFilter !== 'todos') params.append('assignedToId', usuarioFilter);
+      const response = await fetch(`/api/fund-allocations?${params}`, { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!user?.id,
+  });
+
+  const fondoSeleccionado = fondosParaFiltrar.find((f) => f.id === fondoFilter);
 
   // Fetch pending RRHH approvals count (for RRHH badge)
   const isRRHH = user?.role === 'recursos_humanos' || user?.role === 'admin';
@@ -836,10 +858,32 @@ export default function GastosEmpresariales() {
                     ))}
                   </SelectContent>
                 </Select>
+                {/* Fondo entregado. Ocupa la fila completa en móvil: los nombres
+                    ("Fondo Villarrica - Agosto") no entran en media pastilla. */}
+                <Select value={fondoFilter} onValueChange={setFondoFilter}>
+                  <SelectTrigger className="col-span-2 h-10 w-full rounded-full border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/50 sm:col-span-1 sm:w-[230px]" data-testid="select-fondo">
+                    <SelectValue placeholder="Fondo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los fondos</SelectItem>
+                    <SelectItem value="sin_fondo">Sin fondo (reembolso)</SelectItem>
+                    {fondosParaFiltrar.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        <span className="flex flex-col gap-0.5">
+                          <span>{f.nombre}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {formatCurrency(Number(f.montoInicial ?? 0))}
+                            {f.estado === 'cerrado' ? ' · cerrado' : ''}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Active filter tags */}
-              {(estadoFilter !== 'all' || categoriaFilter !== 'all' || searchTerm) && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-slate-800">
+              {(estadoFilter !== 'all' || categoriaFilter !== 'all' || fondoFilter !== 'all' || searchTerm) && (
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-slate-800">
                   <span className="text-xs text-gray-500 font-medium">Filtros activos:</span>
                   {estadoFilter !== 'all' && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50">
@@ -853,6 +897,14 @@ export default function GastosEmpresariales() {
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/50">
                       {categoriaFilter}
                       <button onClick={() => setCategoriaFilter('all')} className="hover:text-purple-900 dark:hover:text-purple-100 ml-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {fondoFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200/50 dark:border-orange-800/50">
+                      {fondoFilter === 'sin_fondo' ? 'Sin fondo' : (fondoSeleccionado?.nombre ?? 'Fondo')}
+                      <button onClick={() => setFondoFilter('all')} className="hover:text-orange-900 dark:hover:text-orange-100 ml-0.5">
                         <X className="h-3 w-3" />
                       </button>
                     </span>

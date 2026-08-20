@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2, Pencil, Lock, AlertTriangle } from "lucide-react";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
@@ -136,6 +136,8 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
   const [rechargeComment, setRechargeComment] = useState("");
   const [rechargeNewFechaInicio, setRechargeNewFechaInicio] = useState("");
   const [rechargeNewFechaTermino, setRechargeNewFechaTermino] = useState("");
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [closeObservacion, setCloseObservacion] = useState("");
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editMontoInicial, setEditMontoInicial] = useState("");
   const [editFechaInicio, setEditFechaInicio] = useState("");
@@ -455,6 +457,46 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
       toast({
         title: "Error",
         description: error.message || "No se pudo eliminar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Lo que hay que mirar antes de dar un fondo por rendido: entregado, rendido,
+  // lo que quedó sin rendir y los gastos que siguen esperando aprobación.
+  const { data: rendicion, isLoading: isLoadingRendicion } = useQuery<any>({
+    queryKey: ['/api/fund-allocations', selectedAllocation?.id, 'rendicion'],
+    queryFn: async () => {
+      const response = await fetch(`/api/fund-allocations/${selectedAllocation!.id}/rendicion`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('No se pudo cargar la rendición del fondo');
+      return response.json();
+    },
+    enabled: showCloseDialog && !!selectedAllocation?.id,
+  });
+
+  const closeFundMutation = useMutation({
+    mutationFn: async (data: { allocationId: string; observacion?: string; forzar?: boolean }) => {
+      return apiRequest(`/api/fund-allocations/${data.allocationId}/close`, {
+        method: 'POST',
+        body: JSON.stringify({ observacion: data.observacion, forzar: data.forzar }),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo cerrado",
+        description: "El fondo quedó rendido. La persona ya puede solicitar uno nuevo.",
+      });
+      setShowCloseDialog(false);
+      setCloseObservacion("");
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "No se pudo cerrar el fondo",
+        description: error.message || "Intentá de nuevo.",
         variant: "destructive",
       });
     },
@@ -944,6 +986,25 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </>
+                      )}
+                      {/* Cerrar = dar el fondo por rendido. Sólo tiene sentido
+                          mientras está activo; una vez cerrado se recarga. */}
+                      {canManageFunds && fondo.estado === 'activo' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-950/40"
+                          data-testid={`button-close-${fondo.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAllocation(fondo);
+                            setCloseObservacion("");
+                            setShowCloseDialog(true);
+                          }}
+                        >
+                          <Lock className="h-4 w-4" />
+                          <span className="hidden sm:inline">Cerrar</span>
+                        </Button>
                       )}
                       {(user?.role === 'admin' || user?.role === 'recursos_humanos') && (
                         <Button
@@ -2036,6 +2097,115 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cierre de fondo: la revisión antes de darlo por rendido */}
+      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-emerald-600" />
+              Cerrar fondo
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAllocation?.nombre} — revisá lo rendido antes de cerrarlo.
+              Un fondo cerrado ya no acepta gastos nuevos.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingRendicion ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-20 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                <div className="h-20 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+              </div>
+              <div className="h-20 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+            </div>
+          ) : rendicion ? (
+            <div className="space-y-4">
+              {/* Dos por fila: entregado y rendido se leen comparando */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Entregado</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatCurrency(rendicion.montoInicial || 0)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Rendido</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatCurrency((rendicion.totalAprobado || 0) + (rendicion.totalComprometido || 0))}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {rendicion.gastos?.length || 0} gasto{(rendicion.gastos?.length || 0) === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Sin rendir</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                  {formatCurrency(rendicion.saldoDisponible || 0)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {(rendicion.saldoDisponible || 0) > 0
+                    ? 'Queda saldo del fondo sin usar. Al cerrar, se da por devuelto.'
+                    : 'El fondo se usó completo.'}
+                </p>
+              </div>
+
+              {rendicion.gastosPendientes > 0 && (
+                <div className="flex gap-3 rounded-2xl bg-amber-50 p-4 dark:bg-amber-950/30">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                  <div className="text-sm text-amber-900 dark:text-amber-200">
+                    <p className="font-semibold">
+                      {rendicion.gastosPendientes} gasto{rendicion.gastosPendientes === 1 ? '' : 's'} sin aprobar
+                    </p>
+                    <p className="mt-0.5">
+                      La rendición todavía no está firme. Aprobalos o rechazalos antes de cerrar el fondo.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">
+                  Observación (opcional)
+                </label>
+                <Textarea
+                  value={closeObservacion}
+                  onChange={(e) => setCloseObservacion(e.target.value)}
+                  placeholder="Ej: viaje a Villarrica del 05 de agosto, rendido completo."
+                  className="min-h-[80px] rounded-xl text-base"
+                  data-testid="input-close-observacion"
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No se pudo cargar la rendición de este fondo.</p>
+          )}
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowCloseDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
+              disabled={!rendicion || rendicion.gastosPendientes > 0 || closeFundMutation.isPending}
+              data-testid="button-confirm-close"
+              onClick={() => selectedAllocation && closeFundMutation.mutate({
+                allocationId: selectedAllocation.id,
+                observacion: closeObservacion,
+              })}
+            >
+              {closeFundMutation.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cerrando...</>
+              ) : (
+                <><Lock className="mr-2 h-4 w-4" />Cerrar fondo</>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
