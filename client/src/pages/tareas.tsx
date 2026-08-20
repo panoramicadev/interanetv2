@@ -116,6 +116,28 @@ const esSegmentoConstruccion = (raw: string | null | undefined): boolean => {
   return s.includes('construc');
 };
 
+// ¿Ese segmento es Industrial? En el ERP el área viaja como "digital" (ver
+// SEGMENTOS), pero también puede llegar escrita "Industrial" según de dónde
+// salga el usuario, así que se aceptan las dos grafías.
+const esSegmentoIndustrial = (raw: string | null | undefined): boolean => {
+  if (!raw) return false;
+  const s = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return s.includes('digital') || s.includes('industrial');
+};
+
+// En Industrial la unidad de trabajo no es la tarea suelta sino el PROYECTO
+// (un cliente que todavía no existe en el ERP, un producto en desarrollo): un
+// espacio que no se completa de un clic, se completan las tareas que tiene
+// adentro — exactamente como el seguimiento de cliente. Los proyectos nuevos se
+// marcan con payload.kind; los que ya existían cuando se creó la pestaña no
+// tienen esa marca y se reconocen por estar en el área.
+const esTareaProyecto = (task: any, enIndustrial = false): boolean => {
+  const kind = task?.payload?.kind;
+  if (kind === 'seguimiento_cliente') return false;
+  if (kind === 'proyecto') return true;
+  return enIndustrial || esSegmentoIndustrial(task?.segmento);
+};
+
 // Tipos de actividad (subtareas) dentro de un seguimiento de cliente
 const ACTIVIDAD_TIPOS = [
   { value: "llamada", label: "Llamada", badge: "bg-blue-100 text-blue-700" },
@@ -862,11 +884,41 @@ export default function TareasPage() {
     return false;
   })();
 
+  // Industrial trabaja por proyectos: su primera pestaña deja de llamarse
+  // "Tareas" y pasa a ser "Proyectos", donde cada ficha tiene sus tareas dentro
+  // (ver esTareaProyecto). Mismo criterio de detección que Ferreterías.
+  const esIndustrial = (() => {
+    // Admin (u otro rol con selector de Área): el área elegida manda.
+    if (segmentoFilter === 'digital') {
+      return true;
+    }
+    if (segmentoFilter !== 'all') {
+      return false;
+    }
+    // Sin selector de área (vendedor, que ve "all"): su segmento asignado.
+    if (esSegmentoIndustrial(segmentoDeUsuario(user))) {
+      return true;
+    }
+    if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
+      return supervisorSalespeople.some(sp => esSegmentoIndustrial(sp.assignedSegment));
+    }
+    return false;
+  })();
+  // Marketing tiene su propio módulo y el técnico de obra no crea proyectos:
+  // la pestaña solo cambia de nombre para el resto del panel.
+  const modoProyectos = esIndustrial && showExtraSegmentTabs;
+  // Los contadores y textos de la lista solo hablan de proyectos dentro de su
+  // propia pestaña: en Seguimiento se siguen contando clientes.
+  const vistaProyectos = modoProyectos && activeTab === 'tareas';
+
   // Construcción cambia dos pestañas: "Estimación de ventas" → "Obras" y
   // "Rutas Comerciales" → "Visitas Técnicas" (que salió del sidebar).
   const showEstimacionTab = showExtraSegmentTabs && esFerreterias;
   const showObrasTab = showExtraSegmentTabs && esConstruccion;
-  const showRutasTab = !esConstruccion;
+  // Rutas Comerciales es de las áreas que salen a la calle a visitar cartera:
+  // Construcción tiene Visitas Técnicas en su lugar e Industrial trabaja por
+  // proyectos, así que ninguna de las dos la muestra.
+  const showRutasTab = !esConstruccion && !esIndustrial;
   const showVisitasTab = esConstruccion && canVerVisitas;
   const visibleTabCount =
     3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
@@ -881,7 +933,7 @@ export default function TareasPage() {
     if (!showEstimacionTab && activeTab === "estimacion") {
       setActiveTab("tareas");
     }
-    if (esConstruccion && activeTab === "rutas-comerciales") {
+    if (!showRutasTab && activeTab === "rutas-comerciales") {
       setActiveTab("tareas");
     }
     if (!showObrasTab && activeTab === "obras") {
@@ -895,7 +947,7 @@ export default function TareasPage() {
     if (!showObrasTab && seguimientoVista === "obras") {
       setSeguimientoVista("clientes");
     }
-  }, [showEstimacionTab, showObrasTab, esConstruccion, showVisitasTab, activeTab, seguimientoVista]);
+  }, [showEstimacionTab, showObrasTab, showRutasTab, showVisitasTab, activeTab, seguimientoVista]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -1402,8 +1454,14 @@ export default function TareasPage() {
     asignaSoloASiMismo ? [{ assigneeType: 'salesperson', assigneeId: user.id }] : [];
 
   const handleSubmit = (data: CreateTaskWithAssignmentsInput) => {
-    // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente
-    const payload = seguimientoMode ? { kind: 'seguimiento_cliente' } : undefined;
+    // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente.
+    // En Industrial lo que se crea desde esta pestaña es un proyecto, que también
+    // es un espacio de trabajo con tareas adentro (ver esTareaProyecto).
+    const payload = seguimientoMode
+      ? { kind: 'seguimiento_cliente' }
+      : modoProyectos
+        ? { kind: 'proyecto' }
+        : undefined;
     const assignments = asignaSoloASiMismo ? asignacionesPorDefecto() : data.assignments;
     createTaskMutation.mutate({ ...data, assignments, ...(payload ? { payload } : {}) } as any);
   };
@@ -1460,6 +1518,7 @@ export default function TareasPage() {
           markAsReadMutation={markAsReadMutation}
           taskGroups={taskGroupsQuery.data || []}
           assignTaskToGroupMutation={assignTaskToGroupMutation}
+          esProyecto={esTareaProyecto(selectedTask, modoProyectos)}
         />
       </div>
     );
@@ -1494,7 +1553,7 @@ export default function TareasPage() {
       return { label: 'Nueva ruta', onClick: () => rutasRef.current?.nuevaRuta() };
     }
     return {
-      label: 'Añadir tarea',
+      label: modoProyectos ? 'Añadir proyecto' : 'Añadir tarea',
       onClick: () => {
         if (isMarketing) {
           // La encargada de Marketing crea directo una tarea de su área:
@@ -1723,9 +1782,11 @@ export default function TareasPage() {
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <DialogTitle className="text-lg font-bold text-foreground">Nueva Tarea</DialogTitle>
+                      <DialogTitle className="text-lg font-bold text-foreground">{modoProyectos && !seguimientoMode ? 'Nuevo Proyecto' : 'Nueva Tarea'}</DialogTitle>
                       <DialogDescription className="text-sm text-muted-foreground">
-                        Completa los detalles y asigna a miembros del equipo
+                        {modoProyectos && !seguimientoMode
+                          ? 'Ponle nombre al proyecto y asígnalo; sus tareas se agregan adentro'
+                          : 'Completa los detalles y asigna a miembros del equipo'}
                       </DialogDescription>
                     </div>
                   </div>
@@ -1741,7 +1802,7 @@ export default function TareasPage() {
                           <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
                             <Pencil className="w-3.5 h-3.5" />
                           </span>
-                          Información de la tarea
+                          {modoProyectos && !seguimientoMode ? 'Información del proyecto' : 'Información de la tarea'}
                         </div>
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-4">
                           <FormField
@@ -1749,9 +1810,9 @@ export default function TareasPage() {
                             name="title"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título *</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{modoProyectos && !seguimientoMode ? 'Nombre del proyecto *' : 'Título *'}</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
+                                  <Input placeholder={modoProyectos && !seguimientoMode ? "Ej: Planta Aconcagua — recubrimiento estructural" : "Ej: Visita cliente zona sur"} className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -1846,7 +1907,7 @@ export default function TareasPage() {
                               name="dueDate"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : "Fecha Límite"}</FormLabel>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : modoProyectos ? "Fecha Objetivo (opcional)" : "Fecha Límite"}</FormLabel>
                                   <FormControl>
                                     <DateTimePicker value={field.value || ""} onChange={field.onChange} />
                                   </FormControl>
@@ -1869,13 +1930,13 @@ export default function TareasPage() {
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-3">
                           <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                             <Building2 className="h-3.5 w-3.5" />
-                            Cliente Asociado (Opcional)
+                            {modoProyectos && !seguimientoMode ? 'Posible cliente o producto (Opcional)' : 'Cliente Asociado (Opcional)'}
                           </Label>
                           {selectedClienteTask ? (
                             <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl">
                               <div className="flex-1">
                                 <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
-                                <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
+                                <p className="text-xs text-gray-500">{selectedClienteTask.koen === 'PROSPECTO' ? 'Posible cliente (aún no está en el sistema)' : `Código: ${selectedClienteTask.koen}`}</p>
                               </div>
                               <Button
                                 type="button"
@@ -1927,7 +1988,29 @@ export default function TareasPage() {
                                 </div>
                               )}
                               {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
-                                <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                                modoProyectos && !seguimientoMode ? (
+                                  // Los proyectos de Industrial suelen nacer con un posible
+                                  // cliente (o un producto en desarrollo) que todavía no
+                                  // existe en el ERP: se anota a mano como prospecto.
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left rounded-lg border border-dashed border-orange-300 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30 text-xs font-medium transition-colors"
+                                    onClick={() => {
+                                      const nombre = searchClienteTask.trim();
+                                      if (!nombre) return;
+                                      setSelectedClienteTask({ id: 'PROSPECTO', koen: 'PROSPECTO', nokoen: nombre } as any);
+                                      form.setValue("clienteId", 'PROSPECTO');
+                                      form.setValue("clienteNombre", nombre);
+                                      setSearchClienteTask("");
+                                    }}
+                                    data-testid="button-cliente-prospecto"
+                                  >
+                                    <Plus className="h-3.5 w-3.5 inline mr-1.5" />
+                                    Usar «{searchClienteTask.trim()}» como posible cliente
+                                  </button>
+                                ) : (
+                                  <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                                )
                               )}
                             </div>
                           )}
@@ -2101,7 +2184,16 @@ export default function TareasPage() {
                   {([
                     { flow: 'seguimiento', icon: <Building2 className="h-5 w-5" />, title: 'Seguimiento a clientes', desc: 'Tarea ligada a un cliente activo (responsable → cliente → detalle).' },
                     { flow: 'marketing', icon: <TrendingUp className="h-5 w-5" />, title: 'Solicitud de Marketing', desc: 'Pedido a Marketing con fecha sugerida; la encargada fija el plazo final.' },
-                    { flow: 'otras', icon: <CheckSquare className="h-5 w-5" />, title: 'Otras tareas', desc: 'Tarea general del equipo (formulario estándar).' },
+                    // En Industrial el trabajo propio del área es el proyecto (posible
+                    // cliente todavía no creado en el sistema, producto en desarrollo).
+                    {
+                      flow: 'otras',
+                      icon: modoProyectos ? <FolderOpen className="h-5 w-5" /> : <CheckSquare className="h-5 w-5" />,
+                      title: modoProyectos ? 'Proyecto' : 'Otras tareas',
+                      desc: modoProyectos
+                        ? 'Espacio de trabajo del área con sus propias tareas adentro.'
+                        : 'Tarea general del equipo (formulario estándar).',
+                    },
                   ] as const).filter((opt) => opt.flow !== 'marketing' || canRequestMarketing).map((opt) => (
                     <button
                       key={opt.flow}
@@ -2145,9 +2237,12 @@ export default function TareasPage() {
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5 border border-slate-800/80 dark:border-slate-800/80 rounded-2xl ${tabsGridClass}`}>
+            {/* En Industrial esta pestaña es "Proyectos": mismo espacio, otra
+                unidad de trabajo (ver modoProyectos). El value se mantiene en
+                "tareas" para no romper filtros, avisos ni enlaces guardados. */}
             <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
-              <CheckSquare className={tabIconClass} />
-              Tareas
+              {modoProyectos ? <FolderOpen className={tabIconClass} /> : <CheckSquare className={tabIconClass} />}
+              {modoProyectos ? 'Proyectos' : 'Tareas'}
               {tabChangeBadge("tareas")}
             </TabsTrigger>
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass} onClick={() => handleTabTriggerClick("seguimiento")}>
@@ -2254,7 +2349,7 @@ export default function TareasPage() {
                     <Filter className="h-5 w-5 text-orange-600" />
                     <span className="font-semibold text-sm text-gray-900">Filtros</span>
                     <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium">
-                      {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                      {filteredTasks.length} {vistaProyectos ? 'proyecto' : 'tarea'}{filteredTasks.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
                   <ChevronDown className={`h-4 w-4 transition-transform text-gray-600 ${filtersExpanded ? 'rotate-180' : ''}`} />
@@ -2405,7 +2500,7 @@ export default function TareasPage() {
 
                   <div className="flex items-center gap-3 flex-wrap justify-end">
                     <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
-                      {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                      {filteredTasks.length} {vistaProyectos ? 'proyecto' : 'tarea'}{filteredTasks.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
                 </div>
@@ -2419,7 +2514,7 @@ export default function TareasPage() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {taskSearchBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
-                {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                {filteredTasks.length} {vistaProyectos ? 'proyecto' : 'tarea'}{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
             </div>
           )}
@@ -2446,7 +2541,7 @@ export default function TareasPage() {
                   onClick={() => setTaskView('lista')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${taskView === 'lista' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  <CheckSquare className="h-3.5 w-3.5" /> Tareas
+                  {modoProyectos ? <FolderOpen className="h-3.5 w-3.5" /> : <CheckSquare className="h-3.5 w-3.5" />} {modoProyectos ? 'Proyectos' : 'Tareas'}
                 </button>
                 <button
                   onClick={() => setTaskView('terminadas')}
@@ -2595,14 +2690,16 @@ export default function TareasPage() {
                 <div className="relative w-20 h-20 mx-auto mb-5">
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-500 to-[#fd6301] blur-lg opacity-25" />
                   <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500 to-[#fd6301] flex items-center justify-center shadow-lg shadow-orange-500/25">
-                    <CheckSquare className="h-9 w-9 text-white" />
+                    {modoProyectos ? <FolderOpen className="h-9 w-9 text-white" /> : <CheckSquare className="h-9 w-9 text-white" />}
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">
-                  No hay tareas
+                  {modoProyectos ? 'No hay proyectos' : 'No hay tareas'}
                 </h3>
                 <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
-                  {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
+                  {modoProyectos
+                    ? (viewMode === "my-tasks" ? "No tienes proyectos asignados." : "No se encontraron proyectos.")
+                    : (viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas.")}
                 </p>
                 {canCreateTasks && (
                   // Mismo camino que el (+) del header: abrir el diálogo "a mano"
@@ -2656,8 +2753,11 @@ export default function TareasPage() {
                 // En seguimiento la fecha es una revisión programada del cliente, no una
                 // fecha límite: no aplica la lógica de "vencida" (borde/badge rojos).
                 const isSeguimientoCard = (task as any).payload?.kind === 'seguimiento_cliente';
+                // En Industrial la ficha es un proyecto: como el seguimiento, muestra
+                // cuántas de sus tareas internas quedan pendientes.
+                const isProyectoCard = !isSeguimientoCard && esTareaProyecto(task, modoProyectos);
                 // Seguimiento: tareas internas sin completar y tiempo sin interacción.
-                const pendientes = isSeguimientoCard ? pendientesDeCliente(task) : 0;
+                const pendientes = isSeguimientoCard || isProyectoCard ? pendientesDeCliente(task) : 0;
                 const dias = isSeguimientoCard ? diasSinMovimiento(task) : null;
                 // Semáforo de crédito: sale de la cartera del ERP que ya se pidió para
                 // toda la lista. Un cliente con código y sin fila en la respuesta no
@@ -2867,6 +2967,34 @@ export default function TareasPage() {
                           </span>
                         )}
                       </div>
+                    ) : isProyectoCard ? (
+                      /* Proyecto: avance de sus tareas siempre visible; prioridad y
+                         estado siguen apareciendo al pasar el mouse, como en una tarea. */
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {pendientes > 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] dark:bg-orange-500/15 dark:text-orange-400 px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
+                            title={`${pendientes} tarea${pendientes !== 1 ? 's' : ''} del proyecto sin completar`}
+                            data-testid={`badge-pendiente-${task.id}`}
+                          >
+                            <Clock className="h-3 w-3" />
+                            {pendientes === 1 ? '1 pendiente' : `${pendientes} pendientes`}
+                          </span>
+                        ) : (task as any).actividadesTotal > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">
+                            <Check className="h-3 w-3" />
+                            Al día
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
+                            Sin tareas
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {getPriorityBadge(task.priority ?? 'medium')}
+                          {getStatusBadge(task.status ?? 'pendiente')}
+                        </span>
+                      </div>
                     ) : (
                       /* Right badges - show on hover */
                       <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2956,6 +3084,16 @@ export default function TareasPage() {
                 filteredTasks.forEach((task) => {
                   const vendedores = task.assignments.filter((a) => a.assigneeType !== 'supervisor');
                   if (vendedores.length === 0) {
+                    // Industrial la lleva su encargado en persona, sin vendedores por
+                    // debajo: un cliente asignado solo a él no está "sin asignar", es
+                    // suyo, y su card tiene que llevar su nombre.
+                    const encargado = esIndustrial
+                      ? task.assignments.find((a) => a.assigneeType === 'supervisor')
+                      : undefined;
+                    if (encargado) {
+                      addTo(encargado.assigneeId, nameFor(encargado.assigneeId), 'supervisor', task);
+                      return;
+                    }
                     addTo('__none__', 'Sin asignar', 'salesperson', task);
                     return;
                   }
@@ -5320,6 +5458,8 @@ interface TaskDetailDialogProps {
   markAsReadMutation: any;
   taskGroups: Array<{ id: string; name: string; segmento: string; userId: string; color: string | null; sortOrder: number | null; createdAt: Date | null }>;
   assignTaskToGroupMutation: any;
+  /** Industrial: la ficha es un proyecto, no una tarea suelta (ver esTareaProyecto). */
+  esProyecto?: boolean;
 }
 
 function TaskDetailDialog({
@@ -5335,6 +5475,7 @@ function TaskDetailDialog({
   markAsReadMutation,
   taskGroups,
   assignTaskToGroupMutation,
+  esProyecto = false,
 }: TaskDetailDialogProps) {
   const { toast } = useToast();
   const [chatText, setChatText] = useState("");
@@ -5490,15 +5631,18 @@ function TaskDetailDialog({
   // Un seguimiento de cliente es un espacio de trabajo (no una tarea que se completa):
   // muestra progreso de sus actividades en vez de "Marcar completada".
   const isSeguimientoCliente = (task as any).payload?.kind === 'seguimiento_cliente';
+  // Un proyecto de Industrial funciona igual: tampoco se completa de un clic, se
+  // completan las tareas que tiene adentro. Los dos son "espacios de trabajo".
+  const esEspacioTrabajo = isSeguimientoCliente || esProyecto;
   // El seguimiento de cliente es un espacio de trabajo del vendedor asignado: aunque no sea
   // el creador de la tarea (solo admin/supervisor las crean), el vendedor asignado debe poder
   // registrar sus actividades y visitas/rutas. Por eso, para el panel de actividades habilitamos
   // también a quien tenga la tarea asignada, no solo a quien la creó (canEditTask).
   const isAssignedToMe = ((task as any).assignments || []).some((a: any) => a.assigneeId === user.id);
-  const canManageSeguimiento = canEditTask || (isSeguimientoCliente && isAssignedToMe);
+  const canManageSeguimiento = canEditTask || (esEspacioTrabajo && isAssignedToMe);
   const { data: actividades = [] } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null }>>({
     queryKey: ['/api/tasks', task.id, 'actividades'],
-    enabled: isSeguimientoCliente,
+    enabled: esEspacioTrabajo,
   });
   const actividadesTotal = actividades.length;
   const actividadesCompletadas = actividades.filter((a) => a.estado === 'completada').length;
@@ -5538,7 +5682,7 @@ function TaskDetailDialog({
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
-              {isSeguimientoCliente ? (
+              {esEspacioTrabajo ? (
                 <Badge className="text-xs font-semibold border-0 bg-orange-100 text-orange-700 flex items-center gap-1.5 px-3 py-1.5">
                   <CheckSquare className="h-3.5 w-3.5" /> {actividadesCompletadas}/{actividadesTotal} tareas
                 </Badge>
@@ -5583,7 +5727,7 @@ function TaskDetailDialog({
               </button>
             </div>
           </div>
-          <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} />
+          <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} esProyecto={esProyecto} />
         </div>
 
         {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der).
@@ -5615,7 +5759,7 @@ function TaskDetailDialog({
                   <TabsTrigger value="detalle" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
                     <Edit className="h-3.5 w-3.5 mr-1" /> Detalle
                   </TabsTrigger>
-                  {isSeguimientoCliente && (
+                  {esEspacioTrabajo && (
                     <TabsTrigger value="tareas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
                       <CheckSquare className="h-3.5 w-3.5 mr-1" /> Tareas{actividadesTotal > 0 ? ` ${actividadesCompletadas}/${actividadesTotal}` : ''}
                     </TabsTrigger>
@@ -5879,14 +6023,16 @@ function TaskDetailDialog({
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm" className="text-xs">
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Eliminar Tarea
+                      {esProyecto ? 'Eliminar Proyecto' : 'Eliminar Tarea'}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar esta tarea?</AlertDialogTitle>
+                      <AlertDialogTitle>{esProyecto ? '¿Eliminar este proyecto?' : '¿Eliminar esta tarea?'}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Se eliminarán todas las asignaciones y comentarios asociados.
+                        {esProyecto
+                          ? 'Esta acción no se puede deshacer. Se eliminarán sus tareas, asignaciones y comentarios.'
+                          : 'Esta acción no se puede deshacer. Se eliminarán todas las asignaciones y comentarios asociados.'}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -5906,9 +6052,9 @@ function TaskDetailDialog({
                 </TabsContent>
 
                 {/* Tareas del cliente (subtareas / actividades tipadas) */}
-                {isSeguimientoCliente && (
+                {esEspacioTrabajo && (
                   <TabsContent value="tareas" className="absolute inset-0 overflow-y-auto p-4 sm:p-5 mt-0 data-[state=inactive]:hidden">
-                    <ActividadesPanel taskId={task.id} canManage={canManageSeguimiento} clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} />
+                    <ActividadesPanel taskId={task.id} canManage={canManageSeguimiento} clienteId={String((task as any).clienteId || "")} clienteNombre={String((task as any).clienteNombre || "")} esProyecto={esProyecto} />
                   </TabsContent>
                 )}
 
@@ -7880,8 +8026,10 @@ function DateTimePicker({ value, onChange }: { value: string; onChange: (v: stri
 // ==================================================================================
 // ActividadesPanel — subtareas / actividades tipadas de un seguimiento de cliente.
 // Cada actividad: tipo + fecha + descripción opcional + estado (pendiente/completada).
+// El mismo panel son las tareas de un proyecto de Industrial (`esProyecto`): solo
+// cambian los textos y, sin cliente del ERP, no se ofrece ligar la visita a una ruta.
 // ==================================================================================
-function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { taskId: string; canManage: boolean; clienteId: string; clienteNombre?: string }) {
+function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre, esProyecto = false }: { taskId: string; canManage: boolean; clienteId: string; clienteNombre?: string; esProyecto?: boolean }) {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [tipo, setTipo] = useState("llamada");
@@ -7899,7 +8047,10 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
   const { data: actividades = [], isLoading } = useQuery<Array<{ id: string; tipo: string; descripcion: string | null; fecha: string | null; estado: string; responsableNombre: string | null; rutaId: string | null; rutaNombre: string | null }>>({
     queryKey: ["/api/tasks", taskId, "actividades"],
   });
-  const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage });
+  // Ligar una visita a una ruta comercial exige un cliente del ERP: los proyectos
+  // de posibles clientes (o de producto) no lo tienen y no ofrecen esa opción.
+  const puedeLigarRuta = !!clienteId && clienteId !== 'PROSPECTO';
+  const { data: rutas = [] } = useQuery<Array<{ id: string; nombre: string }>>({ queryKey: ["/api/rutas"], enabled: canManage && puedeLigarRuta });
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "actividades"] });
     // el histórico y el estado de la pestaña Rutas también reflejan lo hecho desde acá
@@ -7974,12 +8125,12 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
       )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h4 className="text-sm font-bold text-slate-800">Tareas del cliente</h4>
+          <h4 className="text-sm font-bold text-slate-800">{esProyecto ? "Tareas del proyecto" : "Tareas del cliente"}</h4>
           {total > 0 && <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600">{done}/{total}</Badge>}
         </div>
         {canManage && !showForm && (
           <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" onClick={() => setShowForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva actividad
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> {esProyecto ? "Nueva tarea" : "Nueva actividad"}
           </Button>
         )}
       </div>
@@ -7995,7 +8146,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
             </Select>
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" title="Podés registrar una fecha pasada o futura" />
           </div>
-          {tipo === "visita" && (
+          {tipo === "visita" && puedeLigarRuta && (
             creatingRuta ? (
               <div className="flex items-center gap-2">
                 <Input
@@ -8040,7 +8191,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
       {isLoading ? (
         <p className="text-xs text-slate-400">Cargando…</p>
       ) : sorted.length === 0 ? (
-        <p className="text-xs text-slate-400 italic">Sin actividades. Agregá la primera acción con este cliente.</p>
+        <p className="text-xs text-slate-400 italic">{esProyecto ? "Sin tareas todavía. Agregá la primera acción del proyecto." : "Sin actividades. Agregá la primera acción con este cliente."}</p>
       ) : (
         <div className="space-y-1.5">
           {sorted.map((a) => {
@@ -8096,7 +8247,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre }: { tas
 // (opcional, solo día) y al guardarla queda registrada también como actividad
 // 'revision' en "Tareas del cliente" (lo sincroniza el backend).
 // ==================================================================================
-function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?: boolean }) {
+function HeaderMeta({ task, isSeguimiento = false, esProyecto = false }: { task: any; isSeguimiento?: boolean; esProyecto?: boolean }) {
   const { toast } = useToast();
   const { user } = useAuth();
   // El seguimiento es el espacio de trabajo del vendedor asignado: puede registrar la
@@ -8134,7 +8285,7 @@ function HeaderMeta({ task, isSeguimiento = false }: { task: any; isSeguimiento?
       )}
       <div className="flex items-center gap-1.5 text-sm">
         <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isSeguimiento ? "Fecha de Revisión" : "Fecha límite"}</span>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isSeguimiento ? "Fecha de Revisión" : esProyecto ? "Fecha objetivo" : "Fecha límite"}</span>
         {editing ? (
           <div className="flex items-center gap-1.5">
             {isSeguimiento ? (

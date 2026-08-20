@@ -14259,8 +14259,13 @@ export class DatabaseStorage implements IStorage {
   // internas (actividades) pendientes y hace cuánto que no pasa nada con ellos.
   // Se resuelve con dos agregados sobre TODOS los seguimientos de la respuesta
   // (no una consulta por tarjeta): actividades y comentarios del hilo.
+  // Los proyectos de Industrial son el mismo tipo de ficha (un espacio con tareas
+  // adentro) y necesitan los mismos contadores en su tarjeta.
   private async enrichSeguimientoTasks(tasksList: Array<Task & { assignments: TaskAssignment[] }>): Promise<void> {
-    const seguimientos = tasksList.filter((t) => (t.payload as any)?.kind === 'seguimiento_cliente');
+    const seguimientos = tasksList.filter((t) => {
+      const kind = (t.payload as any)?.kind;
+      return kind === 'seguimiento_cliente' || kind === 'proyecto' || t.segmento === 'digital';
+    });
     if (seguimientos.length === 0) return;
 
     const idList = sql.join(seguimientos.map((t) => sql`${t.id}`), sql`, `);
