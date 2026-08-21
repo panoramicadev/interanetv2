@@ -19643,29 +19643,38 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Reclamo not found');
     }
 
-    // Verificar que el reclamo está en estado "en_area_responsable"
-    if (reclamo.estado !== 'en_area_responsable') {
-      throw new Error('El reclamo no está en estado "En Área Responsable"');
+    // Verificar que el reclamo está en un estado resoluble por área. 'en_produccion'
+    // es el estado propio de producción (asignado por validarReclamoTecnico cuando
+    // areaResponsable === 'produccion'), separado de 'en_area_responsable' que usan
+    // el resto de las áreas -- sin este caso, un reclamo de producción nunca podía
+    // resolverse por esta vía (el único camino real para producción, ya que no
+    // existe un endpoint de resolución específico para ella).
+    if (reclamo.estado !== 'en_area_responsable' && reclamo.estado !== 'en_produccion') {
+      throw new Error('El reclamo no está en estado "En Área Responsable" ni "En Producción"');
     }
 
-    // Use centralized area mapping from shared/reclamosAreas
-    // Get the operative area for the user's role
-    const areaUsuarioOperativa = mapToOperativeArea(
-      userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole
-    );
+    // admin resuelve en nombre de cualquier área -- bypasea el chequeo de
+    // coincidencia de área (ver mismo comentario en el endpoint externo).
+    if (userRole !== 'admin') {
+      // Use centralized area mapping from shared/reclamosAreas
+      // Get the operative area for the user's role
+      const areaUsuarioOperativa = mapToOperativeArea(
+        userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole
+      );
 
-    // Map the complaint's assigned area to its operative area
-    // Example: 'envase' → 'logistica', 'etiqueta' → 'produccion'
-    const areaReclamoOperativa = mapToOperativeArea(reclamo.areaResponsableActual || '');
+      // Map the complaint's assigned area to its operative area
+      // Example: 'envase' → 'logistica', 'etiqueta' → 'produccion'
+      const areaReclamoOperativa = mapToOperativeArea(reclamo.areaResponsableActual || '');
 
-    if (!areaUsuarioOperativa || !areaReclamoOperativa) {
-      throw new Error('No se pudo determinar el área responsable');
-    }
+      if (!areaUsuarioOperativa || !areaReclamoOperativa) {
+        throw new Error('No se pudo determinar el área responsable');
+      }
 
-    // Verify that the user's operative area matches the complaint's operative area
-    // This allows logistica users to resolve 'envase' complaints, produccion users to resolve 'etiqueta'/'colores'
-    if (areaReclamoOperativa !== areaUsuarioOperativa) {
-      throw new Error('No tiene permisos para resolver este reclamo');
+      // Verify that the user's operative area matches the complaint's operative area
+      // This allows logistica users to resolve 'envase' complaints, produccion users to resolve 'etiqueta'/'colores'
+      if (areaReclamoOperativa !== areaUsuarioOperativa) {
+        throw new Error('No tiene permisos para resolver este reclamo');
+      }
     }
 
     // Use the original area for display purposes

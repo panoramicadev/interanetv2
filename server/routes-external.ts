@@ -2943,8 +2943,13 @@ router.post('/reclamos/:id/resolucion-laboratorio', requireApiRole(['read_write'
   try {
     const { informe, categoriaResponsable, photos, documents, actorId, actorName, actorRole } = req.body;
 
-    if (actorRole !== 'laboratorio') {
-      return res.status(403).json({ error: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
+    // admin puede resolver en nombre de cualquier área — hoy es la única
+    // identidad vinculable desde orchestrator-panoramica (ver
+    // interanetv2-clone/... users solo tiene esa cuenta), así que sin este
+    // bypass ningún usuario de esa integración podría completar una
+    // resolución de laboratorio.
+    if (actorRole !== 'laboratorio' && actorRole !== 'admin') {
+      return res.status(403).json({ error: 'Solo usuarios con rol laboratorio (o admin) pueden subir resoluciones' });
     }
     if (!informe) {
       return res.status(400).json({ error: 'El informe es requerido' });
@@ -2987,12 +2992,13 @@ router.post('/reclamos/:id/resolucion-area', requireApiRole(['read_write', 'admi
     const { resolucionDescripcion, photos, documents, actorId, actorName, actorRole } = req.body;
 
     const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
-    const isAreaRole = actorRole && (
+    // admin bypasea el chequeo de área (ver mismo comentario en resolucion-laboratorio).
+    const isAreaRole = actorRole === 'admin' || (actorRole && (
       actorRole.startsWith('area_') ||
       actorRole === 'laboratorio' ||
       actorRole === 'jefe_planta' ||
       organizationalRoles.includes(actorRole)
-    );
+    ));
     if (!isAreaRole) {
       return res.status(403).json({ error: 'No tiene permisos para subir resoluciones' });
     }
