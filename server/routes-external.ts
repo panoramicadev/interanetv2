@@ -2802,8 +2802,38 @@ router.patch('/reclamos/:id', requireApiRole(['read_write', 'admin']), async (re
   }
 });
 
-router.delete('/reclamos/:id', requireApiRole(['admin']), async (req: ApiAuthRequest, res) => {
+// El rol que decide si SE PUEDE borrar es el actorRole (rol real de quien
+// hace la acción en interanetv2-main), no el rol de la API key — la key solo
+// certifica que la app llamante está autorizada a hacer llamadas de
+// escritura. Mismas reglas que la ruta interna (routes.ts DELETE
+// /api/reclamos-generales/:id): admin/tecnico_obra siempre pueden; el
+// creador puede borrar su propio reclamo solo dentro de los primeros 5 min.
+router.delete('/reclamos/:id', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
   try {
+    const { actorId, actorRole } = req.body;
+    if (!actorId || !actorRole) {
+      return res.status(400).json({ error: 'actorId y actorRole son requeridos' });
+    }
+
+    if (actorRole === 'admin' || actorRole === 'tecnico_obra') {
+      await storage.deleteReclamoGeneral(req.params.id);
+      return res.status(204).send();
+    }
+
+    const reclamo = await storage.getReclamoGeneralById(req.params.id);
+    if (!reclamo) {
+      return res.status(404).json({ error: 'Reclamo no encontrado' });
+    }
+    if (reclamo.vendedorId !== actorId) {
+      return res.status(403).json({ error: 'No tiene permiso para eliminar este reclamo' });
+    }
+
+    const createdAt = new Date(reclamo.fechaRegistro || '');
+    const minutosTranscurridos = (Date.now() - createdAt.getTime()) / (1000 * 60);
+    if (minutosTranscurridos > 5) {
+      return res.status(403).json({ error: 'Solo puede eliminar reclamos recientes (< 5 minutos)' });
+    }
+
     await storage.deleteReclamoGeneral(req.params.id);
     res.status(204).send();
   } catch (error) {
