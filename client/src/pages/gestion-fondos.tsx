@@ -480,7 +480,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     mutationFn: async (data: { allocationId: string; observacion?: string; forzar?: boolean }) => {
       return apiRequest(`/api/fund-allocations/${data.allocationId}/close`, {
         method: 'POST',
-        body: JSON.stringify({ observacion: data.observacion, forzar: data.forzar }),
+        data: { observacion: data.observacion, forzar: data.forzar },
       });
     },
     onSuccess: () => {
