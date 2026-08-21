@@ -2716,7 +2716,16 @@ router.post('/notificaciones', requireApiRole(['read_write', 'admin']), async (r
 });
 
 // ============================================
-// Reclamos Generales (Read & Create)
+// Reclamos Generales (ciclo completo)
+//
+// A diferencia del resto de esta API (que refleja sesiones humanas dentro de
+// esta misma app), estos endpoints son consumidos por orchestrator-panoramica
+// como servicio-a-servicio: no hay usuario de interanetv2-main autenticado en
+// la request, así que quién realiza la acción (actorId/actorName/actorRole)
+// viene explícito en el body en vez de salir de req.user. El llamador es
+// responsable de mapear su propio usuario a un usuario real de interanetv2-main
+// antes de llamar (ver orchestrator-panoramica: shared/schemas/users.ts,
+// campo interanetUserId).
 // ============================================
 
 router.get('/reclamos', async (req: ApiAuthRequest, res) => {
@@ -2741,10 +2750,36 @@ router.get('/reclamos', async (req: ApiAuthRequest, res) => {
   }
 });
 
+router.get('/reclamos/:id', async (req: ApiAuthRequest, res) => {
+  try {
+    const reclamo = await storage.getReclamoGeneralById(req.params.id);
+    if (!reclamo) {
+      return res.status(404).json({ error: 'Reclamo no encontrado' });
+    }
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error fetching reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/reclamos/:id/details', async (req: ApiAuthRequest, res) => {
+  try {
+    const reclamo = await storage.getReclamoGeneralWithDetails(req.params.id);
+    if (!reclamo) {
+      return res.status(404).json({ error: 'Reclamo no encontrado' });
+    }
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error fetching reclamo details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/reclamos', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
   try {
     const reclamoData = req.body;
-    
+
     if (!reclamoData.clienteNombre || !reclamoData.motivo) {
       return res.status(400).json({ error: 'Client name and motivo are required' });
     }
@@ -2753,6 +2788,303 @@ router.post('/reclamos', requireApiRole(['read_write', 'admin']), async (req: Ap
     res.status(201).json(newReclamo);
   } catch (error) {
     console.error('Error creating reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/reclamos/:id', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const reclamo = await storage.updateReclamoGeneral(req.params.id, req.body);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error updating reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/reclamos/:id', requireApiRole(['admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    await storage.deleteReclamoGeneral(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/assign-tecnico', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { tecnicoId, tecnicoName, actorId, actorName } = req.body;
+    if (!tecnicoId || !tecnicoName || !actorId || !actorName) {
+      return res.status(400).json({ error: 'tecnicoId, tecnicoName, actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.assignTecnicoToReclamo(req.params.id, tecnicoId, tecnicoName, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error assigning tecnico:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/update-estado', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { nuevoEstado, notas, actorId, actorName } = req.body;
+    if (!nuevoEstado || !actorId || !actorName) {
+      return res.status(400).json({ error: 'nuevoEstado, actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.updateReclamoGeneralEstado(req.params.id, nuevoEstado, actorId, actorName, notas);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error updating estado:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/derivar-laboratorio', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { actorId, actorName } = req.body;
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.derivarReclamoGeneralLaboratorio(req.params.id, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error derivando a laboratorio:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/derivar-produccion', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { actorId, actorName } = req.body;
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.derivarReclamoGeneralProduccion(req.params.id, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error derivando a producción:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/validacion-tecnica', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { procede, areaResponsable, notas, actorId, actorName } = req.body;
+
+    if (typeof procede !== 'boolean') {
+      return res.status(400).json({ error: 'El campo procede es requerido y debe ser booleano' });
+    }
+    if (procede && !areaResponsable) {
+      return res.status(400).json({ error: 'El área responsable es requerida cuando el reclamo procede' });
+    }
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.validarReclamoTecnico(req.params.id, procede, areaResponsable, notas, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error validando reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/informe-laboratorio', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { informe, actorId, actorName } = req.body;
+    if (!informe || !actorId || !actorName) {
+      return res.status(400).json({ error: 'informe, actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.updateInformeLaboratorio(req.params.id, informe, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error updating informe laboratorio:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/informe-produccion', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { informe, actorId, actorName } = req.body;
+    if (!informe || !actorId || !actorName) {
+      return res.status(400).json({ error: 'informe, actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.updateInformeProduccion(req.params.id, informe, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error updating informe producción:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/informe-tecnico', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { informe, actorId, actorName } = req.body;
+    if (!informe || !actorId || !actorName) {
+      return res.status(400).json({ error: 'informe, actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.updateInformeTecnico(req.params.id, informe, actorId, actorName);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error updating informe técnico:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/resolucion-laboratorio', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { informe, categoriaResponsable, photos, documents, actorId, actorName, actorRole } = req.body;
+
+    if (actorRole !== 'laboratorio') {
+      return res.status(403).json({ error: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
+    }
+    if (!informe) {
+      return res.status(400).json({ error: 'El informe es requerido' });
+    }
+    if (!categoriaResponsable) {
+      return res.status(400).json({ error: 'La categoría responsable es requerida' });
+    }
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const photoArray = Array.isArray(photos) ? photos : [];
+    const documentArray = Array.isArray(documents) ? documents : [];
+
+    const existingReclamo = await storage.getReclamoGeneralById(req.params.id);
+    if (!existingReclamo) {
+      return res.status(404).json({ error: 'Reclamo no encontrado' });
+    }
+    if (existingReclamo.estado !== 'en_laboratorio') {
+      return res.status(400).json({ error: 'El reclamo no está en estado "En Laboratorio"' });
+    }
+    if (existingReclamo.informeLaboratorio) {
+      return res.status(400).json({ error: 'Este reclamo ya tiene una resolución del laboratorio' });
+    }
+
+    const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photoArray, actorId, actorName, documentArray);
+    if (!reclamo) {
+      return res.status(409).json({ error: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
+    }
+
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error al subir resolución de laboratorio:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/resolucion-area', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { resolucionDescripcion, photos, documents, actorId, actorName, actorRole } = req.body;
+
+    const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+    const isAreaRole = actorRole && (
+      actorRole.startsWith('area_') ||
+      actorRole === 'laboratorio' ||
+      actorRole === 'jefe_planta' ||
+      organizationalRoles.includes(actorRole)
+    );
+    if (!isAreaRole) {
+      return res.status(403).json({ error: 'No tiene permisos para subir resoluciones' });
+    }
+    if (!resolucionDescripcion) {
+      return res.status(400).json({ error: 'La descripción de la resolución es requerida' });
+    }
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const photoArray = Array.isArray(photos) ? photos : [];
+    const documentArray = Array.isArray(documents) ? documents : [];
+
+    try {
+      const reclamo = await storage.updateResolucionArea(req.params.id, resolucionDescripcion, photoArray, actorId, actorName, actorRole, documentArray);
+      if (!reclamo) {
+        return res.status(409).json({ error: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
+      }
+      res.json(reclamo);
+    } catch (error: any) {
+      if (error.message?.includes('no está en estado') || error.message?.includes('No tiene permisos')) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error al subir resolución de área:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/cerrar', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const { notas, photos, actorId, actorName } = req.body;
+    if (!actorId || !actorName) {
+      return res.status(400).json({ error: 'actorId y actorName son requeridos' });
+    }
+
+    const reclamo = await storage.cerrarReclamoGeneral(req.params.id, actorId, actorName, notas, photos);
+    res.json(reclamo);
+  } catch (error) {
+    console.error('Error cerrando reclamo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/reclamos/:id/photos', async (req: ApiAuthRequest, res) => {
+  try {
+    const photos = await storage.getReclamoGeneralPhotos(req.params.id);
+    res.json(photos);
+  } catch (error) {
+    console.error('Error fetching reclamo photos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/photos', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    const photo = await storage.createReclamoGeneralPhoto({ reclamoId: req.params.id, ...req.body });
+    res.status(201).json(photo);
+  } catch (error) {
+    console.error('Error creating reclamo photo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/reclamos/photos/:id', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    await storage.deleteReclamoGeneralPhoto(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting reclamo photo:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/reclamos/:id/resolucion-photos', async (req: ApiAuthRequest, res) => {
+  try {
+    const photos = await storage.getReclamoGeneralResolucionPhotos(req.params.id);
+    res.json(photos);
+  } catch (error) {
+    console.error('Error fetching resolución photos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/reclamos/:id/historial', async (req: ApiAuthRequest, res) => {
+  try {
+    const historial = await storage.getReclamoGeneralHistorial(req.params.id);
+    res.json(historial);
+  } catch (error) {
+    console.error('Error fetching reclamo historial:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
