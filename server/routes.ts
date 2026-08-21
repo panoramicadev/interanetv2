@@ -32336,7 +32336,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No se puede modificar este gasto' });
       }
 
-      const updated = await storage.updateGastoEmpresarial(req.params.id, req.body);
+      // El dueño solo edita los datos del gasto, nunca su estado de aprobación
+      // ni a qué fondo carga: eso lo decide quien aprueba, no quien lo carga.
+      const allowedFields = ['monto', 'descripcion', 'categoria', 'tipoDocumento', 'proveedor', 'rutProveedor', 'numeroDocumento', 'fechaEmision', 'ruta', 'clientes', 'ciudad'];
+      const updates: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+
+      const updated = await storage.updateGastoEmpresarial(req.params.id, updates);
       await storage.syncFundMovementForGasto(req.params.id, user.id);
       res.json(updated);
     } catch (error: any) {
