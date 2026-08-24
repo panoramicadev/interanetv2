@@ -418,7 +418,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
       {/* Mobile Button */}
       <button
-        className="fixed bottom-5 left-5 z-50 lg:hidden w-10 h-10 bg-[#0a0a0a] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
+        className="fixed bottom-5 left-5 z-30 lg:hidden w-10 h-10 bg-[#0a0a0a] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         data-testid="mobile-menu-toggle-floating"
       >
@@ -428,14 +428,28 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[35] bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar — tarjeta flotante */}
+      {/* Sidebar — tarjeta flotante
+       *
+       * Escala de z-index de la app (respetarla al agregar UI flotante):
+       *   0-20  contenido: celdas/thead sticky dentro de una tarjeta
+       *   30    chrome de página: headers sticky de módulo, barras fijas, FABs
+       *   35    backdrop móvil de este sidebar
+       *   40    el shell (este sidebar)
+       *   50    modales: dialog, alert-dialog, sheet, drawer (base de shadcn)
+       *   60+   flotantes portalados: select, popover, dropdown, tooltip, toast
+       *
+       * El sidebar va DEBAJO de la capa modal a propósito: antes estaba en z-[60]
+       * y tapaba todos los diálogos, que además no lo oscurecían ni bloqueaban.
+       * Si algo de la página queda encima del menú móvil, bajá ese elemento a
+       * z-30 — no subas el sidebar.
+       */}
       <div
-        className={`fixed inset-y-0 left-0 z-[60] p-3 ${collapsed ? "w-[5.75rem]" : "w-[17.5rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-40 p-3 ${collapsed ? "w-[5.75rem]" : "w-[17.5rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
       <div className="h-full flex flex-col bg-[#0a0a0a] rounded-3xl shadow-xl shadow-slate-900/10 overflow-hidden">

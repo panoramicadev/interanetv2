@@ -4474,7 +4474,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
       {isMobile && !showQuoteBuilder && !showVoiceOrder && !showCustomProductModal && !showFichaClienteDialog && (
         <button
           onClick={handleCreateQuoteForNewClient}
-          className="fixed left-5 bottom-[4.25rem] z-50 lg:hidden w-10 h-10 rounded-full bg-orange-600 hover:bg-orange-700 active:scale-95 text-white shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center"
+          className="fixed left-5 bottom-[4.25rem] z-30 lg:hidden w-10 h-10 rounded-full bg-orange-600 hover:bg-orange-700 active:scale-95 text-white shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center"
           data-testid="fab-nuevo-presupuesto"
           aria-label="Nuevo presupuesto"
           title="Nuevo presupuesto"
@@ -6778,7 +6778,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
 
       {/* Mobile Bottom Navigation Bar - Hidden per user request */}
       {/* {isMobile && (
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-30">
         <div className="flex items-center justify-around max-w-md mx-auto">
           <div className="text-center">
             <div className="flex flex-col items-center gap-1">
