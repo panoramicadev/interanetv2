@@ -19,30 +19,30 @@ export function useAuth() {
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
-      try {
-        const response = await fetch("/api/auth/user", {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        if (response.status === 401) {
-          return null; // Return null for unauthorized instead of throwing
-        }
-        if (!response.ok) {
-          throw new Error(`${response.status}: ${response.statusText}`);
-        }
-        return await response.json();
-      } catch (error) {
-        console.error("Auth check error:", error);
+      const response = await fetch("/api/auth/user", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      // Sólo un 401 significa "no hay sesión". Cualquier otro fallo (red caída,
+      // 500, timeout) se propaga: react-query conserva el último usuario bueno
+      // y así un parpadeo de red no expulsa a nadie al login.
+      if (response.status === 401) {
         return null;
       }
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return await response.json();
     },
     retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Se revalida al volver a la pestaña y al montar: si a alguien le cambian el
+    // rol o los permisos, los ve sin tener que cerrar sesión a mano.
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     refetchInterval: false,
-    staleTime: Infinity,
+    staleTime: 60_000,
   });
 
   const loginMutation = useMutation({

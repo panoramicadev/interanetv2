@@ -3803,7 +3803,7 @@ export default function TareasPage() {
               ? (taskIds.length === 1 ? 'a' : 'as')
               : (total === 1 ? 'o' : 'os');
             return (
-              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-2.5 border border-slate-700">
+              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-2.5 border border-slate-700">
                 <span className="text-sm font-medium whitespace-nowrap">
                   {total === 0 ? 'Selecciona tareas o grupos' : `${label} seleccionad${suffix}`}
                 </span>

@@ -2125,7 +2125,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
       {/* Modal para nueva visita técnica - Paso 1: Datos básicos */}
       {visitStep === 'basic' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
+          <DialogContent
+            /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+            overlayClassName="z-[70]"
+            className="z-[70] w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none"
+          >
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Datos Básicos</DialogTitle>
               <DialogDescription className="text-sm">
@@ -2333,7 +2337,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
       {/* Modal para nueva visita técnica - Paso 2: Selección de productos */}
       {visitStep === 'products' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col p-0 m-0 rounded-none">
+          <DialogContent
+            /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+            overlayClassName="z-[70]"
+            className="z-[70] w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col p-0 m-0 rounded-none"
+          >
             <div className="px-6 pt-6">
               <DialogHeader>
                 <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Selección de Productos</DialogTitle>
@@ -2547,7 +2555,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
       {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
       {visitStep === 'evaluation' && selectedProducts[currentProductIndex] && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col m-0 rounded-none p-0">
+          <DialogContent
+            /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+            overlayClassName="z-[70]"
+            className="z-[70] w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col m-0 rounded-none p-0"
+          >
             {/* Cabecera compacta */}
             <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
               <div className="flex items-center justify-between">
@@ -2792,7 +2804,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
       {/* Dialog para Observaciones Generales (Paso 4) */}
       {visitStep === 'observations' && (
         <Dialog open={showNewVisitModal} onOpenChange={setShowNewVisitModal}>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
+          <DialogContent
+            /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+            overlayClassName="z-[70]"
+            className="z-[70] w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none"
+          >
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Paso 4: Observaciones Generales</DialogTitle>
               <DialogDescription className="text-sm">
@@ -3333,7 +3349,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
 
       {/* Dialog para crear/editar obras */}
       <Dialog open={showNewObraDialog} onOpenChange={handleCloseObraDialog}>
-        <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
+        <DialogContent
+          /* z-[70]: el sidebar es fixed z-[60] y tapaba el modal */
+          overlayClassName="z-[70]"
+          className="z-[70] w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none"
+        >
           <DialogHeader>
             <DialogTitle>
               {editingObra ? "Editar Obra" : "Nueva Obra"}

@@ -1178,7 +1178,7 @@ export default function Dashboard() {
       <ScopeBanner />
       {/* Mobile Header with Logo, Menu and ETL Button */}
       {isMobile && (
-        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-50 shadow-sm">
+        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-30 shadow-sm">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <button
