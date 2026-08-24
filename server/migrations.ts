@@ -1372,6 +1372,47 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_estado" ON solicitudes_credito (estado)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_created" ON solicitudes_credito (created_at)`);
 
+    // Nuevo Cliente (migración 080). Ver migrations/080_solicitudes_nuevo_cliente.sql
+    // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
+    // rutas del módulo consultan la tabla apenas arranca el server.
+    console.log('  🧾 Verificando solicitudes de nuevo cliente...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solicitudes_nuevo_cliente (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        segmento VARCHAR(120) NOT NULL,
+        rut VARCHAR(20) NOT NULL,
+        razon_social TEXT NOT NULL,
+        giro TEXT NOT NULL,
+        telefonos VARCHAR(120) NOT NULL,
+        correo_empresa VARCHAR(160) NOT NULL,
+        ciudad VARCHAR(120) NOT NULL,
+        comuna VARCHAR(120) NOT NULL,
+        direccion TEXT NOT NULL,
+        vendedor_id VARCHAR,
+        vendedor_nombre TEXT NOT NULL,
+        condicion_venta VARCHAR(80) NOT NULL,
+        receptor_nombre TEXT NOT NULL,
+        receptor_correo VARCHAR(160) NOT NULL,
+        receptor_telefono VARCHAR(60) NOT NULL,
+        requiere_orden_compra BOOLEAN NOT NULL DEFAULT TRUE,
+        requiere_guia_despacho BOOLEAN NOT NULL DEFAULT TRUE,
+        estado VARCHAR(20) NOT NULL DEFAULT 'enviada',
+        observaciones TEXT,
+        cliente_id VARCHAR,
+        solicitante_id VARCHAR,
+        solicitante_nombre TEXT,
+        supervisor_id VARCHAR,
+        resuelta_por_id VARCHAR,
+        resuelta_por_nombre TEXT,
+        resuelta_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_nuevo_cliente_solicitante" ON solicitudes_nuevo_cliente (solicitante_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_nuevo_cliente_estado" ON solicitudes_nuevo_cliente (estado)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_nuevo_cliente_created" ON solicitudes_nuevo_cliente (created_at)`);
+
     // Colores personalizados cotizados (migración 078). Ver
     // migrations/078_custom_color_variants.sql — se replica acá porque el runner
     // de .sql corre DESPUÉS del bootstrap y el endpoint público del enlace mágico

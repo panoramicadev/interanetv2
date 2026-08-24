@@ -235,6 +235,13 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/solicitud-credito",
   },
+  {
+    key: "nuevo_cliente",
+    label: "Nuevo Cliente",
+    description: "Pedir el alta de un cliente nuevo y seguir su creación",
+    group: "finanzas",
+    href: "/nuevo-cliente",
+  },
 
   // ── Post-Venta ───────────────────────────────────────────────
   {
@@ -545,6 +552,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // quiere cerrar, se desactiva para el rol en Configuración → Roles y
   // Permisos sin tocar código.
   supervisor: [
+    "nuevo_cliente",
     "dashboard",
     "solicitud_credito",
     ...MARKET_ALL,
@@ -568,6 +576,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...CONFIG_TABS_GESTION,
   ],
   encargado_area: [
+    "nuevo_cliente",
     "dashboard",
     "solicitud_credito",
     ...MARKET_ALL,
@@ -591,6 +600,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // cuelgan la bitácora y la cobranza. El ítem de primer nivel se oculta en
   // client/src/lib/sidebar-permissions.ts (EXTRAS_OCULTOS_POR_ROL).
   salesperson: [
+    "nuevo_cliente",
     "dashboard",
     "solicitud_credito",
     "clientes",
@@ -601,6 +611,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   tecnico_obra: [
+    "nuevo_cliente",
     "postventa.visitas",
     "postventa.reclamos",
     "clientes",
@@ -610,6 +621,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // ofertas por cliente (las que después ve ese cliente en su tienda). Por eso
   // lleva "precios.editar" y ve costos y márgenes como un supervisor.
   reception: [
+    "nuevo_cliente",
     "dashboard",
     ...MARKET_ALL,
     "productos",
@@ -621,6 +633,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   jefe_planta: [
+    "nuevo_cliente",
     "dashboard",
     "postventa.visitas",
     "postventa.reclamos",
@@ -631,6 +644,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   mantencion: [
+    "nuevo_cliente",
     "cmms.dashboard",
     "cmms.ordenes",
     "cmms.mantenciones_planificadas",
@@ -639,6 +653,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   laboratorio: [
+    "nuevo_cliente",
     "postventa.reclamos",
     "postventa.visitas",
     "productos",
@@ -647,6 +662,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   produccion: [
+    "nuevo_cliente",
     "postventa.reclamos",
     ...CMMS_BASICO,
     "productos",
@@ -654,6 +670,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
   ],
   logistica_bodega: [
+    "nuevo_cliente",
     "dashboard",
     "finanzas",
     "productos",
@@ -662,18 +679,18 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...CMMS_BASICO,
     "gastos",
   ],
-  planificacion: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
-  bodega_materias_primas: ["postventa.reclamos", ...CMMS_BASICO, "gastos"],
-  prevencion_riesgos: ["postventa.reclamos", "gastos"],
-  recursos_humanos: ["rrhh.comisiones", "gastos", "solicitud_credito"],
-  marketing: ["marketing", "market.campanas", "gastos"],
-  area_produccion: ["postventa.reclamos", "gastos"],
-  area_logistica: ["postventa.reclamos", "gastos"],
-  area_aplicacion: ["postventa.reclamos", "gastos"],
-  area_materia_prima: ["postventa.reclamos", "gastos"],
-  area_colores: ["postventa.reclamos", "gastos"],
-  area_envase: ["postventa.reclamos", "gastos"],
-  area_etiqueta: ["postventa.reclamos", "gastos"],
+  planificacion: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
+  bodega_materias_primas: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
+  prevencion_riesgos: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  recursos_humanos: ["nuevo_cliente", "rrhh.comisiones", "gastos", "solicitud_credito"],
+  marketing: ["nuevo_cliente", "marketing", "market.campanas", "gastos"],
+  area_produccion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_logistica: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_aplicacion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_materia_prima: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_colores: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_envase: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_etiqueta: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   // Rol client: portal de tienda; estos permisos solo afectan rutas
   // del dashboard interno que comparte (no tiene UI de configuración).
   client: ["mis_pedidos", ...TINTOMETRIA_ALL],

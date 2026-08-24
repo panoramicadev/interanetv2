@@ -106,6 +106,10 @@ app.use((req, res, next) => {
   const { registerSolicitudesCreditoRoutes } = await import('./routes-solicitudes-credito');
   registerSolicitudesCreditoRoutes(app);
 
+  // Nuevo Cliente: el vendedor pide el alta, Administración crea el cliente
+  const { registerNuevoClienteRoutes } = await import('./routes-nuevo-cliente');
+  registerNuevoClienteRoutes(app);
+
   // Compradores del Market: el cliente crea usuarios y aprueba sus pedidos
   const { registerMarketUsuariosRoutes } = await import('./routes-market-usuarios');
   registerMarketUsuariosRoutes(app);

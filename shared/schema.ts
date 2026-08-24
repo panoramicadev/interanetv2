@@ -4422,6 +4422,126 @@ export const resolverSolicitudCreditoSchema = z.object({
 export type SolicitudCredito = typeof solicitudesCredito.$inferSelect;
 export type InsertSolicitudCredito = z.infer<typeof insertSolicitudCreditoSchema>;
 
+// ==================================================================================
+// NUEVO CLIENTE
+// ==================================================================================
+//
+// El vendedor pide el alta de un cliente y Administración lo crea en el ERP. La
+// solicitud sale por correo a Franco con copia al supervisor del vendedor.
+//
+// Acá NO se crea el cliente: se registra la solicitud con todo lo que hace falta
+// para crearlo bien a la primera. La mitad de estos datos (el receptor de
+// documentos, si la factura necesita orden de compra o guía) hoy se piden por
+// WhatsApp y se pierden; por eso son obligatorios en el formulario.
+//
+// Todos los clientes son facturadores electrónicos, así que los datos del
+// receptor del documento no son opcionales para ningún segmento.
+export const solicitudesNuevoCliente = pgTable("solicitudes_nuevo_cliente", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Identificación del cliente a crear
+  segmento: varchar("segmento", { length: 120 }).notNull(),
+  rut: varchar("rut", { length: 20 }).notNull(),
+  razonSocial: text("razon_social").notNull(),
+  giro: text("giro").notNull(),
+  telefonos: varchar("telefonos", { length: 120 }).notNull(),
+  correoEmpresa: varchar("correo_empresa", { length: 160 }).notNull(),
+  ciudad: varchar("ciudad", { length: 120 }).notNull(),
+  comuna: varchar("comuna", { length: 120 }).notNull(),
+  direccion: text("direccion").notNull(),
+
+  // Vendedor a cargo y cómo arranca comercialmente
+  vendedorId: varchar("vendedor_id"),
+  vendedorNombre: text("vendedor_nombre").notNull(),
+  condicionVenta: varchar("condicion_venta", { length: 80 }).notNull(),
+
+  // Quién recibe la factura electrónica del lado del cliente
+  receptorNombre: text("receptor_nombre").notNull(),
+  receptorCorreo: varchar("receptor_correo", { length: 160 }).notNull(),
+  receptorTelefono: varchar("receptor_telefono", { length: 60 }).notNull(),
+
+  // Qué tiene que llevar el XML de la factura para que el cliente la acepte
+  requiereOrdenCompra: boolean("requiere_orden_compra").notNull().default(true),
+  requiereGuiaDespacho: boolean("requiere_guia_despacho").notNull().default(true),
+
+  // Flujo: la envía el vendedor, Administración la procesa
+  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | creado | rechazada
+  observaciones: text("observaciones"),
+  clienteId: varchar("cliente_id"), // FK a clients.id cuando ya quedó creado en el ERP
+  solicitanteId: varchar("solicitante_id"),
+  solicitanteNombre: text("solicitante_nombre"),
+  supervisorId: varchar("supervisor_id"), // el del vendedor al momento de enviarla
+  resueltaPorId: varchar("resuelta_por_id"),
+  resueltaPorNombre: text("resuelta_por_nombre"),
+  resueltaAt: timestamp("resuelta_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitanteIdx: index("IDX_solicitudes_nuevo_cliente_solicitante").on(table.solicitanteId),
+  estadoIdx: index("IDX_solicitudes_nuevo_cliente_estado").on(table.estado),
+  createdIdx: index("IDX_solicitudes_nuevo_cliente_created").on(table.createdAt),
+}));
+
+export const ESTADOS_SOLICITUD_NUEVO_CLIENTE = ["enviada", "creado", "rechazada"] as const;
+export type EstadoSolicitudNuevoCliente = (typeof ESTADOS_SOLICITUD_NUEVO_CLIENTE)[number];
+
+/**
+ * Condiciones de venta con las que puede partir un cliente nuevo.
+ * Es una lista corta a propósito: el resto de las condiciones del ERP se
+ * negocian después, no al momento del alta.
+ */
+export const CONDICIONES_VENTA_NUEVO_CLIENTE = [
+  "CRÉDITO 30 DÍAS",
+  "TRANSFERENCIA",
+  "LINK DE PAGO (BANCO SANTANDER)",
+] as const;
+
+// Lo que manda el vendedor. Todo lo del flujo (estado, quién la envió, quién la
+// resolvió) lo pone el servidor: son datos de auditoría, no del formulario.
+export const insertSolicitudNuevoClienteSchema = createInsertSchema(solicitudesNuevoCliente)
+  .omit({
+    id: true,
+    estado: true,
+    observaciones: true,
+    clienteId: true,
+    solicitanteId: true,
+    solicitanteNombre: true,
+    supervisorId: true,
+    resueltaPorId: true,
+    resueltaPorNombre: true,
+    resueltaAt: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    segmento: z.string().trim().min(1, "El segmento es obligatorio"),
+    rut: z.string().trim().min(1, "El RUT es obligatorio"),
+    razonSocial: z.string().trim().min(1, "La razón social es obligatoria"),
+    giro: z.string().trim().min(1, "El giro es obligatorio"),
+    telefonos: z.string().trim().min(1, "El teléfono es obligatorio"),
+    correoEmpresa: z.string().trim().email("El correo de la empresa es inválido"),
+    ciudad: z.string().trim().min(1, "La ciudad es obligatoria"),
+    comuna: z.string().trim().min(1, "La comuna es obligatoria"),
+    direccion: z.string().trim().min(1, "La dirección es obligatoria"),
+    vendedorNombre: z.string().trim().min(1, "El vendedor es obligatorio"),
+    condicionVenta: z.string().trim().min(1, "La condición de venta es obligatoria"),
+    receptorNombre: z.string().trim().min(1, "El nombre de quien recibe los documentos es obligatorio"),
+    receptorCorreo: z.string().trim().email("El correo de quien recibe los documentos es inválido"),
+    receptorTelefono: z.string().trim().min(1, "El teléfono de quien recibe los documentos es obligatorio"),
+    requiereOrdenCompra: z.coerce.boolean().default(true),
+    requiereGuiaDespacho: z.coerce.boolean().default(true),
+  });
+
+/** Resolución de Administración: cliente creado (con su código) o rechazado (con motivo). */
+export const resolverSolicitudNuevoClienteSchema = z.object({
+  estado: z.enum(["creado", "rechazada"]),
+  observaciones: z.string().trim().max(2000).optional().nullable(),
+});
+
+export type SolicitudNuevoCliente = typeof solicitudesNuevoCliente.$inferSelect;
+export type InsertSolicitudNuevoCliente = z.infer<typeof insertSolicitudNuevoClienteSchema>;
+
 // Suscripciones Web Push (PWA): una fila por dispositivo/navegador suscrito.
 // El endpoint es único por dispositivo; si otro usuario inicia sesión en el
 // mismo dispositivo, la suscripción se reasigna (upsert por endpoint).
