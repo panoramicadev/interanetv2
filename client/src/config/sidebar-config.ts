@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   User,
   Target,
   Package,
@@ -251,11 +252,17 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     icon: DollarSign,
   },
   // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito
-  // (la misma pantalla vive además como pestaña del Panel de Trabajo).
+  // (la misma pantalla vive además como pestaña del Panel de Trabajo) y quien
+  // recibe las de alta de cliente nuevo. El separador va en la última de las dos.
   {
     href: "/solicitud-credito",
     label: "Solicitud de Crédito",
     icon: FileCheck,
+  },
+  {
+    href: "/nuevo-cliente",
+    label: "Nuevo Cliente",
+    icon: UserPlus,
     separator: true,
   },
   // ── Post-venta ──
@@ -527,6 +534,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/solicitud-credito",
       label: "Solicitud de Crédito",
       icon: FileCheck,
+    },
+    {
+      href: "/nuevo-cliente",
+      label: "Nuevo Cliente",
+      icon: UserPlus,
     },
     {
       href: "/reclamos-generales",
@@ -868,6 +880,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/solicitud-credito",
       label: "Solicitud de Crédito",
       icon: FileCheck,
+    },
+    {
+      href: "/nuevo-cliente",
+      label: "Nuevo Cliente",
+      icon: UserPlus,
     },
     {
       href: "/gastos-empresariales",
