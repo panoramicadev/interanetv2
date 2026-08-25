@@ -97,6 +97,7 @@ function cuerpoDelCorreo(s: SolicitudCredito): string {
     <table style="border-collapse:collapse;margin:12px 0">
       ${fila('RUT', s.rut)}
       ${fila('Crédito solicitado', money(s.creditoSolicitado))}
+      ${fila('Plazo solicitado', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}
       ${fila('Giro', s.giro)}
       ${fila('Dirección', `${s.direccion}, ${s.ciudad}`)}
       ${fila('Teléfono', s.telefono)}
@@ -133,7 +134,9 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
   await emailService.sendEmail({
     to: to.join(', '),
     cc: cc.length ? cc.join(', ') : undefined,
-    subject: `Solicitud de crédito · ${s.razonSocial} · ${money(s.creditoSolicitado)}`,
+    subject: `Solicitud de crédito · ${s.razonSocial} · ${money(s.creditoSolicitado)}${
+      s.diasSolicitados ? ` a ${s.diasSolicitados} días` : ''
+    }`,
     html: cuerpoDelCorreo(s),
   });
 }
