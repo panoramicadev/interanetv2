@@ -3586,6 +3586,67 @@ export const insertObraProductoSchema = createInsertSchema(obraProductos).omit({
   updatedAt: true,
 });
 
+/**
+ * Qué le compró de verdad la obra a Panorámica.
+ *
+ * Las ventas viven en los espejos del ERP (ventas.fact_ventas, nvv.fact_nvv y
+ * gdv.fact_gdv), que la sincronización reescribe entera cada vez: no se les
+ * puede colgar un campo "obra" porque se perdería en la próxima pasada. Por eso
+ * el vínculo vive acá: se anota "este documento es de esta obra" y eso sobrevive.
+ *
+ * Se vincula el DOCUMENTO completo (su `idmaeedo`, la cabecera), no la línea:
+ * así es como lo piensa quien lo carga ("esta factura es de la 365"), y las
+ * cantidades por producto se sacan después leyendo sus líneas.
+ *
+ * Los tres orígenes se llevan SEPARADOS y no se suman entre sí: una nota de
+ * venta que después se factura sería la misma compra contada dos veces.
+ *
+ * Ojo con el cliente: no siempre es la constructora. En muchas obras el material
+ * lo compra el contratista, así que el documento puede venir de otro RUT y el
+ * buscador no se limita al de la obra.
+ */
+export const obraVentas = pgTable("obra_ventas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  obraId: varchar("obra_id").notNull(), // FK to obras.id
+  // De qué espejo del ERP sale el documento. Define dónde ir a buscar sus líneas.
+  origen: varchar("origen", { length: 20 }).notNull(), // 'facturado' | 'nvv' | 'gdv'
+  tido: varchar("tido", { length: 10 }), // Lo que dice el documento: FCV, NCV, NVV, GDV
+  // La llave real del documento en el ERP. `nudo` (el número visible) se repite
+  // entre tipos y sucursales, así que no sirve para casar.
+  idmaeedo: varchar("idmaeedo", { length: 30 }).notNull(),
+  nudo: varchar("nudo", { length: 30 }), // Número visible, para mostrarlo
+  // Foto de los datos al momento de asociar: deja mostrar la lista sin volver al
+  // ERP, y sigue diciendo qué se asoció aunque el documento cambie después.
+  clienteRut: varchar("cliente_rut", { length: 30 }),
+  clienteNombre: text("cliente_nombre"),
+  fechaEmision: date("fecha_emision"),
+  montoDocumento: numeric("monto_documento", { precision: 18, scale: 2 }),
+  notas: text("notas"),
+  // Desasociar NO borra la fila: la marca inactiva y deja quién y cuándo. Volver
+  // a asociar el mismo documento reactiva esta misma fila (ver el índice único).
+  activo: boolean("activo").notNull().default(true),
+  asociadoPorId: varchar("asociado_por_id"),
+  asociadoPorNombre: text("asociado_por_nombre"),
+  desasociadoPorId: varchar("desasociado_por_id"),
+  desasociadoPorNombre: text("desasociado_por_nombre"),
+  desasociadoEn: timestamp("desasociado_en", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  obraIdx: index("IDX_obra_ventas_obra").on(table.obraId),
+  // Un mismo documento no puede quedar asociado dos veces a la misma obra.
+  docUnico: uniqueIndex("UQ_obra_ventas_doc").on(table.obraId, table.origen, table.idmaeedo),
+}));
+
+export const insertObraVentaSchema = createInsertSchema(obraVentas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ObraVenta = typeof obraVentas.$inferSelect;
+export type InsertObraVenta = z.infer<typeof insertObraVentaSchema>;
+
 export type ObraProducto = typeof obraProductos.$inferSelect;
 export type InsertObraProducto = z.infer<typeof insertObraProductoSchema>;
 

@@ -1325,6 +1325,36 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS obra_nombre TEXT`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_quotes_obra" ON quotes (obra_id)`);
 
+    // Qué le compró de verdad la obra: el vínculo documento del ERP ↔ obra.
+    // Los espejos de ventas se reescriben en cada sincronización, así que el
+    // vínculo tiene que vivir de este lado. Ver `obraVentas` en shared/schema.ts.
+    console.log('  🧾 Verificando ventas asociadas a obras...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_ventas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        obra_id VARCHAR NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+        origen VARCHAR(20) NOT NULL,
+        tido VARCHAR(10),
+        idmaeedo VARCHAR(30) NOT NULL,
+        nudo VARCHAR(30),
+        cliente_rut VARCHAR(30),
+        cliente_nombre TEXT,
+        fecha_emision DATE,
+        monto_documento NUMERIC(18,2),
+        notas TEXT,
+        activo BOOLEAN NOT NULL DEFAULT true,
+        asociado_por_id VARCHAR,
+        asociado_por_nombre TEXT,
+        desasociado_por_id VARCHAR,
+        desasociado_por_nombre TEXT,
+        desasociado_en TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_ventas_obra" ON obra_ventas (obra_id)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_obra_ventas_doc" ON obra_ventas (obra_id, origen, idmaeedo)`);
+
     // Solicitud de crédito (migración 077). Ver migrations/077_solicitudes_credito.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas del módulo consultan la tabla apenas arranca el server.

@@ -3,7 +3,14 @@ import mssql from "mssql";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
-import { storage } from "./storage";
+import { storage, type AlcanceObras } from "./storage";
+import {
+  ORIGENES as ORIGENES_VENTA,
+  buscarDocumentos as buscarDocumentosDeVenta,
+  buscarClientes as buscarClientesDeVenta,
+  obtenerDocumento as obtenerDocumentoDeVenta,
+  lineasDeDocumentos as lineasDeDocumentosDeVenta,
+} from "./obras-ventas";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
@@ -24553,11 +24560,68 @@ export function registerRoutes(app: Express): Server {
   // OBRAS (PROJECTS/WORKS) ENDPOINTS
   // ==============================================
 
+  /**
+   * Quién puede decidir de quién es una obra.
+   *
+   * El dueño se estampa solo al crearla y no se edita: si un vendedor pudiera
+   * mandarlo en el body, se colgaría obras ajenas. La excepción son admin y
+   * supervisor, que necesitan poder asignarle vendedor a las obras que quedaron
+   * sin dueño (las que cargó un admin, o las anteriores a que la obra lo
+   * guardara) y reasignarlas cuando cambia la cartera.
+   */
+  const puedeReasignarObra = (usuario: any) =>
+    usuario?.role === 'admin' || usuario?.role === 'supervisor' || usuario?.role === 'encargado_area';
+
+  /**
+   * El vendedor elegido en el formulario. `undefined` = el body no trae el
+   * campo, así que no se toca la asignación actual; `null` = "sin asignar".
+   */
+  const asignacionDelBody = (body: any): string | null | undefined => {
+    if (!('vendedorId' in (body ?? {}))) return undefined;
+    const valor = body.vendedorId;
+    return typeof valor === 'string' && valor.trim() !== '' ? valor : null;
+  };
+
   // Get all obras or filter by clienteId
+  //
+  // La cartera se acota por quién mira: el vendedor solo ve sus obras, el
+  // supervisor las de su equipo y el admin todas. Las obras sin vendedor
+  // asignado quedan a la vista de admin y supervisor, que son los que pueden
+  // ponerle uno desde el formulario de la obra.
+  //
+  // `vendedorId` es el selector de la pantalla (solo admin/supervisor): acota a
+  // un vendedor concreto o, con 'sin-asignar', a las obras que todavía no lo
+  // tienen. El vendedor lo ignora — su alcance no se negocia desde la query.
   app.get('/api/obras', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { clienteId } = req.query;
-      const obras = await storage.getObras(clienteId);
+      const { clienteId, vendedorId } = req.query;
+      const usuario = req.user;
+      const esSupervisor = usuario?.role === 'supervisor' || usuario?.role === 'encargado_area';
+
+      let alcance: AlcanceObras | null = null;
+      if (usuario?.role === 'salesperson') {
+        alcance = { vendedorIds: [usuario.id], incluirSinVendedor: false };
+      } else if (esSupervisor) {
+        const equipo = await storage.getSalespeopleUnderSupervisor(usuario.id);
+        alcance = {
+          vendedorIds: [usuario.id, ...equipo.map((v: any) => v.id).filter(Boolean)],
+          incluirSinVendedor: true,
+          supervisorId: usuario.id,
+        };
+      }
+      // Admin (y cualquier otro rol con acceso al panel): alcance null = todas.
+
+      if (vendedorId && vendedorId !== 'all' && usuario?.role !== 'salesperson') {
+        if (vendedorId === 'sin-asignar') {
+          alcance = { vendedorIds: [], incluirSinVendedor: true };
+        } else if (!alcance || alcance.vendedorIds.includes(vendedorId)) {
+          alcance = { vendedorIds: [vendedorId], incluirSinVendedor: false };
+        }
+        // Un vendedor fuera del equipo se ignora: queda el alcance del rol, no
+        // se usa el selector para espiar la cartera de otro equipo.
+      }
+
+      const obras = await storage.getObras({ clienteId, alcance });
       res.json(obras);
     } catch (error: any) {
       console.error('❌ Error al obtener obras:', error);
@@ -24591,6 +24655,158 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('❌ Error al crear etapa de obra:', error);
       res.status(500).json({ message: 'Error al crear la etapa', error: error.message });
+    }
+  }));
+
+  // ----------------------------------------------
+  // Ventas asociadas a la obra (qué compró de verdad)
+  // ----------------------------------------------
+  // Van ANTES de /api/obras/:id para que 'ventas' no se tome como un id.
+
+  // Paso 1 del buscador: qué CLIENTE. Se elige uno y recién ahí se ven sus
+  // documentos, para que un término común no devuelva una mezcla de clientes
+  // con el que se buscaba afuera del tope.
+  app.get('/api/obras/ventas/clientes', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      res.json(await buscarClientesDeVenta(String(req.query.q ?? '')));
+    } catch (error: any) {
+      console.error('❌ Error al buscar clientes con documentos:', error);
+      res.status(500).json({ message: 'Error al buscar clientes', error: error.message });
+    }
+  }));
+
+  // Paso 2: los documentos. Con `clienteRut` vienen TODOS los de ese cliente.
+  // No se acota al RUT de la constructora: en muchas obras compra el contratista.
+  app.get('/api/obras/ventas/buscar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { q, desde, hasta, origenes } = req.query;
+      const pedidos = typeof origenes === 'string' && origenes.trim()
+        ? origenes.split(',').map((o: string) => o.trim()).filter((o: string) => ORIGENES_VENTA.includes(o as any))
+        : undefined;
+
+      const documentos = await buscarDocumentosDeVenta({
+        q,
+        clienteRut: req.query.clienteRut,
+        desde,
+        hasta,
+        origenes: pedidos as any,
+        limit: Number(req.query.limit) || undefined,
+      });
+
+      // Marcar los que ya están asociados a alguna obra, para no colgar el mismo
+      // documento en dos obras distintas sin darse cuenta.
+      const yaAsociados = await storage.getObraVentasPorDocumento(
+        documentos.map((d) => ({ origen: d.origen, idmaeedo: d.idmaeedo })),
+      );
+      const porClave = new Map(yaAsociados.map((v: any) => [`${v.origen}|${v.idmaeedo}`, v]));
+
+      res.json(documentos.map((d) => {
+        const ya = porClave.get(`${d.origen}|${d.idmaeedo}`);
+        return { ...d, obraId: ya?.obraId ?? null, obraNombre: ya?.obraNombre ?? null };
+      }));
+    } catch (error: any) {
+      console.error('❌ Error al buscar documentos de venta:', error);
+      res.status(500).json({ message: 'Error al buscar documentos', error: error.message });
+    }
+  }));
+
+  // Lo comprado por la obra: los documentos asociados y el desglose por producto.
+  app.get('/api/obras/:id/ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const vinculos = await storage.getObraVentas(req.params.id);
+      const lineas = vinculos.length > 0 ? await lineasDeDocumentosDeVenta(vinculos) : [];
+
+      // Una fila por (origen, SKU): es lo que se compara contra lo proyectado.
+      const porProducto = new Map<string, any>();
+      for (const l of lineas) {
+        const clave = `${l.origen}|${l.kopr ?? ''}`;
+        const acum = porProducto.get(clave);
+        if (acum) {
+          acum.cantidad += l.cantidad;
+          acum.monto += l.monto;
+        } else {
+          porProducto.set(clave, { origen: l.origen, kopr: l.kopr, nombre: l.nombre, cantidad: l.cantidad, monto: l.monto });
+        }
+      }
+
+      // Totales por origen. NO se suman entre sí: la misma compra puede estar
+      // como nota de venta, factura y guía a la vez.
+      const totales: Record<string, { monto: number; documentos: number }> = {};
+      for (const origen of ORIGENES_VENTA) totales[origen] = { monto: 0, documentos: 0 };
+      for (const v of vinculos) {
+        const t = totales[v.origen];
+        if (t) {
+          t.monto += Number(v.montoDocumento ?? 0);
+          t.documentos += 1;
+        }
+      }
+
+      res.json({ documentos: vinculos, productos: [...porProducto.values()], totales });
+    } catch (error: any) {
+      console.error('❌ Error al obtener las ventas de la obra:', error);
+      res.status(500).json({ message: 'Error al obtener las ventas de la obra', error: error.message });
+    }
+  }));
+
+  // Asociar uno o varios documentos a la obra.
+  app.post('/api/obras/:id/ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const obra = await storage.getObra(req.params.id);
+      if (!obra) return res.status(404).json({ message: 'Obra no encontrada' });
+
+      const pedidos: Array<{ origen: string; idmaeedo: string; notas?: string }> =
+        Array.isArray(req.body?.documentos) ? req.body.documentos : [];
+      if (pedidos.length === 0) {
+        return res.status(400).json({ message: 'No llegó ningún documento para asociar' });
+      }
+
+      const usuario = req.user;
+      const creados: any[] = [];
+      const ignorados: string[] = [];
+
+      for (const p of pedidos) {
+        if (!ORIGENES_VENTA.includes(p.origen as any)) { ignorados.push(String(p.idmaeedo)); continue; }
+        // Se relee el documento del ERP en vez de confiar en lo que manda la
+        // pantalla: el monto y el cliente que quedan guardados son los de verdad.
+        const doc = await obtenerDocumentoDeVenta(p.origen as any, p.idmaeedo);
+        if (!doc) { ignorados.push(String(p.idmaeedo)); continue; }
+        creados.push(await storage.asociarObraVenta({
+          obraId: obra.id,
+          origen: doc.origen,
+          tido: doc.tido,
+          idmaeedo: doc.idmaeedo,
+          nudo: doc.nudo,
+          clienteRut: doc.clienteRut,
+          clienteNombre: doc.clienteNombre,
+          fechaEmision: doc.fechaEmision,
+          montoDocumento: String(doc.monto),
+          notas: p.notas ?? null,
+          asociadoPorId: usuario?.id ?? null,
+          asociadoPorNombre: usuario?.salespersonName || usuario?.email || null,
+        }));
+      }
+
+      res.status(201).json({ asociados: creados, ignorados });
+    } catch (error: any) {
+      console.error('❌ Error al asociar ventas a la obra:', error);
+      res.status(500).json({ message: 'Error al asociar los documentos', error: error.message });
+    }
+  }));
+
+  // Desasociar: NO borra la fila, la marca inactiva y deja quién y cuándo. Si el
+  // documento se vuelve a asociar después, se reactiva esa misma fila.
+  app.post('/api/obras/ventas/:vinculoId/desasociar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const usuario = req.user;
+      const actualizado = await storage.desasociarObraVenta(req.params.vinculoId, {
+        desasociadoPorId: usuario?.id ?? null,
+        desasociadoPorNombre: usuario?.salespersonName || usuario?.email || null,
+      });
+      if (!actualizado) return res.status(404).json({ message: 'Vínculo no encontrado' });
+      res.json(actualizado);
+    } catch (error: any) {
+      console.error('❌ Error al desasociar la venta de la obra:', error);
+      res.status(500).json({ message: 'Error al desasociar el documento', error: error.message });
     }
   }));
 
@@ -24664,12 +24880,18 @@ export function registerRoutes(app: Express): Server {
       // había que hacerlo a mano y, cuando se hacía dos veces, la obra sumaba
       // dos veces en los totales del supervisor. No se lee del body: el dueño lo
       // decide el servidor por el usuario de la sesión.
+      // Excepción: admin y supervisor SÍ pueden elegir a quién le queda la obra
+      // desde el formulario (si no, todo lo que cargan queda sin dueño y no le
+      // aparece a ningún vendedor). Ver puedeReasignarObra.
       const usuario = req.user;
-      const vendedorId = usuario?.role === 'salesperson' ? usuario.id : null;
-      const supervisorId = usuario?.role === 'supervisor' || usuario?.role === 'encargado_area'
-        ? usuario.id
-        : vendedorId
-          ? await storage.getSupervisorIdDeVendedor(vendedorId)
+      const elegido = puedeReasignarObra(usuario) ? asignacionDelBody(req.body) : undefined;
+      const vendedorId = elegido !== undefined
+        ? elegido
+        : usuario?.role === 'salesperson' ? usuario.id : null;
+      const supervisorId = vendedorId
+        ? await storage.getSupervisorIdDeVendedor(vendedorId)
+        : usuario?.role === 'supervisor' || usuario?.role === 'encargado_area'
+          ? usuario.id
           : null;
       const nuevaObra = await storage.createObra({ ...parsed.data, vendedorId, supervisorId });
       const tiposVivienda = await storage.reemplazarTiposVivienda(
@@ -24698,7 +24920,17 @@ export function registerRoutes(app: Express): Server {
       if (!parsed.success) {
         return res.status(400).json({ message: 'Datos de obra inválidos', errors: parsed.error.errors });
       }
-      const obraActualizada = await storage.updateObra(id, parsed.data);
+      // Reasignar la obra a otro vendedor: solo admin/supervisor y solo si el
+      // formulario mandó el campo. El supervisor se recalcula con el del nuevo
+      // vendedor, para que la obra no siga contando en el equipo anterior.
+      const nuevoVendedor = puedeReasignarObra(req.user) ? asignacionDelBody(req.body) : undefined;
+      const reasignacion = nuevoVendedor === undefined
+        ? {}
+        : {
+            vendedorId: nuevoVendedor,
+            supervisorId: nuevoVendedor ? await storage.getSupervisorIdDeVendedor(nuevoVendedor) : null,
+          };
+      const obraActualizada = await storage.updateObra(id, { ...parsed.data, ...reasignacion });
       // Solo se tocan los tipos si el formulario los mandó: un PUT parcial de
       // otra pantalla no puede borrar el desglose de la obra sin querer.
       if (req.body.tiposVivienda !== undefined) {

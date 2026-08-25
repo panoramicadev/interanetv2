@@ -67,6 +67,9 @@ import {
   obraProductoMovimientos,
   type ObraProductoMovimiento,
   type InsertObraProductoMovimiento,
+  obraVentas,
+  type ObraVenta,
+  type InsertObraVenta,
   type CatalogoObraItem,
   type Task,
   type InsertTask,
@@ -464,6 +467,24 @@ export interface NvvFilters {
   pendingOnly?: boolean; // Solo registros con cantidad_pendiente=true
   minAmount?: number;
   maxAmount?: number;
+}
+
+/**
+ * Hasta dónde llega la cartera de obras de quien está mirando.
+ *
+ * El vendedor solo ve las suyas; el supervisor las de su equipo (más las que
+ * quedaron a su nombre) y el admin, todas. Las obras SIN vendedor asignado —las
+ * que cargó un admin o vienen de antes de que la obra guardara dueño— solo las
+ * ven admin y supervisor, que son quienes pueden asignarles uno.
+ *
+ * `null` (o no pasarlo) = sin acotar, ve todo. Ver GET /api/obras.
+ */
+export interface AlcanceObras {
+  vendedorIds: string[];
+  /** Obras con vendedor_id NULL: visibles solo para quien puede reasignarlas. */
+  incluirSinVendedor: boolean;
+  /** Obras del supervisor aunque su vendedor ya no esté en su equipo. */
+  supervisorId?: string | null;
 }
 
 export interface IStorage {
@@ -1260,12 +1281,14 @@ export interface IStorage {
   deleteClient(koen: string): Promise<void>;
 
   // Obras operations
-  getObras(clienteId?: string): Promise<ObraConCliente[]>;
+  getObras(filtro?: { clienteId?: string; alcance?: AlcanceObras | null }): Promise<ObraConCliente[]>;
   getObra(id: string): Promise<Obra | undefined>;
   // El dueño (vendedor + supervisor) NO viaja en el body: lo pone la ruta con
   // quien está creando la obra. Ver POST /api/obras.
   createObra(obra: InsertObra & { vendedorId?: string | null; supervisorId?: string | null }): Promise<Obra>;
-  updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra>;
+  // vendedorId/supervisorId tampoco viajan en el body del PUT: solo los manda
+  // la ruta cuando un admin o supervisor reasigna la obra. Ver PUT /api/obras/:id.
+  updateObra(id: string, obra: Partial<InsertObra> & { vendedorId?: string | null; supervisorId?: string | null }): Promise<Obra>;
   deleteObra(id: string): Promise<void>;
   /** Supervisor a cargo de un vendedor, para vincularle sola su obra. */
   getSupervisorIdDeVendedor(vendedorId: string): Promise<string | null>;
@@ -1279,6 +1302,19 @@ export interface IStorage {
     obraId: string,
     tipos: Array<Omit<InsertObraTipoVivienda, "obraId" | "orden">>,
   ): Promise<ObraTipoVivienda[]>;
+  // Ventas del ERP asociadas a la obra (qué compró de verdad). Ver obras-ventas.ts.
+  getObraVentas(obraId: string): Promise<ObraVenta[]>;
+  /** De una lista de documentos, cuáles ya están colgados de alguna obra. */
+  getObraVentasPorDocumento(
+    docs: Array<{ origen: string; idmaeedo: string }>,
+  ): Promise<Array<ObraVenta & { obraNombre: string | null }>>;
+  /** Asocia un documento. Si ya estaba y se había desasociado, lo reactiva. */
+  asociarObraVenta(vinculo: InsertObraVenta): Promise<ObraVenta>;
+  /** Desasociar NO borra: marca la fila inactiva y deja quién y cuándo. */
+  desasociarObraVenta(
+    id: string,
+    quien: { desasociadoPorId?: string | null; desasociadoPorNombre?: string | null },
+  ): Promise<ObraVenta | undefined>;
   // Catálogo de etapas constructivas (editable desde el selector de la obra)
   getObraEtapas(): Promise<ObraEtapa[]>;
   createObraEtapa(etapa: InsertObraEtapa): Promise<ObraEtapa>;
@@ -13546,7 +13582,22 @@ export class DatabaseStorage implements IStorage {
   // El nombre de la constructora vive en `clients`; la cartera de obras lo
   // necesita siempre (agrupa las obras por cliente), así que se resuelve acá con
   // un left join en vez de pedirlo aparte por cada obra.
-  async getObras(clienteId?: string): Promise<ObraConCliente[]> {
+  async getObras(filtro?: { clienteId?: string; alcance?: AlcanceObras | null }): Promise<ObraConCliente[]> {
+    const { clienteId, alcance } = filtro ?? {};
+
+    const condiciones = [];
+    if (clienteId) condiciones.push(eq(obras.clienteId, clienteId));
+    if (alcance) {
+      // Cada alternativa es una vía por la que la obra le pertenece a quien
+      // mira. Si no queda ninguna, el alcance es vacío a propósito (ej: un
+      // supervisor sin equipo) y no debe caer en "ve todo".
+      const alternativas = [];
+      if (alcance.vendedorIds.length > 0) alternativas.push(inArray(obras.vendedorId, alcance.vendedorIds));
+      if (alcance.supervisorId) alternativas.push(eq(obras.supervisorId, alcance.supervisorId));
+      if (alcance.incluirSinVendedor) alternativas.push(isNull(obras.vendedorId));
+      condiciones.push(alternativas.length > 0 ? or(...alternativas)! : sql`false`);
+    }
+
     const query = db
       .select({
         obra: obras,
@@ -13556,8 +13607,8 @@ export class DatabaseStorage implements IStorage {
       .from(obras)
       .leftJoin(clients, eq(clients.id, obras.clienteId));
 
-    const rows = clienteId
-      ? await query.where(eq(obras.clienteId, clienteId)).orderBy(desc(obras.createdAt))
+    const rows = condiciones.length > 0
+      ? await query.where(and(...condiciones)).orderBy(desc(obras.createdAt))
       : await query.orderBy(desc(obras.createdAt));
 
     // Los tipos de vivienda se editan dentro del formulario de la obra, así que
@@ -13583,6 +13634,85 @@ export class DatabaseStorage implements IStorage {
       clienteComuna: r.clienteComuna ?? null,
       tiposVivienda: tiposPorObra.get(r.obra.id) ?? [],
     }));
+  }
+
+  // --- Ventas del ERP asociadas a la obra (ver server/obras-ventas.ts) ---
+
+  async getObraVentas(obraId: string): Promise<ObraVenta[]> {
+    return await db
+      .select()
+      .from(obraVentas)
+      .where(and(eq(obraVentas.obraId, obraId), eq(obraVentas.activo, true)))
+      .orderBy(desc(obraVentas.fechaEmision));
+  }
+
+  async getObraVentasPorDocumento(
+    docs: Array<{ origen: string; idmaeedo: string }>,
+  ): Promise<Array<ObraVenta & { obraNombre: string | null }>> {
+    if (docs.length === 0) return [];
+    // Se consulta por el par (origen, documento): el mismo número de documento
+    // existe en los tres espejos y no alcanza para identificarlo.
+    const pares = docs.map((d) => sql`(${d.origen}, ${String(d.idmaeedo)})`);
+    const filas = await db
+      .select({
+        vinculo: obraVentas,
+        obraNombre: obras.nombre,
+      })
+      .from(obraVentas)
+      .leftJoin(obras, eq(obras.id, obraVentas.obraId))
+      .where(
+        and(
+          eq(obraVentas.activo, true),
+          sql`(${obraVentas.origen}, ${obraVentas.idmaeedo}) IN (${sql.join(pares, sql`, `)})`,
+        ),
+      );
+    return filas.map((f) => ({ ...f.vinculo, obraNombre: f.obraNombre ?? null }));
+  }
+
+  async asociarObraVenta(vinculo: InsertObraVenta): Promise<ObraVenta> {
+    // Si el documento ya se había asociado y después se sacó, esto lo revive en
+    // vez de crear una fila nueva (el índice único no dejaría duplicarlo).
+    const [guardado] = await db
+      .insert(obraVentas)
+      .values(vinculo)
+      .onConflictDoUpdate({
+        target: [obraVentas.obraId, obraVentas.origen, obraVentas.idmaeedo],
+        set: {
+          activo: true,
+          tido: vinculo.tido ?? null,
+          nudo: vinculo.nudo ?? null,
+          clienteRut: vinculo.clienteRut ?? null,
+          clienteNombre: vinculo.clienteNombre ?? null,
+          fechaEmision: vinculo.fechaEmision ?? null,
+          montoDocumento: vinculo.montoDocumento ?? null,
+          asociadoPorId: vinculo.asociadoPorId ?? null,
+          asociadoPorNombre: vinculo.asociadoPorNombre ?? null,
+          desasociadoPorId: null,
+          desasociadoPorNombre: null,
+          desasociadoEn: null,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      })
+      .returning();
+    return guardado;
+  }
+
+  async desasociarObraVenta(
+    id: string,
+    quien: { desasociadoPorId?: string | null; desasociadoPorNombre?: string | null },
+  ): Promise<ObraVenta | undefined> {
+    const [actualizado] = await db
+      .update(obraVentas)
+      .set({
+        activo: false,
+        desasociadoPorId: quien.desasociadoPorId ?? null,
+        desasociadoPorNombre: quien.desasociadoPorNombre ?? null,
+        desasociadoEn: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(obraVentas.id, id))
+      .returning();
+    return actualizado;
   }
 
   async getObra(id: string): Promise<Obra | undefined> {
@@ -13638,7 +13768,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(obraBitacora).where(eq(obraBitacora.id, id));
   }
 
-  async updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra> {
+  async updateObra(id: string, obra: Partial<InsertObra> & { vendedorId?: string | null; supervisorId?: string | null }): Promise<Obra> {
     const [updatedObra] = await db
       .update(obras)
       .set({ ...obra, updatedAt: sql`CURRENT_TIMESTAMP` })
