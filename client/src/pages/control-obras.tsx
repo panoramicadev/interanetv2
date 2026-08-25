@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilasProductos } from "@/components/obras/panel-productos";
 import { BitacoraObra } from "@/components/obras/bitacora";
+import { ComprasObra } from "@/components/obras/ventas";
 import { BuscadorCatalogo, unidadDeObra } from "@/components/obras/buscador-catalogo";
 import { UNIDAD_POR_DEFECTO, etiquetaCortaUnidad } from "@/components/obras/unidades";
 import { fmt, fmtDec, fmtPct, normalizar, toInt } from "@/components/obras/formato";
@@ -89,6 +90,7 @@ import {
   ShoppingCart,
   Trash2,
   Truck,
+  Users,
   X,
 } from "lucide-react";
 
@@ -160,6 +162,9 @@ const emptyForm = {
   viviendas: "",
   fechaInicio: "",
   fechaEstimadaFin: "",
+  // Vendedor a cargo. Solo lo edita admin/supervisor; el vendedor no ve el
+  // campo y el servidor le estampa la obra a su nombre igual. "" = sin asignar.
+  vendedorId: "",
 };
 
 type ObraForm = typeof emptyForm;
@@ -239,6 +244,15 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   // Las etapas quedan disponibles para todas las obras, así que solo las suman
   // los roles que mandan en el área.
   const puedeAgregarEtapas = user?.role === "admin" || user?.role === "supervisor";
+  // Quién manda en la cartera: ve la de todo el equipo, la filtra por vendedor y
+  // puede decidir de quién es cada obra. El vendedor solo ve las suyas y no
+  // tiene selector — el propio servidor le acota el listado (ver GET /api/obras).
+  const mandaEnCartera =
+    user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
+  const esSupervisor = user?.role === "supervisor" || user?.role === "encargado_area";
+  // Vendedor elegido en el selector: "all" = toda la cartera visible,
+  // "sin-asignar" = las obras que todavía no tienen dueño.
+  const [vendedorFiltro, setVendedorFiltro] = useState<string>("all");
 
   // Constructora abierta. null = portada (cartera).
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
@@ -247,6 +261,9 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   const [vistaCartera, setVistaCartera] = useState<"constructoras" | "obras">("constructoras");
   const [filtroEstado, setFiltroEstado] = useState<EstadoObra | "todos">("todos");
   const [dialogAgregarCliente, setDialogAgregarCliente] = useState(false);
+  // El buscador de constructoras se usa para dos cosas: sumarla a la cartera o
+  // elegirla como paso previo a cargarle una obra (ver abrirNueva).
+  const [altaTrasElegir, setAltaTrasElegir] = useState(false);
   // Detalle del "próximo pedido total": qué productos faltan y cuáles ya están críticos.
   const [dialogPedido, setDialogPedido] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -269,13 +286,37 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   const [nuevaEtapa, setNuevaEtapa] = useState<string | null>(null);
 
   // --- Todas las obras: alimenta la cartera y el detalle con un solo fetch ---
+  // El filtro por vendedor va en el servidor, no acá: así el vendedor no puede
+  // pedir la cartera de otro, y el detalle de una constructora queda acotado
+  // igual que la portada sin filtrar dos veces lo mismo.
   const { data: todasLasObras = [], isLoading: cargandoObras } = useQuery<ObraConCliente[]>({
-    queryKey: ["/api/obras"],
+    queryKey: ["/api/obras", vendedorFiltro],
     queryFn: async () => {
-      const res = await apiRequest("/api/obras");
+      const qs = vendedorFiltro !== "all" ? `?vendedorId=${encodeURIComponent(vendedorFiltro)}` : "";
+      const res = await apiRequest(`/api/obras${qs}`);
       return res.json();
     },
   });
+
+  // --- Vendedores del selector y de la asignación de la obra ---
+  // El admin elige entre todos; el supervisor, solo dentro de su equipo (el
+  // servidor ignora igual cualquier vendedor de afuera).
+  const { data: vendedores = [] } = useQuery<Array<{ id: string; salespersonName: string; fullName?: string }>>({
+    queryKey: esSupervisor ? ["/api/supervisor", user?.id, "salespeople"] : ["/api/users/salespeople", "control-obras"],
+    queryFn: async () => {
+      const res = await apiRequest(
+        esSupervisor ? `/api/supervisor/${user?.id}/salespeople` : "/api/users/salespeople",
+      );
+      const lista = await res.json();
+      return esSupervisor
+        ? lista
+        : lista.filter((v: any) => v.role === "salesperson" && v.isActive !== false);
+    },
+    enabled: mandaEnCartera && !!user?.id,
+  });
+
+  const nombreVendedor = (v: { salespersonName?: string; fullName?: string }) =>
+    v.fullName || v.salespersonName || "Sin nombre";
 
   // --- Buscador de clientes (para sumar una constructora a la cartera) ---
   const { data: clientes = [], isFetching: buscandoClientes } = useQuery<ClienteBusqueda[]>({
@@ -550,7 +591,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   );
 
   // --- Formulario de obra ---
-  const abrirNueva = () => {
+  const abrirFormularioObra = () => {
     totalTocado.current = false;
     setNuevaEtapa(null);
     setObraEditando(null);
@@ -559,8 +600,23 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
     setForm({
       ...emptyForm,
       temporada: temporadaFiltro !== "todas" ? temporadaFiltro : temporadas[0] ?? "",
+      // Si se está mirando la cartera de un vendedor, la obra nueva nace suya.
+      vendedorId: vendedorFiltro !== "all" && vendedorFiltro !== "sin-asignar" ? vendedorFiltro : "",
     });
     setDialogAbierto(true);
+  };
+
+  // Una obra siempre es DE una constructora. Desde la portada todavía no hay
+  // ninguna abierta, así que primero se elige y recién ahí se abre el formulario
+  // (antes el alta se abría igual y al guardar no pasaba nada).
+  const abrirNueva = () => {
+    if (!cliente) {
+      setBusqueda("");
+      setAltaTrasElegir(true);
+      setDialogAgregarCliente(true);
+      return;
+    }
+    abrirFormularioObra();
   };
 
   // Sin lista de dependencias a propósito: `abrirNueva` se recrea en cada render
@@ -594,6 +650,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
       viviendas: String(obra.viviendas ?? 0),
       fechaInicio: (obra.fechaInicio as any) ?? "",
       fechaEstimadaFin: (obra.fechaEstimadaFin as any) ?? "",
+      vendedorId: obra.vendedorId ?? "",
     });
     setDialogAbierto(true);
   };
@@ -677,6 +734,9 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
         viviendas: toInt(form.viviendas),
         fechaInicio: form.fechaInicio || null,
         fechaEstimadaFin: form.fechaEstimadaFin || null,
+        // Solo viaja si quien guarda puede decidir de quién es la obra; para el
+        // resto el servidor lo ignora y mantiene la asignación que ya tenía.
+        ...(mandaEnCartera ? { vendedorId: form.vendedorId || null } : {}),
         // Los modelos sin nombre o en cero no se guardan: son filas que el
         // formulario ofrece y el usuario no llegó a llenar.
         tiposVivienda: tipos
@@ -714,11 +774,45 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {cartera.length === 0
-                  ? "Agrega la primera constructora para empezar a controlar sus obras"
+                  ? vendedorFiltro !== "all"
+                    ? "No hay obras para el vendedor seleccionado"
+                    : "Agrega la primera constructora para empezar a controlar sus obras"
                   : `${cartera.length} ${cartera.length === 1 ? "constructora" : "constructoras"} · ${totalesCartera.conteoEstados.reduce((a, e) => a + e.cantidad, 0)} obras en control`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* Filtro por vendedor (solo admin/supervisor): acota TODA la
+                  pestaña —cartera, indicadores y detalle de la constructora—,
+                  por eso va en el encabezado. Va fuera del `cartera.length > 0`
+                  para poder volver atrás cuando el vendedor elegido no tiene
+                  obras y la pantalla queda vacía. */}
+              {mandaEnCartera && (
+                <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all flex-shrink-0">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col leading-none min-w-0">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                    <Select value={vendedorFiltro} onValueChange={setVendedorFiltro}>
+                      <SelectTrigger
+                        className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60"
+                        data-testid="select-obras-vendedor"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {/* Las obras que quedaron sin dueño: se filtran acá para
+                            entrar a asignarles vendedor desde el formulario. */}
+                        <SelectItem value="sin-asignar">Sin asignar</SelectItem>
+                        {vendedores.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{nombreVendedor(v)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
               {cartera.length > 0 && (
                 <>
                   {/* Las mismas obras en dos listados: agrupadas por constructora
@@ -754,16 +848,29 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   </div>
                 </>
               )}
+              {/* Agregar constructora suma una a la cartera; Añadir obra le
+                  carga una obra a la que ya está. El (+) del header bajó acá
+                  porque las dos acciones son de esta barra, no del panel. */}
               <Button
+                variant="outline"
                 onClick={() => {
                   setBusqueda("");
+                  setAltaTrasElegir(false);
                   setDialogAgregarCliente(true);
                 }}
-                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
+                className="rounded-2xl border-slate-200/70 dark:border-slate-700/60 flex-shrink-0"
                 data-testid="button-agregar-constructora"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Building2 className="h-4 w-4 mr-2" />
                 Agregar constructora
+              </Button>
+              <Button
+                onClick={abrirNueva}
+                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
+                data-testid="button-obras-nueva-portada"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Añadir obra
               </Button>
             </div>
           </div>
@@ -773,22 +880,39 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
               <span className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
                 <HardHat className="h-8 w-8" />
               </span>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Control de obras</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {vendedorFiltro !== "all" ? "Sin obras para este filtro" : "Control de obras"}
+              </h3>
               <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
-                Agrega las constructoras con las que estás trabajando esta temporada. De cada una vas a ver el avance
-                de sus obras, las tinetas pedidas y entregadas, el saldo en obra y el próximo pedido sugerido.
+                {vendedorFiltro !== "all"
+                  ? vendedorFiltro === "sin-asignar"
+                    ? "Todas las obras de la cartera ya tienen un vendedor a cargo."
+                    : "Este vendedor todavía no tiene obras a su nombre. Si la obra existe pero la cargó otra persona, ábrela con el filtro en “Todos” y asígnasela desde el formulario de la obra."
+                  : "Agrega las constructoras con las que estás trabajando esta temporada. De cada una vas a ver el avance de sus obras, las tinetas pedidas y entregadas, el saldo en obra y el próximo pedido sugerido."}
               </p>
-              <Button
-                onClick={() => {
-                  setBusqueda("");
-                  setDialogAgregarCliente(true);
-                }}
-                className="mt-5 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
-                data-testid="button-agregar-constructora-vacio"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar constructora
-              </Button>
+              {vendedorFiltro !== "all" ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setVendedorFiltro("all")}
+                  className="mt-5 rounded-2xl"
+                  data-testid="button-obras-ver-todos"
+                >
+                  Ver toda la cartera
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setBusqueda("");
+                    setAltaTrasElegir(false);
+                    setDialogAgregarCliente(true);
+                  }}
+                  className="mt-5 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
+                  data-testid="button-agregar-constructora-vacio"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar constructora
+                </Button>
+              )}
             </div>
           )}
 
@@ -1394,16 +1518,24 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
       </Dialog>
 
       {/* Agregar constructora a la cartera */}
-      <Dialog open={dialogAgregarCliente} onOpenChange={setDialogAgregarCliente}>
+      <Dialog
+        open={dialogAgregarCliente}
+        onOpenChange={(abierto) => {
+          setDialogAgregarCliente(abierto);
+          if (!abierto) setAltaTrasElegir(false);
+        }}
+      >
         <DialogContent className="sm:max-w-[520px] z-[70]" overlayClassName="z-[70]">
           <DialogTitle className="text-base font-bold flex items-center gap-2">
             <span className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
               <Building2 className="h-4 w-4" />
             </span>
-            Agregar constructora
+            {altaTrasElegir ? "¿De qué constructora es la obra?" : "Agregar constructora"}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Busca la constructora en la base de clientes. Después le vas a cargar sus obras.
+            {altaTrasElegir
+              ? "Elige la constructora y se abre el formulario de la obra."
+              : "Busca la constructora en la base de clientes. Después le vas a cargar sus obras."}
           </DialogDescription>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
@@ -1432,6 +1564,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   onClick={() => {
                     setCliente(c);
                     setDialogAgregarCliente(false);
+                    if (altaTrasElegir) {
+                      setAltaTrasElegir(false);
+                      abrirFormularioObra();
+                    }
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors"
                   data-testid={`option-obras-cliente-${c.id}`}
@@ -1542,6 +1678,33 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                     data-testid="input-obra-temporada"
                   />
                 </Campo>
+                {/* Vendedor a cargo: define a quién le aparece la obra en su
+                    cartera. Solo lo tocan admin y supervisor — el vendedor no ve
+                    el campo y la obra que crea queda a su nombre sola. */}
+                {mandaEnCartera && (
+                  <Campo label="Vendedor a cargo" className="sm:col-span-2">
+                    <Select
+                      value={form.vendedorId || "__sin"}
+                      onValueChange={(v) => setCampo("vendedorId", v === "__sin" ? "" : v)}
+                    >
+                      <SelectTrigger className={INPUT_FORM} data-testid="select-obra-vendedor">
+                        <SelectValue placeholder="Sin asignar" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[80]">
+                        <SelectItem value="__sin">Sin asignar</SelectItem>
+                        {vendedores.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{nombreVendedor(v)}</SelectItem>
+                        ))}
+                        {/* La obra puede estar a nombre de alguien que ya no
+                            está en la lista (cambió de equipo, quedó inactivo):
+                            se muestra igual para no reasignarla sin querer. */}
+                        {form.vendedorId && !vendedores.some((v) => v.id === form.vendedorId) && (
+                          <SelectItem value={form.vendedorId}>Vendedor actual (fuera de la lista)</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </Campo>
+                )}
                 <Campo label="Estado del registro">
                   <Select value={form.estado} onValueChange={(v) => setCampo("estado", v)}>
                     <SelectTrigger className={INPUT_FORM} data-testid="select-obra-estado">
@@ -2154,6 +2317,21 @@ function FilaObra({
             columnas={columnas}
             sticky
           />
+          {/* Lo comprado de verdad, del sistema de la empresa, contra lo que se
+              proyectó al empezar. Va debajo de los productos porque es la misma
+              lectura, pero con el dato real en vez del cargado a mano. */}
+          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
+            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky left-0 w-full max-w-[980px] pl-6">
+                <ComprasObra
+                  obraId={fila.obra.id}
+                  obraNombre={fila.obra.nombre}
+                  clienteNombre={fila.obra.clienteNombre}
+                  productos={productos}
+                />
+              </div>
+            </td>
+          </tr>
           {/* La bitácora cierra la obra: los números arriba, lo que pasó abajo. */}
           <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
             <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -2251,6 +2429,18 @@ function FilaObraGlobal({
             productos={productos}
             columnas={columnas}
           />
+          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
+            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <div className="w-full max-w-[980px] pl-6">
+                <ComprasObra
+                  obraId={fila.obra.id}
+                  obraNombre={fila.obra.nombre}
+                  clienteNombre={fila.obra.clienteNombre}
+                  productos={productos}
+                />
+              </div>
+            </td>
+          </tr>
           <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
             <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
               <div className="w-full max-w-[720px] pl-6">

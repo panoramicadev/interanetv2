@@ -1760,10 +1760,15 @@ export default function TareasPage() {
                 <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
                 {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
               </div>
-              <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
-                <Plus className="h-4 w-4 mr-2" />
-                {accionNueva.label}
-              </Button>
+              {/* En Obras el (+) bajó a la barra de la cartera, al lado de
+                  "Agregar constructora": ahí es donde están las dos acciones de
+                  la pantalla, y arriba quedaba lejos de lo que se está mirando. */}
+              {activeTab !== 'obras' && (
+                <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+                  <Plus className="h-4 w-4 mr-2" />
+                  {accionNueva.label}
+                </Button>
+              )}
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
                 setShowCreateDialog(open);
