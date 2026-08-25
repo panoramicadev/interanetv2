@@ -1354,6 +1354,7 @@ export async function bootstrapDatabase(): Promise<void> {
         sucursal2 VARCHAR(120),
         credito_solicitado NUMERIC(15, 2) NOT NULL,
         credito_aprobado NUMERIC(15, 2),
+        dias_solicitados INTEGER,
         carpeta_tributaria_url TEXT,
         carpeta_tributaria_nombre TEXT,
         estado VARCHAR(20) NOT NULL DEFAULT 'enviada',
@@ -1371,6 +1372,9 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_solicitante" ON solicitudes_credito (solicitante_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_estado" ON solicitudes_credito (estado)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_credito_created" ON solicitudes_credito (created_at)`);
+    // Plazo de pago pedido (migración 081). Va como ADD COLUMN IF NOT EXISTS para
+    // las tablas que se crearon antes de que existiera el campo.
+    await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS dias_solicitados INTEGER`);
 
     // Nuevo Cliente (migración 080). Ver migrations/080_solicitudes_nuevo_cliente.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las

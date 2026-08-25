@@ -4360,6 +4360,10 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   creditoSolicitado: numeric("credito_solicitado", { precision: 15, scale: 2 }).notNull(),
   creditoAprobado: numeric("credito_aprobado", { precision: 15, scale: 2 }),
 
+  // Plazo de pago pedido, en días. Nullable porque las solicitudes anteriores a
+  // este campo no lo tienen: se muestran sin plazo en vez de inventarles uno.
+  diasSolicitados: integer("dias_solicitados"),
+
   // Carpeta tributaria (el adjunto que pide Finanzas para evaluar)
   carpetaTributariaUrl: text("carpeta_tributaria_url"),
   carpetaTributariaNombre: text("carpeta_tributaria_nombre"),
@@ -4384,6 +4388,10 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
 
 export const ESTADOS_SOLICITUD_CREDITO = ["enviada", "aprobada", "rechazada"] as const;
 export type EstadoSolicitudCredito = (typeof ESTADOS_SOLICITUD_CREDITO)[number];
+
+/** Plazos de pago que se ofrecen en el formulario. */
+export const DIAS_SOLICITUD_CREDITO = [30, 45, 60, 90] as const;
+export type DiasSolicitudCredito = (typeof DIAS_SOLICITUD_CREDITO)[number];
 
 // Lo que manda el vendedor. Todo lo del flujo (estado, quién la envió, quién la
 // resolvió) lo pone el servidor: son datos de auditoría, no del formulario.
@@ -4410,6 +4418,9 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
     telefono: z.string().trim().min(1, "El teléfono es obligatorio"),
     correo: z.string().trim().email("Correo inválido").optional().or(z.literal("")).or(z.null()),
     creditoSolicitado: z.coerce.number().positive("El crédito solicitado tiene que ser mayor que cero"),
+    diasSolicitados: z.coerce
+      .number()
+      .refine((v) => (DIAS_SOLICITUD_CREDITO as readonly number[]).includes(v), "Elegí un plazo de pago válido"),
   });
 
 /** Resolución de Finanzas: aprobar (con monto) o rechazar (con motivo). */

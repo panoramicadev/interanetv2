@@ -31,6 +31,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { DIAS_SOLICITUD_CREDITO } from "@shared/schema";
 import type { SolicitudCredito } from "@shared/schema";
 
 const ROLES_RESUELVEN = ["admin", "supervisor", "encargado_area", "recursos_humanos"];
@@ -56,6 +57,8 @@ const FORM_VACIO = {
   cuenta2: "",
   sucursal2: "",
   creditoSolicitado: "",
+  // El formulario arranca con el plazo más común ya elegido; se cambia de un toque.
+  diasSolicitados: "30",
 };
 
 type FormSolicitud = typeof FORM_VACIO;
@@ -64,6 +67,13 @@ const money = (valor: unknown) => {
   const n = Number(valor ?? 0);
   return Number.isFinite(n) ? `$${Math.round(n).toLocaleString("es-CL")}` : "—";
 };
+
+/** Deja solo los dígitos: es lo que se guarda y lo que se manda al servidor. */
+const soloDigitos = (valor: string) => valor.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+
+/** Lo que se ve mientras se escribe: $2.000.000. Vacío se queda vacío. */
+const montoVisible = (digitos: string) =>
+  digitos ? `$${Number(digitos).toLocaleString("es-CL")}` : "";
 
 const fmtFecha = (valor: string | Date | null | undefined) => {
   if (!valor) return "—";
@@ -164,13 +174,15 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
     form.direccion.trim() &&
     form.ciudad.trim() &&
     form.telefono.trim() &&
-    Number(form.creditoSolicitado) > 0;
+    Number(form.creditoSolicitado) > 0 &&
+    Number(form.diasSolicitados) > 0;
 
   const enviarSolicitud = () => {
     if (!obligatoriosOk) {
       toast({
         title: "Faltan datos",
-        description: "Razón social, RUT, dirección, ciudad, teléfono y crédito solicitado son obligatorios.",
+        description:
+          "Razón social, RUT, dirección, ciudad, teléfono, crédito solicitado y plazo son obligatorios.",
         variant: "destructive",
       });
       return;
@@ -179,6 +191,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
       ...form,
       correo: form.correo.trim() || null,
       creditoSolicitado: Number(form.creditoSolicitado),
+      diasSolicitados: Number(form.diasSolicitados),
       carpetaTributariaUrl: carpeta?.url ?? null,
       carpetaTributariaNombre: carpeta?.nombre ?? null,
     });
@@ -302,7 +315,53 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
               Crédito y carpeta tributaria
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Campo k="creditoSolicitado" label="Crédito solicitado" obligatorio tipo="number" placeholder="0" />
+              <div className="space-y-3">
+                {/* El monto se escribe en pesos y se va separando solo mientras
+                    se tipea ($2.000.000). Por dentro viaja el número pelado. */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
+                    Crédito solicitado <span className="text-[#fd6301]">obligatorio</span>
+                  </div>
+                  <Input
+                    value={montoVisible(form.creditoSolicitado)}
+                    onChange={(e) => campo("creditoSolicitado", soloDigitos(e.target.value))}
+                    placeholder="$0"
+                    type="text"
+                    inputMode="numeric"
+                    className="h-9 rounded-xl text-sm font-semibold tabular-nums"
+                    data-testid="input-credito-creditoSolicitado"
+                  />
+                </div>
+
+                {/* Plazos fijos en chips: son cuatro y se eligen de un toque,
+                    así se ven todas las opciones sin abrir nada. */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
+                    Días solicitados <span className="text-[#fd6301]">obligatorio</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DIAS_SOLICITUD_CREDITO.map((dias) => {
+                      const activo = Number(form.diasSolicitados) === dias;
+                      return (
+                        <button
+                          key={dias}
+                          type="button"
+                          onClick={() => campo("diasSolicitados", String(dias))}
+                          aria-pressed={activo}
+                          className={`h-9 px-4 rounded-xl text-xs font-bold tabular-nums border transition-all ${
+                            activo
+                              ? "bg-[#fd6301] text-white border-[#fd6301] shadow-sm shadow-[#fd6301]/25"
+                              : "bg-white dark:bg-slate-900/40 text-slate-600 dark:text-slate-300 border-slate-200/70 dark:border-slate-700/60 hover:border-[#fd6301]/50 hover:text-[#fd6301]"
+                          }`}
+                          data-testid={`chip-dias-${dias}`}
+                        >
+                          {dias} días
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
 
               {/* La carpeta tributaria es el adjunto con el que Finanzas evalúa;
                   sube por el mismo /api/upload que el resto de los adjuntos. */}
@@ -412,8 +471,16 @@ function FilaSolicitud({
   onResolver: (datos: Record<string, unknown>) => void;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [detalle, setDetalle] = useState(false);
   const [monto, setMonto] = useState("");
   const [motivo, setMotivo] = useState("");
+
+  const dato = (label: string, valor: React.ReactNode) => (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">{label}</div>
+      <div className="text-xs text-slate-700 dark:text-slate-200 break-words">{valor || "—"}</div>
+    </div>
+  );
 
   return (
     <div
@@ -451,6 +518,11 @@ function FilaSolicitud({
           <div className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">
             {money(solicitud.creditoSolicitado)}
           </div>
+          {solicitud.diasSolicitados ? (
+            <div className="text-[10px] font-semibold tabular-nums text-slate-400">
+              a {solicitud.diasSolicitados} días
+            </div>
+          ) : null}
         </div>
 
         {solicitud.creditoAprobado != null && (
@@ -464,6 +536,16 @@ function FilaSolicitud({
           {solicitud.estado}
         </Badge>
 
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-lg text-xs"
+          onClick={() => setDetalle((v) => !v)}
+          data-testid={`button-detalle-${solicitud.id}`}
+        >
+          {detalle ? "Ocultar" : "Ver datos"}
+        </Button>
+
         {puedeResolver && (
           <Button
             variant="outline"
@@ -476,6 +558,34 @@ function FilaSolicitud({
           </Button>
         )}
       </div>
+
+      {/* Todo lo que se envió en el formulario. La fila sola no alcanzaba para
+          revisar una solicitud vieja: los socios, los bancos y el representante
+          quedaban guardados pero no había dónde verlos. */}
+      {detalle && (
+        <div className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {dato("Giro", solicitud.giro)}
+          {dato("Teléfono", solicitud.telefono)}
+          {dato("Correo", solicitud.correo)}
+          {dato("Dirección", solicitud.direccion)}
+          {dato("Ciudad", solicitud.ciudad)}
+          {dato("Plazo solicitado", solicitud.diasSolicitados ? `${solicitud.diasSolicitados} días` : null)}
+          {dato("Representante legal", solicitud.representanteNombre)}
+          {dato("Cédula del representante", solicitud.representanteCedula)}
+          {dato("Socio 1", solicitud.socio1Nombre)}
+          {dato("Dirección socio 1", solicitud.socio1Direccion)}
+          {dato("Socio 2", solicitud.socio2Nombre)}
+          {dato("Dirección socio 2", solicitud.socio2Direccion)}
+          {dato("Banco 1", solicitud.banco1)}
+          {dato("Cuenta 1", solicitud.cuenta1)}
+          {dato("Sucursal 1", solicitud.sucursal1)}
+          {dato("Banco 2", solicitud.banco2)}
+          {dato("Cuenta 2", solicitud.cuenta2)}
+          {dato("Sucursal 2", solicitud.sucursal2)}
+          {dato("Resuelta por", solicitud.resueltaPorNombre)}
+          {dato("Resuelta el", solicitud.resueltaAt ? fmtFecha(solicitud.resueltaAt) : null)}
+        </div>
+      )}
 
       {solicitud.observaciones && (
         <p className="mt-2 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-700/40 pt-2">
