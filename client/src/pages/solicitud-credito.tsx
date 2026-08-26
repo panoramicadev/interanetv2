@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TABS_LIST_PILL, TAB_PILL } from "@/components/gastos/tabs-pill";
 import {
   Banknote,
   Building2,
@@ -57,8 +58,9 @@ const FORM_VACIO = {
   cuenta2: "",
   sucursal2: "",
   creditoSolicitado: "",
-  // El formulario arranca con el plazo más común ya elegido; se cambia de un toque.
-  diasSolicitados: "30",
+  // Sin plazo elegido a propósito: si viniera uno puesto, el vendedor lo manda
+  // sin mirarlo y la solicitud sale con un plazo que nadie decidió.
+  diasSolicitados: "",
 };
 
 type FormSolicitud = typeof FORM_VACIO;
@@ -266,14 +268,14 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
       )}
 
       <Tabs defaultValue="nueva">
-        <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg">
-          <TabsTrigger value="nueva" className="text-xs rounded-md px-3" data-testid="tab-credito-nueva">
+        <TabsList className={TABS_LIST_PILL}>
+          <TabsTrigger value="nueva" className={TAB_PILL} data-testid="tab-credito-nueva">
             Nueva solicitud
           </TabsTrigger>
-          <TabsTrigger value="historial" className="text-xs rounded-md px-3" data-testid="tab-credito-historial">
+          <TabsTrigger value="historial" className={TAB_PILL} data-testid="tab-credito-historial">
             Solicitudes
             {solicitudes.length > 0 && (
-              <span className="ml-1.5 tabular-nums text-slate-400">{solicitudes.length}</span>
+              <span className="tabular-nums opacity-70">{solicitudes.length}</span>
             )}
           </TabsTrigger>
         </TabsList>

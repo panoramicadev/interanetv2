@@ -54,15 +54,26 @@ async function supervisorDeVendedor(vendedorId: string): Promise<string | null> 
   return fila?.supervisorId ?? null;
 }
 
-/** Emails del supervisor de un vendedor y del propio vendedor, para la copia. */
-async function correosDeCopia(solicitanteId: string | null, supervisorId: string | null): Promise<string[]> {
+/**
+ * Correos del vendedor que pidió y de su supervisor, por separado.
+ *
+ * Van separados a propósito: el supervisor es destinatario (autoriza) y el
+ * vendedor va en copia (solo se entera). Antes salían mezclados en la misma
+ * bolsa y los dos terminaban en el mismo campo.
+ */
+async function correosDelFlujo(
+  solicitanteId: string | null,
+  supervisorId: string | null,
+): Promise<{ vendedor: string | null; supervisor: string | null }> {
   const ids = [solicitanteId, supervisorId].filter((id): id is string => !!id);
-  if (ids.length === 0) return [];
+  if (ids.length === 0) return { vendedor: null, supervisor: null };
   const filas = await db
-    .select({ email: salespeopleUsers.email })
+    .select({ id: salespeopleUsers.id, email: salespeopleUsers.email })
     .from(salespeopleUsers)
     .where(inArray(salespeopleUsers.id, ids));
-  return filas.map((f) => f.email).filter((e): e is string => !!e);
+  const emailDe = (id: string | null) =>
+    (id ? filas.find((f) => f.id === id)?.email : null) ?? null;
+  return { vendedor: emailDe(solicitanteId), supervisor: emailDe(supervisorId) };
 }
 
 /** Destinatarios configurados en Configuración → Correos (pueden no existir). */
@@ -116,20 +127,28 @@ function cuerpoDelCorreo(s: SolicitudCredito): string {
 }
 
 async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
-  const copia = await correosDeCopia(s.solicitanteId, s.supervisorId);
+  const { vendedor, supervisor } = await correosDelFlujo(s.solicitanteId, s.supervisorId);
   const config = await destinatariosConfigurados();
 
-  // Sin destinatarios configurados el aviso sale igual: va a quienes sí están
-  // definidos (supervisor y vendedor). Perder el aviso por una configuración
-  // vacía sería peor que mandarlo solo a ellos.
-  const to = config.to.length > 0 ? config.to : copia;
+  const unicos = (lista: (string | null)[]) =>
+    Array.from(new Set(lista.filter((e): e is string => !!e)));
+
+  // Para: los que tienen que actuar — el supervisor del vendedor y quien esté
+  // configurado en Configuración → Correos (Finanzas).
+  let to = unicos([supervisor, ...config.to]);
+  // Copia: los que solo se enteran — el vendedor que la pidió, más los fijos.
+  let cc = unicos([vendedor, ...config.cc]).filter((email) => !to.includes(email));
+
+  // Si no hay a quién dirigirla, el aviso sale igual a los de la copia antes que
+  // perderse: una configuración vacía no tiene que dejar la solicitud sin avisar.
+  if (to.length === 0) {
+    to = cc;
+    cc = [];
+  }
   if (to.length === 0) {
     console.warn('[solicitud-credito] sin destinatarios: no hay correos configurados ni del solicitante/supervisor');
     return;
   }
-  const cc = Array.from(new Set([...config.cc, ...(config.to.length > 0 ? copia : [])])).filter(
-    (email) => !to.includes(email),
-  );
 
   await emailService.sendEmail({
     to: to.join(', '),
