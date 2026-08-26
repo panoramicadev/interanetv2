@@ -1134,6 +1134,7 @@ export default function GastosEmpresariales() {
                                       ruta: (gasto as any).ruta || '',
                                       clientes: (gasto as any).clientes || '',
                                       ciudad: (gasto as any).ciudad || '',
+                                      userId: gasto.userId || '',
                                       fundingMode: gasto.fundingMode || 'reembolso',
                                       fundAllocationId: gasto.fundAllocationId || '',
                                       createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}T${String(createdDate.getHours()).padStart(2, '0')}:${String(createdDate.getMinutes()).padStart(2, '0')}`,
@@ -1482,6 +1483,7 @@ export default function GastosEmpresariales() {
                         ruta: (selectedGasto as any).ruta || '',
                         clientes: (selectedGasto as any).clientes || '',
                         ciudad: (selectedGasto as any).ciudad || '',
+                        userId: selectedGasto.userId || '',
                         fundingMode: selectedGasto.fundingMode || 'reembolso',
                         fundAllocationId: selectedGasto.fundAllocationId || '',
                         createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}T${String(createdDate.getHours()).padStart(2, '0')}:${String(createdDate.getMinutes()).padStart(2, '0')}`,
@@ -1849,10 +1851,63 @@ export default function GastosEmpresariales() {
               Editar Gasto
             </DialogTitle>
             <DialogDescription>
-              Modifica los datos del gasto. Puedes cambiar fechas, montos y detalles.
+              Modifica los datos del gasto. Puedes cambiar el colaborador, fechas, montos y detalles.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            {/* Colaborador: corrige un gasto cargado con el usuario equivocado */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Colaborador</label>
+              <Select
+                value={editFormData.userId || ''}
+                onValueChange={(val) => {
+                  // El fondo pertenece a una persona: al cambiar de dueño hay
+                  // que volver a elegirlo, y si el nuevo no tiene fondos el
+                  // gasto pasa a reembolso en vez de cargarse al de otro.
+                  const tieneFondos = userFundAllocations.some((fund: any) => fund.assignedToId === val);
+                  setEditFormData(prev => ({
+                    ...prev,
+                    userId: val,
+                    fundingMode: tieneFondos ? prev.fundingMode : 'reembolso',
+                    fundAllocationId: '',
+                  }));
+                }}
+              >
+                <SelectTrigger data-testid="select-edit-colaborador">
+                  <SelectValue placeholder="Seleccionar colaborador" />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuarios
+                    .filter((u: any) => u.isActive !== false)
+                    .map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {getColaboradorName(u.id)}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {selectedGasto && editFormData.userId && editFormData.userId !== selectedGasto.userId && (
+                <div
+                  className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                  data-testid="text-aviso-cambio-colaborador"
+                >
+                  <p className="font-medium">
+                    El gasto pasa de {getColaboradorName(selectedGasto.userId)} a {getColaboradorName(editFormData.userId)}.
+                  </p>
+                  <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                    {(selectedGasto as any).informeId && (
+                      <li>Sale del informe de rendición donde estaba y ese informe cambia de total.</li>
+                    )}
+                    {selectedGasto.fundingMode === 'con_fondo' && selectedGasto.fundAllocationId && (
+                      <li>Se descuelga del fondo de {getColaboradorName(selectedGasto.userId)}, que recupera ese saldo.</li>
+                    )}
+                    {selectedGasto.comprobanteUrl && (
+                      <li>Este gasto ya tiene comprobante de reembolso a nombre de {getColaboradorName(selectedGasto.userId)}: revisa a quién se le pagó.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Fecha de Creación</label>
@@ -1906,7 +1961,7 @@ export default function GastosEmpresariales() {
                     </SelectTrigger>
                     <SelectContent>
                       {userFundAllocations
-                        .filter((fund: any) => selectedGasto && fund.assignedToId === selectedGasto.userId)
+                        .filter((fund: any) => fund.assignedToId === (editFormData.userId || selectedGasto?.userId))
                         .map((fund: any) => (
                           <SelectItem key={fund.id} value={fund.id}>
                             {fund.nombre} ({formatCurrency(fund.saldoDisponible || 0)} disponible)
@@ -2041,7 +2096,10 @@ export default function GastosEmpresariales() {
                     });
                   }
                 }}
-                disabled={editGastoMutation.isPending}
+                disabled={
+                  editGastoMutation.isPending ||
+                  (editFormData.fundingMode === 'con_fondo' && !editFormData.fundAllocationId)
+                }
               >
                 {editGastoMutation.isPending ? (
                   <>

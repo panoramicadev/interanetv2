@@ -428,8 +428,9 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
+import { registrarHistorial } from './routes-rendicion';
 import { sendPushForNotification } from './push';
-import { warehouses, ecommerceOrders } from "@shared/schema";
+import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
@@ -32696,8 +32697,47 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
+      // Cambio de colaborador: RRHH corrige un gasto cargado con el usuario
+      // equivocado. El dueño manda sobre el fondo y el informe, así que ambos
+      // tienen que seguirlo o soltarse; si no, el cargo queda en la persona
+      // que no gastó.
+      const nuevoUserId = typeof req.body.userId === 'string' ? req.body.userId.trim() : '';
+      const cambiaDueno = !!nuevoUserId && nuevoUserId !== existing.userId;
+      if (cambiaDueno) {
+        const nuevoDueno = await storage.getUser(nuevoUserId);
+        if (!nuevoDueno) {
+          return res.status(400).json({ message: 'El colaborador seleccionado no existe' });
+        }
+        updates.userId = nuevoUserId;
+        // Un informe de rendición solo admite gastos de un mismo colaborador:
+        // el gasto sale del informe anterior y queda suelto para que el nuevo
+        // dueño lo incluya en el suyo.
+        if (existing.informeId) {
+          updates.informeId = null;
+        }
+      }
+
       if (updates.fundingMode === 'reembolso') {
         updates.fundAllocationId = null;
+      }
+
+      // El fondo es de una persona: si el gasto queda apuntando a un fondo que
+      // no es del nuevo dueño, pasa a reembolso y syncFundMovementForGasto
+      // borra el cargo del fondo anterior.
+      if (cambiaDueno) {
+        const fundIdFinal = updates.fundAllocationId !== undefined
+          ? updates.fundAllocationId
+          : existing.fundAllocationId;
+        const modoFinal = updates.fundingMode !== undefined
+          ? updates.fundingMode
+          : existing.fundingMode;
+        if (modoFinal === 'con_fondo' && fundIdFinal) {
+          const fondo = await storage.getFundAllocationById(fundIdFinal);
+          if (!fondo || fondo.assignedToId !== nuevoUserId) {
+            updates.fundingMode = 'reembolso';
+            updates.fundAllocationId = null;
+          }
+        }
       }
 
       if (updates.fechaEmision && !/^\d{4}-\d{2}-\d{2}$/.test(updates.fechaEmision)) {
@@ -32720,6 +32760,62 @@ export function registerRoutes(app: Express): Server {
       // Puede haber cambiado el monto, el fondo o la modalidad: el cargo tiene
       // que seguir al gasto, no quedarse en el fondo y el monto originales.
       await storage.syncFundMovementForGasto(req.params.id, user.id);
+
+      if (cambiaDueno) {
+        const anterior = await storage.getUser(existing.userId);
+        const nuevo = await storage.getUser(nuevoUserId);
+        const nombre = (u: any) => u?.salespersonName || u?.username || u?.email || 'Desconocido';
+        await registrarHistorial({
+          entidad: 'gasto',
+          entidadId: req.params.id,
+          estadoAnterior: existing.estado,
+          estadoNuevo: gasto.estado,
+          actorId: user.id,
+          actorNombre: user.salespersonName || user.username || user.email || null,
+          comentario: `Gasto reasignado de ${nombre(anterior)} a ${nombre(nuevo)}`,
+          metadata: {
+            accion: 'cambio_colaborador',
+            userIdAnterior: existing.userId,
+            userIdNuevo: nuevoUserId,
+            informeDesvinculado: existing.informeId ?? null,
+            fondoDesvinculado: updates.fundAllocationId === null ? existing.fundAllocationId ?? null : null,
+          },
+        });
+
+        // El total de un informe se deriva de sus gastos: si le sacamos uno,
+        // el informe cambia de monto. Queda anotado en su propio timeline
+        // para que el cambio no aparezca de la nada.
+        if (existing.informeId) {
+          const montoLegible = new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            maximumFractionDigits: 0,
+          }).format(parseFloat(existing.monto?.toString() || '0'));
+          const [informe] = await db
+            .select()
+            .from(informesRendicion)
+            .where(eq(informesRendicion.id, existing.informeId))
+            .limit(1);
+          if (informe) {
+            await registrarHistorial({
+              entidad: 'informe',
+              entidadId: informe.id,
+              estadoAnterior: informe.estado,
+              estadoNuevo: informe.estado,
+              actorId: user.id,
+              actorNombre: user.salespersonName || user.username || user.email || null,
+              comentario: `Se quitó un gasto de ${montoLegible} al reasignarlo a ${nombre(nuevo)}. El total del informe cambió.`,
+              metadata: {
+                accion: 'gasto_reasignado_fuera_del_informe',
+                gastoId: req.params.id,
+                montoGasto: existing.monto,
+                userIdNuevo: nuevoUserId,
+              },
+            });
+          }
+        }
+      }
+
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al editar gasto', error: error.message });

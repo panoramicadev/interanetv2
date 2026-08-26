@@ -86,7 +86,7 @@ function nombreUsuario(u: { firstName?: string | null; lastName?: string | null;
 }
 
 /** Registra una entrada en el timeline unificado. Nunca hace fallar la operación. */
-async function registrarHistorial(entrada: {
+export async function registrarHistorial(entrada: {
   entidad: 'gasto' | 'informe' | 'fondo';
   entidadId: string;
   estadoAnterior?: string | null;
