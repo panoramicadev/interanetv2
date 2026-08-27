@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
+import { useFilter } from "@/contexts/FilterContext";
 
 interface SalesMetrics {
   totalSales: number;
@@ -64,7 +65,8 @@ interface NewClientItem {
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod, onShowNewClients }: KPICardsProps) {
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   const [isProjectionModalOpen, setIsProjectionModalOpen] = useState(false);
-  const [showCombined, setShowCombined] = useState(false);
+  // Modo Facturado / Combinado compartido con la tarjeta de meta (arranca en Combinado)
+  const { showCombined, setShowCombined } = useFilter();
 
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
@@ -605,7 +607,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
-    const color = change >= 0 ? "text-green-600" : "text-red-600";
+    const color = change >= 0 ? "text-[#fd6301]" : "text-red-600";
 
     return {
       percentage: `${sign}${change.toFixed(1)}%`,
@@ -622,7 +624,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const difference = current - comparison;
     const sign = difference >= 0 ? "+" : "";
-    const color = difference >= 0 ? "text-green-600" : "text-red-600";
+    const color = difference >= 0 ? "text-[#fd6301]" : "text-red-600";
     const formattedDiff = isCurrency ? formatCurrency(Math.abs(difference)) : formatNumber(Math.abs(difference));
 
     return {
@@ -658,7 +660,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
-    const color = change >= 0 ? "text-green-600" : "text-red-600";
+    const color = change >= 0 ? "text-[#fd6301]" : "text-red-600";
 
     // Build comparison text from API data
     let comparisonText = "";
@@ -694,8 +696,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: salesChange.color,
       comparison: salesComparison,
       icon: DollarSign,
-      bgColor: "bg-green-100 dark:bg-green-900/20",
-      iconColor: "text-green-600",
+      bgColor: "bg-orange-50 dark:bg-orange-950/30",
+      iconColor: "text-[#fd6301]",
       testId: "kpi-total-sales"
     },
     {
@@ -705,8 +707,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: yearlyChange.color,
       comparison: null, // No comparison period for yearly totals
       icon: DollarSign,
-      bgColor: "bg-blue-100 dark:bg-blue-900/20",
-      iconColor: "text-blue-600",
+      bgColor: "bg-orange-50 dark:bg-orange-950/30",
+      iconColor: "text-[#fd6301]",
       testId: "kpi-yearly-total"
     },
     {
@@ -716,8 +718,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: newClientsChange.color,
       comparison: null,
       icon: Users,
-      bgColor: "bg-purple-100 dark:bg-purple-900/20",
-      iconColor: "text-purple-600",
+      bgColor: "bg-orange-50 dark:bg-orange-950/30",
+      iconColor: "text-[#fd6301]",
       testId: "kpi-new-clients"
     },
   ];
@@ -752,7 +754,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const combinedHasPrev = previousSales > 0;
     const combinedPctValue = combinedHasPrev ? (combinedDifference / previousSales) * 100 : 0;
     const combinedPctFormatted = `${combinedPctValue >= 0 ? '+' : ''}${combinedPctValue.toFixed(1)}%`;
-    const combinedPctColor = combinedPctValue >= 0 ? 'text-green-600' : 'text-red-600';
+    const combinedPctColor = combinedPctValue >= 0 ? 'text-[#fd6301]' : 'text-red-600';
     const combinedDiffFormatted = formatCurrency(Math.abs(combinedDifference));
     const combinedDiffSign = combinedDifference >= 0 ? '+' : '-';
 
@@ -938,7 +940,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-xs sm:text-sm font-semibold text-purple-600 dark:text-purple-400">
+                  <span className="text-xs sm:text-sm font-semibold text-[#fd6301]">
                     {formatNumber(yearlyNewClients)}
                   </span>
                   <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
@@ -970,7 +972,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-purple-600" />
+                <Users className="h-5 w-5 text-[#fd6301]" />
                 Clientes Nuevos del Período
               </DialogTitle>
               <p className="text-sm text-gray-500">
@@ -1139,7 +1141,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     if (budgetYTD > 0) {
       const pct = ((displayValue - budgetYTD) / budgetYTD) * 100;
       budgetPct = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
-      budgetColor = pct >= 0 ? "text-green-600" : "text-red-600";
+      budgetColor = pct >= 0 ? "text-[#fd6301]" : "text-red-600";
     }
 
     return (

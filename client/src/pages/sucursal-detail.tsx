@@ -11,6 +11,7 @@ import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import MetaGoalCard from "@/components/dashboard/meta-goal-card";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
@@ -475,13 +476,13 @@ export default function SucursalDetail({
                       </SelectItem>
                       <SelectItem value="sucursal">
                         <div className="flex items-center gap-2">
-                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                           <span>Por sucursal</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="vendedor">
                         <div className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                           <span>Por vendedor</span>
                         </div>
                       </SelectItem>
@@ -595,22 +596,22 @@ export default function SucursalDetail({
               <div className="pt-2 border-t space-y-2">
                 <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
-                  <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <Eye className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-purple-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Vista: Por sucursal
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
-                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-blue-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Período: {selection.display}
                     </div>
-                    <div className="text-[10px] text-blue-700 mt-0.5">
+                    <div className="text-[10px] text-[#fd6301] mt-0.5">
                       {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
                       {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
                       {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
@@ -620,10 +621,10 @@ export default function SucursalDetail({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
-                  <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <div className="h-3 w-3 text-[#fd6301] flex-shrink-0 rounded-full bg-green-200" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-green-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Sucursal: {branchName}
                     </div>
                   </div>
@@ -663,58 +664,18 @@ export default function SucursalDetail({
             <>
               {/* Goal Progress Section - Only show for monthly view */}
               {filterType === 'month' && goalData && (
-                <div className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5" data-testid="card-branch-goal">
-                  <div className="space-y-4">
-                    {/* Header con título y porcentaje */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 rounded-xl p-2.5">
-                          <Target className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                          <h2 className="text-base font-bold text-gray-900 dark:text-white">Meta del Sucursal</h2>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {selectedPeriod ? format(new Date(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${goalData.percentage >= 100 ? 'text-emerald-600' :
-                            goalData.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
-                          }`} data-testid="text-goal-percentage">
-                          {goalData.percentage.toFixed(1)}%
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
-                      </div>
-                    </div>
-
-                    {/* Meta y Ventas Actuales en fila */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                        <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                        <p className="text-lg font-bold text-purple-900 dark:text-purple-100" data-testid="text-goal-target">
-                          {formatCurrency(Number(goalData.targetAmount))}
-                        </p>
-                      </div>
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
-                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                        <p className="text-lg font-bold text-blue-900 dark:text-blue-100" data-testid="text-goal-current">
-                          {formatCurrency(Number(goalData.currentSales))}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Barra de progreso */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                      <div
-                        className={`h-3 rounded-full transition-all duration-500 ${goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
-                            goalData.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                          }`}
-                        style={{ width: `${Math.min(goalData.percentage, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <MetaGoalCard
+                  title="Meta de la Sucursal"
+                  targetAmount={Number(goalData.targetAmount)}
+                  currentSales={Number(goalData.currentSales)}
+                  percentage={goalData.percentage}
+                  selectedPeriod={selectedPeriod}
+                  icon={<Home className="h-5 w-5" />}
+                  testId="card-branch-goal"
+                  percentageTestId="text-goal-percentage"
+                  targetTestId="text-goal-target"
+                  currentTestId="text-goal-current"
+                />
               )}
 
               {/* KPI Cards */}
@@ -723,12 +684,12 @@ export default function SucursalDetail({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
+                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-sales">
                         {formatCurrency(totalSales)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-600" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
                     </div>
                   </div>
                 </div>
@@ -737,12 +698,12 @@ export default function SucursalDetail({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Clientes / Vendedores</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
+                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-clients">
                         {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-600" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
                     </div>
                   </div>
                 </div>
@@ -751,12 +712,12 @@ export default function SucursalDetail({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Transacciones</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
+                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-transactions">
                         {formatNumber(totalTransactions)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
                     </div>
                   </div>
                 </div>
@@ -803,8 +764,8 @@ export default function SucursalDetail({
                   {/* Top Clients Table */}
                   <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                     <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
                       </div>
                       <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Sucursal</h2>
                     </div>
@@ -846,8 +807,8 @@ export default function SucursalDetail({
                   {/* Top Salespeople Table */}
                   <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                     <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
                       </div>
                       <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Sucursal</h2>
                     </div>

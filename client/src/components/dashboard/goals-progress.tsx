@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Target, Building, Users } from "lucide-react";
+import { useFilter } from "@/contexts/FilterContext";
 
 interface NVVMetrics {
   totalAmount: number;
@@ -41,6 +42,15 @@ interface GoalsProgressProps {
 }
 
 export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
+  // Modo Facturado / Combinado compartido con las tarjetas KPI del dashboard
+  const { showCombined } = useFilter();
+
+  // El combinado (Facturado + NVV + GDV) solo tiene sentido en el mes en curso:
+  // en un mes cerrado lo pendiente ya se transformó en facturado.
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentPeriod = selectedPeriod?.startsWith(currentMonthStr) ?? false;
+
   
   const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress", selectedPeriod, globalFilter],
@@ -257,45 +267,54 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       {globalGoals.length > 0 && (
         <div className="space-y-4">
           {globalGoals.map((goal) => {
+            const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
+            const combinedPercentage = goal.targetAmount > 0
+              ? (combinedTotal / goal.targetAmount) * 100
+              : 0;
+            const hasCombined = nvvTotal > 0 || gdvTotal > 0;
+            // El % grande sigue al interruptor Facturado / Combinado
+            const effectiveCombined = showCombined && isCurrentPeriod && hasCombined;
+            const displayPercentage = effectiveCombined ? combinedPercentage : (goal.percentage ?? 0);
             return (
               <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
                 <div className="space-y-4">
                   {/* Header con título y porcentaje */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="bg-emerald-100 rounded-xl p-2.5">
-                        <Target className="h-5 w-5 text-emerald-600" />
+                      <div className="bg-[#fd6301] rounded-xl p-2.5 shadow-md shadow-[#fd6301]/25 text-white">
+                        <Target className="h-5 w-5" />
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-gray-900 dark:text-white">Meta Global</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {getMonthName(goal.period)}
-                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold ${
-                        (goal.percentage ?? 0) >= 100 ? 'text-emerald-600' : 
-                        (goal.percentage ?? 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
+                      {/* El color sigue al modo: negro en Combinado, naranjo en Facturado */}
+                      <div className={`text-2xl font-bold transition-all ${
+                        effectiveCombined ? 'text-[#0a0a0a] dark:text-white' : 'text-[#fd6301]'
                       }`}>
-                        {(goal.percentage ?? 0).toFixed(1)}%
+                        {displayPercentage.toFixed(1)}%
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Logrado{effectiveCombined ? ' combinado' : ''}
+                      </p>
                     </div>
                   </div>
                   
                   {/* Meta y Ventas Actuales en fila */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                      <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                      <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                    <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
+                      <p className="text-lg font-bold text-white">
                         {formatCurrency(goal.targetAmount)}
                       </p>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
-                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                      <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                        {formatCurrency(goal.currentSales)}
+                    <div className="bg-[#fd6301] rounded-xl p-3 shadow-sm shadow-[#fd6301]/25">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
+                        {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
+                      </p>
+                      <p className="text-lg font-bold text-white">
+                        {formatCurrency(effectiveCombined ? combinedTotal : goal.currentSales)}
                       </p>
                     </div>
                   </div>
@@ -305,44 +324,25 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ${
-                          (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                          (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                          (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#fd6301] to-[#e35400]'
                         }`}
                         style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
                       />
                     </div>
                     
                     {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
-                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
-                      const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
-                      const combinedPercentage = goal.targetAmount > 0 
-                        ? (combinedTotal / goal.targetAmount) * 100 
-                        : 0;
-                      return (
+                    {hasCombined && (
                         <div className="space-y-0.5">
                           <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                             <div
                               className={`h-1.5 rounded-full transition-all duration-500 ${
-                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
-                                combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-slate-700 to-[#0a0a0a]'
                               }`}
                               style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
                             />
                           </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                              Total Combinado: {formatCurrency(combinedTotal)}
-                            </p>
-                            <p className={`text-[10px] font-medium ${
-                              combinedPercentage >= 100 ? 'text-cyan-600' : 
-                              combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
-                            }`}>
-                              {combinedPercentage.toFixed(1)}%
-                            </p>
-                          </div>
                         </div>
-                      );
-                    })()}
+                    )}
                   </div>
                 </div>
               </div>
@@ -355,47 +355,56 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       {specificGoals.length > 0 && shouldShowFullWidth && (
         <div className="space-y-4">
           {specificGoals.map((goal) => {
+            const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
+            const combinedPercentage = goal.targetAmount > 0
+              ? (combinedTotal / goal.targetAmount) * 100
+              : 0;
+            const hasCombined = nvvTotal > 0 || gdvTotal > 0;
+            // El % grande sigue al interruptor Facturado / Combinado
+            const effectiveCombined = showCombined && isCurrentPeriod && hasCombined;
+            const displayPercentage = effectiveCombined ? combinedPercentage : (goal.percentage ?? 0);
             return (
               <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
                 <div className="space-y-4">
                   {/* Header con título y porcentaje */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="bg-emerald-100 rounded-xl p-2.5">
+                      <div className="bg-[#fd6301] rounded-xl p-2.5 shadow-md shadow-[#fd6301]/25 text-white">
                         {getTypeIcon(goal.type)}
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-gray-900 dark:text-white">
                           {getTypeLabel(goal.type)}: {goal.target}
                         </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {getMonthName(goal.period)}
-                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold ${
-                        (goal.percentage ?? 0) >= 100 ? 'text-emerald-600' : 
-                        (goal.percentage ?? 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
+                      {/* El color sigue al modo: negro en Combinado, naranjo en Facturado */}
+                      <div className={`text-2xl font-bold transition-all ${
+                        effectiveCombined ? 'text-[#0a0a0a] dark:text-white' : 'text-[#fd6301]'
                       }`}>
-                        {(goal.percentage ?? 0).toFixed(1)}%
+                        {displayPercentage.toFixed(1)}%
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Logrado{effectiveCombined ? ' combinado' : ''}
+                      </p>
                     </div>
                   </div>
                   
                   {/* Meta y Ventas Actuales en fila */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                      <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                      <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                    <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
+                      <p className="text-lg font-bold text-white">
                         {formatCurrency(goal.targetAmount)}
                       </p>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
-                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                      <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                        {formatCurrency(goal.currentSales)}
+                    <div className="bg-[#fd6301] rounded-xl p-3 shadow-sm shadow-[#fd6301]/25">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
+                        {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
+                      </p>
+                      <p className="text-lg font-bold text-white">
+                        {formatCurrency(effectiveCombined ? combinedTotal : goal.currentSales)}
                       </p>
                     </div>
                   </div>
@@ -404,44 +413,25 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div
                       className={`h-3 rounded-full transition-all duration-500 ${
-                        (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#fd6301] to-[#e35400]'
                       }`}
                       style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
                     />
                   </div>
 
                     {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
-                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
-                      const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
-                      const combinedPercentage = goal.targetAmount > 0 
-                        ? (combinedTotal / goal.targetAmount) * 100 
-                        : 0;
-                      return (
+                    {hasCombined && (
                         <div className="space-y-0.5">
                           <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                             <div
                               className={`h-1.5 rounded-full transition-all duration-500 ${
-                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
-                                combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-slate-700 to-[#0a0a0a]'
                               }`}
                               style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
                             />
                           </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                              Total Combinado: {formatCurrency(combinedTotal)}
-                            </p>
-                            <p className={`text-[10px] font-medium ${
-                              combinedPercentage >= 100 ? 'text-cyan-600' : 
-                              combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
-                            }`}>
-                              {combinedPercentage.toFixed(1)}%
-                            </p>
-                          </div>
                         </div>
-                      );
-                    })()}
+                    )}
                 </div>
               </div>
             );

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar, Check, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { buildPeriodDisplay } from "@/contexts/FilterContext";
 
 interface YearMonthSelection {
   years: number[];
@@ -270,7 +271,8 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
 
   const getDisplayText = () => {
     if (!value) return "Seleccionar período";
-    return value.display;
+    // El texto siempre se arma en español desde la selección (ver FilterContext)
+    return buildPeriodDisplay(value as any) || value.display;
   };
 
   return (

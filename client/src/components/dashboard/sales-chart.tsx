@@ -41,19 +41,21 @@ interface SalesChartProps {
   comparisonPeriods?: Array<{period: string, label: string, filterType: string}>;
 }
 
+// Paleta categórica de la intranet (ver skill panoramica-design): la serie
+// principal va en el naranjo de marca y las de comparación siguen el orden fijo.
 const CHART_COLORS = [
-  { border: '#22c55e', bg: 'rgba(34, 197, 94, 0.3)' },    // Verde
-  { border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.3)' },   // Azul
-  { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.3)' },   // Naranja
-  { border: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.3)' },   // Morado
-  { border: '#ec4899', bg: 'rgba(236, 72, 153, 0.3)' },   // Rosa
-  { border: '#14b8a6', bg: 'rgba(20, 184, 166, 0.3)' },   // Teal
-  { border: '#f97316', bg: 'rgba(249, 115, 22, 0.3)' },   // Naranja oscuro
-  { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.3)' },    // Cyan
+  { border: '#fd6301', bg: 'rgba(253, 99, 1, 0.3)' },     // Naranjo de marca
+  { border: '#2563eb', bg: 'rgba(37, 99, 235, 0.3)' },    // Azul
+  { border: '#10b981', bg: 'rgba(16, 185, 129, 0.3)' },   // Verde
+  { border: '#db2777', bg: 'rgba(219, 39, 119, 0.3)' },   // Rosa
+  { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.3)' },   // Ámbar
+  { border: '#7c3aed', bg: 'rgba(124, 58, 237, 0.3)' },   // Morado
+  { border: '#0d9488', bg: 'rgba(13, 148, 136, 0.3)' },   // Teal
+  { border: '#64748b', bg: 'rgba(100, 116, 139, 0.3)' },  // Otras
 ];
 
-// NVV-specific color
-const NVV_COLOR = { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.3)' };
+// NVV: color de estado "pendiente"
+const NVV_COLOR = { border: '#d97706', bg: 'rgba(217, 119, 6, 0.3)' };
 
 export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, product, branch, comparisonPeriods }: SalesChartProps) {
   // Auto-set chart period based on main filter type

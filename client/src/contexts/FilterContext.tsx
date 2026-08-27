@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
+
+// Etiqueta del período en español y con mayúscula inicial ("Agosto 2026")
+export function formatPeriodDisplay(date: Date): string {
+  const label = format(date, "MMMM yyyy", { locale: es });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export interface YearMonthSelection {
   years: number[];
@@ -42,6 +49,10 @@ interface FilterContextType {
   setSelection: (selection: YearMonthSelection) => void;
   globalFilter: GlobalFilter;
   setGlobalFilter: (filter: GlobalFilter) => void;
+  // Modo Facturado / Combinado (Facturado + NVV + GDV) del dashboard.
+  // Vive acá para que las tarjetas KPI y la tarjeta de meta muestren siempre lo mismo.
+  showCombined: boolean;
+  setShowCombined: (value: boolean) => void;
   gastosFilter: GastosFilter;
   setGastosFilter: (filter: GastosFilter) => void;
   updateGastosFilter: (partial: Partial<GastosFilter>) => void;
@@ -57,9 +68,51 @@ const getDefaultSelection = (): YearMonthSelection => {
     years: [now.getFullYear()],
     period: "month",
     months: [currentMonth], // Use months array in 1-12 format
-    display: format(now, "MMMM yyyy")
+    display: formatPeriodDisplay(now)
   };
 };
+
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
+// Texto del período en español, armado desde la selección misma.
+// Se usa para no depender del `display` guardado, que en versiones anteriores
+// se generaba en inglés ("August 2026") y quedó persistido en el navegador.
+export function buildPeriodDisplay(sel: YearMonthSelection): string | null {
+  if (!sel) return null;
+  const years = sel.years || [];
+  if (years.length === 0) return null;
+  const yearsStr = years.length === 1 ? `${years[0]}` : years.join(", ");
+
+  if (sel.period === "custom-range" && sel.startDate && sel.endDate) {
+    const fmt = (d: Date) => `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
+    return `${fmt(new Date(sel.startDate))} - ${fmt(new Date(sel.endDate))}`;
+  }
+
+  if (sel.period === "full-year") {
+    return `${yearsStr} (año completo)`;
+  }
+
+  const months = sel.months && sel.months.length > 0 ? sel.months : [];
+  const monthNames = months.map(m => MESES[m - 1]).filter(Boolean);
+  if (monthNames.length === 0) return null;
+  const monthsStr = monthNames.join(", ");
+
+  if ((sel.period === "day" || sel.period === "days") && sel.days && sel.days.length > 0) {
+    if (sel.days.length === 1 && monthNames.length === 1) {
+      return years.length === 1
+        ? `${sel.days[0]} ${monthNames[0]} ${years[0]}`
+        : `${sel.days[0]} ${monthNames[0]} (${yearsStr})`;
+    }
+    return years.length === 1
+      ? `Días ${sel.days.join(", ")} de ${monthsStr} ${years[0]}`
+      : `Días ${sel.days.join(", ")} de ${monthsStr} (${yearsStr})`;
+  }
+
+  return years.length === 1 ? `${monthsStr} ${years[0]}` : `${monthsStr} (${yearsStr})`;
+}
 
 const STORAGE_KEY_SELECTION = "dashboard_filter_selection";
 const STORAGE_KEY_GLOBAL_FILTER = "dashboard_global_filter";
@@ -81,7 +134,7 @@ const getDefaultGastosFilter = (): GastosFilter => {
       years: [y],
       period: "month",
       months: [m + 1],
-      display: format(now, "MMMM yyyy"),
+      display: formatPeriodDisplay(now),
     },
     vista: "all",
     vistaValue: "",
@@ -172,6 +225,9 @@ export function FilterProvider({ children }: { children: ReactNode }) {
           parsed.months = [parsed.months];
         }
 
+        // El texto guardado puede venir en inglés de versiones anteriores
+        parsed.display = buildPeriodDisplay(parsed) || parsed.display;
+
         return parsed;
       }
     } catch (e) {
@@ -192,6 +248,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     return { type: "all", value: "" };
   });
 
+  // Por defecto el dashboard arranca en Combinado, y vuelve a Combinado cada vez
+  // que se cambia de vista (Todo, Segmento, Sucursal, Vendedor...). No se persiste
+  // a propósito: cada entrada al dashboard parte del combinado.
+  const [showCombined, setShowCombined] = useState<boolean>(true);
+
   const [gastosFilter, setGastosFilterState] = useState<GastosFilter>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_GASTOS_FILTER);
@@ -205,7 +266,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
             years: [y],
             period: "month",
             months: [m],
-            display: format(new Date(y, m - 1, 1), "MMMM yyyy"),
+            display: formatPeriodDisplay(new Date(y, m - 1, 1)),
           };
         } else if (parsed.selection.startDate) {
           // Revive Date objects for custom-range
@@ -266,11 +327,16 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     }
 
     console.log("✅ [FilterContext] Actualizando selection state");
-    setSelectionState(newSelection);
+    setSelectionState({
+      ...newSelection,
+      display: buildPeriodDisplay(newSelection) || newSelection.display,
+    });
   };
 
   const setGlobalFilter = (filter: GlobalFilter) => {
     setGlobalFilterState(filter);
+    // Al cambiar de vista el dashboard vuelve al modo Combinado
+    setShowCombined(true);
   };
 
   const setGastosFilter = (filter: GastosFilter) => {
@@ -296,6 +362,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const resetFilters = () => {
     setSelectionState(getDefaultSelection());
     setGlobalFilterState({ type: "all", value: "" });
+    setShowCombined(true);
     setGastosFilterState(getDefaultGastosFilter());
   };
 
@@ -306,6 +373,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         setSelection,
         globalFilter,
         setGlobalFilter,
+        showCombined,
+        setShowCombined,
         gastosFilter,
         setGastosFilter,
         updateGastosFilter,

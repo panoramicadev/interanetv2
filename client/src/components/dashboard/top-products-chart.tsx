@@ -98,8 +98,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
       {!isSearchExpanded ? (
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
             </div>
             <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Top Productos</h2>
             
@@ -118,7 +118,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
             <Button
               variant="default"
               size="sm"
-              className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 flex-shrink-0"
+              className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-[#fd6301] hover:bg-[#fd6301] flex-shrink-0"
               data-testid="button-view-all-products"
             >
               <span className="hidden sm:inline">Análisis completo</span>
@@ -131,8 +131,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           {/* Búsqueda expandida a ancho completo */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="h-5 w-5 text-blue-600" />
+              <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="h-5 w-5 text-[#fd6301]" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
             </div>
@@ -151,7 +151,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               placeholder="Filtrar productos por nombre..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-orange-200 rounded-lg shadow-sm"
               data-testid="input-filter-products"
               autoFocus
             />
@@ -201,10 +201,10 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                 <AccordionItem 
                   key={product.productName} 
                   value={product.productName}
-                  className="border rounded-lg overflow-hidden bg-green-50/30 dark:bg-green-900/10"
+                  className="border rounded-lg overflow-hidden bg-orange-50/30 dark:bg-orange-950/30"
                 >
                   <AccordionTrigger 
-                    className="px-3 sm:px-4 py-3 hover:bg-green-50/50 dark:hover:bg-green-900/20 hover:no-underline"
+                    className="px-3 sm:px-4 py-3 hover:bg-orange-50/50 dark:hover:bg-green-900/20 hover:no-underline"
                     data-testid={`accordion-trigger-product-${index}`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full pr-4">
@@ -226,7 +226,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                         <div className="flex-1 sm:flex-none sm:w-32">
                           <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-green-500 dark:bg-green-600 rounded-full transition-all duration-500 ease-out"
+                              className="h-full bg-[#fd6301] dark:bg-[#fd6301] rounded-full transition-all duration-500 ease-out"
                               style={{ width: `${product.percentage}%` }}
                             ></div>
                           </div>
@@ -338,7 +338,7 @@ function ProductDetails({ productName, selectedPeriod, filterType, segment, sale
         {/* Total Ventas */}
         <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <DollarSign className="w-4 h-4 text-[#fd6301] dark:text-[#fd6301]" />
             <p className="text-xs text-gray-500 dark:text-gray-400">Total Ventas</p>
           </div>
           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -349,7 +349,7 @@ function ProductDetails({ productName, selectedPeriod, filterType, segment, sale
         {/* Unidades Vendidas */}
         <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <Package className="w-4 h-4 text-[#fd6301] dark:text-[#fd6301]" />
             <p className="text-xs text-gray-500 dark:text-gray-400">Unidades</p>
           </div>
           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -360,7 +360,7 @@ function ProductDetails({ productName, selectedPeriod, filterType, segment, sale
         {/* Clientes Únicos */}
         <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <Users className="w-4 h-4 text-[#fd6301] dark:text-[#fd6301]" />
             <p className="text-xs text-gray-500 dark:text-gray-400">Clientes</p>
           </div>
           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">

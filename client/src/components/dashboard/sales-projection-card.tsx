@@ -97,8 +97,8 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
   }
 
   const TrendIcon = data.trend === 'alza' ? TrendingUp : data.trend === 'baja' ? TrendingDown : Minus;
-  const trendColor = data.trend === 'alza' ? 'text-green-600' : data.trend === 'baja' ? 'text-red-600' : 'text-amber-600';
-  const trendBg = data.trend === 'alza' ? 'bg-green-50 dark:bg-green-950/30' : data.trend === 'baja' ? 'bg-red-50 dark:bg-red-950/30' : 'bg-amber-50 dark:bg-amber-950/30';
+  const trendColor = data.trend === 'alza' ? 'text-[#fd6301]' : data.trend === 'baja' ? 'text-red-600' : 'text-[#fd6301]';
+  const trendBg = data.trend === 'alza' ? 'bg-orange-50 dark:bg-orange-950/30' : data.trend === 'baja' ? 'bg-red-50 dark:bg-red-950/30' : 'bg-orange-50 dark:bg-orange-950/30';
   const trendLabel = data.trend === 'alza' ? 'Tendencia al alza' : data.trend === 'baja' ? 'Tendencia a la baja' : 'Tendencia estable';
 
   const salesProgressPct = data.projection > 0 ? Math.min((data.currentSales / data.projection) * 100, 100) : 0;
@@ -109,8 +109,8 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
     <div className="modern-card p-4 sm:p-6 relative overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Target className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/30 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Target className="w-5 h-5 text-[#fd6301] dark:text-[#fd6301]" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -132,7 +132,7 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
                 onClick={() => setProjectionType(opt.value)}
                 className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all whitespace-nowrap ${
                   isActive 
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 shadow-sm' 
+                    ? 'bg-white dark:bg-gray-700 text-[#fd6301] dark:text-orange-300 shadow-sm' 
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
@@ -156,7 +156,7 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
               {trendLabel}
             </div>
             {data.yoyChange !== null && (
-              <span className={`text-xs font-semibold ${data.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'} flex items-center gap-0.5`}>
+              <span className={`text-xs font-semibold ${data.yoyChange >= 0 ? 'text-[#fd6301]' : 'text-red-600'} flex items-center gap-0.5`}>
                 {data.yoyChange >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {data.yoyChange >= 0 ? '+' : ''}{data.yoyChange}% YoY
               </span>
@@ -166,7 +166,7 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
           <div className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5 mb-4">
             {data.factors.map((factor, i) => (
               <p key={i} className="flex items-start gap-2">
-                <span className="text-indigo-400 mt-1 flex-shrink-0">
+                <span className="text-[#fd6301] mt-1 flex-shrink-0">
                   <Activity className="w-3 h-3" />
                 </span>
                 <span>{factor}</span>
@@ -183,17 +183,17 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
                     key={mb.month}
                     className={`px-2 py-1.5 rounded-lg text-center min-w-[60px] ${
                       mb.isActual 
-                        ? 'bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800' 
-                        : 'bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800'
+                        ? 'bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800' 
+                        : 'bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800'
                     }`}
                   >
-                    <p className={`text-[9px] font-semibold ${mb.isActual ? 'text-green-600 dark:text-green-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                    <p className={`text-[9px] font-semibold ${mb.isActual ? 'text-[#fd6301] dark:text-[#fd6301]' : 'text-[#fd6301] dark:text-[#fd6301]'}`}>
                       {mb.month}
                     </p>
-                    <p className={`text-[10px] font-bold ${mb.isActual ? 'text-green-800 dark:text-green-300' : 'text-indigo-800 dark:text-indigo-300'}`}>
+                    <p className={`text-[10px] font-bold ${mb.isActual ? 'text-[#fd6301] dark:text-orange-300' : 'text-[#fd6301] dark:text-orange-300'}`}>
                       {formatCompact(mb.projected)}
                     </p>
-                    <p className={`text-[8px] ${mb.isActual ? 'text-green-500' : 'text-indigo-400'}`}>
+                    <p className={`text-[8px] ${mb.isActual ? 'text-[#fd6301]' : 'text-[#fd6301]'}`}>
                       {mb.isActual ? 'Real' : 'Proy.'}
                     </p>
                   </div>
@@ -212,7 +212,7 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ${salesProgressPct >= 90 ? 'bg-green-500' : salesProgressPct >= 60 ? 'bg-amber-500' : 'bg-red-400'}`}
+                  className={`h-2 rounded-full transition-all duration-500 ${salesProgressPct >= 90 ? 'bg-[#fd6301]' : salesProgressPct >= 60 ? 'bg-[#fd6301]' : 'bg-red-400'}`}
                   style={{ width: `${salesProgressPct}%` }}
                 />
               </div>
@@ -223,13 +223,13 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium mb-0.5">Prom. 6 meses</p>
-              <p className="text-xs font-bold text-blue-800 dark:text-blue-300">{formatCurrency(data.avg6)}</p>
+            <div className="bg-orange-50 dark:bg-orange-950/30 rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-[#fd6301] dark:text-[#fd6301] font-medium mb-0.5">Prom. 6 meses</p>
+              <p className="text-xs font-bold text-[#fd6301] dark:text-orange-300">{formatCurrency(data.avg6)}</p>
             </div>
-            <div className="bg-purple-50 dark:bg-purple-950/30 rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium mb-0.5">Prom. 12 meses</p>
-              <p className="text-xs font-bold text-purple-800 dark:text-purple-300">{formatCurrency(data.avg12)}</p>
+            <div className="bg-orange-50 dark:bg-orange-950/30 rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-[#fd6301] dark:text-[#fd6301] font-medium mb-0.5">Prom. 12 meses</p>
+              <p className="text-xs font-bold text-[#fd6301] dark:text-orange-300">{formatCurrency(data.avg12)}</p>
             </div>
           </div>
 
