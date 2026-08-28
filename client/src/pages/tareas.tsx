@@ -80,8 +80,8 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
-import { CreditoPanel } from "@/components/clients/credito-panel";
-import { useCredito } from "@/components/clients/credito-panel";
+import { CreditoPanel, useCredito } from "@/components/clients/credito-panel";
+import { EnviarCobranzaButton } from "@/components/clients/enviar-cobranza";
 import { nivelCredito, useCreditoSemaforo } from "@/components/clients/credito-semaforo";
 import { SeguimientoObrasContent } from "@/pages/obras-seguimiento";
 import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seguimiento-clientes";
@@ -6937,8 +6937,23 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
 // completa (misma info que en Clientes: línea, antigüedad y documentos); la
 // compacta queda para bloques con poco alto.
 function CobranzaPanel({ clienteNombre, variant = "full" }: { clienteNombre: string; variant?: "full" | "compact" }) {
+  // El botón "Enviar cobranza" es el mismo de la ficha del cliente: se cobra
+  // desde acá sin tener que salir del Panel de Trabajo. Va siempre, en todos los
+  // seguimientos (ferretería, construcción, industrial) y aunque el cliente no
+  // tenga facturas pendientes: el monto y la fecha se pueden escribir a mano.
+  // Sólo se esconde a quien no tiene permiso de mandar cobranzas.
   if (!clienteNombre) return <p className="text-xs text-slate-400 italic">Sin cliente asociado.</p>;
-  return <CreditoPanel clientName={clienteNombre} variant={variant} />;
+  return (
+    <CreditoPanel
+      clientName={clienteNombre}
+      variant={variant}
+      footer={
+        <div className="pt-1">
+          <EnviarCobranzaButton clientName={clienteNombre} testId="button-enviar-cobranza-tarea" />
+        </div>
+      }
+    />
+  );
 }
 
 function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {

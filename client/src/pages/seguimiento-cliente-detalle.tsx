@@ -53,6 +53,7 @@ import {
 import { PedidosTab, NVVTab } from "@/components/crm/pedidos-nvv-tabs";
 import { ComunaSelect } from "@/components/shared/comuna-select";
 import { CreditoPanel, useCredito, type CreditoResponse } from "@/components/clients/credito-panel";
+import { EnviarCobranzaButton } from "@/components/clients/enviar-cobranza";
 
 // Constructor de presupuesto del Tomador 2, en modo modal embebido (se
 // abre al pinchar la etapa "Cotización"). Lazy: no cargar el tomador
@@ -1987,18 +1988,24 @@ export default function SeguimientoClienteDetalle() {
                   clientName={creditoNombre}
                   rut={client.rut}
                   footer={
-                    // "Enviar cobranza" vive en la ficha de Clientes (con su flujo de
-                    // correo); desde acá se salta allá en vez de duplicarlo.
-                    creditoNombre && (credito?.docs.length ?? 0) > 0 ? (
-                      <div className="pt-1">
+                    // Mismo botón (y mismo correo) que la ficha de Clientes: acá se
+                    // cobra sin tener que saltar a otro módulo. Va siempre que haya
+                    // cliente, tenga o no facturas pendientes hoy.
+                    creditoNombre ? (
+                      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+                        <EnviarCobranzaButton
+                          clientName={creditoNombre}
+                          rut={client.rut}
+                          testId="button-enviar-cobranza-seguimiento"
+                        />
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => navigate(`/client/${encodeURIComponent(creditoNombre)}`)}
-                          className="w-full rounded-2xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
+                          className="w-full rounded-2xl text-muted-foreground hover:text-foreground sm:w-auto"
                           data-testid="btn-ir-a-cobranza"
                         >
-                          <Send className="w-3.5 h-3.5 mr-2" /> Gestionar cobranza en Clientes
+                          Ver ficha en Clientes
                         </Button>
                       </div>
                     ) : null
