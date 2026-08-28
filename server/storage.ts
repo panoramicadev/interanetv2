@@ -28105,25 +28105,21 @@ export class DatabaseStorage implements IStorage {
       const gdvCached = this.getCached<any>(gdvCacheKey);
       if (gdvCached) return gdvCached;
 
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
-
-      // Build WHERE clause with filters
+      // Pendiente vivo: sin corte de fecha, igual que las NVV y que la tarjeta KPI.
+      // Una guía sigue pendiente aunque se haya emitido el mes pasado.
       let whereClause = `WHERE (gdv.eslido IS NULL OR gdv.eslido = '')
-        AND gdv.cantidad_pendiente = true
-        AND gdv.feemdo >= '${dateFilter}'`;
+        AND gdv.cantidad_pendiente = true`;
 
       if (salesperson) {
         const normalizedSalesperson = salesperson.trim().toUpperCase();
         whereClause += ` AND (UPPER(gdv.nokofu) LIKE '%${normalizedSalesperson}%' OR UPPER(gdv.kofulido) LIKE '%${normalizedSalesperson}%')`;
       }
 
-      // For GDV, segment filter needs to join with nvv.fact_nvv which has the segmento info
-      // We'll use a subquery approach - get endo values that match the segment from nvv
+      // El segmento sale de la propia guía (noruen), igual que en el resto del
+      // dashboard. Antes se buscaba el cliente en nvv.fact_nvv, y los segmentos
+      // con guías pero sin notas de venta (INDUSTRIAL, por ejemplo) quedaban en $0.
       if (segment) {
-        // Filter by endo codes that belong to the segment in nvv table
-        whereClause += ` AND gdv.endo IN (SELECT endo FROM nvv.fact_nvv WHERE ${segmentRawStringCondition("COALESCE(nombre_segmento_cliente, '')", segment)} GROUP BY endo)`;
+        whereClause += ` AND ${segmentRawStringCondition("COALESCE(gdv.noruen, '')", segment)}`;
       }
 
       // Scope de datos del encargado de área (sucursales asignadas), por código de cliente.
