@@ -650,58 +650,58 @@ export default function SalespersonDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="section-kpi-cards">
 
           {/* Ventas Totales */}
-          <Card className="rounded-2xl shadow-sm border border-emerald-100 bg-emerald-50/60" data-testid="card-ventas-totales">
+          <Card className="rounded-2xl shadow-sm border border-orange-200 bg-orange-50/60" data-testid="card-ventas-totales">
             <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#fd6301] flex items-center justify-center">
                 <DollarSign className="h-4 w-4 text-white" />
               </div>
-              <div className="text-xl font-bold text-emerald-900 truncate" data-testid="text-ventas-totales">
+              <div className="text-xl font-bold text-[#fd6301] truncate" data-testid="text-ventas-totales">
                 {formatCurrency(salesData.totalSales)}
               </div>
-              <p className="text-xs text-emerald-600 font-medium">Ventas Totales</p>
+              <p className="text-xs text-[#fd6301] font-medium">Ventas Totales</p>
             </CardContent>
           </Card>
 
           {/* Clientes */}
           <Card
-            className="rounded-2xl shadow-sm border border-blue-100 bg-blue-50/60 cursor-pointer hover:shadow-md transition-shadow"
+            className="rounded-2xl shadow-sm border border-orange-200 bg-orange-50/60 cursor-pointer hover:shadow-md transition-shadow"
             data-testid="card-clientes"
             onClick={() => setShowClientsDialog(true)}
           >
             <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#fd6301] flex items-center justify-center">
                 <Users className="h-4 w-4 text-white" />
               </div>
-              <div className="text-xl font-bold text-blue-900" data-testid="text-clientes">
+              <div className="text-xl font-bold text-[#fd6301]" data-testid="text-clientes">
                 {salesData.clientCount}
               </div>
-              <p className="text-xs text-blue-600 font-medium">Clientes</p>
+              <p className="text-xs text-[#fd6301] font-medium">Clientes</p>
             </CardContent>
           </Card>
 
           {/* Días última venta */}
-          <Card className="rounded-2xl shadow-sm border border-amber-100 bg-amber-50/60" data-testid="card-dias-ultima-venta">
+          <Card className="rounded-2xl shadow-sm border border-orange-200 bg-orange-50/60" data-testid="card-dias-ultima-venta">
             <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#fd6301] flex items-center justify-center">
                 <Clock className="h-4 w-4 text-white" />
               </div>
-              <div className="text-xl font-bold text-amber-900" data-testid="text-dias-ultima-venta">
+              <div className="text-xl font-bold text-[#fd6301]" data-testid="text-dias-ultima-venta">
                 {salesData.daysSinceLastSale}d
               </div>
-              <p className="text-xs text-amber-600 font-medium">Días sin venta</p>
+              <p className="text-xs text-[#fd6301] font-medium">Días sin venta</p>
             </CardContent>
           </Card>
 
           {/* Clientes Nuevos */}
-          <Card className="rounded-2xl shadow-sm border border-teal-100 bg-teal-50/60" data-testid="card-clientes-nuevos">
+          <Card className="rounded-2xl shadow-sm border border-orange-200 bg-orange-50/60" data-testid="card-clientes-nuevos">
             <CardContent className="p-4 flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#fd6301] flex items-center justify-center">
                 <Users className="h-4 w-4 text-white" />
               </div>
-              <div className="text-xl font-bold text-teal-900" data-testid="text-clientes-nuevos">
+              <div className="text-xl font-bold text-[#fd6301]" data-testid="text-clientes-nuevos">
                 {salespersonData?.newClients || 0}
               </div>
-              <p className="text-xs text-teal-600 font-medium">Clientes Nuevos</p>
+              <p className="text-xs text-[#fd6301] font-medium">Clientes Nuevos</p>
             </CardContent>
           </Card>
 
@@ -725,7 +725,7 @@ export default function SalespersonDashboard() {
           <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
             <CardHeader className="p-3 sm:p-4 md:p-6">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="bg-blue-500 rounded-full p-1.5 sm:p-2">
+                <div className="bg-[#fd6301] rounded-full p-1.5 sm:p-2">
                   <BarChart3 className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -746,7 +746,7 @@ export default function SalespersonDashboard() {
                   {segments.map((segment) => (
                     <div
                       key={segment.segment}
-                      className="border border-blue-200 bg-blue-50/60 rounded-lg sm:rounded-xl p-3 flex items-center gap-3 lg:min-w-[280px] lg:flex-1"
+                      className="border border-orange-200 bg-orange-50/60 rounded-lg sm:rounded-xl p-3 flex items-center gap-3 lg:min-w-[280px] lg:flex-1"
                       data-testid={`row-segment-${segment.segment}`}
                     >
                       <div className="flex-1 min-w-0">
@@ -755,7 +755,7 @@ export default function SalespersonDashboard() {
                       </div>
                       <div className="text-right whitespace-nowrap">
                         <p className="text-xs text-gray-600">Ventas</p>
-                        <p className="text-sm font-semibold text-blue-700">
+                        <p className="text-sm font-semibold text-[#fd6301]">
                           {formatCurrency(segment.totalSales)}
                         </p>
                       </div>
@@ -774,7 +774,7 @@ export default function SalespersonDashboard() {
               <CardHeader className="p-3 sm:p-4 md:p-6">
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="bg-purple-500 rounded-full p-1.5 sm:p-2">
+                    <div className="bg-[#fd6301] rounded-full p-1.5 sm:p-2">
                       <Target className="h-5 w-5 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -840,15 +840,15 @@ export default function SalespersonDashboard() {
                             cumplimiento >= 50 ? 'parcial' : 'baja';
 
                       const colorClasses = {
-                        cumplida: 'border-emerald-200 bg-emerald-50/50',
-                        cerca: 'border-amber-200 bg-amber-50/50',
+                        cumplida: 'border-orange-200 bg-orange-50/50',
+                        cerca: 'border-orange-200 bg-orange-50/50',
                         parcial: 'border-orange-200 bg-orange-50/50',
                         baja: 'border-rose-200 bg-rose-50/50'
                       };
 
                       const badgeClasses = {
-                        cumplida: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                        cerca: 'bg-amber-100 text-amber-800 border-amber-200',
+                        cumplida: 'bg-orange-50 text-[#fd6301] border-orange-200',
+                        cerca: 'bg-orange-50 text-[#fd6301] border-orange-200',
                         parcial: 'bg-orange-100 text-orange-800 border-orange-200',
                         baja: 'bg-rose-100 text-rose-800 border-rose-200'
                       };
@@ -908,8 +908,8 @@ export default function SalespersonDashboard() {
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
                                   <div
-                                    className={`h-full rounded-full transition-all ${estado === 'cumplida' ? 'bg-emerald-500' :
-                                      estado === 'cerca' ? 'bg-amber-500' :
+                                    className={`h-full rounded-full transition-all ${estado === 'cumplida' ? 'bg-[#fd6301]' :
+                                      estado === 'cerca' ? 'bg-[#fd6301]' :
                                         estado === 'parcial' ? 'bg-orange-500' : 'bg-rose-500'
                                       }`}
                                     style={{ width: `${Math.min(cumplimiento, 100)}%` }}
@@ -935,7 +935,7 @@ export default function SalespersonDashboard() {
               <CardHeader className="p-3 sm:p-4 md:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2 sm:gap-3 flex-1">
-                    <div className="bg-cyan-500 rounded-full p-1.5 sm:p-2">
+                    <div className="bg-[#fd6301] rounded-full p-1.5 sm:p-2">
                       <Package className="h-5 w-5 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -947,7 +947,7 @@ export default function SalespersonDashboard() {
                   </div>
                   <div className="flex items-center justify-between sm:justify-end sm:text-right gap-2">
                     <div>
-                      <div className="text-xl sm:text-2xl font-bold text-cyan-900">
+                      <div className="text-xl sm:text-2xl font-bold text-[#fd6301]">
                         {formatCurrency(nvvPendingData.total || 0)}
                       </div>
                       <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
@@ -960,7 +960,7 @@ export default function SalespersonDashboard() {
                   {nvvPendingData.clients.slice(0, 10).map((client: any, idx: number) => (
                     <div
                       key={idx}
-                      className="border border-cyan-200 bg-cyan-50/50 rounded-lg sm:rounded-xl p-3"
+                      className="border border-orange-200 bg-orange-50/50 rounded-lg sm:rounded-xl p-3"
                       data-testid={`nvv-client-${idx}`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -974,7 +974,7 @@ export default function SalespersonDashboard() {
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-gray-600">Pendiente</p>
-                          <p className="font-semibold text-sm text-cyan-700">
+                          <p className="font-semibold text-sm text-[#fd6301]">
                             {formatCurrency(client.totalPending)}
                           </p>
                         </div>
@@ -998,7 +998,7 @@ export default function SalespersonDashboard() {
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40 lg:col-span-2" data-testid="card-smart-notifications">
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-3">
-                  <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
+                  <div className="bg-[#fd6301] rounded-full p-2 sm:p-3">
                     <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                   </div>
                   <div>
@@ -1117,17 +1117,17 @@ export default function SalespersonDashboard() {
             </DialogTitle>
 
             {/* BUSCADOR - Ahora dentro del DialogHeader para máxima visibilidad */}
-            <div className="w-full bg-blue-100 border-4 border-blue-500 rounded-lg p-4">
+            <div className="w-full bg-orange-50 border-4 border-orange-200 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Search className="h-6 w-6 text-blue-700" />
-                <span className="text-base font-bold text-blue-900">BUSCAR CLIENTE</span>
+                <Search className="h-6 w-6 text-[#fd6301]" />
+                <span className="text-base font-bold text-[#fd6301]">BUSCAR CLIENTE</span>
               </div>
               <input
                 type="text"
                 placeholder="Escriba nombre o RUT del cliente..."
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
-                className="w-full px-4 py-3 text-lg border-2 border-blue-400 rounded-md focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-300"
+                className="w-full px-4 py-3 text-lg border-2 border-orange-200 rounded-md focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-orange-300"
                 style={{ fontSize: '16px' }}
               />
             </div>
@@ -1185,21 +1185,21 @@ export default function SalespersonDashboard() {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div className="text-center">
                               <p className="text-gray-500 text-xs">Ventas Totales</p>
-                              <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
+                              <p className="font-bold text-[#fd6301]" data-testid={`client-sales-${index}`}>
                                 {formatCurrency(client.totalSales || 0)}
                               </p>
                             </div>
 
                             <div className="text-center">
                               <p className="text-gray-500 text-xs">Transacciones</p>
-                              <p className="font-bold text-green-600" data-testid={`client-transactions-${index}`}>
+                              <p className="font-bold text-[#fd6301]" data-testid={`client-transactions-${index}`}>
                                 {client.transactionCount || 0}
                               </p>
                             </div>
 
                             <div className="text-center">
                               <p className="text-gray-500 text-xs">Ticket Prom.</p>
-                              <p className="font-bold text-purple-600">
+                              <p className="font-bold text-[#fd6301]">
                                 {formatCurrency((client.totalSales || 0) / (client.transactionCount || 1))}
                               </p>
                             </div>

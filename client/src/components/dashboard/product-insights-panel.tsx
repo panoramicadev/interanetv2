@@ -199,18 +199,18 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
   const sellers = data.salespeople;
   const kpis = [
-    { label: "Ventas", value: fmtCurrency(data.totalSales), icon: DollarSign, g: "from-emerald-500 to-green-600", s: "shadow-emerald-500/20" },
-    { label: "Unidades", value: fmtNumber(data.totalUnits), icon: Package, g: "from-blue-500 to-indigo-600", s: "shadow-blue-500/20" },
-    { label: "Transacciones", value: fmtNumber(data.transactionCount), icon: TrendingUp, g: "from-rose-500 to-pink-600", s: "shadow-rose-500/20" },
-    { label: "Clientes", value: fmtNumber(data.uniqueClients), icon: Users, g: "from-amber-500 to-orange-600", s: "shadow-amber-500/20" },
-    { label: "Variantes", value: fmtNumber(data.variantCount), icon: Layers, g: "from-purple-500 to-violet-600", s: "shadow-purple-500/20" },
+    { label: "Ventas", value: fmtCurrency(data.totalSales), icon: DollarSign, g: "from-[#fd6301] to-[#e35400]", s: "shadow-emerald-500/20" },
+    { label: "Unidades", value: fmtNumber(data.totalUnits), icon: Package, g: "from-[#fd6301] to-[#e35400]", s: "shadow-blue-500/20" },
+    { label: "Transacciones", value: fmtNumber(data.transactionCount), icon: TrendingUp, g: "from-rose-500 to-[#e35400]", s: "shadow-rose-500/20" },
+    { label: "Clientes", value: fmtNumber(data.uniqueClients), icon: Users, g: "from-[#fd6301] to-orange-600", s: "shadow-amber-500/20" },
+    { label: "Variantes", value: fmtNumber(data.variantCount), icon: Layers, g: "from-[#fd6301] to-[#e35400]", s: "shadow-purple-500/20" },
   ];
 
   return (
     <div className="space-y-4">
       {/* Title */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/20">
+        <div className="w-10 h-10 bg-gradient-to-br from-[#fd6301] to-[#e35400] rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/20">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <div>
@@ -236,12 +236,12 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
       {/* Seasonality */}
       <SectionCard
-        icon={<TrendingUp className="w-4.5 h-4.5 text-white" />} gradient="from-blue-500 to-indigo-600" shadow="shadow-blue-500/20"
+        icon={<TrendingUp className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-blue-500/20"
         title="Estacionalidad" subtitle="Ventas mensuales (últimos 12 meses) · cuándo se vende más y cuándo menos"
         right={
           <div className="hidden sm:flex items-center gap-2">
-            {peak && <Badge className="bg-green-100 text-green-700 border-green-200"><ArrowUp className="h-3 w-3 mr-1" />Peak: {peak.label} · {fmtCurrency(peak.sales)}</Badge>}
-            {low && <Badge className="bg-amber-100 text-amber-700 border-amber-200"><ArrowDown className="h-3 w-3 mr-1" />Bajo: {low.label} · {fmtCurrency(low.sales)}</Badge>}
+            {peak && <Badge className="bg-orange-50 text-[#fd6301] border-orange-200"><ArrowUp className="h-3 w-3 mr-1" />Peak: {peak.label} · {fmtCurrency(peak.sales)}</Badge>}
+            {low && <Badge className="bg-orange-50 text-[#fd6301] border-orange-200"><ArrowDown className="h-3 w-3 mr-1" />Bajo: {low.label} · {fmtCurrency(low.sales)}</Badge>}
           </div>
         }
       >
@@ -273,7 +273,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
       {/* Colors + Formats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard icon={<Palette className="w-4.5 h-4.5 text-white" />} gradient="from-purple-500 to-violet-600" shadow="shadow-purple-500/20"
+        <SectionCard icon={<Palette className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-purple-500/20"
           title="Colores" subtitle={`${data.colorBreakdown.length} colores vendidos`}>
           {data.colorBreakdown.length > 0 ? (
             <div className="space-y-2.5">
@@ -283,34 +283,34 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                   <span className="text-sm font-medium text-gray-700 w-28 truncate">{c.color}</span>
                   <div className="flex-1">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.min(c.percentage, 100)}%` }} />
+                      <div className="h-full rounded-full bg-[#fd6301]" style={{ width: `${Math.min(c.percentage, 100)}%` }} />
                     </div>
                   </div>
                   <Badge variant="secondary" className="text-xs shrink-0">{c.percentage.toFixed(1)}%</Badge>
-                  <span className="text-xs font-bold text-green-700 w-24 text-right shrink-0">{fmtCurrency(c.totalSales)}</span>
+                  <span className="text-xs font-bold text-[#fd6301] w-24 text-right shrink-0">{fmtCurrency(c.totalSales)}</span>
                 </div>
               ))}
             </div>
           ) : <p className="text-center text-sm text-gray-400 py-6">Sin datos</p>}
         </SectionCard>
 
-        <SectionCard icon={<Package className="w-4.5 h-4.5 text-white" />} gradient="from-green-500 to-emerald-600" shadow="shadow-green-500/20"
+        <SectionCard icon={<Package className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-green-500/20"
           title="Formatos" subtitle={`${data.formatBreakdown.length} formatos del producto`}>
           {data.formatBreakdown.length > 0 ? (
             <div className="space-y-2.5">
               {data.formatBreakdown.map((f) => (
                 <div key={f.format} className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center shrink-0">
+                  <span className="w-8 h-8 rounded-lg bg-orange-50 text-[#fd6301] flex items-center justify-center shrink-0">
                     <FormatIcon format={f.format} className="w-4 h-4" />
                   </span>
                   <span className="text-sm font-medium text-gray-700 w-28 truncate">{f.format}</span>
                   <div className="flex-1">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(f.percentage, 100)}%` }} />
+                      <div className="h-full rounded-full bg-[#fd6301]" style={{ width: `${Math.min(f.percentage, 100)}%` }} />
                     </div>
                   </div>
                   <Badge variant="secondary" className="text-xs shrink-0">{f.percentage.toFixed(1)}%</Badge>
-                  <span className="text-xs font-bold text-green-700 w-24 text-right shrink-0">{fmtCurrency(f.totalSales)}</span>
+                  <span className="text-xs font-bold text-[#fd6301] w-24 text-right shrink-0">{fmtCurrency(f.totalSales)}</span>
                 </div>
               ))}
             </div>
@@ -320,12 +320,12 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
       {/* Color × Format matrix */}
       {matrixColors.length > 0 && matrixFormats.length > 0 && (
-        <SectionCard icon={<Grid3x3 className="w-4.5 h-4.5 text-white" />} gradient="from-cyan-500 to-teal-600" shadow="shadow-cyan-500/20"
+        <SectionCard icon={<Grid3x3 className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-cyan-500/20"
           title="Matriz Color × Formato" subtitle="Detalle cruzado por color y formato"
           right={
             <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs">
-              <button onClick={() => setMatrixMetric("sales")} className={cn("px-3 py-1.5 font-medium", matrixMetric === "sales" ? "bg-teal-500 text-white" : "bg-white text-gray-600")} data-testid="matrix-metric-sales">Ventas</button>
-              <button onClick={() => setMatrixMetric("units")} className={cn("px-3 py-1.5 font-medium", matrixMetric === "units" ? "bg-teal-500 text-white" : "bg-white text-gray-600")} data-testid="matrix-metric-units">Unidades</button>
+              <button onClick={() => setMatrixMetric("sales")} className={cn("px-3 py-1.5 font-medium", matrixMetric === "sales" ? "bg-[#fd6301] text-white" : "bg-white text-gray-600")} data-testid="matrix-metric-sales">Ventas</button>
+              <button onClick={() => setMatrixMetric("units")} className={cn("px-3 py-1.5 font-medium", matrixMetric === "units" ? "bg-[#fd6301] text-white" : "bg-white text-gray-600")} data-testid="matrix-metric-units">Unidades</button>
             </div>
           }
         >
@@ -371,23 +371,23 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
 
       {/* Clients + Salespeople */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard icon={<Users className="w-4.5 h-4.5 text-white" />} gradient="from-cyan-500 to-teal-600" shadow="shadow-cyan-500/20"
+        <SectionCard icon={<Users className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-cyan-500/20"
           title="Clientes que más lo compran" subtitle={`Top ${Math.min(data.topClients.length, 10)} clientes`}>
           {data.topClients.length > 0 ? (
             <div className="space-y-1">
               {data.topClients.slice(0, 10).map((c, i) => (
                 <div key={c.clientName} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                  <span className={cn("text-xs font-bold w-5 text-right shrink-0", i === 0 ? "text-amber-500" : "text-gray-400")}>{i + 1}</span>
+                  <span className={cn("text-xs font-bold w-5 text-right shrink-0", i === 0 ? "text-[#fd6301]" : "text-gray-400")}>{i + 1}</span>
                   <span className="text-sm text-gray-700 flex-1 truncate">{c.clientName}</span>
                   <span className="text-xs text-gray-400 shrink-0">{fmtNumber(c.totalUnits)} u.</span>
-                  <span className="text-xs font-bold text-green-700 shrink-0 w-24 text-right">{fmtCurrency(c.totalSales)}</span>
+                  <span className="text-xs font-bold text-[#fd6301] shrink-0 w-24 text-right">{fmtCurrency(c.totalSales)}</span>
                 </div>
               ))}
             </div>
           ) : <p className="text-center text-sm text-gray-400 py-6">Sin datos</p>}
         </SectionCard>
 
-        <SectionCard icon={<UserCheck className="w-4.5 h-4.5 text-white" />} gradient="from-indigo-500 to-blue-600" shadow="shadow-indigo-500/20"
+        <SectionCard icon={<UserCheck className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-indigo-500/20"
           title="Vendedores" subtitle={`${sellers.length} venden este producto`}>
           {sellers.length > 0 ? (
             <div className="space-y-1">
@@ -396,15 +396,15 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                 const isBottom = i === sellers.length - 1 && sellers.length > 1;
                 return (
                   <div key={s.salespersonName} className={cn("flex items-center gap-3 py-1.5 px-2 rounded-lg border-b border-gray-50 last:border-0",
-                    isTop && "bg-green-50/60", isBottom && "bg-amber-50/60")}>
+                    isTop && "bg-orange-50/60", isBottom && "bg-orange-50/60")}>
                     <span className="text-xs font-bold text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-gray-700 block truncate">{s.salespersonName}</span>
                       <span className="text-xs text-gray-400">{s.clientCount} clientes · {fmtNumber(s.totalUnits)} u.</span>
                     </div>
-                    {isTop && <Badge className="bg-green-100 text-green-700 border-green-200 shrink-0"><ArrowUp className="h-3 w-3 mr-0.5" />Más</Badge>}
-                    {isBottom && <Badge className="bg-amber-100 text-amber-700 border-amber-200 shrink-0"><ArrowDown className="h-3 w-3 mr-0.5" />Menos</Badge>}
-                    <span className="text-xs font-bold text-green-700 shrink-0 w-24 text-right">{fmtCurrency(s.totalSales)}</span>
+                    {isTop && <Badge className="bg-orange-50 text-[#fd6301] border-orange-200 shrink-0"><ArrowUp className="h-3 w-3 mr-0.5" />Más</Badge>}
+                    {isBottom && <Badge className="bg-orange-50 text-[#fd6301] border-orange-200 shrink-0"><ArrowDown className="h-3 w-3 mr-0.5" />Menos</Badge>}
+                    <span className="text-xs font-bold text-[#fd6301] shrink-0 w-24 text-right">{fmtCurrency(s.totalSales)}</span>
                   </div>
                 );
               })}
@@ -415,7 +415,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
           {data.salespeopleNotSelling.length > 0 && (
             <Collapsible open={showNotSelling} onOpenChange={setShowNotSelling} className="mt-3 border-t border-gray-100 pt-3">
               <CollapsibleTrigger className="w-full flex items-center justify-between text-sm text-gray-600 hover:text-gray-900" data-testid="toggle-not-selling">
-                <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-amber-500" />No lo venden ({data.salespeopleNotSelling.length}) · oportunidad</span>
+                <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-[#fd6301]" />No lo venden ({data.salespeopleNotSelling.length}) · oportunidad</span>
                 <ChevronDown className={cn("h-4 w-4 transition-transform", showNotSelling && "rotate-180")} />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2">
@@ -437,7 +437,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
         <Collapsible open={showVariants} onOpenChange={setShowVariants}>
           <CollapsibleTrigger className="w-full flex items-center justify-between" data-testid="toggle-variants">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20">
+              <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-[#e35400] rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20">
                 <Layers className="w-4.5 h-4.5 text-white" />
               </div>
               <div className="text-left">
@@ -475,7 +475,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
                           <span className="text-sm">{v.color}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium text-green-700 text-sm">{fmtCurrency(v.totalSales)}</TableCell>
+                      <TableCell className="text-right font-medium text-[#fd6301] text-sm">{fmtCurrency(v.totalSales)}</TableCell>
                       <TableCell className="text-right text-sm">{fmtNumber(v.totalUnits)}</TableCell>
                       <TableCell className="text-right text-sm text-gray-500">{fmtNumber(v.transactionCount)}</TableCell>
                     </TableRow>

@@ -1,4 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
+import { CHART_COLORS_SOFT } from "@/lib/chart-palette";
 import { DollarSign, Package, TrendingUp, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bar } from "react-chartjs-2";
@@ -46,16 +47,8 @@ const COLORS = {
   pink: 'rgba(236, 72, 153, 0.8)',
 };
 
-const CATEGORY_COLORS = [
-  COLORS.primary,
-  COLORS.success,
-  COLORS.warning,
-  COLORS.purple,
-  COLORS.orange,
-  COLORS.teal,
-  COLORS.pink,
-  COLORS.danger,
-];
+// Paleta categórica de la intranet: la primera serie va en el naranjo de marca
+const CATEGORY_COLORS = CHART_COLORS_SOFT;
 
 export default function ComparativeKPICards({ periods, segment, salesperson, client }: ComparativeKPICardsProps) {
   const metricsQueries = useQueries({

@@ -168,14 +168,14 @@ export default function TopClientsPanel({
   }, [view]);
 
   const isNewView = view === "new";
-  const accentBg = isNewView ? "bg-purple-100" : "bg-blue-100";
-  const accentText = isNewView ? "text-purple-600" : "text-blue-600";
-  const barColor = isNewView ? "bg-purple-500" : "bg-blue-500";
-  const totalRowBg = isNewView ? "bg-purple-50" : "bg-blue-50";
-  const totalRowText = isNewView ? "text-purple-900" : "text-blue-900";
-  const totalRowTextMuted = isNewView ? "text-purple-700" : "text-blue-700";
+  const accentBg = isNewView ? "bg-orange-50" : "bg-orange-50";
+  const accentText = isNewView ? "text-[#fd6301]" : "text-[#fd6301]";
+  const barColor = isNewView ? "bg-[#fd6301]" : "bg-[#fd6301]";
+  const totalRowBg = isNewView ? "bg-orange-50" : "bg-orange-50";
+  const totalRowText = isNewView ? "text-[#fd6301]" : "text-[#fd6301]";
+  const totalRowTextMuted = isNewView ? "text-[#fd6301]" : "text-[#fd6301]";
   const totalRowBarBg = isNewView ? "bg-purple-200" : "bg-blue-200";
-  const totalRowBarFill = isNewView ? "bg-purple-600" : "bg-blue-600";
+  const totalRowBarFill = isNewView ? "bg-[#fd6301]" : "bg-[#fd6301]";
 
   return (
     <div className="space-y-4" id={TOP_CLIENTS_PANEL_ID} data-testid="top-clients-panel">
@@ -214,7 +214,7 @@ export default function TopClientsPanel({
                 aria-selected={!isNewView}
                 onClick={() => setView("top")}
                 className={`px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${
-                  !isNewView ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  !isNewView ? "bg-white text-[#fd6301] shadow-sm" : "text-gray-600 hover:text-gray-900"
                 }`}
                 data-testid="button-clients-view-top"
               >
@@ -226,7 +226,7 @@ export default function TopClientsPanel({
                 aria-selected={isNewView}
                 onClick={() => setView("new")}
                 className={`px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${
-                  isNewView ? "bg-white text-purple-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  isNewView ? "bg-white text-[#fd6301] shadow-sm" : "text-gray-600 hover:text-gray-900"
                 }`}
                 data-testid="button-clients-view-new"
               >
@@ -238,7 +238,7 @@ export default function TopClientsPanel({
               <Button
                 variant="default"
                 size="sm"
-                className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700"
+                className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-[#fd6301] hover:bg-[#fd6301]"
                 data-testid="button-view-all-clients"
               >
                 <span className="hidden sm:inline">Ver todos</span>
@@ -278,7 +278,7 @@ export default function TopClientsPanel({
               placeholder="Filtrar clientes por nombre..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-orange-200 rounded-lg shadow-sm"
               data-testid="input-filter-clients"
               autoFocus
             />

@@ -298,25 +298,25 @@ export default function TecnicoObraDashboard() {
       <main className="px-4 lg:px-6 pb-6 space-y-6">
         {/* Progreso de Meta Principal - Solo si hay metas */}
         {primaryGoal && (
-          <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-r from-green-50 to-blue-50">
+          <Card className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-r from-green-50 to-blue-50">
             <CardContent className="pt-6">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-green-600" />
+                    <Target className="h-5 w-5 text-[#fd6301]" />
                     <span className="text-sm font-semibold text-gray-700">Meta de Ventas</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {(primaryGoal.progress || 0) >= 100 ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-[#fd6301]" />
                     ) : (primaryGoal.progress || 0) >= 70 ? (
-                      <TrendingUp className="h-4 w-4 text-yellow-600" />
+                      <TrendingUp className="h-4 w-4 text-[#fd6301]" />
                     ) : (
                       <AlertCircle className="h-4 w-4 text-red-600" />
                     )}
                     <span className={`text-xs font-medium ${
-                      (primaryGoal.progress || 0) >= 100 ? 'text-green-600' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
+                      (primaryGoal.progress || 0) >= 100 ? 'text-[#fd6301]' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'text-[#fd6301]' : 'text-red-600'
                     }`}>
                       {(primaryGoal.progress || 0).toFixed(1)}%
                     </span>
@@ -326,8 +326,8 @@ export default function TecnicoObraDashboard() {
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
                     className={`h-3 rounded-full transition-all duration-500 ${
-                      (primaryGoal.progress || 0) >= 100 ? 'bg-green-500' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                      (primaryGoal.progress || 0) >= 100 ? 'bg-[#fd6301]' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'bg-[#fd6301]' : 'bg-red-500'
                     }`}
                     style={{ width: `${Math.min(primaryGoal.progress || 0, 100)}%` }}
                   ></div>
@@ -344,50 +344,50 @@ export default function TecnicoObraDashboard() {
 
         {/* KPIs del Vendedor */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="rounded-2xl shadow-sm border-blue-100 bg-gradient-to-br from-blue-50 to-white" data-testid="card-ventas-totales">
+          <Card className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-br from-blue-50 to-white" data-testid="card-ventas-totales">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-900">Ventas Totales</CardTitle>
-              <DollarSign className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Ventas Totales</CardTitle>
+              <DollarSign className="h-5 w-5 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-900" data-testid="text-ventas-totales">
+              <div className="text-3xl font-bold text-[#fd6301]" data-testid="text-ventas-totales">
                 ${salesData.totalSales.toLocaleString()}
               </div>
-              <p className="text-xs text-blue-600 mt-1">
+              <p className="text-xs text-[#fd6301] mt-1">
                 Este período
               </p>
             </CardContent>
           </Card>
 
           <Card 
-            className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-br from-green-50 to-white cursor-pointer hover:shadow-md transition-shadow" 
+            className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-br from-green-50 to-white cursor-pointer hover:shadow-md transition-shadow" 
             data-testid="card-clientes"
             onClick={() => setShowClientsDialog(true)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900">Clientes</CardTitle>
-              <Users className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Clientes</CardTitle>
+              <Users className="h-5 w-5 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-900" data-testid="text-clientes">
+              <div className="text-3xl font-bold text-[#fd6301]" data-testid="text-clientes">
                 {salesData.clientCount}
               </div>
-              <p className="text-xs text-green-600 mt-1">
+              <p className="text-xs text-[#fd6301] mt-1">
                 Atendidos · Click para ver
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-purple-100 bg-gradient-to-br from-purple-50 to-white" data-testid="card-transacciones">
+          <Card className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-br from-purple-50 to-white" data-testid="card-transacciones">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-900">Transacciones</CardTitle>
-              <TrendingUp className="h-5 w-5 text-purple-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Transacciones</CardTitle>
+              <TrendingUp className="h-5 w-5 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-purple-900" data-testid="text-transacciones">
+              <div className="text-3xl font-bold text-[#fd6301]" data-testid="text-transacciones">
                 {salesData.transactions}
               </div>
-              <p className="text-xs text-purple-600 mt-1">
+              <p className="text-xs text-[#fd6301] mt-1">
                 Realizadas
               </p>
             </CardContent>
@@ -408,31 +408,31 @@ export default function TecnicoObraDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-indigo-100 bg-gradient-to-br from-indigo-50 to-white" data-testid="card-ticket-promedio">
+          <Card className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-br from-indigo-50 to-white" data-testid="card-ticket-promedio">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-indigo-900">Ticket Promedio</CardTitle>
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Ticket Promedio</CardTitle>
+              <BarChart3 className="h-5 w-5 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-indigo-900" data-testid="text-ticket-promedio">
+              <div className="text-3xl font-bold text-[#fd6301]" data-testid="text-ticket-promedio">
                 ${salesData.avgTicket.toLocaleString()}
               </div>
-              <p className="text-xs text-indigo-600 mt-1">
+              <p className="text-xs text-[#fd6301] mt-1">
                 Por transacción
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-pink-100 bg-gradient-to-br from-pink-50 to-white" data-testid="card-productividad">
+          <Card className="rounded-2xl shadow-sm border-orange-200 bg-gradient-to-br from-pink-50 to-white" data-testid="card-productividad">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-pink-900">Productividad</CardTitle>
-              <Star className="h-5 w-5 text-pink-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Productividad</CardTitle>
+              <Star className="h-5 w-5 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-pink-900" data-testid="text-productividad">
+              <div className="text-3xl font-bold text-[#fd6301]" data-testid="text-productividad">
                 {(salesData.productivity || 0).toFixed(1)}
               </div>
-              <p className="text-xs text-pink-600 mt-1">
+              <p className="text-xs text-[#fd6301] mt-1">
                 trans/cliente
               </p>
             </CardContent>
@@ -537,21 +537,21 @@ export default function TecnicoObraDashboard() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div className="text-center">
                             <p className="text-gray-500 text-xs">Ventas Totales</p>
-                            <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
+                            <p className="font-bold text-[#fd6301]" data-testid={`client-sales-${index}`}>
                               ${(client.totalSales || 0).toLocaleString()}
                             </p>
                           </div>
                           
                           <div className="text-center">
                             <p className="text-gray-500 text-xs">Transacciones</p>
-                            <p className="font-bold text-green-600" data-testid={`client-transactions-${index}`}>
+                            <p className="font-bold text-[#fd6301]" data-testid={`client-transactions-${index}`}>
                               {client.transactionCount || 0}
                             </p>
                           </div>
                           
                           <div className="text-center">
                             <p className="text-gray-500 text-xs">Ticket Prom.</p>
-                            <p className="font-bold text-purple-600">
+                            <p className="font-bold text-[#fd6301]">
                               ${((client.totalSales || 0) / (client.transactionCount || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </p>
                           </div>

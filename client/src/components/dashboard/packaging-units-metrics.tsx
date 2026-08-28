@@ -50,8 +50,8 @@ export default function PackagingUnitsMetrics({ selectedPeriod, filterType, segm
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Cantidad Contable x Unidades</h2>
         </div>
@@ -91,7 +91,7 @@ export default function PackagingUnitsMetrics({ selectedPeriod, filterType, segm
                 data-testid={`packaging-units-${item.packagingType}`}
               >
                 <div className="flex items-center space-x-3 w-32 flex-shrink-0">
-                  <div className="w-6 h-6 bg-blue-500 text-white rounded-lg flex items-center justify-center text-xs font-bold">
+                  <div className="w-6 h-6 bg-[#fd6301] text-white rounded-lg flex items-center justify-center text-xs font-bold">
                     {item.packagingType}
                   </div>
                   <span className="text-sm font-medium text-gray-900 truncate">
@@ -110,7 +110,7 @@ export default function PackagingUnitsMetrics({ selectedPeriod, filterType, segm
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                      className="bg-[#fd6301] h-2 rounded-full transition-all duration-300" 
                       style={{ width: `${Math.min(item.unitPercentage ?? 0, 100)}%` }}
                     />
                   </div>
@@ -129,9 +129,9 @@ export default function PackagingUnitsMetrics({ selectedPeriod, filterType, segm
             
             {/* Total summary */}
             <div className="border-t pt-4 mt-4">
-              <div className="flex items-center justify-between py-2 bg-blue-50 rounded-lg px-3">
+              <div className="flex items-center justify-between py-2 bg-orange-50 rounded-lg px-3">
                 <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-blue-600 text-white rounded-lg flex items-center justify-center text-xs font-bold">
+                  <div className="w-6 h-6 bg-[#fd6301] text-white rounded-lg flex items-center justify-center text-xs font-bold">
                     <BarChart3 className="h-4 w-4" />
                   </div>
                   <span className="text-sm font-medium text-gray-900">Total General</span>

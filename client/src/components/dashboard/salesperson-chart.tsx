@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { CHART_COLORS_SOFT } from "@/lib/chart-palette";
 import { BarChart3, Users } from "lucide-react";
 
 interface SalespersonData {
@@ -40,23 +41,14 @@ export default function SalespersonChart({ selectedPeriod, filterType, segment, 
     }).format(amount);
   };
 
-  // Color mapping for salespeople
-  const barColors = [
-    'rgba(16, 185, 129, 0.8)',   // emerald
-    'rgba(59, 130, 246, 0.8)',   // blue
-    'rgba(245, 158, 11, 0.8)',   // amber
-    'rgba(139, 92, 246, 0.8)',   // purple
-    'rgba(236, 72, 153, 0.8)',   // pink
-    'rgba(239, 68, 68, 0.8)',    // red
-    'rgba(20, 184, 166, 0.8)',   // teal
-    'rgba(249, 115, 22, 0.8)',   // orange
-  ];
+  // Paleta categórica de la intranet (naranjo de marca primero)
+  const barColors = CHART_COLORS_SOFT;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-2 sm:space-x-3">
-        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg flex items-center justify-center">
-          <Users className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
+        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 dark:bg-orange-950/30 rounded-lg flex items-center justify-center">
+          <Users className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
         </div>
         <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
           Ventas por Vendedor

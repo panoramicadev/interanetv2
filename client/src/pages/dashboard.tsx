@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useFilter } from "@/contexts/FilterContext";
+import { useFilter, formatPeriodDisplay } from "@/contexts/FilterContext";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
 import SalesChart from "@/components/dashboard/sales-chart";
@@ -72,7 +72,7 @@ function ScopeBanner() {
   const shown = names.slice(0, 8);
   const extra = names.length - shown.length;
   return (
-    <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+    <div className="flex items-start gap-2 border-b border-orange-200 bg-orange-50 px-4 py-2 text-sm text-[#fd6301]">
       <Building className="mt-0.5 h-4 w-4 shrink-0" />
       <p>
         Estás viendo datos de <span className="font-semibold">{data.branches.length}</span> sucursal(es):{" "}
@@ -106,7 +106,7 @@ export function CollapsibleNVVSection({ salesperson }: { salesperson: string }) 
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="modern-card hover-lift overflow-hidden">
       <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" data-testid="trigger-nvv-collapsible">
         <div className="flex items-center gap-3">
-          <div className="bg-amber-500 rounded-full p-2">
+          <div className="bg-[#fd6301] rounded-full p-2">
             <ShoppingCart className="h-5 w-5 text-white" />
           </div>
           <div className="text-left">
@@ -132,7 +132,7 @@ export function CollapsibleGDVSection({ salesperson }: { salesperson: string }) 
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="modern-card hover-lift overflow-hidden">
       <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" data-testid="trigger-gdv-collapsible">
         <div className="flex items-center gap-3">
-          <div className="bg-purple-500 rounded-full p-2">
+          <div className="bg-[#fd6301] rounded-full p-2">
             <Truck className="h-5 w-5 text-white" />
           </div>
           <div className="text-left">
@@ -622,13 +622,13 @@ export default function Dashboard() {
       <div className="p-4 rounded-lg border bg-card space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {status === 'done' && <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />}
+            {status === 'done' && <CheckCircle className="h-6 w-6 text-[#fd6301] flex-shrink-0" />}
             {status === 'running' && <Loader2 className="h-6 w-6 animate-spin text-orange-500 flex-shrink-0" />}
             {status === 'error' && <XCircle className="h-6 w-6 text-red-600 flex-shrink-0" />}
             {status === 'pending' && <Clock className="h-6 w-6 text-gray-400 flex-shrink-0" />}
             <div>
               <p className="font-semibold">{label}</p>
-              <p className={`text-sm ${status === 'done' ? 'text-green-600' : status === 'error' ? 'text-red-600' : status === 'running' ? 'text-orange-500' : 'text-muted-foreground'}`}>
+              <p className={`text-sm ${status === 'done' ? 'text-[#fd6301]' : status === 'error' ? 'text-red-600' : status === 'running' ? 'text-orange-500' : 'text-muted-foreground'}`}>
                 {status === 'done' && `✅ ${(etlStatus.recordsProcessed || 0).toLocaleString()} registros en ${((etlStatus.executionTimeMs || 0) / 1000).toFixed(1)}s`}
                 {status === 'running' && (progressMessage || 'Procesando datos desde SQL Server...')}
                 {status === 'error' && (etlStatus.error || 'Error en la ejecución')}
@@ -637,7 +637,7 @@ export default function Dashboard() {
             </div>
           </div>
           <Badge className={`
-            ${status === 'done' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+            ${status === 'done' ? 'bg-[#fd6301] hover:bg-[#fd6301] text-white' : ''}
             ${status === 'running' ? 'bg-orange-100 text-orange-700 border-orange-300' : ''}
             ${status === 'error' ? 'bg-red-100 text-red-700 border-red-300' : ''}
             ${status === 'pending' ? 'bg-gray-100 text-gray-500 border-gray-300' : ''}
@@ -709,7 +709,7 @@ export default function Dashboard() {
       years: [now.getFullYear()],
       period: "month",
       months: [now.getMonth() + 1], // Convert to 1-12 format array
-      display: format(now, "MMMM yyyy")
+      display: formatPeriodDisplay(now)
     });
     setLocalSelectedFilter("all");
     setLocalGlobalFilter({ type: "all", value: "" });
@@ -899,7 +899,7 @@ export default function Dashboard() {
         years: [parsedYear],
         period: "month",
         months: [parsedMonth], // Use months array in 1-12 format
-        display: format(new Date(parsedYear, parsedMonth - 1), "MMMM yyyy")
+        display: formatPeriodDisplay(new Date(parsedYear, parsedMonth - 1))
       };
     }
 
@@ -909,7 +909,7 @@ export default function Dashboard() {
       years: [now.getFullYear()],
       period: "month",
       months: [now.getMonth() + 1], // Convert to 1-12 format for months array
-      display: format(now, "MMMM yyyy")
+      display: formatPeriodDisplay(now)
     };
   };
 
@@ -1263,21 +1263,21 @@ export default function Dashboard() {
                               </SelectItem>
                               <SelectItem value="segment">
                                 <div className="flex items-center space-x-2">
-                                  <Building className="h-4 w-4 text-green-500" />
+                                  <Building className="h-4 w-4 text-[#fd6301]" />
                                   <span>Por segmento</span>
                                 </div>
                               </SelectItem>
                               {/* Temporalmente oculto
                               <SelectItem value="branch">
                                 <div className="flex items-center space-x-2">
-                                  <Building className="h-4 w-4 text-blue-500" />
+                                  <Building className="h-4 w-4 text-[#fd6301]" />
                                   <span>Por sucursal</span>
                                 </div>
                               </SelectItem>
                               */}
                               <SelectItem value="salesperson">
                                 <div className="flex items-center space-x-2">
-                                  <Users className="h-4 w-4 text-purple-500" />
+                                  <Users className="h-4 w-4 text-[#fd6301]" />
                                   <span>Por vendedor</span>
                                 </div>
                               </SelectItem>
@@ -1289,7 +1289,7 @@ export default function Dashboard() {
                               </SelectItem>
                               <SelectItem value="product">
                                 <div className="flex items-center space-x-2">
-                                  <Package className="h-4 w-4 text-teal-500" />
+                                  <Package className="h-4 w-4 text-[#fd6301]" />
                                   <span>Por producto</span>
                                 </div>
                               </SelectItem>
@@ -1396,13 +1396,13 @@ export default function Dashboard() {
                                           setLocalGlobalFilter({ type: "client", value: client.nokoen });
                                           setClientSearchTerm("");
                                         }}
-                                        className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${localGlobalFilter.value === client.nokoen ? 'bg-blue-50' : ''
+                                        className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${localGlobalFilter.value === client.nokoen ? 'bg-orange-50' : ''
                                           }`}
                                         data-testid={`mobile-client-result-${client.koen}`}
                                       >
                                         <span className="text-sm text-gray-900 truncate">{client.nokoen}</span>
                                         {localGlobalFilter.value === client.nokoen && (
-                                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                          <Check className="h-4 w-4 text-[#fd6301] flex-shrink-0" />
                                         )}
                                       </button>
                                     ))}
@@ -1420,11 +1420,11 @@ export default function Dashboard() {
                             )}
 
                             {localGlobalFilter.type === "client" && localGlobalFilter.value && (
-                              <div className="mt-3 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                                <span className="text-sm text-blue-900 truncate flex-1">{localGlobalFilter.value}</span>
+                              <div className="mt-3 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                <span className="text-sm text-[#fd6301] truncate flex-1">{localGlobalFilter.value}</span>
                                 <button
                                   onClick={() => setLocalGlobalFilter({ type: "client", value: undefined })}
-                                  className="ml-2 text-blue-600 hover:text-blue-800"
+                                  className="ml-2 text-[#fd6301] hover:text-[#fd6301]"
                                   data-testid="button-clear-selected-client"
                                 >
                                   <X className="h-4 w-4" />
@@ -1463,11 +1463,11 @@ export default function Dashboard() {
                               triggerClassName="w-full h-11 rounded-xl"
                             />
                             {localGlobalFilter.type === "product" && localGlobalFilter.value && (
-                              <div className="mt-3 flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
-                                <span className="text-sm text-teal-900 truncate flex-1">{localGlobalFilter.value}</span>
+                              <div className="mt-3 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                <span className="text-sm text-[#fd6301] truncate flex-1">{localGlobalFilter.value}</span>
                                 <button
                                   onClick={() => setLocalGlobalFilter({ type: "product", value: undefined })}
-                                  className="ml-2 text-teal-600 hover:text-teal-800"
+                                  className="ml-2 text-[#fd6301] hover:text-[#fd6301]"
                                   data-testid="button-clear-selected-product"
                                 >
                                   <X className="h-4 w-4" />
@@ -1523,9 +1523,9 @@ export default function Dashboard() {
           <div className="mt-2 flex flex-col gap-1.5">
             {/* Filter type badge - only show if not "all" */}
             {globalFilter.value && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
-                <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
-                <span className="text-xs font-medium text-green-800 truncate">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="h-2 w-2 rounded-full bg-[#fd6301] flex-shrink-0" />
+                <span className="text-xs font-medium text-[#fd6301] truncate">
                   {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
                   {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                   {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
@@ -1536,9 +1536,9 @@ export default function Dashboard() {
             )}
 
             {/* Period badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-              <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-              <span className="text-xs font-medium text-blue-800">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+              <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
+              <span className="text-xs font-medium text-[#fd6301]">
                 {selection.display}
               </span>
             </div>
@@ -1593,19 +1593,19 @@ export default function Dashboard() {
                     </SelectItem>
                     <SelectItem value="segment">
                       <div className="flex items-center space-x-2">
-                        <Building className="h-3.5 w-3.5 text-green-500" />
+                        <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                         <span>Por segmento</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="branch">
                       <div className="flex items-center space-x-2">
-                        <Building className="h-3.5 w-3.5 text-blue-500" />
+                        <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                         <span>Por sucursal</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="salesperson">
                       <div className="flex items-center space-x-2">
-                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                         <span>Por vendedor</span>
                       </div>
                     </SelectItem>
@@ -1617,7 +1617,7 @@ export default function Dashboard() {
                     </SelectItem>
                     <SelectItem value="product">
                       <div className="flex items-center space-x-2">
-                        <Package className="h-3.5 w-3.5 text-teal-500" />
+                        <Package className="h-3.5 w-3.5 text-[#fd6301]" />
                         <span>Por producto</span>
                       </div>
                     </SelectItem>
@@ -1787,11 +1787,11 @@ export default function Dashboard() {
                   variant="outline"
                   size="icon"
                   onClick={() => setShowStockBreaksModal(true)}
-                  className="h-9 w-9 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700 relative"
+                  className="h-9 w-9 hover:bg-orange-50 hover:text-[#fd6301] hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700 relative"
                   data-testid="button-stock-breaks"
                   title="Información importante — Quiebres de stock"
                 >
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <AlertTriangle className="h-4 w-4 text-[#fd6301]" />
                 </Button>
               </div>
               {/* Sync button + last sync badge */}
@@ -1829,14 +1829,14 @@ export default function Dashboard() {
                   size="icon"
                   onClick={handleExportCsv}
                   disabled={isExporting}
-                  className="h-9 w-9 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  className="h-9 w-9 hover:bg-orange-50 hover:text-[#fd6301] hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-export-csv"
                   title="Exportar Excel"
                 >
                   {isExporting ? (
-                    <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
+                    <Loader2 className="h-4 w-4 text-[#fd6301] animate-spin" />
                   ) : (
-                    <Download className="h-4 w-4 text-green-500" />
+                    <Download className="h-4 w-4 text-[#fd6301]" />
                   )}
                 </Button>
               </div>
@@ -1960,12 +1960,10 @@ export default function Dashboard() {
 
             {/* Goals Progress Dashboard - Solo mostrar si hay metas asignadas */}
             {filterType === "month" && goalsProgress && Array.isArray(goalsProgress) && goalsProgress.length > 0 && (
-              <CardWrapper>
-                <GoalsProgress
-                  globalFilter={globalFilter}
-                  selectedPeriod={selectedPeriod}
-                />
-              </CardWrapper>
+              <GoalsProgress
+                globalFilter={globalFilter}
+                selectedPeriod={selectedPeriod}
+              />
             )}
 
             {/* Documentos Pendientes (NVV + GDV) - Siempre mostrar en dashboard principal */}
@@ -2108,7 +2106,7 @@ export default function Dashboard() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <RefreshCw className={`h-5 w-5 ${isSyncAllRunning ? 'animate-spin text-orange-500' : 'text-green-600'}`} />
+              <RefreshCw className={`h-5 w-5 ${isSyncAllRunning ? 'animate-spin text-orange-500' : 'text-[#fd6301]'}`} />
               Sincronización Manual
             </DialogTitle>
             <DialogDescription>
@@ -2160,7 +2158,7 @@ export default function Dashboard() {
         <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <AlertTriangle className="h-5 w-5 text-[#fd6301]" />
               Información importante
             </DialogTitle>
             <DialogDescription>
@@ -2170,7 +2168,7 @@ export default function Dashboard() {
 
           {isLoadingStockBreaks ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
               <span className="ml-3 text-muted-foreground">Consultando stock…</span>
             </div>
           ) : stockBreaksError ? (
@@ -2195,8 +2193,8 @@ export default function Dashboard() {
               {/* Items grouped by warehouse */}
               {stockBreaks.items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <CheckCircle className="h-10 w-10 text-green-500 mb-3" />
-                  <p className="font-semibold text-green-700 dark:text-green-400">Sin quiebres de stock</p>
+                  <CheckCircle className="h-10 w-10 text-[#fd6301] mb-3" />
+                  <p className="font-semibold text-[#fd6301] dark:text-[#fd6301]">Sin quiebres de stock</p>
                   <p className="text-sm text-muted-foreground">Todos los productos de línea tienen stock en las bodegas evaluadas.</p>
                 </div>
               ) : (() => {

@@ -203,7 +203,7 @@ export default function SalespersonDetail({
     : (propSalespersonName || (paramSalespersonName ? decodeURIComponent(paramSalespersonName) : undefined));
 
   // Use global filter context
-  const { selection, setSelection } = useFilter();
+  const { selection, setSelection, showCombined } = useFilter();
 
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
@@ -822,6 +822,19 @@ export default function SalespersonDetail({
   const nvvTotal = nvvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
   const gdvTotal = gdvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
 
+  // Modo Facturado / Combinado: el % grande sigue al interruptor de las tarjetas KPI.
+  // El combinado solo aplica al mes en curso (en un mes cerrado lo pendiente ya se facturó).
+  const _now = new Date();
+  const _currentMonthStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentPeriod = selectedPeriod?.startsWith(_currentMonthStr) ?? false;
+  const goalCombinedTotal = (primaryGoal?.currentSales || 0) + nvvTotal + gdvTotal;
+  const goalCombinedPercentage = (primaryGoal?.targetAmount || 0) > 0
+    ? (goalCombinedTotal / (primaryGoal?.targetAmount || 1)) * 100
+    : 0;
+  const goalHasCombined = nvvTotal > 0 || gdvTotal > 0;
+  const goalEffectiveCombined = showCombined && isCurrentPeriod && goalHasCombined;
+
+
   if (!salespersonName) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -865,8 +878,8 @@ export default function SalespersonDetail({
   };
 
   const getDaysColor = (days: number) => {
-    if (days <= 7) return 'text-green-600';
-    if (days <= 30) return 'text-yellow-600';
+    if (days <= 7) return 'text-[#fd6301]';
+    if (days <= 30) return 'text-[#fd6301]';
     return 'text-red-600';
   };
 
@@ -1116,13 +1129,13 @@ export default function SalespersonDetail({
                                 </SelectItem>
                                 <SelectItem value="vendedor">
                                   <div className="flex items-center gap-2">
-                                    <Users className="h-3.5 w-3.5 text-purple-500" />
+                                    <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                                     <span>Por vendedor</span>
                                   </div>
                                 </SelectItem>
                                 <SelectItem value="segmento">
                                   <div className="flex items-center gap-2">
-                                    <Building className="h-3.5 w-3.5 text-green-500" />
+                                    <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                                     <span>Por segmento</span>
                                   </div>
                                 </SelectItem>
@@ -1222,15 +1235,15 @@ export default function SalespersonDetail({
               </div>
 
               <div className="mt-2 flex flex-col gap-1.5">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
-                  <span className="text-xs font-medium text-green-800 truncate">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="h-2 w-2 rounded-full bg-[#fd6301] flex-shrink-0" />
+                  <span className="text-xs font-medium text-[#fd6301] truncate">
                     Vendedor: {salespersonName}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                  <span className="text-xs font-medium text-blue-800">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+                  <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
+                  <span className="text-xs font-medium text-[#fd6301]">
                     {selection.display}
                   </span>
                 </div>
@@ -1278,13 +1291,13 @@ export default function SalespersonDetail({
                           </SelectItem>
                           <SelectItem value="vendedor">
                             <div className="flex items-center gap-2">
-                              <Users className="h-3.5 w-3.5 text-purple-500" />
+                              <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                               <span>Por vendedor</span>
                             </div>
                           </SelectItem>
                           <SelectItem value="segmento">
                             <div className="flex items-center gap-2">
-                              <Building className="h-3.5 w-3.5 text-green-500" />
+                              <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                               <span>Por segmento</span>
                             </div>
                           </SelectItem>
@@ -1498,33 +1511,36 @@ export default function SalespersonDetail({
                       {/* Header con título y porcentaje */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="bg-emerald-100 rounded-xl p-2.5">
-                            <Target className="h-5 w-5 text-emerald-600" />
+                          <div className="bg-[#fd6301] rounded-xl p-2.5 shadow-md shadow-[#fd6301]/25 text-white">
+                            <Target className="h-5 w-5" />
                           </div>
                           <div>
                             <h3 className="text-base font-bold text-gray-900 dark:text-white">Meta de Ventas</h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{primaryGoal.description || primaryGoal.period}</p>
-                          </div>
+                                                      </div>
                         </div>
                         <div className="text-right">
-                          <div className={`text-2xl font-bold ${(primaryGoal.percentage || 0) >= 100 ? 'text-emerald-600' :
-                            (primaryGoal.percentage || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
+                          <div className={`text-2xl font-bold transition-all ${
+                            goalEffectiveCombined ? 'text-[#0a0a0a] dark:text-white' : 'text-[#fd6301]'
                             }`}>
-                            {(primaryGoal.percentage || 0).toFixed(1)}%
+                            {(goalEffectiveCombined ? goalCombinedPercentage : (primaryGoal.percentage || 0)).toFixed(1)}%
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Logrado{goalEffectiveCombined ? ' combinado' : ''}
+                          </p>
                         </div>
                       </div>
 
                       {/* Ventas Actuales y Meta en fila (Ventas a la izquierda, Meta a la derecha) */}
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
-                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                          <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{formatCurrency(primaryGoal.currentSales || 0)}</p>
+                        <div className="bg-[#fd6301] rounded-xl p-3 shadow-sm shadow-[#fd6301]/25">
+                          <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
+                            {goalEffectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
+                          </p>
+                          <p className="text-lg font-bold text-white">{formatCurrency(goalEffectiveCombined ? goalCombinedTotal : (primaryGoal.currentSales || 0))}</p>
                         </div>
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                          <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                          <p className="text-lg font-bold text-purple-900 dark:text-purple-100">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
+                        <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
+                          <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
+                          <p className="text-lg font-bold text-white">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
                         </div>
                       </div>
 
@@ -1532,8 +1548,7 @@ export default function SalespersonDetail({
                       <div className="space-y-1">
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                           <div
-                            className={`h-3 rounded-full transition-all duration-500 ${(primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
-                              (primaryGoal.percentage || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                            className={`h-3 rounded-full transition-all duration-500 ${(primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-[#fd6301] to-[#e35400]' : 'bg-gradient-to-r from-[#fd6301] to-[#e35400]'
                               }`}
                             style={{ width: `${Math.min(primaryGoal.percentage || 0, 100)}%` }}
                           ></div>
@@ -1541,29 +1556,16 @@ export default function SalespersonDetail({
 
                         {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
                         {(() => {
-                          const combinedTotal = (primaryGoal.currentSales || 0) + nvvTotal + gdvTotal;
-                          const combinedPercentage = (primaryGoal.targetAmount || 0) > 0
-                            ? (combinedTotal / (primaryGoal.targetAmount || 1)) * 100
-                            : 0;
+                          const combinedTotal = goalCombinedTotal;
+                          const combinedPercentage = goalCombinedPercentage;
                           return (
                             <div className="space-y-0.5">
                               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className={`h-1.5 rounded-full transition-all duration-500 ${combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' :
-                                    combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                                  className={`h-1.5 rounded-full transition-all duration-500 ${combinedPercentage >= 100 ? 'bg-gradient-to-r from-[#fd6301] to-[#e35400]' : 'bg-gradient-to-r from-slate-700 to-[#0a0a0a]'
                                     }`}
                                   style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
                                 />
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                  Total Combinado: {formatCurrency(combinedTotal)}
-                                </p>
-                                <p className={`text-[10px] font-medium ${combinedPercentage >= 100 ? 'text-cyan-600' :
-                                  combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
-                                  }`}>
-                                  {combinedPercentage.toFixed(1)}%
-                                </p>
                               </div>
                             </div>
                           );
@@ -1642,7 +1644,7 @@ export default function SalespersonDetail({
                       {/* Header - Responsive layout */}
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
+                          <div className="bg-[#fd6301] rounded-full p-2 sm:p-3">
                             <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1659,7 +1661,7 @@ export default function SalespersonDetail({
                             variant="outline"
                             size="sm"
                             onClick={() => setSelectedPromesaWeek(subWeeks(selectedPromesaWeek, 1))}
-                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-indigo-200"
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-orange-200"
                             data-testid="button-previous-week"
                           >
                             <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -1672,7 +1674,7 @@ export default function SalespersonDetail({
                             size="sm"
                             onClick={() => setSelectedPromesaWeek(addWeeks(selectedPromesaWeek, 1))}
                             disabled={isCurrentWeek(selectedPromesaWeek)}
-                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-indigo-200 disabled:opacity-50"
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-orange-200 disabled:opacity-50"
                             data-testid="button-next-week"
                           >
                             <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 rotate-180" />
@@ -1697,12 +1699,12 @@ export default function SalespersonDetail({
                           {/* Summary Card - Always visible */}
                           <button
                             onClick={() => setIsPromesasExpanded(!isPromesasExpanded)}
-                            className="w-full bg-white/90 rounded-xl p-4 border-2 border-indigo-200 hover:border-indigo-300 transition-all"
+                            className="w-full bg-white/90 rounded-xl p-4 border-2 border-orange-200 hover:border-orange-200 transition-all"
                           >
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                <div className="bg-indigo-100 rounded-full p-2">
-                                  <Target className="h-5 w-5 text-indigo-600" />
+                                <div className="bg-orange-50 rounded-full p-2">
+                                  <Target className="h-5 w-5 text-[#fd6301]" />
                                 </div>
                                 <h4 className="text-sm font-bold text-gray-900">
                                   Resumen Semanal
@@ -1713,32 +1715,32 @@ export default function SalespersonDetail({
                                   {promesasVendedor.length} promesa{promesasVendedor.length !== 1 ? 's' : ''}
                                 </span>
                                 {isPromesasExpanded ? (
-                                  <ChevronUp className="h-5 w-5 text-indigo-600" />
+                                  <ChevronUp className="h-5 w-5 text-[#fd6301]" />
                                 ) : (
-                                  <ChevronDown className="h-5 w-5 text-indigo-600" />
+                                  <ChevronDown className="h-5 w-5 text-[#fd6301]" />
                                 )}
                               </div>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
-                              <div className="bg-purple-50 rounded-lg p-3">
-                                <p className="text-xs text-purple-700 mb-1">Total Prometido</p>
-                                <p className="text-sm font-bold text-purple-900">
+                              <div className="bg-orange-50 rounded-lg p-3">
+                                <p className="text-xs text-[#fd6301] mb-1">Total Prometido</p>
+                                <p className="text-sm font-bold text-[#fd6301]">
                                   {formatCurrency(promesasVendedor.reduce((sum: number, item: any) =>
                                     sum + parseFloat(item.promesa?.montoPrometido || '0'), 0
                                   ))}
                                 </p>
                               </div>
-                              <div className="bg-blue-50 rounded-lg p-3">
-                                <p className="text-xs text-blue-700 mb-1">Total Vendido</p>
-                                <p className="text-sm font-bold text-blue-900">
+                              <div className="bg-orange-50 rounded-lg p-3">
+                                <p className="text-xs text-[#fd6301] mb-1">Total Vendido</p>
+                                <p className="text-sm font-bold text-[#fd6301]">
                                   {formatCurrency(promesasVendedor.reduce((sum: number, item: any) =>
                                     sum + (item.ventasReales || 0), 0
                                   ))}
                                 </p>
                               </div>
-                              <div className="bg-green-50 rounded-lg p-3">
-                                <p className="text-xs text-green-700 mb-1">Cumplimiento</p>
+                              <div className="bg-orange-50 rounded-lg p-3">
+                                <p className="text-xs text-[#fd6301] mb-1">Cumplimiento</p>
                                 <p className={`text-sm font-bold ${(() => {
                                   const totalPrometido = promesasVendedor.reduce((sum: number, item: any) =>
                                     sum + parseFloat(item.promesa?.montoPrometido || '0'), 0
@@ -1747,8 +1749,8 @@ export default function SalespersonDetail({
                                     sum + (item.ventasReales || 0), 0
                                   );
                                   const cumplimientoGeneral = totalPrometido > 0 ? (totalVendido / totalPrometido * 100) : 0;
-                                  return cumplimientoGeneral >= 100 ? 'text-green-600' :
-                                    cumplimientoGeneral >= 80 ? 'text-yellow-600' : 'text-red-600';
+                                  return cumplimientoGeneral >= 100 ? 'text-[#fd6301]' :
+                                    cumplimientoGeneral >= 80 ? 'text-[#fd6301]' : 'text-red-600';
                                 })()
                                   }`}>
                                   {(() => {
@@ -1783,21 +1785,21 @@ export default function SalespersonDetail({
                                         </p>
                                       </div>
                                       {estado === 'superado' && (
-                                        <Badge className="bg-green-500 text-white text-xs flex-shrink-0">
+                                        <Badge className="bg-[#fd6301] text-white text-xs flex-shrink-0">
                                           <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
                                           <span className="hidden sm:inline">Superado</span>
                                           <span className="sm:hidden">✓</span>
                                         </Badge>
                                       )}
                                       {estado === 'cumplido' && (
-                                        <Badge className="bg-blue-500 text-white text-xs flex-shrink-0">
+                                        <Badge className="bg-[#fd6301] text-white text-xs flex-shrink-0">
                                           <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
                                           <span className="hidden sm:inline">Cumplido</span>
                                           <span className="sm:hidden">✓</span>
                                         </Badge>
                                       )}
                                       {estado === 'cumplido_parcialmente' && (
-                                        <Badge className="bg-yellow-500 text-white text-xs flex-shrink-0">
+                                        <Badge className="bg-[#fd6301] text-white text-xs flex-shrink-0">
                                           <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
                                           <span className="hidden sm:inline">Parcial</span>
                                           <span className="sm:hidden">~</span>
@@ -1835,13 +1837,13 @@ export default function SalespersonDetail({
                                       <div>
                                         <p className="text-xs text-gray-600">Cumplimiento</p>
                                         <div className="flex items-center gap-0.5 sm:gap-1">
-                                          <span className={`text-xs sm:text-sm font-bold ${cumplimiento >= 100 ? 'text-green-600' :
-                                            cumplimiento >= 80 ? 'text-yellow-600' : 'text-red-600'
+                                          <span className={`text-xs sm:text-sm font-bold ${cumplimiento >= 100 ? 'text-[#fd6301]' :
+                                            cumplimiento >= 80 ? 'text-[#fd6301]' : 'text-red-600'
                                             }`}>
                                             {cumplimiento.toFixed(0)}%
                                           </span>
                                           {cumplimiento >= 100 ? (
-                                            <TrendingUp className="h-3 w-3 text-green-600 flex-shrink-0" />
+                                            <TrendingUp className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
                                           ) : (
                                             <TrendingDown className="h-3 w-3 text-red-600 flex-shrink-0" />
                                           )}
@@ -1891,8 +1893,8 @@ export default function SalespersonDetail({
                 {!isProductSearchExpanded ? (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Package className="h-5 w-5 text-green-600" />
+                      <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                        <Package className="h-5 w-5 text-[#fd6301]" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
 
@@ -1912,8 +1914,8 @@ export default function SalespersonDetail({
                     {/* Búsqueda expandida a ancho completo */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                          <Package className="h-5 w-5 text-green-600" />
+                        <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                          <Package className="h-5 w-5 text-[#fd6301]" />
                         </div>
                         <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
                       </div>
@@ -1932,7 +1934,7 @@ export default function SalespersonDetail({
                         placeholder="Filtrar productos por nombre..."
                         value={productSearchTerm}
                         onChange={(e) => setProductSearchTerm(e.target.value)}
-                        className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-green-500 rounded-lg shadow-sm"
+                        className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-orange-200 rounded-lg shadow-sm"
                         data-testid="input-filter-products"
                         autoFocus
                       />
@@ -2017,7 +2019,7 @@ export default function SalespersonDetail({
                                 <div className="hidden sm:block w-20 sm:w-32 flex-shrink-0">
                                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                     <div
-                                      className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                                      className="h-full bg-[#fd6301] rounded-full transition-all duration-500 ease-out"
                                       style={{ width: `${product.percentage}%` }}
                                     ></div>
                                   </div>
@@ -2031,7 +2033,7 @@ export default function SalespersonDetail({
 
                               {/* Expanded Product Details Section */}
                               {isExpanded && (
-                                <div className="mt-2 bg-green-50 rounded-lg p-4 border border-green-200 animate-in slide-in-from-top-2 duration-300">
+                                <div className="mt-2 bg-orange-50 rounded-lg p-4 border border-orange-200 animate-in slide-in-from-top-2 duration-300">
                                   {isLoadingProductDetails ? (
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                       {[...Array(4)].map((_, i) => (
@@ -2049,26 +2051,26 @@ export default function SalespersonDetail({
                                     <div className="space-y-4">
                                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div>
-                                          <p className="text-xs text-green-700 font-medium mb-1">Total Vendido</p>
-                                          <p className="text-lg font-bold text-green-900">{formatCurrency(productDetails.totalSales)}</p>
+                                          <p className="text-xs text-[#fd6301] font-medium mb-1">Total Vendido</p>
+                                          <p className="text-lg font-bold text-[#fd6301]">{formatCurrency(productDetails.totalSales)}</p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-green-700 font-medium mb-1">Unidades</p>
-                                          <p className="text-lg font-bold text-green-900">{productDetails.totalUnits.toFixed(0)}</p>
+                                          <p className="text-xs text-[#fd6301] font-medium mb-1">Unidades</p>
+                                          <p className="text-lg font-bold text-[#fd6301]">{productDetails.totalUnits.toFixed(0)}</p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-green-700 font-medium mb-1">Transacciones</p>
-                                          <p className="text-lg font-bold text-green-900">{productDetails.transactionCount}</p>
+                                          <p className="text-xs text-[#fd6301] font-medium mb-1">Transacciones</p>
+                                          <p className="text-lg font-bold text-[#fd6301]">{productDetails.transactionCount}</p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-green-700 font-medium mb-1">Cliente Principal</p>
+                                          <p className="text-xs text-[#fd6301] font-medium mb-1">Cliente Principal</p>
                                           {productDetails.topClient ? (
                                             <div>
-                                              <p className="text-sm font-semibold text-green-900 truncate">{productDetails.topClient.name}</p>
-                                              <p className="text-xs text-green-700">{formatCurrency(productDetails.topClient.amount)}</p>
+                                              <p className="text-sm font-semibold text-[#fd6301] truncate">{productDetails.topClient.name}</p>
+                                              <p className="text-xs text-[#fd6301]">{formatCurrency(productDetails.topClient.amount)}</p>
                                             </div>
                                           ) : (
-                                            <p className="text-sm text-green-700">Sin datos</p>
+                                            <p className="text-sm text-[#fd6301]">Sin datos</p>
                                           )}
                                         </div>
                                       </div>
@@ -2100,30 +2102,30 @@ export default function SalespersonDetail({
                       {!debouncedProductSearchTerm && productsWithPercentage.length > 0 && (
                         <div className="border-t-2 border-gray-300 pt-3 mt-4">
                           <div
-                            className="flex items-center gap-3 w-full bg-green-50 rounded-lg py-3 px-2"
+                            className="flex items-center gap-3 w-full bg-orange-50 rounded-lg py-3 px-2"
                             data-testid="products-total"
                           >
                             {/* Nombre TOTAL */}
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-green-900 font-bold">
+                              <p className="text-sm text-[#fd6301] font-bold">
                                 TOTAL ({productsWithPercentage.length} productos)
                               </p>
                             </div>
 
                             {/* Porcentaje */}
-                            <span className="text-xs text-green-700 font-semibold w-10 text-right flex-shrink-0">
+                            <span className="text-xs text-[#fd6301] font-semibold w-10 text-right flex-shrink-0">
                               100.0%
                             </span>
 
                             {/* Barra completa */}
                             <div className="w-20 sm:w-32 flex-shrink-0">
                               <div className="h-2 bg-green-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-600 rounded-full w-full"></div>
+                                <div className="h-full bg-[#fd6301] rounded-full w-full"></div>
                               </div>
                             </div>
 
                             {/* Monto total */}
-                            <span className="text-sm font-bold text-green-900 w-28 text-right flex-shrink-0">
+                            <span className="text-sm font-bold text-[#fd6301] w-28 text-right flex-shrink-0">
                               {formatCurrency(productPeriodTotal)}
                             </span>
                           </div>
@@ -2149,8 +2151,8 @@ export default function SalespersonDetail({
               {salespersonName && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-blue-600" />
+                    <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-[#fd6301]" />
                     </div>
                     <h2 className="text-xl font-bold text-gray-900">Últimas Órdenes</h2>
                   </div>
@@ -2235,7 +2237,7 @@ export default function SalespersonDetail({
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-purple-600" />
+                <UserPlus className="h-5 w-5 text-[#fd6301]" />
                 Clientes Nuevos — {salespersonName}
               </DialogTitle>
               <p className="text-sm text-gray-500">
@@ -2245,7 +2247,7 @@ export default function SalespersonDetail({
             <div className="overflow-y-auto flex-1 -mx-6 px-6">
               {isLoadingNewClients ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                  <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
                 </div>
               ) : !newClientsList?.length ? (
                 <div className="text-center py-12 text-gray-500">

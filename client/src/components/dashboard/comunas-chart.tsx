@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { CHART_COLORS, CHART_COLORS_SOFT } from "@/lib/chart-palette";
 import { MapPin } from "lucide-react";
 import { Bar } from "react-chartjs-2";
 import { useState } from "react";
@@ -71,26 +72,8 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
       {
         label: 'Ventas (Millones CLP)',
         data: locationData?.map(item => Math.round(item.totalSales / 1000000)) || [],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)', 
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(139, 92, 246, 0.8)',
-          'rgba(236, 72, 153, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(156, 163, 175, 0.8)',
-        ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(16, 185, 129, 1)',
-          'rgba(245, 158, 11, 1)',
-          'rgba(139, 92, 246, 1)',
-          'rgba(236, 72, 153, 1)',
-          'rgba(239, 68, 68, 1)',
-          'rgba(156, 163, 175, 1)',
-        ],
+        backgroundColor: CHART_COLORS_SOFT,
+        borderColor: CHART_COLORS,
         borderWidth: 2,
         borderRadius: 8,
         borderSkipped: false,
@@ -167,8 +150,8 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
     <div className="space-y-4" data-testid="comunas-chart">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
-            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">
             Ventas por {viewType === 'regiones' ? 'Región' : 'Comuna'}

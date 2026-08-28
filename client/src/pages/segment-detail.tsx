@@ -27,6 +27,7 @@ import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import FletesPanel from "@/components/dashboard/fletes-panel";
 import SalesChart from "@/components/dashboard/sales-chart";
 import KPICards from "@/components/dashboard/kpi-cards";
+import MetaGoalCard from "@/components/dashboard/meta-goal-card";
 
 interface SegmentClient {
   clientName: string;
@@ -962,13 +963,13 @@ export default function SegmentDetail({
                             </SelectItem>
                             <SelectItem value="segmento">
                               <div className="flex items-center gap-2">
-                                <Building className="h-3.5 w-3.5 text-green-500" />
+                                <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                                 <span>Por segmento</span>
                               </div>
                             </SelectItem>
                             <SelectItem value="vendedor">
                               <div className="flex items-center gap-2">
-                                <Users className="h-3.5 w-3.5 text-purple-500" />
+                                <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                                 <span>Por vendedor</span>
                               </div>
                             </SelectItem>
@@ -1072,17 +1073,17 @@ export default function SegmentDetail({
             {/* Active filters badges below header */}
             <div className="mt-2 flex flex-col gap-1.5">
               {/* Segment badge */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
-                <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
-                <span className="text-xs font-medium text-green-800 truncate">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="h-2 w-2 rounded-full bg-[#fd6301] flex-shrink-0" />
+                <span className="text-xs font-medium text-[#fd6301] truncate">
                   Segmento: {segmentName}
                 </span>
               </div>
 
               {/* Period badge */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                <span className="text-xs font-medium text-blue-800">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+                <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
+                <span className="text-xs font-medium text-[#fd6301]">
                   {selection.display}
                 </span>
               </div>
@@ -1133,13 +1134,13 @@ export default function SegmentDetail({
                       </SelectItem>
                       <SelectItem value="segmento">
                         <div className="flex items-center gap-2">
-                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <Building className="h-3.5 w-3.5 text-[#fd6301]" />
                           <span>Por segmento</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="vendedor">
                         <div className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <Users className="h-3.5 w-3.5 text-[#fd6301]" />
                           <span>Por vendedor</span>
                         </div>
                       </SelectItem>
@@ -1253,22 +1254,22 @@ export default function SegmentDetail({
               <div className="pt-2 border-t space-y-2">
                 <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
-                  <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <Eye className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-purple-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Vista: Por segmento
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
-                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-blue-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Período: {selection.display}
                     </div>
-                    <div className="text-[10px] text-blue-700 mt-0.5">
+                    <div className="text-[10px] text-[#fd6301] mt-0.5">
                       {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
                       {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
                       {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
@@ -1278,10 +1279,10 @@ export default function SegmentDetail({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
-                  <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded border border-orange-200">
+                  <div className="h-3 w-3 text-[#fd6301] flex-shrink-0 rounded-full bg-green-200" />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-green-900">
+                    <div className="text-xs font-medium text-[#fd6301]">
                       Segmento: {segmentName}
                     </div>
                   </div>
@@ -1349,90 +1350,20 @@ export default function SegmentDetail({
 
               {/* Goal Progress Section - Only show for monthly view */}
               {filterType === 'month' && goalData && (
-                <div className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5" data-testid="card-segment-goal">
-                  <div className="space-y-4">
-                    {/* Header con título y porcentaje */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 rounded-xl p-2.5">
-                          <Target className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                          <h2 className="text-base font-bold text-gray-900 dark:text-white">Meta del Segmento</h2>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {selectedPeriod ? format(parseISO(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${goalData.percentage >= 100 ? 'text-emerald-600' :
-                          goalData.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
-                          }`} data-testid="text-goal-percentage">
-                          {goalData.percentage.toFixed(1)}%
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
-                      </div>
-                    </div>
-
-                    {/* Meta y Ventas Actuales en fila */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                        <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                        <p className="text-lg font-bold text-purple-900 dark:text-purple-100" data-testid="text-goal-target">
-                          {formatCurrency(Number(goalData.targetAmount))}
-                        </p>
-                      </div>
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
-                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                        <p className="text-lg font-bold text-blue-900 dark:text-blue-100" data-testid="text-goal-current">
-                          {formatCurrency(Number(goalData.currentSales))}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Barra de progreso */}
-                    <div className="space-y-1">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                        <div
-                          className={`h-3 rounded-full transition-all duration-500 ${goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
-                            goalData.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                            }`}
-                          style={{ width: `${Math.min(goalData.percentage, 100)}%` }}
-                        />
-                      </div>
-
-                      {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
-                      {(nvvTotal > 0 || gdvTotal > 0) && (() => {
-                        const combinedTotal = Number(goalData.currentSales) + nvvTotal + gdvTotal;
-                        const combinedPercentage = Number(goalData.targetAmount) > 0
-                          ? (combinedTotal / Number(goalData.targetAmount)) * 100
-                          : 0;
-                        return (
-                          <div className="space-y-0.5">
-                            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className={`h-1.5 rounded-full transition-all duration-500 ${combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' :
-                                  combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
-                                  }`}
-                                style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
-                              />
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                Total Combinado: {formatCurrency(combinedTotal)}
-                              </p>
-                              <p className={`text-[10px] font-medium ${combinedPercentage >= 100 ? 'text-cyan-600' :
-                                combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
-                                }`}>
-                                {combinedPercentage.toFixed(1)}%
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
+                <MetaGoalCard
+                  title="Meta del Segmento"
+                  targetAmount={Number(goalData.targetAmount)}
+                  currentSales={Number(goalData.currentSales)}
+                  percentage={goalData.percentage}
+                  nvvTotal={nvvTotal}
+                  gdvTotal={gdvTotal}
+                  selectedPeriod={selectedPeriod}
+                  icon={<Building className="h-5 w-5" />}
+                  testId="card-segment-goal"
+                  percentageTestId="text-goal-percentage"
+                  targetTestId="text-goal-target"
+                  currentTestId="text-goal-current"
+                />
               )}
 
               {/* Documentos Pendientes (NVV + GDV) */}
@@ -1473,8 +1404,8 @@ export default function SegmentDetail({
                   {!isSalespersonSearchExpanded ? (
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
                         </div>
                         <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
                       </div>
@@ -1542,10 +1473,10 @@ export default function SegmentDetail({
                             <AccordionItem
                               key={salesperson.salespersonName}
                               value={salesperson.salespersonName}
-                              className="border rounded-lg overflow-hidden bg-purple-50/30"
+                              className="border rounded-lg overflow-hidden bg-orange-50/30"
                             >
                               <AccordionTrigger
-                                className="px-4 py-3 hover:bg-purple-50/50 hover:no-underline"
+                                className="px-4 py-3 hover:bg-orange-50/50 hover:no-underline"
                                 data-testid={`accordion-trigger-salesperson-${index}`}
                               >
                                 <div className="flex items-center gap-3 w-full pr-4">
@@ -1562,7 +1493,7 @@ export default function SegmentDetail({
                                   <div className="w-24 sm:w-32 flex-shrink-0">
                                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                       <div
-                                        className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                                        className="h-full bg-[#fd6301] rounded-full transition-all duration-500"
                                         style={{ width: `${Math.min(salesperson.percentage, 100)}%` }}
                                       ></div>
                                     </div>
@@ -1640,8 +1571,8 @@ export default function SegmentDetail({
                     {!isProductSearchExpanded ? (
                       <>
                         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
                           </div>
                           <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate">Top Productos del Segmento</h2>
                           <button
@@ -1658,8 +1589,8 @@ export default function SegmentDetail({
                       <div className="w-full space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
                             </div>
                             <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
                           </div>
@@ -1676,7 +1607,7 @@ export default function SegmentDetail({
                             placeholder="Filtrar productos por nombre..."
                             value={productSearchTerm}
                             onChange={(e) => setProductSearchTerm(e.target.value)}
-                            className="pl-11 pr-10 h-11 text-sm font-medium border-2 border-gray-200 focus:border-green-500 rounded-lg shadow-sm"
+                            className="pl-11 pr-10 h-11 text-sm font-medium border-2 border-gray-200 focus:border-orange-200 rounded-lg shadow-sm"
                             data-testid="input-filter-segment-products"
                             autoFocus
                           />
@@ -1716,10 +1647,10 @@ export default function SegmentDetail({
                             <AccordionItem
                               key={product.productName}
                               value={product.productName}
-                              className="border rounded-lg overflow-hidden bg-green-50/30"
+                              className="border rounded-lg overflow-hidden bg-orange-50/30"
                             >
                               <AccordionTrigger
-                                className="px-4 py-3 hover:bg-green-50/50 hover:no-underline"
+                                className="px-4 py-3 hover:bg-orange-50/50 hover:no-underline"
                                 data-testid={`accordion-trigger-product-${index}`}
                               >
                                 <div className="flex items-center gap-3 w-full pr-4">
@@ -1736,7 +1667,7 @@ export default function SegmentDetail({
                                   <div className="w-24 sm:w-32 flex-shrink-0">
                                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                       <div
-                                        className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                        className="h-full bg-[#fd6301] rounded-full transition-all duration-500"
                                         style={{ width: `${Math.min(product.percentage, 100)}%` }}
                                       ></div>
                                     </div>
@@ -1810,7 +1741,7 @@ export default function SegmentDetail({
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-teal-600" />
+                <UserPlus className="h-5 w-5 text-[#fd6301]" />
                 Clientes Nuevos — {segmentName}
               </DialogTitle>
               <p className="text-sm text-gray-500">
@@ -1820,7 +1751,7 @@ export default function SegmentDetail({
             <div className="overflow-y-auto flex-1 -mx-6 px-6">
               {isLoadingNewClients ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+                  <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
                 </div>
               ) : !newClientsList?.length ? (
                 <div className="text-center py-12 text-gray-500">

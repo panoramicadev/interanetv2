@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { CHART_COLORS_SOFT } from "@/lib/chart-palette";
 import { BarChart3, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import * as XLSX from "xlsx";
@@ -83,22 +84,15 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
     XLSX.writeFile(wb, `ventas_por_segmento_${selectedPeriod.replace(/[\/\\:]/g, '-')}.xlsx`);
   };
 
-  // Color mapping for segments
-  const segmentColors = [
-    'rgba(59, 130, 246, 0.8)',   // blue
-    'rgba(16, 185, 129, 0.8)',   // green
-    'rgba(245, 158, 11, 0.8)',   // amber
-    'rgba(239, 68, 68, 0.8)',    // red
-    'rgba(139, 92, 246, 0.8)',   // purple
-    'rgba(236, 72, 153, 0.8)',   // pink
-  ];
+  // Paleta categórica de la intranet (naranjo de marca primero)
+  const segmentColors = CHART_COLORS_SOFT;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 dark:bg-orange-950/30 rounded-lg flex items-center justify-center">
+            <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas por Segmento</h2>
         </div>

@@ -78,8 +78,8 @@ export default function PackagingSalesMetrics({ selectedPeriod, filterType, segm
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
-            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">$ Total Facturado x Unidades</h2>
         </div>
@@ -116,7 +116,7 @@ export default function PackagingSalesMetrics({ selectedPeriod, filterType, segm
                 data-testid={`packaging-sales-${item.packagingType}`}
               >
                 <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <div className="w-6 h-6 bg-green-500 text-white rounded-lg flex items-center justify-center text-xs font-bold">
+                  <div className="w-6 h-6 bg-[#fd6301] text-white rounded-lg flex items-center justify-center text-xs font-bold">
                     {item.packagingType}
                   </div>
                   <div className="min-w-0 flex-1">

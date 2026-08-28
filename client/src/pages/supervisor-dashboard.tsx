@@ -228,8 +228,8 @@ export default function SupervisorDashboard() {
               {(supervisorAlerts as any[]).map((alert, index) => {
                 const severityColors = {
                   high: 'bg-red-100 text-red-800 border-red-300',
-                  medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-                  low: 'bg-blue-100 text-blue-800 border-blue-300'
+                  medium: 'bg-orange-50 text-[#fd6301] border-orange-200',
+                  low: 'bg-orange-50 text-[#fd6301] border-orange-200'
                 };
 
                 const severityIcons = {
@@ -262,42 +262,42 @@ export default function SupervisorDashboard() {
 
         {/* Métricas del Equipo */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="rounded-2xl shadow-sm border-blue-200/60">
+          <Card className="rounded-2xl shadow-sm border-orange-200/60">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-900">Total Vendedores</CardTitle>
-              <UserCheck className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Total Vendedores</CardTitle>
+              <UserCheck className="h-4 w-4 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-900">{teamMetrics.totalSalespeople}</div>
-              <p className="text-xs text-blue-700">
+              <div className="text-2xl font-bold text-[#fd6301]">{teamMetrics.totalSalespeople}</div>
+              <p className="text-xs text-[#fd6301]">
                 Vendedores activos
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-green-200/60">
+          <Card className="rounded-2xl shadow-sm border-orange-200/60">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900">Ventas Totales</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Ventas Totales</CardTitle>
+              <DollarSign className="h-4 w-4 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900">
+              <div className="text-2xl font-bold text-[#fd6301]">
                 ${teamMetrics.totalSales.toLocaleString()}
               </div>
-              <p className="text-xs text-green-700">
+              <p className="text-xs text-[#fd6301]">
                 Ventas del equipo completo
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-purple-200/60">
+          <Card className="rounded-2xl shadow-sm border-orange-200/60">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-900">Transacciones</CardTitle>
-              <TrendingUp className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium text-[#fd6301]">Transacciones</CardTitle>
+              <TrendingUp className="h-4 w-4 text-[#fd6301]" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-900">{teamMetricsData?.totalTransactions || teamMetrics.totalTransactions}</div>
-              <p className="text-xs text-purple-700">
+              <div className="text-2xl font-bold text-[#fd6301]">{teamMetricsData?.totalTransactions || teamMetrics.totalTransactions}</div>
+              <p className="text-xs text-[#fd6301]">
                 Total de operaciones
               </p>
             </CardContent>
@@ -338,8 +338,8 @@ export default function SupervisorDashboard() {
               {salespeople && salespeople.map && salespeople.map((salesperson: any) => (
                 <div key={salesperson.id} className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50">
                   <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-sm font-medium text-blue-900">
+                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
+                      <span className="text-sm font-medium text-[#fd6301]">
                         {salesperson.salespersonName?.charAt(0) || 'V'}
                       </span>
                     </div>
@@ -416,7 +416,7 @@ export default function SupervisorDashboard() {
                           </p>
                           <Badge 
                             variant={isCompleted ? "default" : "secondary"}
-                            className={`${isCompleted ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
+                            className={`${isCompleted ? "bg-orange-50 text-[#fd6301]" : "bg-gray-100 text-gray-800"}`}
                           >
                             {progress.toFixed(1)}% completado
                           </Badge>
@@ -426,7 +426,7 @@ export default function SupervisorDashboard() {
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className={`h-2 rounded-full transition-all duration-300 ${
-                            isCompleted ? "bg-green-500" : "bg-blue-500"
+                            isCompleted ? "bg-[#fd6301]" : "bg-[#fd6301]"
                           }`}
                           style={{ width: `${Math.min(progress, 100)}%` }}
                         ></div>

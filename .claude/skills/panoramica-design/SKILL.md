@@ -151,6 +151,28 @@ La razón de existir del kit no es estética: antes **cada pantalla tenía su pr
 `getEstadoBadge`**, así que un mismo "aprobado" se veía distinto en gastos que en
 fondos. Si agregas un estado nuevo, va en el mapa de `ui.tsx`, no en la página.
 
+### Dashboards: todo el acento va en la familia naranja (ago-2026)
+
+Barrido pedido por el usuario sobre el dashboard principal y las vistas de
+segmento, sucursal, vendedor, supervisor y técnico. Regla:
+
+- **Ícono-chip de tarjeta o panel:** `bg-orange-50 dark:bg-orange-950/30` con el
+  ícono en `text-[#fd6301]`. Nada de chips celestes, verdes o lilas.
+- **Botones de acción dentro de un panel** ("Análisis completo", "Exportar"):
+  `bg-[#fd6301] hover:bg-[#e35400]`.
+- **Barras de ranking de una sola serie** (top productos, top vendedores, top
+  clientes): `bg-[#fd6301]`.
+- **Cifras destacadas y variaciones positivas:** `text-[#fd6301]`.
+  **Las negativas se quedan en `text-red-600`** — es la única alerta que sobrevive
+  al barrido, y sin ella una caída se lee igual que una subida.
+- **Dos series que hay que distinguir** (NVV vs GDV en Documentos Pendientes):
+  una en naranjo y la otra en pizarra (`slate`), no en dos colores nuevos.
+- La paleta categórica de gráficos (abajo) es la excepción: ahí sí hacen falta
+  colores distintos, y arranca en el naranjo de marca.
+  Fuente única: **`client/src/lib/chart-palette.ts`** (`CHART_COLORS`,
+  `CHART_COLORS_SOFT`, `ESTADO_COLORS`). No declarar arrays de colores en cada
+  gráfico.
+
 ### Gráficos: paleta y reglas (ago-2026)
 
 Definida al modernizar el dashboard de Gastos
@@ -214,6 +236,38 @@ contenido queda a un scroll y medio. Criterios que se aplicaron en Gastos:
   `hidden sm:inline`.
 - Selectores cortos de a dos por fila (`grid-cols-2`), no apilados.
 - Ritmo vertical: `space-y-3/4` en móvil contra `md:space-y-5/8`.
+
+### Tarjeta de meta del dashboard (negro + naranjo, ago-2026)
+
+Fuente única: **`client/src/components/dashboard/meta-goal-card.tsx`**. La usan el
+dashboard principal y las vistas de segmento, sucursal y vendedor. Antes cada
+pantalla tenía su propia copia con lila/celeste/cian y el mismo logro se veía
+distinto en cada una.
+
+- Ícono-chip `bg-[#fd6301] rounded-xl p-2.5 shadow-md shadow-[#fd6301]/25`, ícono blanco.
+- **% grande: el color dice el modo** — `text-[#0a0a0a]` (negro) en Combinado y
+  `text-[#fd6301]` (naranjo) en Facturado, igual que las dos barras. No se pinta
+  por umbral de cumplimiento (corrección del usuario, ago-2026).
+- Bajo el %, la etiqueta va con la misma tipografía y color que las cifras de
+  Documentos Pendientes: `text-xs text-gray-500 dark:text-gray-400`, en texto
+  normal — "Logrado" o "Logrado combinado" según el modo.
+- **Sin subtítulo de período** bajo el título: el período ya está en el selector
+  de arriba (corrección del usuario, ago-2026).
+- Dos tiles: **Meta Mensual** en `bg-[#0a0a0a]` con borde `slate-800/80`, y
+  **Ventas Actuales / Total Combinado** en `bg-[#fd6301]`. Las dos etiquetas van
+  en **blanco** (corrección del usuario, ago-2026: en gris sobre negro/naranjo no se leen).
+- Barras: la gruesa (facturado) `from-[#fd6301] to-[#e35400]`; la fina (combinado)
+  `from-slate-700 to-[#0a0a0a]`. Sin monto ni % impresos debajo: esa cifra ya está
+  en los tiles y en el % grande (corrección del usuario, ago-2026).
+
+**El período siempre en español.** La etiqueta del selector se arma desde la
+selección misma en `year-month-selector.tsx` (nunca del campo `display` guardado,
+que puede venir en inglés), y `formatPeriodDisplay` de `FilterContext` da
+"Agosto 2026" con mayúscula inicial.
+
+**Modo Facturado / Combinado:** vive en `FilterContext` (`showCombined`), arranca
+en **Combinado** y vuelve a Combinado al cambiar de vista. El % grande de la meta
+sigue ese interruptor; el combinado solo aplica al mes en curso.
 
 ### Header de módulo (ícono cuadrado + título)
 ```

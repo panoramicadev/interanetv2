@@ -82,8 +82,8 @@ export default function FletesPanel({
       {!isSearchExpanded ? (
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
             </div>
             <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Fletes</h2>
 
@@ -99,7 +99,7 @@ export default function FletesPanel({
 
           <div className="text-right">
             <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">Total flete</p>
-            <p className="text-sm sm:text-lg font-bold text-amber-700" data-testid="fletes-total">
+            <p className="text-sm sm:text-lg font-bold text-[#fd6301]" data-testid="fletes-total">
               {formatCurrency(periodTotal)}
             </p>
           </div>
@@ -108,8 +108,8 @@ export default function FletesPanel({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                <Truck className="h-5 w-5 text-amber-600" />
+              <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                <Truck className="h-5 w-5 text-[#fd6301]" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">Fletes</h2>
             </div>
@@ -127,7 +127,7 @@ export default function FletesPanel({
               placeholder="Filtrar clientes por nombre..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-amber-500 rounded-lg shadow-sm"
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-orange-200 rounded-lg shadow-sm"
               data-testid="input-filter-fletes"
               autoFocus
             />
@@ -188,7 +188,7 @@ export default function FletesPanel({
                     <div className="flex-1 sm:flex-none sm:w-32">
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-amber-500 rounded-full transition-all duration-500 ease-out"
+                          className="h-full bg-[#fd6301] rounded-full transition-all duration-500 ease-out"
                           style={{ width: `${Math.min(row.percentage, 100)}%` }}
                         />
                       </div>
@@ -217,20 +217,20 @@ export default function FletesPanel({
 
             {!debouncedSearchTerm && itemsWithPct.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full bg-amber-50 rounded-lg py-3 px-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full bg-orange-50 rounded-lg py-3 px-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm text-amber-900 font-bold">
+                    <p className="text-xs sm:text-sm text-[#fd6301] font-bold">
                       TOTAL ({totalCount} {totalCount === 1 ? "cliente" : "clientes"})
                     </p>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                    <span className="text-xs text-amber-700 w-10 text-right flex-shrink-0">100%</span>
+                    <span className="text-xs text-[#fd6301] w-10 text-right flex-shrink-0">100%</span>
                     <div className="flex-1 sm:flex-none sm:w-32">
                       <div className="h-2 bg-amber-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-600 rounded-full w-full" />
+                        <div className="h-full bg-[#fd6301] rounded-full w-full" />
                       </div>
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-amber-900 w-20 sm:w-28 text-right flex-shrink-0">
+                    <span className="text-xs sm:text-sm font-bold text-[#fd6301] w-20 sm:w-28 text-right flex-shrink-0">
                       {formatCurrency(periodTotal)}
                     </span>
                   </div>
