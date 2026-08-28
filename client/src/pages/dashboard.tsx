@@ -85,7 +85,7 @@ function ScopeBanner() {
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
-import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
+import panoramicaLogo from "@assets/logo_1757532115858.png";
 import { Progress } from "@/components/ui/progress";
 
 interface YearMonthSelection {
@@ -1178,11 +1178,11 @@ export default function Dashboard() {
       <ScopeBanner />
       {/* Mobile Header with Logo, Menu and ETL Button */}
       {isMobile && (
-        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
+        <header className="bg-[#0a0a0a] border-b border-slate-800/80 px-4 py-5 sticky top-0 z-30 shadow-sm">
+          <div className="relative flex items-center justify-end">
+            {/* Logo — centrado en la barra */}
             <button
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 hover:opacity-80 transition-opacity"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('reset-dashboard'));
                 setLocation('/');
@@ -1191,7 +1191,7 @@ export default function Dashboard() {
               <img
                 src={panoramicaLogo}
                 alt="Panoramica"
-                className="h-10 w-auto object-contain cursor-pointer"
+                className="h-9 w-auto object-contain cursor-pointer"
               />
             </button>
 
@@ -1202,19 +1202,18 @@ export default function Dashboard() {
               <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                 <DrawerTrigger asChild>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={handleDrawerOpen}
-                    className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
+                    className="h-9 px-2.5 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white border-0 shadow-md shadow-[#fd6301]/25"
                     data-testid="button-mobile-menu"
                   >
-                    <Menu className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                    <Menu className="h-4 w-4 text-white" />
                   </Button>
                 </DrawerTrigger>
                 <DrawerContent className="max-h-[85vh]">
-                  <DrawerHeader className="text-center border-b pb-4 mb-6">
-                    <DrawerTitle className="text-lg font-semibold">Filtros del Dashboard</DrawerTitle>
-                    <DrawerDescription className="text-sm text-gray-600">
+                  <DrawerHeader className="text-center bg-[#0a0a0a] px-6 pt-5 pb-4 mb-6">
+                    <DrawerTitle className="text-lg font-semibold text-white">Filtros del Dashboard</DrawerTitle>
+                    <DrawerDescription className="text-sm text-slate-400">
                       Personaliza la vista de tus datos de ventas
                     </DrawerDescription>
                   </DrawerHeader>
@@ -1500,7 +1499,7 @@ export default function Dashboard() {
                   <DrawerFooter className="border-t pt-4 mt-4">
                     <Button
                       onClick={handleApplyFilters}
-                      className="w-full h-12 text-base font-medium rounded-xl"
+                      className="w-full h-12 text-base font-medium rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-[#fd6301]/25"
                       data-testid="button-apply-filters"
                     >
                       Aplicar filtros
@@ -1508,7 +1507,7 @@ export default function Dashboard() {
                     <Button
                       variant="outline"
                       onClick={() => setIsDrawerOpen(false)}
-                      className="w-full h-11 text-base rounded-xl"
+                      className="w-full h-11 text-base rounded-2xl"
                       data-testid="button-cancel-filters"
                     >
                       Cancelar
@@ -1523,9 +1522,9 @@ export default function Dashboard() {
           <div className="mt-2 flex flex-col gap-1.5">
             {/* Filter type badge - only show if not "all" */}
             {globalFilter.value && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg">
                 <div className="h-2 w-2 rounded-full bg-[#fd6301] flex-shrink-0" />
-                <span className="text-xs font-medium text-[#fd6301] truncate">
+                <span className="text-xs font-medium text-orange-300 truncate">
                   {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
                   {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                   {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
@@ -1536,9 +1535,9 @@ export default function Dashboard() {
             )}
 
             {/* Period badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg">
               <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
-              <span className="text-xs font-medium text-[#fd6301]">
+              <span className="text-xs font-medium text-orange-300">
                 {selection.display}
               </span>
             </div>
