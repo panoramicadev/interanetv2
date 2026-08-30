@@ -53,7 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download, AlertTriangle, LayoutDashboard } from "lucide-react";
 
 // Banner del Dashboard que le muestra al Encargado de Área a qué sucursales está
 // acotado lo que ve. Hace explícita la "traducción" de las asignaciones de scope.
@@ -85,7 +85,10 @@ function ScopeBanner() {
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
-import panoramicaLogo from "@assets/logo_1757532115858.png";
+// Logo con las letras en NEGRO y sin el sello "30 Años": la barra móvil ahora es blanca
+// y el logo de letras blancas quedaba invisible. Sale del archivo de marca
+// `logo panoramica ppto`, recortado para dejar solo el arco y la palabra.
+import panoramicaLogo from "@assets/logo-panoramica-negro.png";
 import { Progress } from "@/components/ui/progress";
 
 interface YearMonthSelection {
@@ -668,21 +671,44 @@ export default function Dashboard() {
   // Get current location from wouter
   const [currentLocation] = useLocation();
 
-  // Read URL parameters and update filter
+  // Vista que viene en la dirección (?filter=segment). Se aplica al cambiar de dirección
+  // y solo si el dashboard todavía no está en esa vista.
+  //
+  // ⚠️ `setGlobalFilter` NO puede ir en las dependencias: el contexto la vuelve a crear
+  // en cada render, así que el efecto se re-ejecutaba en cada render y, como él mismo
+  // llama a setGlobalFilter, se realimentaba solo y dejaba la pantalla renderizando sin
+  // parar. El guardia de "¿ya estoy en esa vista?" además evita que borre el segmento
+  // que la persona acaba de elegir.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const filterParam = params.get('filter');
-    if (filterParam === 'segment') {
-      setSelectedFilter('segment');
-      setGlobalFilter({ type: 'segment', value: undefined });
-    } else if (filterParam === 'salesperson') {
-      setSelectedFilter('salesperson');
-      setGlobalFilter({ type: 'salesperson', value: undefined });
-    } else if (filterParam === 'branch') {
-      setSelectedFilter('branch');
-      setGlobalFilter({ type: 'branch', value: undefined });
-    }
-  }, [currentLocation, setGlobalFilter]);
+    if (filterParam !== 'segment' && filterParam !== 'salesperson' && filterParam !== 'branch') return;
+    if (globalFilter.type === filterParam) return;
+    setSelectedFilter(filterParam);
+    setGlobalFilter({ type: filterParam, value: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLocation]);
+
+  // Red de seguridad del panel de filtros en móvil.
+  //
+  // Adentro del panel hay varios selectores (Radix) y el panel mismo es de otra librería
+  // (vaul). Las dos bloquean los clics del resto de la página mientras están abiertas,
+  // poniendo `pointer-events: none` en el `body`, y cada una lo devuelve al cerrarse. Si
+  // se cierran casi al mismo tiempo —que es justo lo que pasa al elegir un segmento y
+  // tocar "Aplicar filtros"— una puede volver a ponerlo después de que la otra lo sacó, y
+  // la app queda visible pero sin responder a nada: hay que cerrarla y volver a entrar.
+  //
+  // Al cerrarse el panel, esto lo devuelve a la normalidad. No estorba si nada quedó
+  // trabado: vuelve a dejar el valor vacío, que es el estado normal.
+  useEffect(() => {
+    if (isDrawerOpen) return;
+    const t = setTimeout(() => {
+      if (document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [isDrawerOpen]);
 
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
@@ -1178,8 +1204,11 @@ export default function Dashboard() {
       <ScopeBanner />
       {/* Mobile Header with Logo, Menu and ETL Button */}
       {isMobile && (
-        <header className="bg-[#0a0a0a] border-b border-slate-800/80 px-4 py-5 sticky top-0 z-30 shadow-sm">
-          <div className="relative flex items-center justify-end">
+        <header className="bg-white px-4 pt-7 pb-5 sticky top-0 z-30">
+          {/* La fila va con `items-center`: el logo es más alto que los botones, así que
+              son los botones los que se centran contra él y no al revés. El `pt-7` le da
+              aire arriba para que el logo no quede pegado al borde de la pantalla. */}
+          <div className="relative flex items-center justify-end min-h-[4rem]">
             {/* Logo — centrado en la barra */}
             <button
               className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 hover:opacity-80 transition-opacity"
@@ -1191,7 +1220,7 @@ export default function Dashboard() {
               <img
                 src={panoramicaLogo}
                 alt="Panoramica"
-                className="h-9 w-auto object-contain cursor-pointer"
+                className="h-16 w-auto object-contain cursor-pointer"
               />
             </button>
 
@@ -1199,21 +1228,30 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
 
               {/* Filters Menu Button */}
-              <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+              {/* Panel LATERAL y desde la IZQUIERDA, igual que el menú: los dos botones
+                  abren para el mismo lado (corrección del usuario, ago-2026). No es una
+                  hoja que sube desde abajo. `shouldScaleBackground` queda apagado: encoge
+                  la página de atrás, que es un efecto pensado para la hoja de abajo y en
+                  un panel lateral solo hace parpadear el contenido. */}
+              <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen} direction="left" shouldScaleBackground={false}>
                 <DrawerTrigger asChild>
                   <Button
                     size="sm"
                     onClick={handleDrawerOpen}
-                    className="h-9 px-2.5 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white border-0 shadow-md shadow-[#fd6301]/25"
+                    className="h-9 w-9 p-0 rounded-full bg-[#fd6301] hover:bg-[#e35400] text-white border-0 shadow-md shadow-[#fd6301]/25"
                     data-testid="button-mobile-menu"
                   >
-                    <Menu className="h-4 w-4 text-white" />
+                    {/* Ícono del Dashboard (el mismo del ítem "Dashboard" en el menú
+                        lateral), no la hamburguesa: este botón abre los filtros de vista
+                        y período, y con la hamburguesa se confundía con el botón del menú
+                        que está justo al frente (corrección del usuario, ago-2026). */}
+                    <LayoutDashboard className="h-4 w-4 text-white" />
                   </Button>
                 </DrawerTrigger>
-                <DrawerContent className="max-h-[85vh]">
-                  <DrawerHeader className="text-center bg-[#0a0a0a] px-6 pt-5 pb-4 mb-6">
-                    <DrawerTitle className="text-lg font-semibold text-white">Filtros del Dashboard</DrawerTitle>
-                    <DrawerDescription className="text-sm text-slate-400">
+                <DrawerContent side="left" className="h-full">
+                  <DrawerHeader className="text-center bg-white border-b border-slate-200 px-6 pt-5 pb-4 mb-6">
+                    <DrawerTitle className="text-lg font-semibold text-slate-800">Filtros del Dashboard</DrawerTitle>
+                    <DrawerDescription className="text-sm text-slate-500">
                       Personaliza la vista de tus datos de ventas
                     </DrawerDescription>
                   </DrawerHeader>
@@ -1518,13 +1556,16 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Active filters badges below header */}
-          <div className="mt-2 flex flex-col gap-1.5">
+          {/* Lo que está seleccionado, bajo la barra y pegado a la derecha: texto negro
+              pelado, sin recuadro ni fondo (corrección del usuario, ago-2026). Antes era
+              una pastilla gris, que se leía como un campo para tocar cuando en realidad
+              solo informa. El naranjo se queda únicamente en el punto de estado. */}
+          <div className="mt-1 flex flex-col items-end gap-0.5">
             {/* Filter type badge - only show if not "all" */}
             {globalFilter.value && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg">
+              <div className="inline-flex max-w-full items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-[#fd6301] flex-shrink-0" />
-                <span className="text-xs font-medium text-orange-300 truncate">
+                <span className="text-xs font-medium text-[#0a0a0a] truncate">
                   {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
                   {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                   {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
@@ -1535,9 +1576,9 @@ export default function Dashboard() {
             )}
 
             {/* Period badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg">
-              <CalendarIcon className="h-3 w-3 text-[#fd6301] flex-shrink-0" />
-              <span className="text-xs font-medium text-orange-300">
+            <div className="inline-flex max-w-full items-center gap-2">
+              <CalendarIcon className="h-3 w-3 text-[#0a0a0a] flex-shrink-0" />
+              <span className="text-xs font-medium text-[#0a0a0a] truncate">
                 {selection.display}
               </span>
             </div>
@@ -1845,7 +1886,11 @@ export default function Dashboard() {
       )}
 
       {/* Main Content */}
-      <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
+      {/* `flex flex-col` + `gap` en vez de `space-y`: en celular la tarjeta de meta se
+          sube al primer lugar con `order-first`, y `space-y` reparte los márgenes según
+          el orden del código, no el que se ve, así que dejaba un espacio en blanco arriba
+          y pegaba dos tarjetas abajo. Con `gap` la separación es siempre pareja. */}
+      <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 flex flex-col gap-3 sm:gap-4 lg:gap-6 relative">
 
         {/* Specific Custom Views */}
         {globalFilter.type === "segment" && globalFilter.value ? (
@@ -1943,36 +1988,49 @@ export default function Dashboard() {
         ) : (
           <>
             {/* Standard Dashboard Layout */}
-            {/* KPI Cards with Modern Styling */}
-            <div>
-              <KPICards
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                client={selectedClient}
-                product={globalFilter.type === "product" ? globalFilter.value : undefined}
-                comparePeriod={comparePeriod}
-                onShowNewClients={handleShowNewClientsInPanel}
-              />
-            </div>
+            {/* KPI Cards with Modern Styling.
+                Sin div envolvente a propósito: en celular estas tarjetas se reparten entre
+                las demás secciones (ver el bloque de ORDEN más abajo) y cualquier caja
+                intermedia las volvería a encerrar. */}
+            <KPICards
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              client={selectedClient}
+              product={globalFilter.type === "product" ? globalFilter.value : undefined}
+              comparePeriod={comparePeriod}
+              onShowNewClients={handleShowNewClientsInPanel}
+            />
 
+            {/* ORDEN EN CELULAR (pedido del usuario, ago-2026). Es lo que se mira primero
+                al abrir el dashboard desde el teléfono:
+                  1º Ventas Totales · 2º Total Acumulado · 3º Meta · 4º Documentos
+                  Pendientes · 5º Clientes Nuevos · 6º Margen · después el resto.
+                Los números van en negativo porque todo lo que no lleva orden queda en 0 y
+                se iría adelante. Las tarjetas 2, 3, 5 y 6 viven dentro de KPICards, que en
+                celular se abre con `contents` justamente para poder intercalarlas con
+                estas secciones. En pantalla grande no cambia nada: `md:order-none`. */}
             {/* Goals Progress Dashboard - Solo mostrar si hay metas asignadas */}
             {filterType === "month" && goalsProgress && Array.isArray(goalsProgress) && goalsProgress.length > 0 && (
-              <GoalsProgress
-                globalFilter={globalFilter}
-                selectedPeriod={selectedPeriod}
-              />
+              <div className="order-[-4] md:order-none">
+                <GoalsProgress
+                  globalFilter={globalFilter}
+                  selectedPeriod={selectedPeriod}
+                />
+              </div>
             )}
 
             {/* Documentos Pendientes (NVV + GDV) - Siempre mostrar en dashboard principal */}
             {!selectedClient && globalFilter.type !== "product" && (
-              <PendingDocumentsUnified
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              />
+              <div className="order-[-3] md:order-none">
+                <PendingDocumentsUnified
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                />
+              </div>
             )}
 
             {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}

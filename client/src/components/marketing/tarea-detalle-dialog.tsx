@@ -189,7 +189,7 @@ export function TareaChat({ taskId }: { taskId: string }) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 px-1 pb-2 shrink-0">
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-orange-50 text-[#fd6301] dark:bg-orange-500/10">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/25">
           <MessageSquare className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0">

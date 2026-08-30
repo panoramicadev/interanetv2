@@ -50,8 +50,8 @@ export default function PackagingUnitsMetrics({ selectedPeriod, filterType, segm
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Cantidad Contable x Unidades</h2>
         </div>

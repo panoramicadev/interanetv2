@@ -171,7 +171,7 @@ export function PushNotificationsButton() {
 
           <div className="space-y-3 py-2">
             <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 rounded-2xl p-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 flex-shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
                 <Share className="h-4 w-4" />
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-300 pt-1.5">
@@ -182,7 +182,7 @@ export function PushNotificationsButton() {
             </div>
 
             <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 rounded-2xl p-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 flex-shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
                 <SquarePlus className="h-4 w-4" />
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-300 pt-1.5">
@@ -192,7 +192,7 @@ export function PushNotificationsButton() {
             </div>
 
             <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 rounded-2xl p-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 flex-shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
                 <BellRing className="h-4 w-4" />
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-300 pt-1.5">

@@ -150,8 +150,8 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
     <div className="space-y-4" data-testid="comunas-chart">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">
             Ventas por {viewType === 'regiones' ? 'Región' : 'Comuna'}

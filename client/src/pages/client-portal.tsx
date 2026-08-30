@@ -571,8 +571,8 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
       {/* Quick actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
         <a href="/tienda" className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group">
-          <div className="p-2.5 rounded-xl bg-orange-50 group-hover:bg-orange-100 transition-colors">
-            <ShoppingCart className="h-5 w-5 text-orange-500" />
+          <div className="p-2.5 rounded-xl bg-[#fd6301] group-hover:bg-orange-100 transition-colors shadow-md shadow-[#fd6301]/25">
+            <ShoppingCart className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-900">Ir a la Tienda</p>

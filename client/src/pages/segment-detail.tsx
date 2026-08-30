@@ -1311,7 +1311,7 @@ export default function SegmentDetail({
         )}
 
         {/* Main Content */}
-        <main className="px-3 sm:px-4 lg:px-6 py-4 lg:py-6 space-y-4 lg:space-y-6">
+        <main className="px-3 sm:px-4 lg:px-6 py-4 lg:py-6 flex flex-col gap-4 lg:gap-6">
           {/* Comparative Mode Layout */}
           {(() => {
             console.log("🎬 [segment-detail] RENDER:", {
@@ -1338,18 +1338,20 @@ export default function SegmentDetail({
             </>
           ) : (
             <>
-              {/* KPI Cards — usa las mismas tarjetas del dashboard principal */}
-              <div>
-                <KPICards
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                  segment={segmentName}
-                  onShowNewClients={handleShowNewClientsInPanel}
-                />
-              </div>
+              {/* KPI Cards — usa las mismas tarjetas del dashboard principal.
+                  Sin div envolvente: en celular las tarjetas se reparten entre las demás
+                  secciones y una caja intermedia las volvería a encerrar. */}
+              <KPICards
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                segment={segmentName}
+                onShowNewClients={handleShowNewClientsInPanel}
+              />
 
-              {/* Goal Progress Section - Only show for monthly view */}
+              {/* Goal Progress Section - Only show for monthly view.
+                  Primera en celular (ver el orden explicado en dashboard.tsx). */}
               {filterType === 'month' && goalData && (
+                <div className="order-[-4] md:order-none">
                 <MetaGoalCard
                   title="Meta del Segmento"
                   targetAmount={Number(goalData.targetAmount)}
@@ -1364,15 +1366,18 @@ export default function SegmentDetail({
                   targetTestId="text-goal-target"
                   currentTestId="text-goal-current"
                 />
+                </div>
               )}
 
-              {/* Documentos Pendientes (NVV + GDV) */}
+              {/* Documentos Pendientes (NVV + GDV) — cuarto en celular */}
               {segmentName && (
-                <PendingDocumentsUnified
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                  segment={segmentName}
-                />
+                <div className="order-[-3] md:order-none">
+                  <PendingDocumentsUnified
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
               )}
 
               {/* Tendencia de Ventas */}
@@ -1404,8 +1409,8 @@ export default function SegmentDetail({
                   {!isSalespersonSearchExpanded ? (
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                          <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                         </div>
                         <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
                       </div>
@@ -1571,8 +1576,8 @@ export default function SegmentDetail({
                     {!isProductSearchExpanded ? (
                       <>
                         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                           </div>
                           <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate">Top Productos del Segmento</h2>
                           <button
@@ -1589,8 +1594,8 @@ export default function SegmentDetail({
                       <div className="w-full space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                             </div>
                             <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
                           </div>

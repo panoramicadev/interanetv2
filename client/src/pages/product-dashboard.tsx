@@ -17,6 +17,8 @@ import {
   ResponsiveContainer, AreaChart, Area
 } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
+import { esColorIncoloro, INCOLORO_FONDO, INCOLORO_BRILLO, INCOLORO_TITULO } from "@/lib/color-incoloro";
 
 // Types
 interface ProductFamily {
@@ -165,7 +167,7 @@ export default function ProductDashboard() {
   }, [dashboardData?.salesTrend]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md border-b border-gray-200/60 px-4 py-5 m-4 rounded-2xl shadow-sm">
         <div className="flex items-center justify-between mb-4">
@@ -269,6 +271,13 @@ export default function ProductDashboard() {
             ))}
           </div>
 
+          {/* Margen de la agrupación seleccionada, mismo período y mismo filtro */}
+          <MargenResumenCard
+            selectedPeriod={period}
+            filterType={filterType as "day" | "month" | "year" | "range"}
+            family={selectedFamily || undefined}
+          />
+
           {/* Colors & Formats Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Colors */}
@@ -286,10 +295,21 @@ export default function ProductDashboard() {
                 <div className="space-y-2.5">
                   {dashboardData.topColors.slice(0, 8).map((c, i) => (
                     <div key={c.color} className="flex items-center gap-3">
-                      <div
-                        className="w-5 h-5 rounded-full border-2 border-gray-200 shrink-0"
-                        style={{ backgroundColor: COLOR_MAP[c.color] || '#9CA3AF' }}
-                      />
+                      {/* Los incoloros van como vidrio, no como color plano: no tienen color */}
+                      {esColorIncoloro(c.color) ? (
+                        <div
+                          className="relative overflow-hidden w-5 h-5 rounded-full border-2 border-gray-200 shrink-0"
+                          style={INCOLORO_FONDO}
+                          title={INCOLORO_TITULO}
+                        >
+                          <span className="pointer-events-none absolute inset-0 rounded-full" style={INCOLORO_BRILLO} />
+                        </div>
+                      ) : (
+                        <div
+                          className="w-5 h-5 rounded-full border-2 border-gray-200 shrink-0"
+                          style={{ backgroundColor: COLOR_MAP[c.color] || '#9CA3AF' }}
+                        />
+                      )}
                       <span className="text-sm font-medium text-gray-700 w-28 truncate">{c.color}</span>
                       <div className="flex-1">
                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">

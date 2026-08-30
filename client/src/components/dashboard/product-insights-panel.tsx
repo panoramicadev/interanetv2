@@ -9,6 +9,8 @@ import {
   PaintBucket, CupSoda, Droplet, Weight, Ruler, Container, Boxes,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
+import { esColorIncoloro, INCOLORO_FONDO, INCOLORO_BRILLO, INCOLORO_TITULO } from "@/lib/color-incoloro";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -69,7 +71,12 @@ function colorHex(name: string): string {
   return `hsl(${h % 360} 52% 56%)`;
 }
 
-/** Color dot. "Color personalizado" gets a rainbow swatch to flag non-line colors. */
+/**
+ * Color dot. Dos casos especiales antes del color plano:
+ *  - "Color personalizado": muestrario arcoíris, para marcar los que están fuera de línea.
+ *  - Incoloro / transparente: vidrio (cuadriculado + brillo). Pintarlo de un color plano
+ *    hace creer que el producto tiene ese color, y no tiene ninguno.
+ */
 function ColorSwatch({ color, className }: { color: string; className?: string }) {
   if (color === CUSTOM_COLOR_LABEL) {
     return (
@@ -78,6 +85,17 @@ function ColorSwatch({ color, className }: { color: string; className?: string }
         style={{ background: CUSTOM_COLOR_GRADIENT }}
         title="Color personalizado (fuera de las líneas definidas)"
       />
+    );
+  }
+  if (esColorIncoloro(color)) {
+    return (
+      <div
+        className={cn("relative overflow-hidden rounded-full border border-gray-300 shrink-0", className)}
+        style={INCOLORO_FONDO}
+        title={INCOLORO_TITULO}
+      >
+        <span className="pointer-events-none absolute inset-0 rounded-full" style={INCOLORO_BRILLO} />
+      </div>
     );
   }
   return (
@@ -234,6 +252,13 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
         ))}
       </div>
 
+      {/* Margen del producto en el mismo período que los indicadores de arriba */}
+      <MargenResumenCard
+        selectedPeriod={selectedPeriod}
+        filterType={filterType as "day" | "month" | "year" | "range"}
+        product={productName}
+      />
+
       {/* Seasonality */}
       <SectionCard
         icon={<TrendingUp className="w-4.5 h-4.5 text-white" />} gradient="from-[#fd6301] to-[#e35400]" shadow="shadow-blue-500/20"
@@ -300,7 +325,7 @@ export default function ProductInsightsPanel({ productName, selectedPeriod, filt
             <div className="space-y-2.5">
               {data.formatBreakdown.map((f) => (
                 <div key={f.format} className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-orange-50 text-[#fd6301] flex items-center justify-center shrink-0">
+                  <span className="w-8 h-8 rounded-lg bg-[#fd6301] text-white flex items-center justify-center shrink-0 shadow-md shadow-[#fd6301]/25">
                     <FormatIcon format={f.format} className="w-4 h-4" />
                   </span>
                   <span className="text-sm font-medium text-gray-700 w-28 truncate">{f.format}</span>

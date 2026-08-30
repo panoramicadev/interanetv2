@@ -541,8 +541,8 @@ export default function GastosViajes() {
           {!ruta ? (
             <Card className="rounded-2xl border-dashed border-slate-300 dark:border-slate-700">
               <CardContent className="flex flex-col items-center gap-3 py-20 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
-                  <RouteIcon className="h-6 w-6 text-[#fd6301]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25">
+                  <RouteIcon className="h-6 w-6 text-white" />
                 </div>
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Sin ruta calculada

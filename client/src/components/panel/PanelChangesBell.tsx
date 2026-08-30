@@ -89,7 +89,7 @@ export function PanelChangesBell({ changes, onNavigate }: Props) {
                   className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors border-b border-slate-50 dark:border-slate-800/60 last:border-b-0"
                   data-testid={`panel-change-item-${item.id}`}
                 >
-                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0 mt-0.5">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex-shrink-0 mt-0.5 shadow-md shadow-[#fd6301]/25">
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0 flex-1 leading-tight">

@@ -156,8 +156,21 @@ fondos. Si agregas un estado nuevo, va en el mapa de `ui.tsx`, no en la página.
 Barrido pedido por el usuario sobre el dashboard principal y las vistas de
 segmento, sucursal, vendedor, supervisor y técnico. Regla:
 
-- **Ícono-chip de tarjeta o panel:** `bg-orange-50 dark:bg-orange-950/30` con el
-  ícono en `text-[#fd6301]`. Nada de chips celestes, verdes o lilas.
+- **Ícono-chip de tarjeta o panel: naranjo SÓLIDO con el ícono en blanco.**
+  Fuente única: **`client/src/lib/icono-chip.ts`** (`ICONO_CHIP` / `ICONO_CHIP_ICONO`,
+  más las variantes `_SM` para chips dentro de una fila). Importar de ahí en vez de
+  repetir las clases.
+  ```
+  bg-[#fd6301] rounded-xl p-2.5 shadow-md shadow-[#fd6301]/25   ← contenedor
+  h-5 w-5 text-white                                            ← ícono
+  ```
+  Corrección del usuario (ago-2026): antes esta guía pedía la versión **suave**
+  (`bg-orange-50` + ícono `text-[#fd6301]`), y quedó conviviendo con la sólida que ya
+  usaban Meta y Documentos Pendientes. Dos tarjetas vecinas con chips distintos se leen
+  como si tuvieran distinta jerarquía. Se barrió toda la app a la sólida.
+  Nada de chips celestes, verdes o lilas — ni de emojis en lugar del ícono.
+  ⚠️ **`bg-orange-50` sigue siendo válido** para fondos de fila, filas de total y
+  avisos. Lo que cambió es el chip que envuelve a un ícono.
 - **Botones de acción dentro de un panel** ("Análisis completo", "Exportar"):
   `bg-[#fd6301] hover:bg-[#e35400]`.
 - **Barras de ranking de una sola serie** (top productos, top vendedores, top
@@ -336,27 +349,33 @@ la fila de filtros en Tareas/Marketing y parecía "desaparecer" en otras pestañ
 
 ## Layout y tono general
 
-### Shell de tarjetas (jul-2026) — sidebar y módulo son dos tarjetas
+### Shell (ago-2026) — todo a sangre, sin tarjetas ni canvas
 
-`client/src/components/layout/dashboard-layout.tsx` monta un shell de dos
-tarjetas flotando sobre un canvas gris:
+`client/src/components/layout/dashboard-layout.tsx`:
 
-- Canvas de la app: `bg-slate-100 dark:bg-slate-950` (el gris SOLO vive acá).
-- Sidebar: `fixed inset-y-0 left-0 p-3` + tarjeta interna
-  `bg-[#0a0a0a] rounded-3xl shadow-xl shadow-slate-900/10 overflow-hidden`.
-  Anchos del contenedor: `w-[17.5rem]` expandido / `w-[5.75rem]` colapsado
-  (el `p-3` deja la tarjeta en 256px / 68px).
-- Módulo: `<main className="p-3 lg:pl-0">` con tarjeta
-  `bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 shadow-sm
-  min-h-[calc(100vh-1.5rem)] overflow-clip`.
-  ⚠️ `overflow-clip`, **no** `overflow-hidden`: hidden convierte la tarjeta en
+- Fondo de la app: **`bg-white dark:bg-slate-900`**. No hay canvas gris.
+- Sidebar: `fixed inset-y-0 left-0` **sin padding**, con
+  `w-[16rem]` expandido / `w-[4.25rem]` colapsado (256px / 68px, el mismo ancho
+  visible de siempre). Adentro `bg-[#0a0a0a] shadow-xl shadow-slate-900/10
+  overflow-hidden`, **sin `rounded-*`**: llega pegado arriba, abajo y a la izquierda.
+- Módulo: `<main>` sin padding, con
+  `bg-white dark:bg-slate-900 min-h-screen overflow-clip`, desplazado con
+  `lg:pl-[16rem]` / `lg:pl-[4.25rem]`. Ocupa todo el ancho y alto disponible,
+  **sin borde, sin esquinas redondeadas y sin margen**.
+  ⚠️ `overflow-clip`, **no** `overflow-hidden`: hidden convierte el bloque en
   scroll container y rompe los `sticky top-0` de las páginas.
 
+Corrección del usuario (ago-2026), en dos pasos: hasta julio esto era un **shell de dos
+tarjetas** (sidebar y módulo con `rounded-3xl` y `p-3`, flotando sobre un canvas
+`bg-slate-100`). Primero se sacó el marco del módulo —el recuadro lo hacía leer como una
+ventana dentro de la pantalla en vez de como la pantalla misma— y después el del menú,
+por lo mismo. **Si vas a tocar los anchos, acordate de que el `pl-` del módulo tiene que
+seguir al `w-` del sidebar**: son el mismo número en dos lugares.
+
 - **Fondo de página: BLANCO.** `--background` es `hsl(0,0%,100%)` y el root de
-  cada página va `bg-white dark:bg-slate-900` (o sin bg, heredando la tarjeta).
+  cada página va `bg-white dark:bg-slate-900` (o sin bg, heredando).
   ❌ Nada de `bg-gray-50`, `bg-slate-50/50` ni el gradiente
-  `from-slate-50 via-white to-orange-50/30` como fondo de módulo — el usuario lo
-  corrigió explícitamente: el módulo se ve blanco, el gris es solo el canvas.
+  `from-slate-50 via-white to-orange-50/30` como fondo de módulo.
 - El sidebar **no** tiene buscador de módulos (se eliminó en jul-2026).
 - Radios grandes: `rounded-xl` / `rounded-2xl` para cards y contenedores;
   `rounded-3xl` para las dos tarjetas del shell.

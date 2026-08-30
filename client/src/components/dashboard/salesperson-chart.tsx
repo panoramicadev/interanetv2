@@ -47,8 +47,8 @@ export default function SalespersonChart({ selectedPeriod, filterType, segment, 
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-2 sm:space-x-3">
-        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 dark:bg-orange-950/30 rounded-lg flex items-center justify-center">
-          <Users className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+          <Users className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
         </div>
         <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
           Ventas por Vendedor

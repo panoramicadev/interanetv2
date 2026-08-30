@@ -18,10 +18,12 @@ El módulo de referencia en código es el **Panel de Trabajo**
   selector sin bordes. La fila deja los filtros a la izquierda y el contador a la
   derecha. El selector de contexto (Área) vive siempre en el header de la página,
   visible en todas las pestañas.
-- **Shell de tarjetas:** el sidebar es una tarjeta negra flotante (`rounded-3xl`)
-  y el módulo otra tarjeta **blanca** (`rounded-3xl`), separadas por un canvas
-  gris claro. El gris vive solo en el canvas: **el fondo de cada módulo es blanco**
-  (nada de `bg-gray-50` ni gradientes de fondo). El sidebar no tiene buscador.
+- **Shell:** todo a sangre. El menú es una franja negra pegada arriba, abajo y a la
+  izquierda, **sin esquinas redondeadas**, y el módulo ocupa todo el resto de la
+  pantalla, también sin borde ni margen. Ya no hay canvas gris ni tarjetas flotantes
+  (ago-2026: el recuadro hacía leer cada parte como una ventana dentro de la pantalla).
+  **El fondo de cada módulo es blanco** — nada de `bg-gray-50` ni gradientes de fondo.
+  El menú no tiene buscador.
 - **Header de página:** título con un ícono-chip naranja cuadrado + subtítulo gris.
 - **Dark mode** siempre contemplado; diseño responsive (los filtros colapsan en móvil).
 

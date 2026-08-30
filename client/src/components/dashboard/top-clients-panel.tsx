@@ -168,8 +168,9 @@ export default function TopClientsPanel({
   }, [view]);
 
   const isNewView = view === "new";
-  const accentBg = isNewView ? "bg-orange-50" : "bg-orange-50";
-  const accentText = isNewView ? "text-[#fd6301]" : "text-[#fd6301]";
+  // Chip de ícono: naranjo sólido con el ícono en blanco, igual que el resto de los módulos.
+  const accentBg = "bg-[#fd6301] shadow-md shadow-[#fd6301]/25";
+  const accentText = "text-white";
   const barColor = isNewView ? "bg-[#fd6301]" : "bg-[#fd6301]";
   const totalRowBg = isNewView ? "bg-orange-50" : "bg-orange-50";
   const totalRowText = isNewView ? "text-[#fd6301]" : "text-[#fd6301]";

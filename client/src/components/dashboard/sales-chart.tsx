@@ -316,10 +316,15 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
             }
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* En móvil los controles no caben en el ancho de la pantalla y "Mensual" quedaba
+            cortado fuera del borde. Se convierten en una tira que se desliza en horizontal
+            —el mismo patrón que usa el resto de la app para barras de 3+ botones—, con la
+            barra de scroll oculta para que no corte el borde de la tarjeta. Los grupos van
+            con `shrink-0` para que se deslicen enteros en vez de apretarse. */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Facturado / NVV toggle */}
           {!isComparison && (
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
               <button
                 onClick={() => setDataSource('facturado')}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
@@ -344,7 +349,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
           )}
           {/* Period buttons */}
           {filterType !== 'day' && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <Button
                 variant={period === 'daily' ? 'default' : 'outline'}
                 size="sm"
@@ -363,15 +368,10 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
               >
                 Semanal
               </Button>
-              <Button
-                variant={period === 'monthly' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setPeriod('monthly')}
-                className="text-xs"
-                data-testid="button-chart-monthly"
-              >
-                Mensual
-              </Button>
+              {/* Sin botón "Mensual" (decisión del usuario, ago-2026): no cabía en el
+                  ancho del celular y quedaba cortado fuera del borde. La vista mensual
+                  igual se sigue usando: cuando el período elegido arriba es un año
+                  completo, el gráfico se pone en meses solo (ver getDefaultPeriod). */}
             </div>
           )}
         </div>

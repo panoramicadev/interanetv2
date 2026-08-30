@@ -98,8 +98,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
       {!isSearchExpanded ? (
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Top Productos</h2>
             
@@ -131,8 +131,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           {/* Búsqueda expandida a ancho completo */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="h-5 w-5 text-[#fd6301]" />
+              <div className="w-8 h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                <ShoppingBag className="h-5 w-5 text-white" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
             </div>

@@ -68,7 +68,7 @@ export default function MetaGoalCard({
 
   return (
     <div
-      className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5"
+      className="rounded-2xl bg-white dark:bg-slate-900 p-5"
       data-testid={testId}
     >
       <div className="space-y-4">
@@ -98,11 +98,14 @@ export default function MetaGoalCard({
           </div>
         </div>
 
-        {/* Meta y ventas en fila */}
+        {/* Meta y ventas en fila.
+            Los montos van en peso normal, no en negrita (corrección del usuario,
+            ago-2026): sobre los fondos negro y naranjo la negrita se empasta y las dos
+            cifras compiten con el % grande, que es el dato principal de la tarjeta. */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
             <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
-            <p className="text-lg font-bold text-white" data-testid={targetTestId}>
+            <p className="text-lg font-normal text-white" data-testid={targetTestId}>
               {formatCurrency(targetAmount)}
             </p>
           </div>
@@ -110,7 +113,7 @@ export default function MetaGoalCard({
             <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
               {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
             </p>
-            <p className="text-lg font-bold text-white" data-testid={currentTestId}>
+            <p className="text-lg font-normal text-white" data-testid={currentTestId}>
               {formatCurrency(effectiveCombined ? combinedTotal : currentSales)}
             </p>
           </div>

@@ -387,7 +387,7 @@ function FilaObraSeguimiento({ fila, onAbrir }: { fila: FilaSeguimiento; onAbrir
       data-testid={`row-seguimiento-obra-${obra.id}`}
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center flex-shrink-0">
+        <span className="w-9 h-9 rounded-xl bg-[#fd6301] text-white dark:text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
           <HardHat className="h-4 w-4" />
         </span>
         <div className="min-w-0">

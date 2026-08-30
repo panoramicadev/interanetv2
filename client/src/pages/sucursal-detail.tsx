@@ -16,6 +16,7 @@ import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparati
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import SalesChart from "@/components/dashboard/sales-chart";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 
 interface BranchClient {
   clientName: string;
@@ -688,8 +689,8 @@ export default function SucursalDetail({
                         {formatCurrency(totalSales)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
                     </div>
                   </div>
                 </div>
@@ -702,8 +703,8 @@ export default function SucursalDetail({
                         {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
                     </div>
                   </div>
                 </div>
@@ -716,8 +717,8 @@ export default function SucursalDetail({
                         {formatNumber(totalTransactions)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-50 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-[#fd6301]" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
                     </div>
                   </div>
                 </div>
@@ -736,6 +737,15 @@ export default function SucursalDetail({
                   </div>
                 </div>
               </div>
+
+              {/* Margen de la sucursal en el mismo período que las tarjetas de arriba */}
+              {branchName && (
+                <MargenResumenCard
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  branch={branchName}
+                />
+              )}
 
               {/* Sales Chart - Tendencia de Ventas for this branch */}
               {branchName && (
@@ -764,8 +774,8 @@ export default function SucursalDetail({
                   {/* Top Clients Table */}
                   <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                     <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                       </div>
                       <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Sucursal</h2>
                     </div>
@@ -807,8 +817,8 @@ export default function SucursalDetail({
                   {/* Top Salespeople Table */}
                   <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                     <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                        <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                       </div>
                       <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Sucursal</h2>
                     </div>

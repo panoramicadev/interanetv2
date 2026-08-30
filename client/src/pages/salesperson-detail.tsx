@@ -1441,7 +1441,7 @@ export default function SalespersonDetail({
         )}
 
         {/* Main Content */}
-        <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
+        <main className="p-3 sm:p-4 lg:p-6 flex flex-col gap-4 lg:gap-6">
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
             <>
@@ -1490,22 +1490,22 @@ export default function SalespersonDetail({
                 </div>
               )}
 
-              {/* KPI Cards — usa las mismas tarjetas del dashboard principal */}
-              <div>
-                <KPICards
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                  salesperson={salespersonName}
-                  client={clientFilter || undefined}
-                  product={productFilter || undefined}
-                  onShowNewClients={handleShowNewClientsInPanel}
-                />
-              </div>
+              {/* KPI Cards — usa las mismas tarjetas del dashboard principal.
+                  Sin div envolvente: en celular las tarjetas se reparten entre las demás
+                  secciones y una caja intermedia las volvería a encerrar. */}
+              <KPICards
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+                client={clientFilter || undefined}
+                product={productFilter || undefined}
+                onShowNewClients={handleShowNewClientsInPanel}
+              />
 
 
-              {/* Meta de Ventas */}
+              {/* Meta de Ventas — primera en celular (ver el orden en dashboard.tsx) */}
               {primaryGoal && (
-                <Card className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700">
+                <Card className="order-[-4] md:order-none rounded-2xl border-0 shadow-none bg-white dark:bg-slate-900">
                   <CardContent className="pt-5 pb-5">
                     <div className="space-y-4">
                       {/* Header con título y porcentaje */}
@@ -1536,11 +1536,11 @@ export default function SalespersonDetail({
                           <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
                             {goalEffectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
                           </p>
-                          <p className="text-lg font-bold text-white">{formatCurrency(goalEffectiveCombined ? goalCombinedTotal : (primaryGoal.currentSales || 0))}</p>
+                          <p className="text-lg font-normal text-white">{formatCurrency(goalEffectiveCombined ? goalCombinedTotal : (primaryGoal.currentSales || 0))}</p>
                         </div>
                         <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
                           <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
-                          <p className="text-lg font-bold text-white">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
+                          <p className="text-lg font-normal text-white">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
                         </div>
                       </div>
 
@@ -1614,13 +1614,15 @@ export default function SalespersonDetail({
                 </Card>
               )}
 
-              {/* Documentos Pendientes Unificado (NVV + GDV) */}
+              {/* Documentos Pendientes Unificado (NVV + GDV) — cuarto en celular */}
               {salespersonName && (
-                <PendingDocumentsUnified
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                  salesperson={salespersonName}
-                />
+                <div className="order-[-3] md:order-none">
+                  <PendingDocumentsUnified
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    salesperson={salespersonName}
+                  />
+                </div>
               )}
 
               {/* Tendencia de Ventas */}
@@ -1703,8 +1705,8 @@ export default function SalespersonDetail({
                           >
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                <div className="bg-orange-50 rounded-full p-2">
-                                  <Target className="h-5 w-5 text-[#fd6301]" />
+                                <div className="bg-[#fd6301] rounded-full p-2 shadow-md shadow-[#fd6301]/25">
+                                  <Target className="h-5 w-5 text-white" />
                                 </div>
                                 <h4 className="text-sm font-bold text-gray-900">
                                   Resumen Semanal
@@ -1893,8 +1895,8 @@ export default function SalespersonDetail({
                 {!isProductSearchExpanded ? (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                        <Package className="h-5 w-5 text-[#fd6301]" />
+                      <div className="w-8 h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                        <Package className="h-5 w-5 text-white" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
 
@@ -1914,8 +1916,8 @@ export default function SalespersonDetail({
                     {/* Búsqueda expandida a ancho completo */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                          <Package className="h-5 w-5 text-[#fd6301]" />
+                        <div className="w-8 h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                          <Package className="h-5 w-5 text-white" />
                         </div>
                         <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
                       </div>
@@ -2151,8 +2153,8 @@ export default function SalespersonDetail({
               {salespersonName && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-[#fd6301]" />
+                    <div className="w-8 h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                      <FileText className="h-5 w-5 text-white" />
                     </div>
                     <h2 className="text-xl font-bold text-gray-900">Últimas Órdenes</h2>
                   </div>

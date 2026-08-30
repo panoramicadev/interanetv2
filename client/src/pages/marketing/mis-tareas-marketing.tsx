@@ -215,7 +215,7 @@ export default function MisTareasMarketing() {
         </div>
       ) : visibles.length === 0 ? (
         <div className="text-center py-12">
-          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 flex items-center justify-center mx-auto mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#fd6301] text-white flex items-center justify-center mx-auto mb-3 shadow-md shadow-[#fd6301]/25">
             <Inbox className="h-6 w-6" />
           </div>
           <p className="text-sm text-slate-500 max-w-sm mx-auto">
