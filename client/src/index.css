@@ -295,9 +295,11 @@
   }
 }
 
-/* El módulo vive dentro de una tarjeta con 12px de margen arriba y abajo
-   (ver dashboard-layout). Las páginas usan min-h-screen (100vh), que dentro
-   de la tarjeta sobra 1.5rem y deja un scroll vertical fantasma en todas. */
+/* El módulo ocupa la pantalla completa, sin margen propio (ver dashboard-layout).
+   Antes flotaba como tarjeta con 12px arriba y abajo, y había que descontarle esos
+   1.5rem al min-h-screen de las páginas para no dejar un scroll vertical fantasma.
+   Sin margen, el 100vh de las páginas ya calza: la regla queda neutra a propósito,
+   para no tener que revisar página por página si alguna dependía de ella. */
 .module-card .min-h-screen {
-  min-height: calc(100vh - 1.5rem);
+  min-height: 100vh;
 }

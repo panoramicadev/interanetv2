@@ -323,7 +323,7 @@ export default function Comisiones() {
 
             {/* Filtro por vendedor */}
             <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex-shrink-0 dark:bg-orange-950/40 dark:text-orange-300">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
                 <Users className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none">

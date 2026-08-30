@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import { useFilter } from "@/contexts/FilterContext";
+import { mesEs, mesEsCapitalizado, mesAnioEs } from "@/lib/fecha-es";
+import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
 
 interface SalesMetrics {
   totalSales: number;
@@ -545,14 +548,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
 
-      // If it's the current month, show "Oct 1-9" format
+      // If it's the current month, show "1-9 de octubre" format
       if (year === currentYear && month === currentMonth) {
-        const monthName = format(new Date(year, month - 1, 1), 'MMM');
         const currentDay = now.getDate();
-        return `${monthName} 1-${currentDay}`;
+        return `1-${currentDay} de ${mesEs(month - 1)}`;
       } else {
         // Past month, show full month
-        return format(new Date(year, month - 1, 1), 'MMM yyyy');
+        return mesAnioEs(month - 1, year);
       }
     }
 
@@ -565,10 +567,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     let comparisonText = "";
 
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
-      // Month comparison: "vs Oct 2024" or "vs Oct 2024 al 15/12" for current month
+      // Month comparison: "vs Octubre 2024" or "vs Octubre 2024 al 15/12" for current month
       const [year, month] = selectedPeriod.split('-').map(Number);
       const previousYear = year - 1;
-      const monthName = format(new Date(year, month - 1, 1), 'MMM');
+      const monthName = mesEsCapitalizado(month - 1);
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
@@ -581,11 +583,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         comparisonText = `vs ${monthName} ${previousYear}`;
       }
     } else if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Day comparison: "vs 28 Oct 2024"
+      // Day comparison: "vs 28 de octubre 2024"
       const [year, month, day] = selectedPeriod.split('-').map(Number);
       const previousYear = year - 1;
-      const dayFormatted = format(new Date(year, month - 1, day), 'd MMM');
-      comparisonText = `vs ${dayFormatted} ${previousYear}`;
+      comparisonText = `vs ${day} de ${mesEs(month - 1)} ${previousYear}`;
     } else if (filterType === "year") {
       // Year comparison: "vs 2024"
       const year = parseInt(selectedPeriod.split('-')[0]);
@@ -696,8 +697,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: salesChange.color,
       comparison: salesComparison,
       icon: DollarSign,
-      bgColor: "bg-orange-50 dark:bg-orange-950/30",
-      iconColor: "text-[#fd6301]",
+      bgColor: ICONO_CHIP,
+      iconColor: ICONO_CHIP_ICONO,
       testId: "kpi-total-sales"
     },
     {
@@ -707,8 +708,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: yearlyChange.color,
       comparison: null, // No comparison period for yearly totals
       icon: DollarSign,
-      bgColor: "bg-orange-50 dark:bg-orange-950/30",
-      iconColor: "text-[#fd6301]",
+      bgColor: ICONO_CHIP,
+      iconColor: ICONO_CHIP_ICONO,
       testId: "kpi-yearly-total"
     },
     {
@@ -718,14 +719,44 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       changeColor: newClientsChange.color,
       comparison: null,
       icon: Users,
-      bgColor: "bg-orange-50 dark:bg-orange-950/30",
-      iconColor: "text-[#fd6301]",
+      bgColor: ICONO_CHIP,
+      iconColor: ICONO_CHIP_ICONO,
       testId: "kpi-new-clients"
     },
   ];
 
   // Renderizar tarjeta personalizada para Ventas Totales
-  const renderSalesCard = (kpi: any) => {
+  /**
+   * Interruptor Facturado / Combinado. Solo aparece en el mes en curso: en un mes ya
+   * cerrado lo pendiente (NVV/GDV) ya se transformó en facturado y el combinado no existe.
+   * El estado vive en FilterContext, así que da lo mismo cuántas veces se dibuje: todas
+   * las tarjetas del dashboard siguen el mismo modo.
+   */
+  const renderToggleFacturadoCombinado = () => {
+    if (!isCurrentMonth()) return null;
+    return (
+      <div
+        className="flex items-center space-x-1 sm:space-x-1.5"
+        onClick={(e) => e.stopPropagation()} // que no abra la ventana de proyección
+      >
+        <button
+          onClick={() => setShowCombined(false)}
+          className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+        >
+          Facturado
+        </button>
+        <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
+        <button
+          onClick={() => setShowCombined(true)}
+          className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
+        >
+          Combinado
+        </button>
+      </div>
+    );
+  };
+
+  const renderSalesBody = (kpi: any, conToggle: boolean, conIcono = true) => {
     const salesTotal = Number(metrics?.totalSales || 0);
     const previousSales = Number(metrics?.previousMonthSales || 0);
 
@@ -758,45 +789,17 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const combinedDiffFormatted = formatCurrency(Math.abs(combinedDifference));
     const combinedDiffSign = combinedDifference >= 0 ? '+' : '-';
 
+    // Devuelve SOLO el contenido de "Ventas Totales". La tarjeta que lo envuelve y el
+    // interruptor Facturado/Combinado los pone renderVentasCard, que junta esta sección
+    // con la de "Total Acumulado" en un mismo cuadro (pedido del usuario, ago-2026).
     return (
-      <>
-        <div
-          key={kpi.title}
-          className={`modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden ${!salesperson && !segment && !client && !product ? 'cursor-pointer ring-green-300 hover:ring-2' : ''} transition-all`}
-          onClick={() => {
-            if (!salesperson && !segment && !client && !product) {
-              setIsProjectionModalOpen(true);
-            }
-          }}
-        >
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-              <div className="flex items-center justify-between mb-1 sm:mb-2 border-b border-gray-100 dark:border-gray-800 pb-2">
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
                 <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
                   {kpi.title}
                 </p>
-
-                {/* Facturado / Combinado Subtle Toggle (solo mes en curso) */}
-                {isCurrent && (
-                  <div
-                    className="flex items-center space-x-1 sm:space-x-1.5"
-                    onClick={(e) => e.stopPropagation()} // Prevent opening projection modal when toggling
-                  >
-                    <button
-                      onClick={() => setShowCombined(false)}
-                      className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                    >
-                      Facturado
-                    </button>
-                    <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
-                    <button
-                      onClick={() => setShowCombined(true)}
-                      className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                    >
-                      Combinado
-                    </button>
-                  </div>
-                )}
+                {conToggle && renderToggleFacturadoCombinado()}
               </div>
 
               <p
@@ -857,7 +860,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               </div>
               {isCurrent && (nvvTotal > 0 || gdvSales > 0) && (
-                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="mt-2 pt-2 overflow-hidden">
                   <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
                     <span className="truncate" title={`Facturas: ${kpi.value}`}>Fact: {kpi.value}</span>
                     <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
@@ -868,41 +871,44 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               )}
             </div>
-            <div className={`absolute top-3 right-3 sm:top-14 sm:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105 pointer-events-none`}>
-              <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
-            </div>
+            {conIcono && (
+              <div className={`absolute top-3 right-3 sm:top-14 sm:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:static lg:ml-4 ${kpi.bgColor} transition-transform hover:scale-105 pointer-events-none`}>
+                <kpi.icon className={`${kpi.iconColor}`} />
+              </div>
+            )}
           </div>
-        </div>
-        <Dialog open={isProjectionModalOpen} onOpenChange={setIsProjectionModalOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col items-center justify-center p-6 border-none shadow-none bg-transparent sm:bg-transparent [&>button]:hidden">
-            {/* Wrapper for SalesProjectionCard */}
-            <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-slate-800 dark:text-slate-200">
-                  <DollarSign className="h-6 w-6 text-emerald-500" />
-                  Ventas Totales - Proyección
-                </DialogTitle>
-                <DialogClose asChild>
-                  <button className="rounded-full p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Cerrar">
-                    <X className="h-5 w-5 text-slate-500 dark:text-slate-400" />
-                  </button>
-                </DialogClose>
-              </div>
-              <div className="p-6">
-                <SalesProjectionCard
-                  selectedPeriod={selectedPeriod}
-                  filterType={filterType}
-                  segment={segment}
-                  salesperson={salesperson}
-                  client={client}
-                />
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </>
     );
   };
+
+  /** Ventana de proyección de ventas. Se abre tocando la tarjeta de Ventas Totales. */
+  const renderProyeccionModal = () => (
+    <Dialog open={isProjectionModalOpen} onOpenChange={setIsProjectionModalOpen}>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col items-center justify-center p-6 border-none shadow-none bg-transparent sm:bg-transparent [&>button]:hidden">
+        <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+            <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-slate-800 dark:text-slate-200">
+              <DollarSign className="h-6 w-6 text-emerald-500" />
+              Ventas Totales - Proyección
+            </DialogTitle>
+            <DialogClose asChild>
+              <button className="rounded-full p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Cerrar">
+                <X className="h-5 w-5 text-slate-500 dark:text-slate-400" />
+              </button>
+            </DialogClose>
+          </div>
+          <div className="p-6">
+            <SalesProjectionCard
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              segment={segment}
+              salesperson={salesperson}
+              client={client}
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   const renderNewClientsCard = (kpi: any) => {
     const totalCustomers = metrics?.activeCustomers || 0;
@@ -917,7 +923,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       <>
         <div
           key={kpi.title}
-          className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden cursor-pointer ring-purple-300 hover:ring-2 transition-all"
+          className="order-[-2] md:order-none modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden cursor-pointer ring-purple-300 hover:ring-2 transition-all"
           onClick={() => {
             if (onShowNewClients) {
               onShowNewClients();
@@ -928,9 +934,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         >
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
-                {kpi.title}
-              </p>
+              {/* Mismo encabezado con línea divisoria que las otras tres tarjetas del
+                  bloque (corrección del usuario, ago-2026): esta era la única sin línea
+                  y el título quedaba pegado a la cifra. */}
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
+                  {kpi.title}
+                </p>
+              </div>
               <p
                 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
@@ -948,7 +959,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   </span>
                 </div>
               </div>
-              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <div className="mt-2 pt-2">
                 <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
                     {formatNumber(totalCustomers)} clientes totales
@@ -962,8 +973,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </p>
               </div>
             </div>
-            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
-              <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 ${kpi.bgColor} transition-transform hover:scale-105`}>
+              <kpi.icon className={`${kpi.iconColor}`} />
             </div>
           </div>
         </div>
@@ -1037,7 +1048,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   };
 
   // Renderizar tarjeta personalizada para Total Acumulado del Año
-  const renderYearlyCard = (kpi: any) => {
+  const renderYearlyBody = (kpi: any, conToggle: boolean, conIcono = true) => {
     const bestYearValue = bestYear?.bestYear || 0;
     const bestYearTotalValue = bestYear?.bestYearTotal || 0;
 
@@ -1144,36 +1155,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       budgetColor = pct >= 0 ? "text-[#fd6301]" : "text-red-600";
     }
 
+    // Igual que renderSalesBody: devuelve solo el contenido, sin la tarjeta que lo envuelve.
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1 sm:mb-2 border-b border-gray-100 dark:border-gray-800 pb-2 gap-2">
+            <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2">
               <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
                 Total Acumulado
               </p>
-
-              {/* Facturado / Combinado Subtle Toggle (solo mes en curso) */}
-              {isCurrent && (
-                <div
-                  className="flex items-center space-x-1 sm:space-x-1.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => setShowCombined(false)}
-                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${!showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                  >
-                    Facturado
-                  </button>
-                  <span className="text-[9px] sm:text-[10px] text-slate-300 dark:text-gray-700">/</span>
-                  <button
-                    onClick={() => setShowCombined(true)}
-                    className={`text-[9px] sm:text-[10px] transition-colors focus:outline-none ${showCombined ? 'font-bold text-slate-700 dark:text-slate-200 underline underline-offset-2' : 'text-slate-400 dark:text-gray-500 hover:text-slate-600 font-medium'}`}
-                  >
-                    Combinado
-                  </button>
-                </div>
-              )}
+              {conToggle && renderToggleFacturadoCombinado()}
             </div>
 
             <p
@@ -1184,7 +1174,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               {formatCurrency(displayValue)}
             </p>
             {budgetYTD > 0 && (
-              <div className="mt-2 space-y-1 text-xs border-t border-gray-100 dark:border-gray-700 pt-2">
+              <div className="mt-2 space-y-1 text-xs pt-2">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 dark:text-gray-400">
                     Meta a la Fecha:
@@ -1199,28 +1189,83 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             )}
 
           </div>
-          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
-            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
-          </div>
+          {conIcono && (
+            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 ${kpi.bgColor} transition-transform hover:scale-105`}>
+              <kpi.icon className={`${kpi.iconColor}`} />
+            </div>
+          )}
         </div>
-      </div >
     );
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-      {kpis.map((kpi) => {
-        if (kpi.title === "Ventas Totales") {
-          return renderSalesCard(kpi);
-        } else if (kpi.title === "Total Acumulado del Año") {
-          return renderYearlyCard(kpi);
-        } else if (kpi.title === "Clientes Nuevos") {
-          return renderNewClientsCard(kpi);
-        }
+  // En PANTALLA GRANDE: cuatro tarjetas del mismo tamaño en dos columnas — arriba las dos
+  // de plata (Ventas Totales y Total Acumulado) y abajo las otras dos (Clientes Nuevos y
+  // Margen).
+  //
+  // En CELULAR el bloque usa `contents`, o sea que desaparece como caja y sus cuatro
+  // tarjetas pasan a ser hijas directas de la página. Eso hace falta porque el orden que
+  // se pidió (meta, Ventas Totales, Margen, Documentos Pendientes...) intercala tarjetas
+  // de acá con secciones de afuera, y eso no se puede lograr mientras el bloque siga
+  // siendo una caja cerrada. La separación entre tarjetas la pone el `gap` de la página.
+  // ⚠️ Por eso el contenedor de la página que use estas tarjetas tiene que ser
+  // `flex flex-col` con `gap`, NO `space-y`: con `space-y` las tarjetas quedarían pegadas.
+  const kpiVentas = kpis.find((k) => k.title === "Ventas Totales");
+  const kpiAcumulado = kpis.find((k) => k.title === "Total Acumulado del Año");
+  const kpiClientes = kpis.find((k) => k.title === "Clientes Nuevos");
 
-        // Fallback para otras tarjetas (no debería llegar aquí)
-        return null;
-      })}
+  const abreProyeccion = !salesperson && !segment && !client && !product;
+  const alTocarVentas = () => { if (abreProyeccion) setIsProjectionModalOpen(true); };
+
+  return (
+    <div className="contents md:grid md:grid-cols-1 lg:grid-cols-2 md:gap-4 lg:gap-6">
+      {/* Ventas Totales y Total Acumulado van JUNTAS en una sola tarjeta, con un único
+          interruptor Facturado/Combinado arriba que manda sobre las dos (pedido del
+          usuario, ago-2026). Antes eran dos tarjetas, cada una con su propio interruptor
+          —los dos hacían lo mismo, porque el modo siempre fue uno solo para todo el
+          dashboard—, y tener dos controles idénticos hacía dudar de si cambiaban cosas
+          distintas.
+          En pantalla grande la tarjeta ocupa las dos columnas y las secciones se ponen
+          lado a lado; en celular quedan una debajo de la otra. */}
+      <div
+        className={`order-[-6] md:order-none lg:col-span-2 modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden ${abreProyeccion ? 'cursor-pointer ring-green-300 hover:ring-2' : ''} transition-all`}
+        onClick={alTocarVentas}
+      >
+        {/* Un solo ícono para toda la tarjeta, en la misma fila del interruptor. Los
+            íconos que traía cada sección estaban posicionados sobre la esquina de la
+            tarjeta y, al quedar las dos en el mismo cuadro, se pisaban entre ellos y
+            tapaban el interruptor. */}
+        <div className="flex items-center justify-end gap-3 pb-2">
+          {renderToggleFacturadoCombinado()}
+          {kpiVentas && (
+            <div className={kpiVentas.bgColor}>
+              <kpiVentas.icon className={kpiVentas.iconColor} />
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-6">
+          <div>{kpiVentas && renderSalesBody(kpiVentas, false, false)}</div>
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 lg:mt-0 lg:pt-0 lg:border-t-0 lg:border-l lg:pl-6">
+            {kpiAcumulado && renderYearlyBody(kpiAcumulado, false, false)}
+          </div>
+        </div>
+      </div>
+
+      {renderProyeccionModal()}
+
+      {kpiClientes && renderNewClientsCard(kpiClientes)}
+
+      {/* Margen del mismo recorte que muestran las otras tres.
+          Al vivir acá aparece solo en el dashboard principal, en la vista de
+          segmento y en la de vendedor, que son las tres que comparten KPICards. */}
+      <MargenResumenCard
+        selectedPeriod={selectedPeriod}
+        filterType={filterType}
+        segment={segment}
+        salesperson={salesperson}
+        client={client}
+        product={product}
+        className="order-[-1] md:order-none"
+      />
     </div>
   );
 }

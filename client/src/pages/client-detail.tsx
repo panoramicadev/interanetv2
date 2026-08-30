@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
@@ -958,6 +959,15 @@ export default function ClientDetail() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Margen del cliente en el mismo período que las tarjetas de arriba */}
+        {decodedClientName && (
+          <MargenResumenCard
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
+            client={decodedClientName}
+          />
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

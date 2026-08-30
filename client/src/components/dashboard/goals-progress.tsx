@@ -276,7 +276,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
             const effectiveCombined = showCombined && isCurrentPeriod && hasCombined;
             const displayPercentage = effectiveCombined ? combinedPercentage : (goal.percentage ?? 0);
             return (
-              <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
+              <div key={goal.id} className="rounded-2xl bg-white dark:bg-slate-900 p-5">
                 <div className="space-y-4">
                   {/* Header con título y porcentaje */}
                   <div className="flex items-center justify-between">
@@ -305,7 +305,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
                       <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
-                      <p className="text-lg font-bold text-white">
+                      <p className="text-lg font-normal text-white">
                         {formatCurrency(goal.targetAmount)}
                       </p>
                     </div>
@@ -313,7 +313,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
                         {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
                       </p>
-                      <p className="text-lg font-bold text-white">
+                      <p className="text-lg font-normal text-white">
                         {formatCurrency(effectiveCombined ? combinedTotal : goal.currentSales)}
                       </p>
                     </div>
@@ -364,7 +364,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
             const effectiveCombined = showCombined && isCurrentPeriod && hasCombined;
             const displayPercentage = effectiveCombined ? combinedPercentage : (goal.percentage ?? 0);
             return (
-              <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
+              <div key={goal.id} className="rounded-2xl bg-white dark:bg-slate-900 p-5">
                 <div className="space-y-4">
                   {/* Header con título y porcentaje */}
                   <div className="flex items-center justify-between">
@@ -395,7 +395,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
                       <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
-                      <p className="text-lg font-bold text-white">
+                      <p className="text-lg font-normal text-white">
                         {formatCurrency(goal.targetAmount)}
                       </p>
                     </div>
@@ -403,7 +403,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">
                         {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
                       </p>
-                      <p className="text-lg font-bold text-white">
+                      <p className="text-lg font-normal text-white">
                         {formatCurrency(effectiveCombined ? combinedTotal : goal.currentSales)}
                       </p>
                     </div>

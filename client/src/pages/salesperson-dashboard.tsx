@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import KPICards from "@/components/dashboard/kpi-cards";
+import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
@@ -706,6 +707,15 @@ export default function SalespersonDashboard() {
           </Card>
 
         </div>
+
+        {/* Margen del vendedor en el mismo período que los indicadores de arriba */}
+        {salespersonName && (
+          <MargenResumenCard
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
+            salesperson={salespersonName}
+          />
+        )}
 
         <section className="space-y-6" data-testid="section-goals-and-segments">
           <GoalsProgress

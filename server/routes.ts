@@ -3,7 +3,7 @@ import mssql from "mssql";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
-import { storage, type AlcanceObras } from "./storage";
+import { storage, DatabaseStorage, type AlcanceObras } from "./storage";
 import {
   ORIGENES as ORIGENES_VENTA,
   buscarDocumentos as buscarDocumentosDeVenta,
@@ -31336,6 +31336,176 @@ export function registerRoutes(app: Express): Server {
       console.error('Error in margin-dashboard:', error);
       res.status(500).json({ message: 'Error al obtener dashboard de margen', error: error.message });
     }
+  }));
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Margen del período aplicado a LO QUE EL USUARIO ESTÁ VIENDO.
+  //
+  // Cada dashboard (todo, segmento, sucursal, vendedor, cliente, producto,
+  // agrupación) le pasa acá los mismos filtros que ya usa para sus tarjetas de
+  // ventas, y recibe de vuelta el margen de ese mismo recorte. Dos decisiones
+  // para que las cifras cuadren entre pantallas:
+  //
+  //   • Universo = tido <> 'GDV', igual que getSalesMetrics. O sea facturas (FCV)
+  //     menos notas de crédito (NCV): en una NCV la cantidad se invierte para que
+  //     el ingreso Y el costo asociado descuenten del neto. Las guías pendientes
+  //     del modo "Combinado" NO entran: todavía no tienen costo real.
+  //   • Costo por línea = LINE_COST_GRI_EXPR, el mismo criterio del módulo Margen
+  //     (ver server/costo-linea.ts): los conceptos ZZ* van con costo 0.
+  //
+  // Devuelve además el período anterior del mismo largo para mostrar la variación.
+  app.get('/api/margen/resumen', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, segment, salesperson, client, product, family, branch } = req.query;
+
+    const range = getDateRange(period as string, filterType as string);
+    const startDate = (req.query.startDate as string) || range.startDate;
+    const endDate = (req.query.endDate as string) || range.endDate;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'Faltan las fechas del período' });
+    }
+
+    // Comparación: el MISMO tramo de días del mes anterior. Si estás viendo el 1 al 29
+    // de agosto, compara contra el 1 al 29 de julio — proporcional en días, no contra el
+    // mes completo, que a mitad de mes siempre saldría perdiendo.
+    // Los días que no existen en el mes anterior se recortan (31 de marzo → 28/29 de febrero).
+    // Si el período abarca más de un mes (un año completo, un rango largo), correrlo un mes
+    // se solaparía con el período mismo; ahí se cae a la ventana anterior del mismo largo.
+    const parseLocal = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+    const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const curStart = parseLocal(startDate);
+    const curEnd = parseLocal(endDate);
+    const lengthDays = Math.max(0, Math.round((curEnd.getTime() - curStart.getTime()) / 86400000));
+
+    // Corre una fecha un mes hacia atrás. new Date(y, -1, d) ya resuelve enero → diciembre
+    // del año anterior, y new Date(y, m + 1, 0) da el último día del mes de destino.
+    const unMesAntes = (d: Date) => {
+      const y = d.getFullYear();
+      const m = d.getMonth() - 1;
+      const ultimoDia = new Date(y, m + 1, 0).getDate();
+      return new Date(y, m, Math.min(d.getDate(), ultimoDia));
+    };
+
+    let prevStart = unMesAntes(curStart);
+    let prevEnd = unMesAntes(curEnd);
+    let comparacion: 'mes-anterior' | 'ventana-anterior' = 'mes-anterior';
+    if (prevEnd.getTime() >= curStart.getTime()) {
+      comparacion = 'ventana-anterior';
+      prevEnd = new Date(curStart); prevEnd.setDate(prevEnd.getDate() - 1);
+      prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - lengthDays);
+    }
+
+    // Scope de datos del encargado de área (mismas sucursales que ve en el resto)
+    const clientScope = await getEncargadoScopeKoens((req as any).user);
+
+    // Filtros de sucursal: se reusa la definición de DatabaseStorage.BRANCH_CONFIG
+    // (vendedores de la sucursal + clientes excluidos), reescrita sobre el alias fv.
+    const branchCondition = (() => {
+      const name = typeof branch === 'string' ? branch.trim() : '';
+      if (!name) return null;
+      const config = DatabaseStorage.BRANCH_CONFIG[name.toUpperCase()];
+      if (!config || config.salespeople.length === 0) return null;
+      const excludeMap = new Map<string, string[]>();
+      for (const exc of config.excludeClients || []) excludeMap.set(exc.salesperson, exc.clients);
+      const orParts: any[] = [];
+      const clean = config.salespeople.filter(sp => !excludeMap.has(sp));
+      if (clean.length > 0) {
+        orParts.push(sql`fv."nokofu" IN (${sql.join(clean.map(s => sql`${s}`), sql`, `)})`);
+      }
+      for (const sp of config.salespeople.filter(s => excludeMap.has(s))) {
+        const exclusions = excludeMap.get(sp)!.map(c => sql`fv."nokoen" NOT ILIKE ${'%' + c + '%'}`);
+        orParts.push(sql`(fv."nokofu" = ${sp} AND ${sql.join(exclusions, sql` AND `)})`);
+      }
+      if (orParts.length === 0) return null;
+      return sql`(${sql.join(orParts, sql` OR `)})`;
+    })();
+
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+    const segmentV = str(segment);
+    const salespersonV = str(salesperson);
+    const clientV = str(client);
+    const productV = str(product);
+    const familyV = str(family);
+
+    // "Por producto" manda un producto COMERCIAL, que agrupa variantes: "ZINC ACRYL"
+    // son 10 códigos distintos en el ERP. Se resuelve con el mismo criterio que usa la
+    // ficha del producto (storage.resolveProductVariants) para que el margen y las
+    // ventas de esa pantalla midan exactamente las mismas líneas.
+    const productMatch = await (async () => {
+      if (!productV) return null;
+      const { skus, names } = await storage.resolveProductVariants(productV);
+      const ors: any[] = [];
+      if (skus.length) ors.push(sql`UPPER(TRIM(fv."koprct")) IN (${sql.join(skus.map(s => sql`${s.trim().toUpperCase()}`), sql`, `)})`);
+      if (names.length) ors.push(sql`fv."nokoprct" IN (${sql.join(names.map(n => sql`${n}`), sql`, `)})`);
+      // Sin coincidencias: se fuerza vacío en vez de dejar pasar todo, para no mostrar
+      // el margen de la empresa entera bajo el nombre de un producto.
+      if (ors.length === 0) return sql`FALSE`;
+      return sql`(${sql.join(ors, sql` OR `)})`;
+    })();
+
+    // Recorte común: las mismas condiciones para el período actual y el anterior.
+    const lineas = (s: string, e: string) => sql`
+      SELECT
+        fv."monto" AS revenue,
+        ${LINE_COST_GRI_EXPR} * (CASE WHEN fv."tido" = 'NCV' THEN -1 ELSE 1 END) AS line_cost,
+        fv."nokoprct" AS producto
+      FROM ventas.fact_ventas fv
+      LEFT JOIN gri_prices_cache gpc ON UPPER(TRIM(gpc."sku")) = UPPER(TRIM(fv."koprct"))
+      WHERE fv."tido" <> 'GDV'
+        AND fv."monto" IS NOT NULL
+        -- El flete queda FUERA del margen. Es un cargo que se traspasa, no
+        -- mercadería: no tiene costo de bodega, así que si entra suma ingreso con
+        -- costo 0 e infla el margen. Mismo criterio que el panel de Fletes y que
+        -- Comisiones (server/commissions.ts), para que las tres cuadren.
+        AND (fv."nokoprct" IS NULL OR fv."nokoprct" NOT ILIKE '%flete%')
+        AND fv."feemdo" >= ${s}::date
+        AND fv."feemdo" <= ${e}::date
+        ${salespersonV ? sql`AND fv."nokofu" = ${salespersonV}` : sql``}
+        ${segmentV ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segmentV)}` : sql``}
+        ${clientV ? sql`AND fv."nokoen" = ${clientV}` : sql``}
+        ${productMatch ? sql`AND ${productMatch}` : sql``}
+        ${familyV ? sql`AND TRIM(fv."nofmpr") = ${familyV}` : sql``}
+        ${branchCondition ? sql`AND ${branchCondition}` : sql``}
+        ${clientScope.length > 0 ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
+    `;
+
+    const result = await db.execute(sql`
+      WITH curr AS (${lineas(startDate, endDate)}),
+           prev AS (${lineas(fmtLocal(prevStart), fmtLocal(prevEnd))})
+      SELECT
+        (SELECT COALESCE(SUM(revenue), 0) FROM curr)::TEXT AS revenue,
+        (SELECT COALESCE(SUM(line_cost), 0) FROM curr)::TEXT AS cost,
+        (SELECT COUNT(DISTINCT producto) FROM curr) AS product_count,
+        (SELECT COALESCE(SUM(revenue), 0) FROM prev)::TEXT AS prev_revenue,
+        (SELECT COALESCE(SUM(line_cost), 0) FROM prev)::TEXT AS prev_cost
+    `);
+
+    const row = (result as any).rows?.[0] || {};
+    const revenue = Number(row.revenue || 0);
+    const cost = Number(row.cost || 0);
+    const margin = revenue - cost;
+    const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
+    const prevRevenue = Number(row.prev_revenue || 0);
+    const prevCost = Number(row.prev_cost || 0);
+    const prevMargin = prevRevenue - prevCost;
+    const prevMarginPct = prevRevenue > 0 ? (prevMargin / prevRevenue) * 100 : 0;
+
+    res.json({
+      dateRange: { startDate, endDate },
+      prevDateRange: { startDate: fmtLocal(prevStart), endDate: fmtLocal(prevEnd) },
+      // 'mes-anterior' = mismo tramo de días del mes pasado; 'ventana-anterior' = el
+      // período abarcaba más de un mes y se comparó contra la ventana previa del mismo largo.
+      comparacion,
+      revenue,
+      cost,
+      margin,
+      marginPct,
+      productCount: Number(row.product_count || 0),
+      prev: { revenue: prevRevenue, cost: prevCost, margin: prevMargin, marginPct: prevMarginPct },
+      // Variación en puntos porcentuales: es la lectura correcta para un %,
+      // no la variación relativa (pasar de 10% a 12% son +2 pts, no +20%).
+      deltaPctPoints: prevRevenue > 0 ? marginPct - prevMarginPct : null,
+      deltaMarginPct: prevMargin !== 0 ? ((margin - prevMargin) / Math.abs(prevMargin)) * 100 : null,
+    });
   }));
 
   // Margen: lista de productos con su agrupación comercial (productFamily / color / formatUnit

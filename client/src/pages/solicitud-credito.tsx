@@ -238,7 +238,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
   }) => (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-        <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center">
+        <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
           {icono}
         </span>
         {titulo}
@@ -311,7 +311,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
 
           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-              <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex items-center justify-center">
+              <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
                 <FileText className="h-3.5 w-3.5" />
               </span>
               Crédito y carpeta tributaria

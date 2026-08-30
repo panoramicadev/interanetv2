@@ -354,8 +354,8 @@ function SeccionRedes({
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 py-16 px-6 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center mb-3">
-            <Icono className="h-6 w-6 text-[#fd6301]" />
+          <div className="h-12 w-12 rounded-2xl bg-[#fd6301] flex items-center justify-center mb-3 shadow-md shadow-[#fd6301]/25">
+            <Icono className="h-6 w-6 text-white" />
           </div>
           <p className="font-semibold text-slate-700 dark:text-slate-200">{vacio}</p>
           <p className="text-sm text-slate-400 mt-1">
@@ -605,7 +605,7 @@ export default function RedesSocialesMarketing({ canEdit }: { canEdit: boolean }
     <div className="space-y-6">
       {/* El período manda en toda la pantalla: las tres secciones se guardan por mes. */}
       <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all w-fit">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
           <CalendarDays className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none">

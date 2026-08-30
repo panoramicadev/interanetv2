@@ -290,7 +290,18 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-[95vw] sm:w-[440px] max-w-[440px] p-0" align="start">
+      {/* En celular este selector se abre desde el panel de filtros, que ocupa solo la
+          franja izquierda de la pantalla. Anclado al inicio del botón (`align="start"`)
+          se salía por la derecha y por abajo, y quedaban meses y días fuera de la vista.
+          Ahora se centra sobre el botón, se le deja un margen mínimo con los bordes
+          (`collisionPadding`) para que el navegador lo reacomode dentro de la pantalla, y
+          se le pone alto máximo con desplazamiento para que el calendario completo se
+          pueda recorrer sin que se corte. */}
+      <PopoverContent
+        className="w-[92vw] sm:w-[440px] max-w-[440px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0"
+        align="center"
+        collisionPadding={12}
+      >
         <div className="px-2 sm:px-2.5 py-1.5 bg-gray-50 border-b">
           <h4 className="font-semibold text-xs">Selecciona período</h4>
           <p className="text-[10px] text-gray-500 leading-tight">

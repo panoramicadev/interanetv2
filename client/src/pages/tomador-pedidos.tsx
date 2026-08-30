@@ -3969,8 +3969,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
       {/* Minimalist Header with Action Buttons */}
       <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isMobile ? 'px-3 mt-5' : 'px-3 sm:px-4 lg:px-6 mt-8'}`}>
         <div className="flex items-center gap-3">
-          <div className={`${isMobile ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-xl'} bg-orange-50 flex items-center justify-center border border-orange-100`}>
-            <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-orange-600`} />
+          <div className={`${isMobile ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-xl'} bg-[#fd6301] flex items-center justify-center shadow-md shadow-[#fd6301]/25`}>
+            <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-white`} />
           </div>
           <div>
             <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight flex items-center gap-2`}>
@@ -4303,8 +4303,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
-                      <Search className="w-5 h-5 text-orange-600" />
+                    <div className="h-10 w-10 rounded-xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25 flex items-center justify-center flex-shrink-0">
+                      <Search className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
                       <CardTitle className="text-lg">{isV2 ? "Empezar desde un cliente" : "Buscar Cliente"}</CardTitle>
@@ -4368,8 +4368,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                             className="rounded-xl border border-gray-100 bg-white hover:border-orange-200 hover:shadow-md transition-all duration-200 p-4"
                           >
                             <div className="flex items-center gap-4">
-                              <div className="w-11 h-11 bg-gradient-to-br from-orange-100 to-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                                <User className="w-5 h-5 text-orange-600" />
+                              <div className="w-11 h-11 bg-[#fd6301] shadow-md shadow-[#fd6301]/25 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <User className="w-5 h-5 text-white" />
                               </div>
 
                               <div className="flex-1 min-w-0">
@@ -4435,8 +4435,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-5 w-5 text-orange-600" />
+                <div className="h-10 w-10 rounded-xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25 flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-lg font-bold text-gray-900">Cotizaciones Recientes</h2>
@@ -4614,8 +4614,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                                     onClick={() => handleSelectBuilderClient(client)}
                                     className="w-full text-left px-4 py-3 hover:bg-orange-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-b-0"
                                   >
-                                    <div className="w-9 h-9 bg-gradient-to-br from-orange-100 to-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                      <User className="w-4 h-4 text-orange-600" />
+                                    <div className="w-9 h-9 bg-[#fd6301] shadow-md shadow-[#fd6301]/25 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <User className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-semibold text-gray-900 truncate">{client.nokoen}</p>
@@ -5452,8 +5452,8 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                                         onClick={() => handleSelectBuilderClient(client)}
                                         className="w-full text-left px-3 py-2.5 hover:bg-orange-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-b-0"
                                       >
-                                        <div className="w-8 h-8 bg-gradient-to-br from-orange-100 to-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                          <User className="w-4 h-4 text-orange-600" />
+                                        <div className="w-8 h-8 bg-[#fd6301] shadow-md shadow-[#fd6301]/25 rounded-lg flex items-center justify-center flex-shrink-0">
+                                          <User className="w-4 h-4 text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                           <p className="text-sm font-semibold text-gray-900 truncate">{client.nokoen}</p>

@@ -109,8 +109,8 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
     <div className="modern-card p-4 sm:p-6 relative overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/30 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Target className="w-5 h-5 text-[#fd6301] dark:text-[#fd6301]" />
+          <div className="w-10 h-10 bg-[#fd6301] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+            <Target className="w-5 h-5 text-white dark:text-white" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">

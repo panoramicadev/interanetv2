@@ -625,8 +625,8 @@ export default function GastosInformes() {
       ) : informes.length === 0 ? (
         <Card className="rounded-2xl border-dashed border-slate-300 dark:border-slate-700">
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
-              <FileText className="h-6 w-6 text-[#fd6301]" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25">
+              <FileText className="h-6 w-6 text-white" />
             </div>
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Sin informes</p>
             <p className="max-w-sm text-xs text-slate-500">
@@ -649,8 +649,8 @@ export default function GastosInformes() {
                 className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-slate-200/70 bg-white p-4 text-left shadow-sm transition-all hover:border-orange-200 hover:shadow dark:border-slate-700 dark:bg-slate-900"
                 data-testid={`card-informe-${informe.id}`}
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-orange-50 dark:bg-orange-950/40">
-                  <FileText className="h-5 w-5 text-[#fd6301]" />
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25">
+                  <FileText className="h-5 w-5 text-white" />
                 </span>
                 <div className="min-w-0 flex-1 basis-0">
                   <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">

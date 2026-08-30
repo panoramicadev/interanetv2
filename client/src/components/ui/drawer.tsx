@@ -34,21 +34,38 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+/**
+ * `side` elige de dónde entra el panel. Por defecto "bottom", que es como se venía
+ * usando en todas las pantallas: quien no pase nada no cambia en nada.
+ * Las variantes laterales ocupan el alto completo y no llevan la manito de arrastre
+ * de arriba, que solo tiene sentido en una hoja que sube desde abajo.
+ * Al usar una lateral hay que pasarle también `direction` al `<Drawer>`, que es lo
+ * que le dice a vaul hacia dónde animar y hacia dónde se arrastra para cerrar.
+ */
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
+    side?: "bottom" | "right" | "left"
+  }
+>(({ className, children, side = "bottom", ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed z-50 flex flex-col border bg-background",
+        side === "bottom" && "inset-x-0 bottom-0 mt-24 h-auto rounded-t-[10px]",
+        // Laterales: a sangre de arriba abajo, sin esquinas redondeadas, y del mismo
+        // ancho que el menú lateral (16rem = 256px) para que los dos se lean igual.
+        side === "right" && "inset-y-0 right-0 h-full w-[16rem] max-w-[88vw]",
+        side === "left" && "inset-y-0 left-0 h-full w-[16rem] max-w-[88vw]",
         className
       )}
       {...props}
     >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      {side === "bottom" && (
+        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      )}
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>

@@ -250,8 +250,8 @@ export default function VoiceOrderDialog({ open, onOpenChange, getAvailableTiers
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-voice-order">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-orange-50 flex items-center justify-center border border-orange-100">
-              <Sparkles className="h-5 w-5 text-orange-600" />
+            <div className="h-9 w-9 rounded-lg bg-[#fd6301] flex items-center justify-center border border-orange-100 shadow-md shadow-[#fd6301]/25">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
             Presupuesto por Voz o Texto
           </DialogTitle>

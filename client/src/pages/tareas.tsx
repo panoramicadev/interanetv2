@@ -1575,7 +1575,7 @@ export default function TareasPage() {
   // que el administrador pueda cambiar de área desde cualquier vista.
   const areaSelector = (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fd6301] text-white dark:text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
         <Building2 className="h-4 w-4" />
       </div>
       <div className="flex flex-col leading-none">
@@ -1689,7 +1689,7 @@ export default function TareasPage() {
   const seguimientoSearchBox = (
     <div className="relative flex-1 min-w-[220px]">
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-orange-200 hover:shadow focus-within:border-orange-300 transition-all">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-[#fd6301] dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
           <Search className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none flex-1 min-w-0">
@@ -3541,8 +3541,8 @@ export default function TareasPage() {
                       </div>
                     ) : !isMarketing ? (
                       <div className="text-center py-14">
-                        <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
-                          <Users className="h-7 w-7 text-orange-500" />
+                        <div className="w-14 h-14 rounded-2xl bg-[#fd6301] flex items-center justify-center mx-auto mb-4 shadow-md shadow-[#fd6301]/25">
+                          <Users className="h-7 w-7 text-white" />
                         </div>
                         <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Aún no hay seguimientos</h3>
                         <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
@@ -3561,8 +3561,8 @@ export default function TareasPage() {
                       // Marketing sin solicitudes ni seguimientos propios (la bandeja de
                       // arriba se oculta sola cuando está vacía).
                       <div className="text-center py-14">
-                        <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
-                          <TrendingUp className="h-7 w-7 text-orange-500" />
+                        <div className="w-14 h-14 rounded-2xl bg-[#fd6301] flex items-center justify-center mx-auto mb-4 shadow-md shadow-[#fd6301]/25">
+                          <TrendingUp className="h-7 w-7 text-white" />
                         </div>
                         <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Sin solicitudes por ahora</h3>
                         <p className="text-sm text-slate-500 max-w-sm mx-auto">
@@ -3580,8 +3580,8 @@ export default function TareasPage() {
               if (viewTasks.length === 0) {
                 return (
                   <div className="text-center py-16">
-                    <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
-                      <CheckSquare className="h-7 w-7 text-orange-500" />
+                    <div className="w-14 h-14 rounded-2xl bg-[#fd6301] flex items-center justify-center mx-auto mb-4 shadow-md shadow-[#fd6301]/25">
+                      <CheckSquare className="h-7 w-7 text-white" />
                     </div>
                     <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">No hay tareas pendientes</h3>
                     <p className="text-sm text-slate-500">Las tareas activas aparecerán aquí.</p>
@@ -4112,7 +4112,7 @@ function EstimacionSemanalTab({
               de la pestaña, por eso va en el encabezado y no sobre la tabla. */}
           {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
             <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
                 <Users className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none min-w-0">
@@ -4145,7 +4145,7 @@ function EstimacionSemanalTab({
         <CardHeader className="py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600 flex-shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
                 <CalendarIcon className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none">
@@ -4189,8 +4189,8 @@ function EstimacionSemanalTab({
               <div className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">Vendido</span>
-                  <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
-                    <Building2 className="h-4 w-4 text-[#fd6301]" />
+                  <div className="h-8 w-8 rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                    <Building2 className="h-4 w-4 text-white" />
                   </div>
                 </div>
                 <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
@@ -4242,8 +4242,8 @@ function EstimacionSemanalTab({
               <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">
                 Total vendido {esConstruccion ? 'del mes' : 'de la semana'}
               </span>
-              <div className="h-8 w-8 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
-                <Wallet className="h-4 w-4 text-[#fd6301]" />
+              <div className="h-8 w-8 rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+                <Wallet className="h-4 w-4 text-white" />
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
@@ -4353,15 +4353,15 @@ function EstimacionSemanalTab({
             </div>
           ) : promesasCumplimiento.length === 0 ? (
             <div className="text-center py-10 text-slate-500 dark:text-slate-400">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
-                <CalendarIcon className="h-7 w-7 text-orange-400" />
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25">
+                <CalendarIcon className="h-7 w-7 text-white" />
               </div>
               <p className="font-medium">No hay promesas registradas para esta semana</p>
             </div>
           ) : promesasFiltradas.length === 0 ? (
             <div className="text-center py-10 text-slate-500 dark:text-slate-400">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-950/40">
-                <Filter className="h-7 w-7 text-orange-400" />
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fd6301] shadow-md shadow-[#fd6301]/25">
+                <Filter className="h-7 w-7 text-white" />
               </div>
               <p className="font-medium">No hay promesas para el vendedor seleccionado</p>
             </div>
@@ -5208,7 +5208,7 @@ function EditPromesaDialog({
           {/* Información del Cliente */}
           <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600">
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/25">
                 <Building2 className="h-4 w-4" />
               </div>
               <h3 className="font-semibold text-slate-800 dark:text-slate-100">Información del Cliente</h3>
@@ -5883,8 +5883,8 @@ function TaskDetailDialog({
                         key={`${link.url}-${i}`}
                         className="group flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-orange-200 hover:shadow-sm transition-all"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
-                          <Link2 className="h-4 w-4 text-orange-600" />
+                        <div className="w-8 h-8 rounded-lg bg-[#fd6301] shadow-md shadow-[#fd6301]/25 flex items-center justify-center flex-shrink-0">
+                          <Link2 className="h-4 w-4 text-white" />
                         </div>
                         <a
                           href={link.url}
@@ -6657,7 +6657,7 @@ function CalendarViewTab({
                 <div className="space-y-2.5 text-sm">
                   {popupTask.dueDate && (
                     <div className="flex items-center gap-2.5">
-                      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
                         <Clock className="h-3.5 w-3.5" />
                       </span>
                       <span className="text-slate-700 dark:text-slate-200 capitalize">
@@ -6868,8 +6868,8 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
         {/* Cabecera */}
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center flex-shrink-0">
-            <Building2 className="h-5 w-5 text-orange-600" />
+          <div className="w-10 h-10 rounded-lg bg-[#fd6301] shadow-md shadow-[#fd6301]/25 flex items-center justify-center flex-shrink-0">
+            <Building2 className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-slate-800 leading-tight">{nombre}</p>
@@ -7140,7 +7140,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
           <div className="space-y-1.5">
             {visitas.map((v) => (
               <div key={v.id} className="flex items-start gap-2.5 bg-white rounded-xl px-3 py-2 border border-slate-100">
-                <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0"><MapPin className="h-4 w-4 text-orange-500" /></div>
+                <div className="w-8 h-8 rounded-lg bg-[#fd6301] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25"><MapPin className="h-4 w-4 text-white" /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-700">{format(new Date(v.fecha), "dd MMM yyyy", { locale: es })}</span>

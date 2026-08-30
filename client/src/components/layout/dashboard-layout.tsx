@@ -415,14 +415,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      {/* Mobile Button */}
+    <div className="min-h-screen bg-white dark:bg-slate-900">
+      {/* Botón del menú en móvil: círculo negro abajo a la izquierda, del mismo tamaño
+          que el botón naranjo de filtros, para que los dos se lean como un par
+          (corrección del usuario, ago-2026).
+          z-40 para quedar por encima de las cabeceras pegajosas de las páginas (z-30),
+          pero por debajo del menú cuando se abre: el sidebar también es z-40 y va
+          después en el orden del documento, así que lo cubre.
+          ⚠️ El `top-[42px]` está calzado con el centro de la barra móvil del Dashboard
+          (`pt-7` + fila de 4rem = centro en 60px, menos la mitad del botón). Si esa barra
+          cambia de alto, de padding o el logo cambia de tamaño, hay que mover este número
+          también. */}
       <button
-        className="fixed bottom-5 left-5 z-30 lg:hidden w-10 h-10 bg-[#0a0a0a] border border-slate-700 rounded-full flex items-center justify-center shadow-lg"
+        className="fixed top-[42px] left-4 z-40 lg:hidden w-9 h-9 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         data-testid="mobile-menu-toggle-floating"
       >
-        <Menu className="h-4 w-4 text-slate-300" />
+        <Menu className="h-4 w-4 text-white" />
       </button>
 
       {/* Mobile Overlay */}
@@ -449,10 +458,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
        * z-30 — no subas el sidebar.
        */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 p-3 ${collapsed ? "w-[5.75rem]" : "w-[17.5rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-40 ${collapsed ? "w-[4.25rem]" : "w-[16rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
-      <div className="h-full flex flex-col bg-[#0a0a0a] rounded-3xl shadow-xl shadow-slate-900/10 overflow-hidden">
+      {/* El menú va a sangre: pegado arriba, abajo y a la izquierda, sin esquinas
+          redondeadas (corrección del usuario, ago-2026). Antes flotaba con 12px de
+          margen y `rounded-3xl`. Los anchos bajaron de 17.5rem/5.75rem a 16rem/4.25rem
+          justamente porque ya no hay que descontar ese margen: el menú se ve del mismo
+          ancho de siempre (256px / 68px). */}
+      <div className="h-full flex flex-col bg-[#0a0a0a] shadow-xl shadow-slate-900/10 overflow-hidden">
         {/* Logo + collapse toggle */}
         <div className={`relative flex-shrink-0 ${collapsed ? "px-2 pt-5 pb-3 flex flex-col items-center gap-2" : "px-3 pt-5 pb-3 flex items-center justify-center"}`}>
           <button
@@ -554,10 +568,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
       </div>
 
-      {/* Main Content — tarjeta blanca del módulo */}
-      <div className={`${isCollapsed ? "lg:pl-[5.75rem]" : "lg:pl-[17.5rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
-        <main className="p-3 lg:pl-0">
-          <div className="module-card bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800 shadow-sm min-h-[calc(100vh-1.5rem)] overflow-clip">
+      {/* Main Content — el módulo ocupa todo el blanco, sin marco.
+          Antes flotaba como una tarjeta (borde + esquinas redondeadas + margen sobre un
+          canvas gris) y eso lo hacía leer como un recuadro dentro de la pantalla en vez
+          de como la pantalla misma (corrección del usuario, ago-2026). El sidebar sí
+          sigue siendo una tarjeta flotante: su composición no cambió. */}
+      <div className={`${isCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-[16rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
+        <main>
+          <div className="module-card bg-white dark:bg-slate-900 min-h-screen overflow-clip">
             {children}
           </div>
         </main>

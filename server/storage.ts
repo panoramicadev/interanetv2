@@ -5034,6 +5034,55 @@ export class DatabaseStorage implements IStorage {
    * top clients, the full salesperson ranking (best→worst), salespeople who do NOT
    * sell it, and the per-variant detail.
    */
+  /**
+   * Resuelve un producto COMERCIAL (el que elige el selector "Por producto") a las
+   * líneas de venta que le corresponden. Un producto comercial agrupa variantes:
+   * "ZINC ACRYL" son 10 códigos distintos en el ERP, así que comparar por nombre
+   * exacto contra fact_ventas.nokoprct no encuentra nada.
+   *
+   * Dos vías, y una venta califica si cumple cualquiera:
+   *  - skus:  códigos del catálogo curado (ecommerce_products → price_list). El
+   *           selector manda el genericName, que los administradores pueden
+   *           renombrar, así que cruzar por nombre contra los nombres del ERP no
+   *           es confiable; cruzar por código (fact_ventas.koprct) es exacto.
+   *  - names: nombres del ERP que "suben" a este padre según extractParentProductName.
+   *           Cubre los productos elegidos por búsqueda libre que no están en el catálogo.
+   *
+   * Fuente única para la ficha del producto y para su margen: si esto cambia, las
+   * dos pantallas se mueven juntas.
+   */
+  async resolveProductVariants(parentName: string): Promise<{ skus: string[]; names: string[] }> {
+    if (!parentName || !parentName.trim()) return { skus: [], names: [] };
+
+    const skuRows = await db.execute(sql`
+      SELECT DISTINCT pl.codigo AS sku
+      FROM ecommerce_products ep
+      JOIN price_list pl ON ep.price_list_id = pl.id
+      WHERE UPPER(TRIM(COALESCE(ep.variant_generic_display_name, pl.producto))) = ${parentName.trim().toUpperCase()}
+        AND pl.codigo IS NOT NULL AND pl.codigo <> ''
+    `);
+    const skus: string[] = (((skuRows as any).rows || skuRows) as any[]).map(r => r.sku).filter(Boolean);
+
+    const allProducts = await db
+      .select({ name: factVentas.nokoprct })
+      .from(factVentas)
+      .where(and(
+        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
+      .groupBy(factVentas.nokoprct);
+
+    const targetUpper = parentName.toUpperCase();
+    const names = allProducts
+      .map(r => r.name || '')
+      .filter(name => {
+        const upper = name.toUpperCase();
+        return upper === targetUpper || this.extractParentProductName(name).toUpperCase() === targetUpper;
+      });
+
+    return { skus, names };
+  }
+
   async getProductInsights(parentName: string, filters: {
     startDate?: string;
     endDate?: string;
@@ -5066,38 +5115,7 @@ export class DatabaseStorage implements IStorage {
     };
     if (!parentName) return empty;
 
-    // 1a. Resolve variant SKUs from the curated catalog (ecommerce_products → price_list).
-    // The selector sends the catalog's genericName (variant_generic_display_name, which admins
-    // can rename), so matching it against regex-stripped ERP names is unreliable — a renamed
-    // parent or a product whose variants use non-basic color words never matches. Matching by
-    // product code (fact_ventas.koprct = price_list.codigo) is exact.
-    const skuRows = await db.execute(sql`
-      SELECT DISTINCT pl.codigo AS sku
-      FROM ecommerce_products ep
-      JOIN price_list pl ON ep.price_list_id = pl.id
-      WHERE UPPER(TRIM(COALESCE(ep.variant_generic_display_name, pl.producto))) = ${parentName.trim().toUpperCase()}
-        AND pl.codigo IS NOT NULL AND pl.codigo <> ''
-    `);
-    const skuList: string[] = (((skuRows as any).rows || skuRows) as any[]).map(r => r.sku).filter(Boolean);
-
-    // 1b. Fallback name resolution — covers products selected via the free-text search that
-    // have no catalog entry, and widens to ERP variants whose name rolls up to this parent.
-    const allProducts = await db
-      .select({ name: factVentas.nokoprct })
-      .from(factVentas)
-      .where(and(
-        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
-        sql`${factVentas.tido} != 'GDV'`
-      ))
-      .groupBy(factVentas.nokoprct);
-
-    const targetUpper = parentName.toUpperCase();
-    const matchingNames = allProducts
-      .map(r => r.name || '')
-      .filter(name => {
-        const upper = name.toUpperCase();
-        return upper === targetUpper || this.extractParentProductName(name).toUpperCase() === targetUpper;
-      });
+    const { skus: skuList, names: matchingNames } = await this.resolveProductVariants(parentName);
 
     if (skuList.length === 0 && matchingNames.length === 0) return empty;
 

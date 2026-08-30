@@ -82,8 +82,8 @@ export default function FletesPanel({
       {!isSearchExpanded ? (
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-[#fd6301]" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+              <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Fletes</h2>
 
@@ -108,8 +108,8 @@ export default function FletesPanel({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                <Truck className="h-5 w-5 text-[#fd6301]" />
+              <div className="w-8 h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+                <Truck className="h-5 w-5 text-white" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">Fletes</h2>
             </div>

@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import React from "react";
 import { Link } from "wouter";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
 import TransactionDetailModal from "./transaction-detail-modal";
 import type { Transaction, GroupedSale } from "@/types/sales";
 
@@ -203,8 +203,8 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <span className="text-xs sm:text-sm font-medium text-blue-600">📋</span>
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#fd6301] rounded-lg flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+            <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Órdenes Recientes</h2>
         </div>
