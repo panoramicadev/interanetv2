@@ -77,24 +77,25 @@ className="... data-[state=active]:bg-white data-[state=active]:text-orange-600 
 Esta variante queda **solo para sub-pestañas** dentro de una vista (ficha de
 cliente, detalle). Para la barra principal de un módulo, ver abajo.
 
-### Barra de pestañas principal del módulo (negra, ago-2026)
-Corrección del usuario (ago-2026) sobre el Panel de Trabajo: la barra principal de
-pestañas **replica el sidebar** — track negro y el activo en píldora naranja de marca.
-Antes era un track gris con el activo blanco/texto naranja.
+### Barra de pestañas principal del módulo (sin track, ago-2026)
+
+Corrección del usuario (ago-2026, posterior a la barra negra): la barra principal de
+pestañas **no lleva track**. Va directamente sobre el fondo blanco de la página, con el
+texto en negro y solo la pestaña activa en píldora naranja de marca. La versión de track
+negro que replicaba el sidebar quedó descartada: sumaba un bloque oscuro entre el
+encabezado y las tarjetas, y partía la pantalla en dos.
 
 ```
-TabsList    → gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5
-              border border-slate-800/80 dark:border-slate-800/80 rounded-2xl
-TabsTrigger → group ... font-medium text-slate-200 hover:text-white hover:bg-slate-800/70
+TabsList    → gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 rounded-2xl
+TabsTrigger → group ... font-medium text-[#0a0a0a] dark:text-slate-200
+              hover:text-[#fd6301] hover:bg-orange-50
+              dark:hover:bg-slate-800/70 dark:hover:text-white
               data-[state=active]:bg-[#fd6301] data-[state=active]:text-white
               data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30
               dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white
               rounded-lg
 ```
-Mismos tokens que el ítem activo del sidebar en `dashboard-layout.tsx`, **peso de
-fuente incluido**: los ítems del sidebar van `font-medium`, no `font-semibold`
-(corrección del usuario, ago-2026: sobre el track negro la seminegrita se lee como
-negrita y ensucia la barra).
+Peso de fuente `font-medium`, igual que los ítems del sidebar.
 
 **En celular el riel se reemplaza por un desplegable** (corrección del usuario, ago-2026):
 en una barra no entran cinco o seis pestañas, y arrastrarlas a ciegas no deja ver dónde
@@ -112,7 +113,7 @@ overflow-x-auto` en la propia `TabsList`, `shrink-0` en los triggers, scrollbar 
 contenedor con `-mx-*`: la barra se corta contra el borde de la pantalla, sin su esquina
 redondeada.
 
-**Badge contador dentro de una pestaña:** naranja sobre el track negro, pero se
+**Badge contador dentro de una pestaña:** naranja sobre el fondo blanco, pero se
 **invierte a blanco con texto naranja** cuando la pestaña está activa (si no,
 naranja sobre naranja desaparece). Igual que el badge del sidebar. Requiere `group`
 en el trigger:
@@ -371,11 +372,27 @@ distintos entre sí**: con el edificio en los dos, las dos tarjetas se leían co
 (Seguimiento pasó a `UserCheck`). Se mueve **con posición**, no dibujando
 dos campanas: una segunda instancia traería su propio estado.
 
-### Selector de Área (contexto global)
+### Selector de Área y de Vendedor (contexto global)
 El selector de Área vive **siempre en el header de la página** (junto al CTA
 "Nueva Tarea"), visible en **todas las pestañas** — cambia el contexto de todo
 el módulo, no de una sola vista (corrección del usuario, jul-2026: antes iba en
 la fila de filtros en Tareas/Marketing y parecía "desaparecer" en otras pestañas).
+
+**El Vendedor del CRM vive en el mismo lugar, apilado DEBAJO del Área** (pedido del
+usuario, ago-2026), con el **mismo pill** que el Área: mismo borde, mismo micro-label
+en mayúsculas y el ícono naranjo suelto sin recuadro. Se leen de arriba hacia abajo
+—área → vendedor—, no uno al lado del otro. Solo aparece en la pestaña CRM (es lo
+único que filtra) y solo para quien ve más de una cartera. Su ícono es `User`, **no**
+`UserCheck`: ese es el de la pestaña Seguimiento, y dos controles con el mismo ícono se
+leen como el mismo control.
+
+En celular el orden de la pila queda: **Área → Vendedor → Sección → botón de acción**.
+
+**Corolario: la pestaña embebida no repite el filtro abajo.** Al subir el Vendedor al
+encabezado se sacó la caja de filtros completa del CRM embebido (buscador, Estado,
+Prioridad, Región, Comuna, Destacados, Problemas primero y el contador): entre los KPI y
+el tablero metía una fila de ocho controles que empujaba el pipeline fuera de la primera
+pantalla. La página standalone (`/seguimiento-clientes`) conserva su toolbar.
 
 ### Badge contador
 ```
