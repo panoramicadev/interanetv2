@@ -119,13 +119,20 @@ const esSegmentoConstruccion = (raw: string | null | undefined): boolean => {
   return s.includes('construc');
 };
 
-// ¿Ese segmento es Industrial? En el ERP el área viaja como "digital" (ver
-// SEGMENTOS), pero también puede llegar escrita "Industrial" según de dónde
-// salga el usuario, así que se aceptan las dos grafías.
-const esSegmentoIndustrial = (raw: string | null | undefined): boolean => {
-  if (!raw) return false;
-  const s = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return s.includes('digital') || s.includes('industrial');
+// Quién trabaja el área Industrial. Hoy la lleva una sola persona y su usuario
+// NO trae área asignada (assignedSegment viene vacío), así que no hay segmento
+// del que deducirlo: la vista de proyectos se ancla a su cuenta. El día que el
+// área tenga su segmento cargado en el panel de usuarios, esto se reemplaza por
+// esa comprobación y se borra la lista.
+const USUARIOS_INDUSTRIAL = ['pghisellini'];
+const esUsuarioIndustrial = (u: unknown): boolean => {
+  // El usuario de la sesión (/api/auth/user) NO trae `username`, solo el correo,
+  // así que la comparación que manda en la práctica es la del correo; se deja
+  // igual la del username por si el objeto llega desde el panel de usuarios.
+  const username = String((u as any)?.username ?? '').trim().toLowerCase();
+  const email = String((u as any)?.email ?? '').trim().toLowerCase();
+  const cuenta = email.split('@')[0];
+  return USUARIOS_INDUSTRIAL.some((x) => username === x || cuenta === x);
 };
 
 // En Industrial la unidad de trabajo no es la tarea suelta sino el PROYECTO
@@ -133,12 +140,13 @@ const esSegmentoIndustrial = (raw: string | null | undefined): boolean => {
 // espacio que no se completa de un clic, se completan las tareas que tiene
 // adentro — exactamente como el seguimiento de cliente. Los proyectos nuevos se
 // marcan con payload.kind; los que ya existían cuando se creó la pestaña no
-// tienen esa marca y se reconocen por estar en el área.
+// tienen esa marca y solo se leen como proyecto para quien trabaja el área
+// (`enIndustrial`): para el resto del panel siguen siendo tareas de siempre.
 const esTareaProyecto = (task: any, enIndustrial = false): boolean => {
   const kind = task?.payload?.kind;
   if (kind === 'seguimiento_cliente') return false;
   if (kind === 'proyecto') return true;
-  return enIndustrial || esSegmentoIndustrial(task?.segmento);
+  return enIndustrial;
 };
 
 // Tipos de actividad (subtareas) dentro de un seguimiento de cliente
@@ -952,24 +960,12 @@ export default function TareasPage() {
 
   // Industrial trabaja por proyectos: su primera pestaña deja de llamarse
   // "Tareas" y pasa a ser "Proyectos", donde cada ficha tiene sus tareas dentro
-  // (ver esTareaProyecto). Mismo criterio de detección que Ferreterías.
-  const esIndustrial = (() => {
-    // Admin (u otro rol con selector de Área): el área elegida manda.
-    if (segmentoFilter === 'digital') {
-      return true;
-    }
-    if (segmentoFilter !== 'all') {
-      return false;
-    }
-    // Sin selector de área (vendedor, que ve "all"): su segmento asignado.
-    if (esSegmentoIndustrial(segmentoDeUsuario(user))) {
-      return true;
-    }
-    if ((user?.role === 'supervisor' || user?.role === 'encargado_area') && supervisorSalespeople && supervisorSalespeople.length > 0) {
-      return supervisorSalespeople.some(sp => esSegmentoIndustrial(sp.assignedSegment));
-    }
-    return false;
-  })();
+  // (ver esTareaProyecto). A diferencia de Ferreterías y Construcción esto NO se
+  // deduce del área elegida ni del segmento del usuario: es la vista de quien
+  // trabaja el área (ver USUARIOS_INDUSTRIAL), y para el resto del panel —
+  // vendedores, supervisores y el selector de Área del admin — todo sigue
+  // funcionando como antes.
+  const esIndustrial = esUsuarioIndustrial(user);
   // Marketing tiene su propio módulo y el técnico de obra no crea proyectos:
   // la pestaña solo cambia de nombre para el resto del panel.
   const modoProyectos = esIndustrial && showExtraSegmentTabs;
