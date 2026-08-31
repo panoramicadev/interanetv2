@@ -329,7 +329,7 @@ export default function TareasPage() {
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
   const tabTriggerClass =
-    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-slate-200 hover:text-white hover:bg-slate-800/70 data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap shrink-0";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] hover:bg-orange-50 dark:hover:bg-slate-800/70 dark:hover:text-white data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap shrink-0";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // La pestaña activa se centra dentro del riel al montar y al cambiar de pestaña. Se
@@ -866,6 +866,37 @@ export default function TareasPage() {
     queryKey: ["/api/users/salespeople"],
     enabled: user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra',
     placeholderData: tareasInit?.salespeople as any,
+  });
+
+  // Vendedor del CRM: vive en el Panel (no en la pestaña) porque su selector va en el
+  // encabezado, bajo el de Área (pedido del usuario, ago-2026). Se guarda por sesión con
+  // el mismo criterio que los demás filtros del panel: entrar a un cliente y volver no
+  // debe perder con quién estabas mirando el pipeline.
+  const [crmVendedor, setCrmVendedor] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem("panel-crm-vendedor") ?? "todos";
+    } catch {
+      return "todos";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("panel-crm-vendedor", crmVendedor);
+    } catch {
+      /* sesión sin storage: el filtro simplemente no sobrevive al remonte */
+    }
+  }, [crmVendedor]);
+
+  // Mismo endpoint que usaba la toolbar del CRM; react-query comparte la caché con la
+  // pestaña, así que traerlo acá no agrega una segunda llamada.
+  const { data: crmVendedores = [] } = useQuery<Array<{ id: string; salespersonName: string }>>({
+    queryKey: ["/api/crm/vendedores"],
+    queryFn: async () => {
+      const res = await fetch("/api/crm/vendedores");
+      if (!res.ok) throw new Error("Error al cargar vendedores");
+      return res.json();
+    },
+    enabled: showCrmTab,
   });
 
   // Query for available supervisors (for assignments)
@@ -1704,6 +1735,34 @@ export default function TareasPage() {
     </div>
   );
 
+  // Selector de Vendedor del CRM: mismo pill que el de Área, una fila más abajo
+  // (pedido del usuario, ago-2026). Solo aparece en la pestaña CRM —es lo único que
+  // filtra— y solo para quien ve más de una cartera: un vendedor mira la suya y el
+  // selector no tendría nada que elegir.
+  const vendedorSelector = (
+    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg text-[#fd6301] flex-shrink-0">
+        {/* `User`, no `UserCheck`: ese último es el ícono de la pestaña Seguimiento y
+            dos controles con el mismo ícono se leen como el mismo control. */}
+        <User className="h-4 w-4" />
+      </div>
+      <div className="flex flex-col leading-none">
+        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
+        <Select value={crmVendedor} onValueChange={setCrmVendedor}>
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-vendedor-panel">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los vendedores</SelectItem>
+            {crmVendedores.map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.salespersonName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
   // Badge naranja de cambios no vistos de una pestaña (misma familia que el
   // pill de conteo de Solicitudes de Marketing).
   const tabChangeBadge = (tab: string) => {
@@ -1912,11 +1971,18 @@ export default function TareasPage() {
                   (corrección del usuario, ago-2026): primero se elige el área, después la
                   sección. Se mueve con posición, sin dibujar dos campanas: una sola vive
                   en el árbol y la otra copia traería su propio estado. */}
-              <div className="flex items-center gap-2">
-                <div className="absolute -top-1 right-0 sm:static">
-                  <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
+              {/* Área y Vendedor apilados: los dos son contexto del CRM y se leen de
+                  arriba hacia abajo (área → vendedor), no uno al lado del otro
+                  (corrección del usuario, ago-2026). La campana sigue en la fila del
+                  Área. */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="absolute -top-1 right-0 sm:static">
+                    <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
+                  </div>
+                  {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
                 </div>
-                {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
+                {activeTab === 'crm' && !isSalesperson && vendedorSelector}
               </div>
               {selectorSeccionMovil}
               {/* En Obras el (+) bajó a la barra de la cartera, al lado de
@@ -2442,14 +2508,15 @@ export default function TareasPage() {
             entran y había que arrastrarlas a ciegas para saber dónde estabas parado
             (corrección del usuario, ago-2026). Es el mismo control con el que se elige la
             vista en el panel de filtros del dashboard. De `sm` para arriba vuelve el riel
-            negro, donde las pestañas sí entran. */}
+            de pestañas, donde sí entran. */}
         {/* En celular el selector de sección ya está arriba, dentro del encabezado
             (ver `selectorSeccionMovil`). Acá queda solo el riel de escritorio. */}
-        {/* Riel negro de pestañas: de tablet para arriba. */}
+        {/* Riel de pestañas (sin track: sobre el fondo blanco de la página, texto
+            negro y la activa en píldora naranja): de tablet para arriba. */}
         <div className={`hidden sm:block ${isMarketing ? 'hidden' : ''}`}>
           <TabsList
             ref={tabsListRef}
-            className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5 border border-slate-800/80 dark:border-slate-800/80 rounded-2xl ${tabsGridClass}`}
+            className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 rounded-2xl ${tabsGridClass}`}
           >
             {/* En Industrial esta pestaña es "Proyectos": mismo espacio, otra
                 unidad de trabajo (ver modoProyectos). El value se mantiene en
@@ -4216,7 +4283,7 @@ export default function TareasPage() {
         {/* CRM — pipeline de Seguimiento de Clientes embebido como pestaña del Panel de Trabajo */}
         {showCrmTab && (
           <TabsContent value="crm" className="space-y-6">
-            <SeguimientoClientes ref={crmRef} segmentoArea={segmentoFilter} />
+            <SeguimientoClientes ref={crmRef} segmentoArea={segmentoFilter} vendedorFiltro={crmVendedor} />
           </TabsContent>
         )}
 

@@ -124,7 +124,7 @@ export interface SeguimientoClientesHandle {
 }
 
 function SeguimientoClientesInner(
-  { segmentoArea }: { segmentoArea?: string },
+  { segmentoArea, vendedorFiltro }: { segmentoArea?: string; vendedorFiltro?: string },
   ref: React.Ref<SeguimientoClientesHandle>,
 ) {
   const embedded = segmentoArea !== undefined;
@@ -139,7 +139,13 @@ function SeguimientoClientesInner(
   const [busquedaDebounced, setBusquedaDebounced] = useState(loadSearchPreference);
   const [filtroEstado, setFiltroEstado] = useState<string>(() => loadFiltrosPreference().estado ?? "todos");
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>(() => loadFiltrosPreference().prioridad ?? "todos");
-  const [filtroVendedor, setFiltroVendedor] = useState<string>(() => loadFiltrosPreference().vendedor ?? "todos");
+  // Embebido en el Panel de Trabajo el Vendedor lo manda el selector del encabezado
+  // (junto al de Área), no la toolbar propia: son el mismo tipo de decisión —con quién
+  // estoy mirando el pipeline— y tenerlos en dos alturas distintas confundía. Standalone
+  // (/seguimiento-clientes) el filtro sigue viviendo acá, en la toolbar.
+  const [filtroVendedorLocal, setFiltroVendedorLocal] = useState<string>(() => loadFiltrosPreference().vendedor ?? "todos");
+  const filtroVendedor = vendedorFiltro ?? filtroVendedorLocal;
+  const setFiltroVendedor = setFiltroVendedorLocal;
   const [filtroRegion, setFiltroRegion] = useState<string>(() => loadFiltrosPreference().region ?? "todos");
   const [filtroComuna, setFiltroComuna] = useState<string>(() => loadFiltrosPreference().comuna ?? "todos");
   const [filtroSegmento, setFiltroSegmento] = useState<string>(
@@ -179,7 +185,7 @@ function SeguimientoClientesInner(
       const filtros: FiltrosPersistidos = {
         estado: filtroEstado,
         prioridad: filtroPrioridad,
-        vendedor: filtroVendedor,
+        vendedor: filtroVendedorLocal,
         region: filtroRegion,
         comuna: filtroComuna,
         segmento: filtroSegmento,
@@ -636,7 +642,12 @@ function SeguimientoClientesInner(
             El supervisor/encargado ve los mismos filtros que el admin; sus datos ya vienen
             scopeados a su equipo desde el backend (getVendedorScope), así que los filtros
             operan solo sobre su cartera. Los vendedores no ven la toolbar (cartera propia). */}
-        {isAdminOrSupervisor && (
+        {/* Embebido en el Panel de Trabajo la caja de filtros no va (pedido del usuario,
+            ago-2026): entre los KPI y el tablero metía una fila de ocho controles que
+            empujaba el pipeline fuera de la primera pantalla. Lo único que se rescató es
+            el Vendedor, que subió al encabezado del panel bajo el selector de Área.
+            Standalone (/seguimiento-clientes) la toolbar sigue completa. */}
+        {isAdminOrSupervisor && !embedded && (
         // En celular la caja de filtros no se muestra (pedido del usuario, ago-2026):
         // el buscador y los dos desplegables se comían la pantalla antes de llegar al
         // tablero. Los filtros que estén puestos siguen aplicando (se guardan por
@@ -907,7 +918,7 @@ function SeguimientoClientesInner(
   );
 }
 
-const SeguimientoClientes = forwardRef<SeguimientoClientesHandle, { segmentoArea?: string }>(SeguimientoClientesInner);
+const SeguimientoClientes = forwardRef<SeguimientoClientesHandle, { segmentoArea?: string; vendedorFiltro?: string }>(SeguimientoClientesInner);
 export default SeguimientoClientes;
 
 // ─── KPI card ─────────────────────────────────────────────────────────
