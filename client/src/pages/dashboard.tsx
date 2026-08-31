@@ -23,6 +23,7 @@ import SalespersonDetail from "@/pages/salesperson-detail";
 import SegmentDetail from "@/pages/segment-detail";
 import SucursalDetail from "@/pages/sucursal-detail";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import { useBotonMenuArriba } from "@/components/layout/dashboard-layout";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
 import ComparativeAccumulatedTotal from "@/components/dashboard/comparative-accumulated-total";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
@@ -660,6 +661,10 @@ export default function Dashboard() {
 
   // Mobile detection and drawer state
   const isMobile = useIsMobile();
+  // El botón del menú vuelve arriba a la izquierda: esta pantalla tiene su propia barra
+  // superior móvil con el logo, y ahí el círculo calza con ella en vez de tapar nada.
+  // En el resto de los módulos el shell lo dibuja en la barra fija de abajo.
+  useBotonMenuArriba(isMobile);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Local state for drawer filters (before applying)
@@ -1248,15 +1253,23 @@ export default function Dashboard() {
                     <LayoutDashboard className="h-4 w-4 text-white" />
                   </Button>
                 </DrawerTrigger>
-                <DrawerContent side="left" className="h-full">
-                  <DrawerHeader className="text-center bg-white border-b border-slate-200 px-6 pt-5 pb-4 mb-6">
-                    <DrawerTitle className="text-lg font-semibold text-slate-800">Filtros del Dashboard</DrawerTitle>
-                    <DrawerDescription className="text-sm text-slate-500">
-                      Personaliza la vista de tus datos de ventas
-                    </DrawerDescription>
+                <DrawerContent
+                  side="left"
+                  /* Más ancho que el 16rem por defecto del cajón: adentro va el
+                     calendario de período, y a 256px los años quedaban cortados y los
+                     días apretados (corrección del usuario, ago-2026). */
+                  className="h-full w-[92vw] max-w-[26rem] sm:w-[24rem]"
+                >
+                  {/* Sin cabecera visible: el título y la bajada ocupaban la primera
+                      pantalla del celular sin decir nada que no se vea en los propios
+                      filtros (corrección del usuario, ago-2026). Se quedan solo para
+                      lectores de pantalla, que los necesitan para nombrar el diálogo. */}
+                  <DrawerHeader className="sr-only">
+                    <DrawerTitle>Filtros del Dashboard</DrawerTitle>
+                    <DrawerDescription>Personaliza la vista de tus datos de ventas</DrawerDescription>
                   </DrawerHeader>
 
-                  <div className="px-6 space-y-6 overflow-y-auto flex-1">
+                  <div className="px-5 pt-6 space-y-6 overflow-y-auto flex-1">
                     {/* Vista Section - PRIMERO — oculto para vendedores (ver nota en header desktop) */}
                     {user?.role !== 'salesperson' && (
                     <>
@@ -1528,6 +1541,7 @@ export default function Dashboard() {
                       </div>
 
                       <YearMonthSelector
+                        inline
                         value={localSelection}
                         onChange={setLocalSelection}
                       />

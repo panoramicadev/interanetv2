@@ -427,7 +427,7 @@ export default function RolesPermisosPage() {
 
       {/* Barra de cambios pendientes */}
       {isDirty && current && !locked && (
-        <div className="sticky bottom-4 z-20">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-4 z-20">
           <div className="mx-auto max-w-xl rounded-xl border bg-background shadow-lg px-4 py-3 flex items-center justify-between gap-3">
             <p className="text-sm">
               <span className="font-medium">Cambios sin guardar</span>{" "}

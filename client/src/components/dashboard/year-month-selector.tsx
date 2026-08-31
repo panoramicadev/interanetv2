@@ -19,6 +19,8 @@ interface YearMonthSelection {
 interface YearMonthSelectorProps {
   value: YearMonthSelection | null;
   onChange: (selection: YearMonthSelection | null) => void;
+  /** Renderiza el panel abierto y en el flujo, sin popover. Ver el comentario del render. */
+  inline?: boolean;
 }
 
 const MONTHS = [
@@ -28,8 +30,14 @@ const MONTHS = [
 
 const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
-export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
-  const [open, setOpen] = useState(false);
+export function YearMonthSelector({ value, onChange, inline = false }: YearMonthSelectorProps) {
+  // En modo inline el panel está siempre "abierto": no hay popover que abrir ni cerrar,
+  // así que el estado queda fijo en true y los cierres se ignoran.
+  const [openState, setOpenState] = useState(inline);
+  const open = inline ? true : openState;
+  const setOpen = (next: boolean) => {
+    if (!inline) setOpenState(next);
+  };
   
   // Default to current year and month if no value provided
   const currentYear = new Date().getFullYear();
@@ -256,6 +264,27 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     setOpen(false);
   };
 
+  // Aplica lo que esté elegido en pantalla, eligiendo el modo según la selección.
+  const aplicarSeleccionActual = () => {
+    if (selectedMonths.length === 1 && selectedDays.length > 0) {
+      handleApplyDays();
+    } else if (selectedMonths.length > 0) {
+      handleApplyMonths();
+    } else {
+      handleApplyFullYear();
+    }
+  };
+
+  // En modo inline no hay botón "Aplicar" propio: el panel vive dentro del cajón de
+  // filtros, que ya tiene el suyo ("Aplicar filtros"), y dos botones seguidos se leían
+  // como dos pasos distintos (corrección del usuario, ago-2026). Entonces cada toque en
+  // un año, mes o día se publica al toque hacia el formulario que lo contiene.
+  useEffect(() => {
+    if (!inline || selectedYears.length === 0) return;
+    aplicarSeleccionActual();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inline, selectedYears, selectedMonths, selectedDays]);
+
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     // La sincronización se maneja en el useEffect cuando se detecta la transición
@@ -275,36 +304,17 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     return buildPeriodDisplay(value as any) || value.display;
   };
 
-  return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-8 min-w-[200px] justify-between text-left font-normal text-xs border-gray-200 shadow-sm"
-          data-testid="year-month-selector"
-        >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Calendar className="h-3 w-3 shrink-0 text-gray-500" />
-            <span className="truncate">{getDisplayText()}</span>
-          </div>
-        </Button>
-      </PopoverTrigger>
-      
-      {/* En celular este selector se abre desde el panel de filtros, que ocupa solo la
-          franja izquierda de la pantalla. Anclado al inicio del botón (`align="start"`)
-          se salía por la derecha y por abajo, y quedaban meses y días fuera de la vista.
-          Ahora se centra sobre el botón, se le deja un margen mínimo con los bordes
-          (`collisionPadding`) para que el navegador lo reacomode dentro de la pantalla, y
-          se le pone alto máximo con desplazamiento para que el calendario completo se
-          pueda recorrer sin que se corte. */}
-      <PopoverContent
-        className="w-[92vw] sm:w-[440px] max-w-[440px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0"
-        align="center"
-        collisionPadding={12}
-      >
-        <div className="px-2 sm:px-2.5 py-1.5 bg-gray-50 border-b">
-          <h4 className="font-semibold text-xs">Selecciona período</h4>
-          <p className="text-[10px] text-gray-500 leading-tight">
+  // El cuerpo del panel es el mismo en las dos formas de mostrarlo (popover en escritorio,
+  // inline dentro del panel de filtros en celular), así que se arma una sola vez.
+  const panel = (
+    <>
+        {/* Cabecera con el título y el modo: solo en el popover de escritorio. Dentro del
+            cajón de filtros el panel ya viene rotulado por la sección que lo contiene, y
+            repetirlo ahí llenaba la primera pantalla del celular con puro texto
+            (corrección del usuario, ago-2026). */}
+        <div className={`px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 ${inline ? "hidden" : ""}`}>
+          <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-100">Selecciona período</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
             {selectedMonths.length === 0 
               ? "📅 Modo: Año completo"
               : selectedMonths.length === 1 && selectedDays.length > 0
@@ -316,14 +326,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </div>
 
         {/* Selección de años - línea horizontal con scroll */}
-        <div className="px-2 sm:px-2.5 py-2 border-b">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[10px] font-medium text-gray-700">Años:</label>
+        <div className="px-3 sm:px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Años</label>
             {selectedYears.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                className="h-6 text-[11px] px-2 text-slate-500 hover:text-slate-900"
                 onClick={handleClearYears}
                 data-testid="button-clear-years"
               >
@@ -331,15 +341,17 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               </Button>
             )}
           </div>
-          <div className="flex gap-1 sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {YEARS.map((year) => {
               const isSelected = selectedYears.includes(year);
               return (
                 <Button
                   key={year}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-7 min-w-[56px] sm:min-w-[60px] text-xs font-medium shrink-0 px-2 sm:px-3 ${
-                    isSelected ? 'bg-primary text-white' : ''
+                  className={`h-9 min-w-[64px] rounded-xl text-sm font-medium shrink-0 px-3 ${
+                    isSelected
+                      ? 'bg-[#fd6301] hover:bg-[#e35400] text-white border-[#fd6301]'
+                      : 'hover:border-orange-300 hover:text-[#fd6301]'
                   }`}
                   onClick={() => handleYearToggle(year)}
                   data-testid={`year-${year}`}
@@ -354,14 +366,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         {/* Selección de meses - grid */}
         {selectedYears.length > 0 && (
           <>
-            <div className="px-2 sm:px-2.5 py-2 border-b">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] font-medium text-gray-700">Meses:</label>
+            <div className="px-3 sm:px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Meses</label>
                 {selectedMonths.length > 0 && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                    className="h-6 text-[11px] px-2 text-slate-500 hover:text-slate-900"
                     onClick={handleClearMonths}
                     data-testid="button-clear-months"
                   >
@@ -369,15 +381,17 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-5 sm:grid-cols-6 gap-1">
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
                 {MONTHS.map((month, index) => {
                   const isSelected = selectedMonths.includes(index);
                   return (
                     <Button
                       key={month}
                       variant={isSelected ? "default" : "outline"}
-                      className={`h-7 text-[10px] px-0.5 sm:px-1 ${
-                        isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                      className={`h-9 rounded-xl text-xs font-medium px-1 ${
+                        isSelected
+                          ? 'bg-[#fd6301] hover:bg-[#e35400] text-white border-[#fd6301]'
+                          : 'hover:border-orange-300 hover:text-[#fd6301]'
                       }`}
                       onClick={() => handleMonthToggle(index)}
                       data-testid={`month-${index}`}
@@ -391,14 +405,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
 
             {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado */}
             {selectedMonths.length === 1 && (
-              <div className="px-2 sm:px-2.5 py-2 border-b">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] font-medium text-gray-700">Días:</label>
+              <div className="px-3 sm:px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Días</label>
                   {selectedDays.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                      className="h-6 text-[11px] px-2 text-slate-500 hover:text-slate-900"
                       onClick={handleClearDays}
                       data-testid="button-clear-days"
                     >
@@ -412,7 +426,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                   {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dayName) => (
                     <div
                       key={dayName}
-                      className="h-6 flex items-center justify-center text-[9px] font-semibold text-gray-600"
+                      className="h-6 flex items-center justify-center text-[10px] font-semibold text-slate-400"
                     >
                       {dayName}
                     </div>
@@ -420,7 +434,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                 </div>
                 
                 {/* Calendario de días */}
-                <div className="grid grid-cols-7 gap-1 max-h-40 overflow-y-auto">
+                <div className="grid grid-cols-7 gap-1">
                   {(() => {
                     const year = selectedYears[0];
                     const month = selectedMonths[0]; // 0-11
@@ -437,7 +451,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                     // Agregar espacios vacíos antes del primer día
                     for (let i = 0; i < firstDayOfWeek; i++) {
                       calendarDays.push(
-                        <div key={`empty-${i}`} className="h-7" />
+                        <div key={`empty-${i}`} className="h-9" />
                       );
                     }
                     
@@ -448,8 +462,10 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                         <Button
                           key={day}
                           variant={isSelected ? "default" : "outline"}
-                          className={`h-7 text-[10px] px-1 ${
-                            isSelected ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600' : 'hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300'
+                          className={`h-9 rounded-lg text-xs font-medium px-0 ${
+                            isSelected
+                              ? 'bg-[#fd6301] text-white border-[#fd6301] hover:bg-[#e35400]'
+                              : 'hover:bg-orange-50 hover:text-[#fd6301] hover:border-orange-300'
                           }`}
                           onClick={() => handleDayToggle(day)}
                           data-testid={`day-${day}`}
@@ -466,27 +482,61 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             )}
 
             {/* Botón de acción único */}
-            <div className="p-2 sm:p-2.5 bg-gray-50">
-              <Button
-                className="w-full h-7 text-xs font-medium"
-                onClick={() => {
-                  // Detectar qué tipo de selección se ha hecho
-                  if (selectedMonths.length === 1 && selectedDays.length > 0) {
-                    handleApplyDays();
-                  } else if (selectedMonths.length > 0) {
-                    handleApplyMonths();
-                  } else {
-                    handleApplyFullYear();
-                  }
-                }}
-                disabled={selectedYears.length === 0}
-                data-testid="button-apply"
-              >
-                Aplicar
-              </Button>
-            </div>
+            {!inline && (
+              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/60">
+                <Button
+                  className="w-full h-10 rounded-xl text-sm font-medium bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-[#fd6301]/25"
+                  onClick={aplicarSeleccionActual}
+                  disabled={selectedYears.length === 0}
+                  data-testid="button-apply"
+                >
+                  Aplicar
+                </Button>
+              </div>
+            )}
           </>
         )}
+    </>
+  );
+
+  /* En celular este selector se abre desde el panel de filtros, que es un Drawer.
+     Como popover se portalaba fuera del Drawer: quedaba corrido sobre el fondo oscuro y,
+     peor, no se podía tocar nada — mientras el Drawer está abierto el `body` va con
+     `pointer-events: none` y el popover, al ser hermano y no hijo, hereda ese bloqueo
+     (reporte del usuario, ago-2026). Por eso ahí se usa `inline`: el mismo panel se
+     dibuja dentro del Drawer, sin portal, y los años/meses/días vuelven a responder. */
+  if (inline) {
+    return (
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+        {panel}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-8 min-w-[200px] justify-between text-left font-normal text-xs border-gray-200 shadow-sm"
+          data-testid="year-month-selector"
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Calendar className="h-3 w-3 shrink-0 text-gray-500" />
+            <span className="truncate">{getDisplayText()}</span>
+          </div>
+        </Button>
+      </PopoverTrigger>
+      
+      {/* En escritorio el popover se centra sobre el botón, con un margen mínimo contra
+          los bordes (`collisionPadding`) y alto máximo con desplazamiento, para que el
+          calendario completo se pueda recorrer sin que se corte. */}
+      <PopoverContent
+        className="w-[92vw] sm:w-[440px] max-w-[440px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0"
+        align="center"
+        collisionPadding={12}
+      >
+        {panel}
       </PopoverContent>
     </Popover>
   );

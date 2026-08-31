@@ -33,6 +33,7 @@ import {
   User,
   Users,
   Building2,
+  UserCheck,
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronRight,
@@ -326,8 +327,13 @@ export default function TareasPage() {
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
   const tabTriggerClass =
-    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-slate-200 hover:text-white hover:bg-slate-800/70 data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-slate-200 hover:text-white hover:bg-slate-800/70 data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap shrink-0";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
+
+  // La pestaña activa se centra dentro del riel al montar y al cambiar de pestaña. Se
+  // ajusta `scrollLeft` (no `scrollIntoView`, que arrastra el scroll de toda la página) y
+  // sin animación: el re-layout del contenido al montarse aborta el scroll suave.
+  const tabsListRef = useRef<HTMLDivElement>(null);
 
   // View state - vendedores always see "my-tasks"
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
@@ -442,10 +448,14 @@ export default function TareasPage() {
   // Estado para controlar la pestaña activa. Se rehidrata desde ?tab= para
   // que "Volver" desde el detalle de un lead del CRM regrese a esta pestaña
   // y no a la raíz del panel.
+  // Sin ?tab= el panel abre en SEGUIMIENTO para todos los usuarios (corrección del
+  // usuario, ago-2026): es la pestaña con la que arranca el día el equipo comercial.
+  // Seguimiento está siempre visible —es una de las tres pestañas fijas—, así que no
+  // hay rol que aterrice en una pestaña que no existe para él.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
-    return tab && validas.includes(tab) ? tab : "tareas";
+    return tab && validas.includes(tab) ? tab : "seguimiento";
   });
 
   // Sub-pestaña del Seguimiento. En Construcción no alcanza con seguir clientes:
@@ -537,18 +547,13 @@ export default function TareasPage() {
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
-  // Burbuja/tutorial sobre para qué sirven los grupos (recordada por navegador)
-  const [showGroupsTutorial, setShowGroupsTutorial] = useState<boolean>(() => {
-    try { return localStorage.getItem('tareas_groups_tutorial_dismissed') !== '1'; } catch { return true; }
-  });
-  const dismissGroupsTutorial = () => {
-    setShowGroupsTutorial(false);
-    try { localStorage.setItem('tareas_groups_tutorial_dismissed', '1'); } catch {}
-  };
-  const reopenGroupsTutorial = () => {
-    setShowGroupsTutorial(true);
-    try { localStorage.removeItem('tareas_groups_tutorial_dismissed'); } catch {}
-  };
+  // Burbuja/tutorial sobre para qué sirven los grupos. Arranca CERRADA siempre: en celular
+  // se comía media pantalla antes de la primera tarea, y quien ya sabe qué es un grupo no
+  // necesita leerlo (corrección del usuario, ago-2026). Se abre a pedido con el botón de
+  // ayuda que está al lado de "Nuevo Grupo".
+  const [showGroupsTutorial, setShowGroupsTutorial] = useState(false);
+  const dismissGroupsTutorial = () => setShowGroupsTutorial(false);
+  const reopenGroupsTutorial = () => setShowGroupsTutorial(true);
 
   // Consolidated init query - fetches everything in one HTTP roundtrip
   const { data: tareasInit } = useQuery<{
@@ -920,8 +925,41 @@ export default function TareasPage() {
   // proyectos, así que ninguna de las dos la muestra.
   const showRutasTab = !esConstruccion && !esIndustrial;
   const showVisitasTab = esConstruccion && canVerVisitas;
+  // Las mismas pestañas que arma el riel, como datos: en celular se muestran en un
+  // desplegable (ver el render) porque en una barra no entran y había que arrastrarlas.
+  const tabsVisibles: { value: string; label: string; Icon: typeof CheckSquare }[] = [
+    { value: "tareas", label: modoProyectos ? "Proyectos" : "Tareas", Icon: modoProyectos ? FolderOpen : CheckSquare },
+    // Seguimiento va con UserCheck, no con el edificio: el edificio es el ícono del Área,
+    // y en el encabezado los dos chips quedaban idénticos uno arriba del otro (corrección
+    // del usuario, ago-2026). Lo que se sigue acá además son clientes, no locales.
+    { value: "seguimiento", label: "Seguimiento", Icon: UserCheck },
+    ...(showEstimacionTab ? [{ value: "estimacion", label: "Estimación de ventas", Icon: TrendingUp }] : []),
+    ...(showObrasTab ? [{ value: "obras", label: "Obras", Icon: HardHat }] : []),
+    ...(showCrmTab ? [{ value: "crm", label: "CRM", Icon: Users }] : []),
+    ...(showRutasTab ? [{ value: "rutas-comerciales", label: "Rutas Comerciales", Icon: MapPin }] : []),
+    ...(showVisitasTab ? [{ value: "visitas-tecnicas", label: "Visitas Técnicas", Icon: FileCheck }] : []),
+    { value: "calendario", label: "Calendario", Icon: CalendarIcon },
+  ];
+  const tabActiva = tabsVisibles.find((t) => t.value === activeTab) ?? tabsVisibles[0];
+
   const visibleTabCount =
     3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
+  // Centrar la pestaña activa dentro del riel (ver el comentario de tabsListRef).
+  useEffect(() => {
+    const riel = tabsListRef.current;
+    if (!riel) return;
+    const id = requestAnimationFrame(() => {
+      const activa = riel.querySelector<HTMLElement>('[data-state="active"]');
+      if (!activa) return;
+      // Se mide con rects y no con offsetLeft: el riel no está posicionado, así que el
+      // offsetParent de la pestaña es un ancestro y offsetLeft no sirve como referencia.
+      const cajaRiel = riel.getBoundingClientRect();
+      const cajaActiva = activa.getBoundingClientRect();
+      riel.scrollLeft += (cajaActiva.left - cajaRiel.left) - (cajaRiel.width - cajaActiva.width) / 2;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [activeTab]);
+
   const tabsGridClass =
     ({ 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6', 7: 'sm:grid-cols-7', 8: 'sm:grid-cols-8' } as Record<number, string>)[visibleTabCount] ?? 'sm:grid-cols-6';
 
@@ -1575,7 +1613,11 @@ export default function TareasPage() {
   // que el administrador pueda cambiar de área desde cualquier vista.
   const areaSelector = (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fd6301] text-white dark:text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+      {/* Chip SUAVE, no relleno (corrección del usuario, ago-2026): naranjo claro con el
+          ícono naranjo. El Área es el contexto del módulo, no una acción; en naranjo
+          sólido competía con el botón principal y con el chip de la sección, que están a
+          centímetros en la misma pantalla, y en negro pesaba de más. */}
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/30 text-[#fd6301] flex-shrink-0">
         <Building2 className="h-4 w-4" />
       </div>
       <div className="flex flex-col leading-none">
@@ -1613,6 +1655,43 @@ export default function TareasPage() {
   // Radix solo dispara onValueChange al CAMBIAR de pestaña; al re-pinchar la
   // activa igual damos por vistos sus cambios (el badge desaparece y las
   // tarjetas modificadas quedan destacadas).
+  // Selector de sección para celular. Vive en el encabezado, arriba de todo, justo debajo
+  // del título del módulo (corrección del usuario, ago-2026): es lo primero que hay que
+  // saber al entrar —en qué sección estás— y abajo del botón de acción quedaba escondido.
+  const selectorSeccionMovil = (
+    <div className={`sm:hidden ${isMarketing ? 'hidden' : ''}`}>
+      <Select value={activeTab} onValueChange={setActiveTab}>
+        <SelectTrigger
+          className="w-full h-auto gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm focus:ring-0 focus:ring-offset-0 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-60"
+          data-testid="select-tab-movil"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Chip suave, igual que el del Área (corrección del usuario, ago-2026): las dos
+                tarjetas van una sobre la otra y en naranjo sólido competían con el botón. */}
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/30 text-[#fd6301] shrink-0">
+              <tabActiva.Icon className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col items-start leading-none min-w-0">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Sección</span>
+              <span className="font-semibold text-sm text-slate-700 dark:text-slate-100 truncate">{tabActiva.label}</span>
+            </div>
+          </div>
+        </SelectTrigger>
+        <SelectContent className="rounded-2xl">
+          {tabsVisibles.map(({ value, label, Icon }) => (
+            <SelectItem key={value} value={value} className="rounded-lg" data-testid={`select-tab-${value}`}>
+              <span className="flex items-center gap-2.5">
+                <Icon className="h-4 w-4 text-[#fd6301]" />
+                {label}
+                {tabChangeBadge(value)}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   const handleTabTriggerClick = (tab: string) => {
     if (tab !== activeTab) return; // el cambio de pestaña lo maneja el efecto del hook
     const section = PANEL_TAB_TO_SECTION[tab];
@@ -1740,7 +1819,8 @@ export default function TareasPage() {
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        {/* `relative` para poder anclar la campana arriba a la derecha en celular. */}
+        <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
               <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
@@ -1748,18 +1828,29 @@ export default function TareasPage() {
               </span>
               Panel de Trabajo
             </h1>
-            <p className="text-sm text-muted-foreground">
+            {/* La bajada del módulo no se muestra en celular (corrección del usuario,
+                ago-2026): ocupaba dos líneas de la primera pantalla para explicar algo
+                que el propio panel ya muestra. */}
+            <p className="hidden sm:block text-sm text-muted-foreground">
               Gestiona tareas del equipo, estimaciones de ventas y seguimiento de clientes
             </p>
           </div>
           {(canCreateTasks || canRequestMarketing) && (
             <>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              {/* Campana de cambios + Selector de Área — el selector reemplaza las pestañas de segmento; solo cuando hay más de un área visible. */}
+              {/* Campana de cambios + Selector de Área — el selector reemplaza las pestañas de segmento; solo cuando hay más de un área visible.
+                  En celular la campana se ancla arriba a la derecha del encabezado, a la
+                  altura del título, y el Área queda sola en su fila, arriba de la sección
+                  (corrección del usuario, ago-2026): primero se elige el área, después la
+                  sección. Se mueve con posición, sin dibujar dos campanas: una sola vive
+                  en el árbol y la otra copia traería su propio estado. */}
               <div className="flex items-center gap-2">
-                <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
+                <div className="absolute -top-1 right-0 sm:static">
+                  <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
+                </div>
                 {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
               </div>
+              {selectorSeccionMovil}
               {/* En Obras el (+) bajó a la barra de la cartera, al lado de
                   "Agregar constructora": ahí es donde están las dos acciones de
                   la pantalla, y arriba quedaba lejos de lo que se está mirando. */}
@@ -2240,8 +2331,19 @@ export default function TareasPage() {
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
-        <div className={`overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 ${isMarketing ? 'hidden' : ''}`}>
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5 border border-slate-800/80 dark:border-slate-800/80 rounded-2xl ${tabsGridClass}`}>
+        {/* En celular las pestañas van en un desplegable, no en el riel: en una barra no
+            entran y había que arrastrarlas a ciegas para saber dónde estabas parado
+            (corrección del usuario, ago-2026). Es el mismo control con el que se elige la
+            vista en el panel de filtros del dashboard. De `sm` para arriba vuelve el riel
+            negro, donde las pestañas sí entran. */}
+        {/* En celular el selector de sección ya está arriba, dentro del encabezado
+            (ver `selectorSeccionMovil`). Acá queda solo el riel de escritorio. */}
+        {/* Riel negro de pestañas: de tablet para arriba. */}
+        <div className={`hidden sm:block ${isMarketing ? 'hidden' : ''}`}>
+          <TabsList
+            ref={tabsListRef}
+            className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-[#0a0a0a] dark:bg-[#0a0a0a] p-1.5 border border-slate-800/80 dark:border-slate-800/80 rounded-2xl ${tabsGridClass}`}
+          >
             {/* En Industrial esta pestaña es "Proyectos": mismo espacio, otra
                 unidad de trabajo (ver modoProyectos). El value se mantiene en
                 "tareas" para no romper filtros, avisos ni enlaces guardados. */}
@@ -2251,7 +2353,7 @@ export default function TareasPage() {
               {tabChangeBadge("tareas")}
             </TabsTrigger>
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass} onClick={() => handleTabTriggerClick("seguimiento")}>
-              <Building2 className={tabIconClass} />
+              <UserCheck className={tabIconClass} />
               Seguimiento
               {tabChangeBadge("seguimiento")}
             </TabsTrigger>
@@ -2341,10 +2443,15 @@ export default function TareasPage() {
           {/* Filters and View Toggle - solo administrador y solo en la pestaña Tareas (Seguimiento no usa estos filtros) */}
           {user.role === 'admin' && activeTab !== 'seguimiento' && (
           // Sin overflow-hidden: el dropdown de sugerencias del buscador debe poder salir de la card
-          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80">
+          <Card className="hidden lg:block rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-900/80">
             <CardContent className="p-0">
-              {/* Mobile: Collapsible Filters Header */}
-              <div className="lg:hidden">
+              {/* Filtros plegables de celular: se dejaron FUERA del formato móvil
+                  (corrección del usuario, ago-2026). La tarjeta era una fila más de
+                  chrome antes de la primera tarea y empujaba la lista fuera de la
+                  primera pantalla. De `lg` para arriba sigue el bloque de filtros de
+                  siempre, acá abajo. Si hay que devolverle la búsqueda al celular, va
+                  como lupa en la fila de acciones, no como esta tarjeta. */}
+              <div className="hidden">
                 <button
                   onClick={() => setFiltersExpanded(!filtersExpanded)}
                   className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"

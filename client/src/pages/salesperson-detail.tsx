@@ -1208,6 +1208,7 @@ export default function SalespersonDetail({
                             <span>Período de tiempo</span>
                           </div>
                           <YearMonthSelector
+                            inline
                             value={localSelection}
                             onChange={setLocalSelection}
                           />
