@@ -14419,8 +14419,9 @@ export class DatabaseStorage implements IStorage {
     const idList = sql.join(seguimientos.map((t) => sql`${t.id}`), sql`, `);
     let actRows: any[] = [];
     let comRows: any[] = [];
+    let ultActRows: any[] = [];
     try {
-      const [actRes, comRes]: any[] = await Promise.all([
+      const [actRes, comRes, ultActRes]: any[] = await Promise.all([
         db.execute(sql`
           SELECT task_id,
                  COUNT(*)::int AS total,
@@ -14430,16 +14431,38 @@ export class DatabaseStorage implements IStorage {
           WHERE task_id IN (${idList})
           GROUP BY task_id
         `),
+        // Además de la fecha, se trae el TEXTO del último comentario: la tarjeta del
+        // panel muestra "el último movimiento" y sin el texto solo podía decir hace
+        // cuánto fue (pedido del usuario, ago-2026). DISTINCT ON deja una fila por
+        // tarea, la más reciente.
         db.execute(sql`
-          SELECT a.task_id AS task_id, MAX(c.created_at) AS ultima
+          SELECT DISTINCT ON (a.task_id)
+                 a.task_id AS task_id,
+                 c.created_at AS ultima,
+                 c.content AS texto,
+                 c.author_name AS autor
           FROM task_comments c
           JOIN task_assignments a ON a.id = c.assignment_id
           WHERE a.task_id IN (${idList})
-          GROUP BY a.task_id
+          ORDER BY a.task_id, c.created_at DESC
+        `),
+        // Lo mismo para la última actividad registrada (llamada, visita, cotización…):
+        // el "último movimiento" es el más reciente entre este y el comentario.
+        db.execute(sql`
+          SELECT DISTINCT ON (task_id)
+                 task_id,
+                 GREATEST(updated_at, created_at) AS ultima,
+                 descripcion AS texto,
+                 tipo,
+                 responsable_nombre AS autor
+          FROM task_actividades
+          WHERE task_id IN (${idList})
+          ORDER BY task_id, GREATEST(updated_at, created_at) DESC
         `),
       ]);
       actRows = (Array.isArray(actRes) ? actRes : actRes?.rows) || [];
       comRows = (Array.isArray(comRes) ? comRes : comRes?.rows) || [];
+      ultActRows = (Array.isArray(ultActRes) ? ultActRes : ultActRes?.rows) || [];
     } catch (err: any) {
       // Los contadores son informativos: si el agregado falla, el panel sigue
       // funcionando sin los badges en vez de caerse entero.
@@ -14449,6 +14472,7 @@ export class DatabaseStorage implements IStorage {
 
     const actMap = new Map<string, any>(actRows.map((r: any) => [String(r.task_id), r]));
     const comMap = new Map<string, any>(comRows.map((r: any) => [String(r.task_id), r]));
+    const ultActMap = new Map<string, any>(ultActRows.map((r: any) => [String(r.task_id), r]));
 
     for (const task of seguimientos) {
       const act = actMap.get(task.id);
@@ -14459,6 +14483,34 @@ export class DatabaseStorage implements IStorage {
       (task as any).actividadesTotal = Number(act?.total ?? 0);
       (task as any).actividadesPendientes = Number(act?.pendientes ?? 0);
       (task as any).ultimaInteraccion = marcas.length > 0 ? new Date(Math.max(...marcas)).toISOString() : null;
+
+      // Último movimiento con texto: el más reciente entre el último comentario del
+      // chat y la última actividad registrada. La tarjeta del panel lo muestra debajo
+      // del título (pedido del usuario, ago-2026).
+      const ultAct = ultActMap.get(task.id);
+      const candidatos = [
+        com?.texto
+          ? { texto: String(com.texto), fecha: com.ultima, autor: com.autor ? String(com.autor) : null, tipo: 'comentario' as const }
+          : null,
+        ultAct?.texto || ultAct?.tipo
+          ? {
+              texto: String(ultAct.texto || ultAct.tipo || '').trim(),
+              fecha: ultAct.ultima,
+              autor: ultAct.autor ? String(ultAct.autor) : null,
+              tipo: 'actividad' as const,
+            }
+          : null,
+      ].filter((c): c is NonNullable<typeof c> => !!c && !!c.fecha && !!c.texto);
+      candidatos.sort((a, b) => new Date(b.fecha as any).getTime() - new Date(a.fecha as any).getTime());
+      const ganador = candidatos[0];
+      (task as any).ultimoMovimiento = ganador
+        ? {
+            texto: ganador.texto,
+            fecha: new Date(ganador.fecha as any).toISOString(),
+            autor: ganador.autor,
+            tipo: ganador.tipo,
+          }
+        : null;
     }
   }
 

@@ -33,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ESTADOS, type EstadoValue, normalizeEstado, getEstadoConfig,
+  ESTADOS, ACENTOS_PIPELINE, type EstadoValue, normalizeEstado, getEstadoConfig,
   PRIORIDADES, getPrioridadConfig, HITO_TIPOS, SEGMENTOS_CRM,
   timeAgo, formatDate, formatCLP, isOverdue, proximoContactoLabel,
   fixEncoding, getInitials,
@@ -530,15 +530,21 @@ function SeguimientoClientesInner(
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Toggle de vista */}
-            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+            {/* Toggle de vista: dos botones sueltos, uno naranjo y el otro negro
+                (pedido del usuario, ago-2026). Antes iban pegados dentro de un
+                mismo recuadro gris y no se distinguía cuál estaba puesto. El que
+                está activo va en el naranjo de marca; el otro, en negro.
+                En celular esta fila no se muestra (pedido del usuario, ago-2026):
+                ocupaba una pantalla entera antes de llegar a los datos. La vista
+                queda en la última elegida desde el computador. */}
+            <div className="hidden sm:flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => changeView("tabla")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors ${
                   view === "tabla"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[#fd6301] hover:bg-[#e35400] shadow-[#fd6301]/25"
+                    : "bg-[#0a0a0a] hover:bg-slate-800"
                 }`}
                 data-testid="btn-view-tabla"
               >
@@ -548,10 +554,10 @@ function SeguimientoClientesInner(
               <button
                 type="button"
                 onClick={() => changeView("pipeline")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors ${
                   view === "pipeline"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[#fd6301] hover:bg-[#e35400] shadow-[#fd6301]/25"
+                    : "bg-[#0a0a0a] hover:bg-slate-800"
                 }`}
                 data-testid="btn-view-pipeline"
               >
@@ -559,28 +565,41 @@ function SeguimientoClientesInner(
                 Pipeline
               </button>
             </div>
+            {/* Importar/Exportar es trabajo de escritorio (archivos CSV): en celular
+                tampoco se muestra. */}
             <Button
               variant="outline"
               onClick={() => setShowImportExport(true)}
+              className="hidden sm:inline-flex"
               data-testid="btn-import-export"
               title="Importar o exportar leads (CSV)"
             >
               <Upload className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Importar / Exportar</span>
             </Button>
-            <Button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              data-testid="btn-nuevo-cliente"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo Cliente
-            </Button>
+            {/* Dentro del Panel de Trabajo este botón no va: arriba ya está el
+                "Nuevo cliente" naranjo del panel y quedaban dos botones para lo
+                mismo, uno de ellos de otro color (pedido del usuario, ago-2026).
+                Se mantiene solo cuando el CRM se abre por su cuenta, donde ese
+                botón de arriba no existe. */}
+            {!embedded && (
+              <Button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                data-testid="btn-nuevo-cliente"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo Cliente
+              </Button>
+            )}
           </div>
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-4 gap-2 sm:gap-4">
+        {/* Dos arriba y dos abajo en celular (pedido del usuario, ago-2026): a cuatro
+            por fila los rótulos salían cortados ("Sin interac.", "Cierre pro..."). En
+            pantalla grande siguen las cuatro en una sola fila. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
           <KpiCard
             icon={Users}
             label="Total activos"
@@ -607,7 +626,8 @@ function SeguimientoClientesInner(
             icon={Banknote}
             label="Tiempo promedio de cierre"
             shortLabel="Cierre prom."
-            value={stats?.tiempoCierrePromedioDias != null ? `${stats.tiempoCierrePromedioDias} días` : "—"}
+            value={stats?.tiempoCierrePromedioDias != null ? String(stats.tiempoCierrePromedioDias) : "—"}
+            sufijo={stats?.tiempoCierrePromedioDias != null ? "días" : undefined}
             iconBox="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
           />
         </div>
@@ -617,7 +637,11 @@ function SeguimientoClientesInner(
             scopeados a su equipo desde el backend (getVendedorScope), así que los filtros
             operan solo sobre su cartera. Los vendedores no ven la toolbar (cartera propia). */}
         {isAdminOrSupervisor && (
-        <div className="rounded-xl border bg-card shadow-sm p-3">
+        // En celular la caja de filtros no se muestra (pedido del usuario, ago-2026):
+        // el buscador y los dos desplegables se comían la pantalla antes de llegar al
+        // tablero. Los filtros que estén puestos siguen aplicando (se guardan por
+        // navegador) y se cambian desde el computador.
+        <div className="hidden sm:block rounded-xl border bg-card shadow-sm p-3">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
             <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -887,23 +911,33 @@ const SeguimientoClientes = forwardRef<SeguimientoClientesHandle, { segmentoArea
 export default SeguimientoClientes;
 
 // ─── KPI card ─────────────────────────────────────────────────────────
-function KpiCard({ icon: Icon, label, shortLabel, value, iconBox, valueClass = "" }: {
+function KpiCard({ icon: Icon, label, shortLabel, value, sufijo, iconBox, valueClass = "" }: {
   icon: any;
   label: string;
   shortLabel?: string;
   value: string;
+  /** Unidad del número ("días"), en letra chica al lado de la cifra. */
+  sufijo?: string;
   iconBox: string;
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl border bg-card shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-      <div className={`w-7 h-7 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBox}`}>
-        <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+    // Todo centrado dentro de la tarjeta en celular (pedido del usuario, ago-2026);
+    // en pantalla grande vuelve a ser una fila con el ícono a la izquierda.
+    <div className="rounded-xl border bg-card shadow-sm p-4 flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-2 sm:gap-3">
+      {/* Ícono en negro y suelto, sin el cuadrado de color detrás (pedido del
+          usuario, ago-2026). `iconBox` se sigue recibiendo para no tocar a quienes
+          arman las tarjetas, pero ya no pinta ese fondo. */}
+      <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 text-slate-900 dark:text-slate-100">
+        <Icon className="w-5 h-5" />
       </div>
       <div className="min-w-0">
-        <p className={`text-lg sm:text-2xl font-bold tracking-tight leading-none truncate ${valueClass}`}>{value}</p>
+        <p className={`text-2xl font-bold tracking-tight leading-none truncate ${valueClass}`}>
+          {value}
+          {sufijo && <span className="ml-1 text-sm font-semibold text-muted-foreground">{sufijo}</span>}
+        </p>
         {/* En móvil una etiqueta corta; en desktop la descripción completa */}
-        <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5 sm:hidden">{shortLabel ?? label}</p>
+        <p className="text-xs text-muted-foreground truncate mt-1 sm:hidden">{shortLabel ?? label}</p>
         <p className="text-xs text-muted-foreground truncate mt-0.5 hidden sm:block">{label}</p>
       </div>
     </div>
@@ -1356,11 +1390,15 @@ function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartC
   onNuevo: () => void;
 }) {
   const [isDragTarget, setIsDragTarget] = useState(false);
+  // Naranjo propio de la etapa: es lo único que distingue una columna de otra.
+  const acento = ACENTOS_PIPELINE[estado.value] ?? "#fd6301";
 
   return (
     <div
-      className={`flex-shrink-0 w-[290px] rounded-xl border flex flex-col ${estado.column} ${
-        isDragTarget ? "ring-2 ring-indigo-400 dark:ring-indigo-600 border-transparent" : estado.border
+      className={`flex-shrink-0 w-[290px] rounded-2xl border flex flex-col bg-white dark:bg-slate-900 ${
+        isDragTarget
+          ? "ring-2 ring-[#fd6301] dark:ring-[#fd6301] border-transparent"
+          : "border-slate-200/70 dark:border-slate-700/60"
       } transition-shadow`}
       onDragOver={(e) => { e.preventDefault(); setIsDragTarget(true); }}
       onDragLeave={(e) => {
@@ -1370,11 +1408,20 @@ function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartC
       onDrop={(e) => { setIsDragTarget(false); onDrop(e, estado.value); }}
       data-testid={`kanban-col-${estado.value}`}
     >
-      {/* Header de columna */}
-      <div className="px-3 py-2.5 flex items-center gap-2 border-b border-inherit">
-        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${estado.dot}`} />
+      {/* Header de columna. La etapa se reconoce por su naranjo: una línea de
+          acento arriba, el punto y el contador. La columna en sí queda blanca
+          (pedido del usuario, ago-2026). */}
+      <div className="h-1 rounded-t-2xl" style={{ backgroundColor: acento }} />
+      <div className="px-3 py-2.5 flex items-center gap-2 border-b border-slate-200/70 dark:border-slate-700/60">
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: acento }} />
         <span className="text-xs font-semibold text-foreground">{estado.label}</span>
-        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{items.length}</Badge>
+        <Badge
+          variant="secondary"
+          className="text-[10px] h-4 px-1.5 border-0 text-white"
+          style={{ backgroundColor: acento }}
+        >
+          {items.length}
+        </Badge>
       </div>
 
       {/* Cards */}
@@ -1400,7 +1447,7 @@ function KanbanColumn({ estado, items, dragId, onDrop, onCardClick, onDragStartC
           <div className="border border-dashed rounded-lg py-8 px-3 text-center text-muted-foreground">
             <estado.icon className="w-6 h-6 mx-auto mb-2 opacity-30" />
             <p className="text-xs font-medium">Sin clientes en esta etapa</p>
-            <Button variant="ghost" size="sm" onClick={onNuevo} className="h-7 text-xs mt-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700">
+            <Button variant="ghost" size="sm" onClick={onNuevo} className="h-7 text-xs mt-2 text-[#fd6301] hover:text-[#e35400]">
               <Plus className="w-3 h-3 mr-1" />
               Nuevo cliente
             </Button>

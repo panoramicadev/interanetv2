@@ -468,7 +468,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]"
           data-testid="mobile-menu-bar"
         >
-          <div className="h-14 px-4 flex items-center">
+          {/* El botón no va pegado al borde: queda centrado dentro de la mitad izquierda,
+              o sea a mitad de camino entre el borde y el centro de la pantalla
+              (corrección del usuario, ago-2026). Ahí cae más natural bajo el pulgar. */}
+          <div className="h-14 w-1/2 flex items-center justify-center">
             <button
               className="w-10 h-10 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform"
               onClick={() => setIsMobileOpen(!isMobileOpen)}
