@@ -79,7 +79,7 @@ export interface RutasComercialesHandle {
  * Se usa como página standalone (envuelto en el container de arriba) y
  * embebido como pestaña dentro del Panel de Trabajo (tareas.tsx).
  */
-export const RutasComercialesContent = forwardRef<RutasComercialesHandle>(function RutasComercialesContent(_props, ref) {
+export const RutasComercialesContent = forwardRef<RutasComercialesHandle, { embebido?: boolean }>(function RutasComercialesContent({ embebido = false }, ref) {
   const { user } = useAuth();
   const { toast } = useToast();
   const canManage = user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
@@ -139,7 +139,9 @@ export const RutasComercialesContent = forwardRef<RutasComercialesHandle>(functi
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="space-y-0.5">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/25">
+            {/* Naranjo de marca y del mismo porte que el resto de los encabezados
+                (corrección del usuario, ago-2026): era el único ícono azul del panel. */}
+            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
               <MapPin className="w-5 h-5" />
             </span>
             Rutas Comerciales
@@ -150,8 +152,12 @@ export const RutasComercialesContent = forwardRef<RutasComercialesHandle>(functi
         </div>
         {canManage && (
           <Dialog open={showCreate} onOpenChange={setShowCreate}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-md shadow-indigo-500/25">
+            {/* Dentro del Panel de Trabajo este botón no se muestra: arriba ya está el
+                "Nueva ruta" naranjo del panel y quedaban dos botones para lo mismo, uno
+                azul (pedido del usuario, ago-2026). Sigue cuando la pantalla se abre por
+                su cuenta, y ahí también va en el naranjo de la marca. */}
+            <DialogTrigger asChild className={embebido ? "hidden" : undefined}>
+              <Button className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25">
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Ruta
               </Button>
@@ -242,8 +248,10 @@ export const RutasComercialesContent = forwardRef<RutasComercialesHandle>(functi
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
                     {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
-                    <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-4 w-4 text-indigo-600" />
+                    {/* Ícono naranjo suelto, sin el cuadrado de color: mismo criterio
+                        que el resto de las listas del panel. */}
+                    <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="h-4 w-4 text-[#fd6301]" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-800 truncate">{ruta.nombre}</p>

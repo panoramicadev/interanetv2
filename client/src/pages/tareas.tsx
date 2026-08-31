@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -514,7 +516,10 @@ export default function TareasPage() {
   // completadas juntas ("terminadas"). El agrupado por persona ya no vive acá:
   // esa vista de equipo es ahora la pestaña Seguimiento.
   const [taskView, setTaskView] = useState<'lista' | 'terminadas'>('lista');
-  const groupsInitializedRef = useRef(false);
+  // Clave de la vista (sección + área) con la que se cerraron los grupos por última vez.
+  const groupsInitializedRef = useRef<string | false>(false);
+  // Grupos que ya pasaron por pantalla: sirve para cerrar solo los que llegan nuevos.
+  const gruposVistosRef = useRef<Set<string>>(new Set());
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
   // Seguimiento (vista de equipo): colaboradores sumados "a mano" desde el buscador,
   // para hacerles seguimiento aunque todavía no tengan ningún cliente asignado.
@@ -541,8 +546,16 @@ export default function TareasPage() {
   const toggleSeguimientoOrden = (orden: 'pendientes' | 'sin-movimiento') =>
     setSeguimientoOrden((prev) => (prev === orden ? 'default' : orden));
 
-  // Selección múltiple / eliminación masiva (solo administrador)
-  const [selectionMode, setSelectionMode] = useState(false);
+  // Selección múltiple / eliminación masiva (solo administrador). En celular queda
+  // apagada siempre: el botón que la enciende vive en la barra de escritorio, y si
+  // quedaba prendida desde el computador el teléfono mostraba casillas y una barra
+  // negra al pie sin forma de salir (pedido del usuario, ago-2026).
+  const [selectionModeRaw, setSelectionMode] = useState(false);
+  // Celular vs. escritorio. Decide varias cosas de esta pantalla: el selector de
+  // "qué crear" (panel lateral en vez de ventana), qué barras se muestran y la
+  // selección múltiple.
+  const esCelular = useIsMobile();
+  const selectionMode = selectionModeRaw && !esCelular;
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -581,14 +594,31 @@ export default function TareasPage() {
     placeholderData: tareasInit?.taskGroups as any,
   });
 
-  // Collapse all groups by default on first load
+  // Los proyectos/grupos arrancan SIEMPRE cerrados: al entrar a la sección, al
+  // cambiar de área y cada vez que se vuelve (pedido del usuario, ago-2026). Antes
+  // se cerraban una sola vez por carga de la página, así que si abrías uno y te ibas
+  // a otra sección, al volver seguía desplegado. Mientras estás parado en la sección
+  // lo que abras a mano se respeta.
   useEffect(() => {
     const groups = taskGroupsQuery.data;
-    if (groups && groups.length > 0 && !groupsInitializedRef.current) {
-      groupsInitializedRef.current = true;
+    if (!groups || groups.length === 0) return;
+    const claveVista = `${activeTab}|${segmentoFilter}`;
+    if (groupsInitializedRef.current !== claveVista) {
+      groupsInitializedRef.current = claveVista;
       setCollapsedGroups(new Set(groups.map((g: any) => g.id)));
+      return;
     }
-  }, [taskGroupsQuery.data]);
+    // Un grupo recién creado o recién llegado del servidor también entra cerrado.
+    setCollapsedGroups((prev) => {
+      const ids = groups.map((g: any) => g.id);
+      const faltantes = ids.filter((id: string) => !prev.has(id) && !gruposVistosRef.current.has(id));
+      if (faltantes.length === 0) return prev;
+      const next = new Set(prev);
+      faltantes.forEach((id: string) => next.add(id));
+      return next;
+    });
+    groups.forEach((g: any) => gruposVistosRef.current.add(g.id));
+  }, [taskGroupsQuery.data, activeTab, segmentoFilter]);
 
   const createGroupMutation = useMutation({
     mutationFn: async (data: { name: string; segmento: string; color?: string }) => {
@@ -602,8 +632,8 @@ export default function TareasPage() {
       const previousGroups = queryClient.getQueriesData({ queryKey: ['/api/task-groups'] });
       // Optimistically add the new group to ALL matching queries
       queryClient.setQueriesData({ queryKey: ['/api/task-groups'] }, (old: any) => {
-        if (!old || !Array.isArray(old)) return [{ id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
-        return [...old, { id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
+        if (!old || !Array.isArray(old)) return [{ id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'orange', sortOrder: 0, createdAt: new Date() }];
+        return [...old, { id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'orange', sortOrder: 0, createdAt: new Date() }];
       });
       setNewGroupName("");
       setShowCreateGroup(false);
@@ -928,11 +958,12 @@ export default function TareasPage() {
   // Las mismas pestañas que arma el riel, como datos: en celular se muestran en un
   // desplegable (ver el render) porque en una barra no entran y había que arrastrarlas.
   const tabsVisibles: { value: string; label: string; Icon: typeof CheckSquare }[] = [
-    { value: "tareas", label: modoProyectos ? "Proyectos" : "Tareas", Icon: modoProyectos ? FolderOpen : CheckSquare },
-    // Seguimiento va con UserCheck, no con el edificio: el edificio es el ícono del Área,
-    // y en el encabezado los dos chips quedaban idénticos uno arriba del otro (corrección
-    // del usuario, ago-2026). Lo que se sigue acá además son clientes, no locales.
+    // Seguimiento primera, igual que en el riel: es donde aterriza el panel.
+    // Va con UserCheck, no con el edificio: el edificio es el ícono del Área, y en el
+    // encabezado los dos chips quedaban idénticos uno arriba del otro (corrección del
+    // usuario, ago-2026). Lo que se sigue acá además son clientes, no locales.
     { value: "seguimiento", label: "Seguimiento", Icon: UserCheck },
+    { value: "tareas", label: modoProyectos ? "Proyectos" : "Tareas", Icon: modoProyectos ? FolderOpen : CheckSquare },
     ...(showEstimacionTab ? [{ value: "estimacion", label: "Estimación de ventas", Icon: TrendingUp }] : []),
     ...(showObrasTab ? [{ value: "obras", label: "Obras", Icon: HardHat }] : []),
     ...(showCrmTab ? [{ value: "crm", label: "CRM", Icon: Users }] : []),
@@ -1484,12 +1515,31 @@ export default function TareasPage() {
     return null;
   };
 
-  // El vendedor administra SU trabajo: lo que crea queda asignado a él mismo y no
-  // elige equipo. Además es obligatorio para que la tarea le aparezca: la consulta
-  // del rol salesperson solo trae las tareas donde él es el asignado, no las que creó.
-  const asignaSoloASiMismo = user.role === 'salesperson';
-  const asignacionesPorDefecto = (): CreateTaskWithAssignmentsInput['assignments'] =>
-    asignaSoloASiMismo ? [{ assigneeType: 'salesperson', assigneeId: user.id }] : [];
+  // A quién le llega una tarea nueva. Ya no se elige a mano (pedido del usuario,
+  // ago-2026): el selector "Equipo asignado" salió del formulario y la tarea queda
+  // siempre para el que la crea, su supervisor y la administración.
+  //
+  // - el que la crea, porque si no queda fuera: al vendedor solo le aparecen las
+  //   tareas donde figura como asignado, no las que escribió.
+  // - su supervisor, tomado de la ficha del creador. Si en su ficha no hay
+  //   supervisor cargado, ese no se agrega y la tarea igual se crea.
+  // - la administración: todas las cuentas de rol admin.
+  //
+  // La lista de gente sale de la carga inicial del panel, que llega para todos los
+  // roles; `availableUsers` (que no se pide para vendedor ni marketing) va primero
+  // por si ya está fresca.
+  const personasDelSistema = (availableUsers || tareasInit?.salespeople || []) as Array<{ id: string; role: string }>;
+  const asignacionesPorDefecto = (): CreateTaskWithAssignmentsInput['assignments'] => {
+    const ids: string[] = [user.id];
+    const supervisorDelCreador = (user as any).supervisorId as string | undefined | null;
+    if (supervisorDelCreador) ids.push(supervisorDelCreador);
+    personasDelSistema.forEach((p) => { if (p.role === 'admin') ids.push(p.id); });
+    // Sin repetidos: el creador puede ser él mismo un admin, o su propio supervisor.
+    return Array.from(new Set(ids)).map((id) => {
+      const rol = personasDelSistema.find((p) => p.id === id)?.role;
+      return { assigneeType: rol === 'supervisor' ? 'supervisor' : 'salesperson', assigneeId: id } as const;
+    });
+  };
 
   const handleSubmit = (data: CreateTaskWithAssignmentsInput) => {
     // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente.
@@ -1500,7 +1550,10 @@ export default function TareasPage() {
       : modoProyectos
         ? { kind: 'proyecto' }
         : undefined;
-    const assignments = asignaSoloASiMismo ? asignacionesPorDefecto() : data.assignments;
+    // En "Nuevo seguimiento" el asignado ES el colaborador al que se le entrega el
+    // cliente, así que ahí manda lo que se eligió en pantalla. En el resto de las
+    // tareas y proyectos la asignación es automática (ver `asignacionesPorDefecto`).
+    const assignments = seguimientoMode ? data.assignments : asignacionesPorDefecto();
     createTaskMutation.mutate({ ...data, assignments, ...(payload ? { payload } : {}) } as any);
   };
 
@@ -1514,7 +1567,10 @@ export default function TareasPage() {
       title: "", description: "", priority: "medium",
       segmento: segmentoFilter !== 'all' ? segmentoFilter : null,
       groupId: null, dueDate: "", clienteId: null, clienteNombre: null,
-      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : asignacionesPorDefecto(),
+      // Acá el asignado es el responsable del seguimiento, no el equipo que se
+      // entera: si no vino elegido de antes, la lista arranca vacía para que se
+      // elija en pantalla (no se le aplica la asignación automática de las tareas).
+      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : [],
     });
     setShowCreateDialog(true);
   };
@@ -1599,7 +1655,7 @@ export default function TareasPage() {
           setTaskFlow('otras');
           setSelectedClienteTask(null);
           setSearchClienteTask("");
-          form.reset({ title: "", description: "", priority: "medium", segmento: 'marketing', groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: [] });
+          form.reset({ title: "", description: "", priority: "medium", segmento: 'marketing', groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: asignacionesPorDefecto() });
           setShowCreateDialog(true);
           return;
         }
@@ -1608,22 +1664,34 @@ export default function TareasPage() {
     };
   })();
 
+  // En Seguimiento (vista Clientes) el alta ya vive abajo, en la barra de la
+  // cartera ("Nuevo seguimiento", al lado de "Agregar colaborador") y en el
+  // estado vacío: ahí es donde se está mirando el equipo. Repetirla arriba
+  // dejaba dos botones naranjos para la misma acción, así que el (+) del header
+  // desaparece en esa vista — en celular y en escritorio por igual. Solo para
+  // quien ve esa barra (mismo permiso que la habilita); a los demás les sigue
+  // quedando el botón de arriba como único camino.
+  // Vale para TODOS los roles por igual (pedido del usuario, ago-2026): la pantalla se
+  // ve igual para cualquiera que entre, no cambia según el cargo.
+  const altaSeguimientoEnLaLista =
+    activeTab === 'seguimiento' && seguimientoVista === 'clientes';
+
   // Selector de Área — la card-pill con el ícono de edificio y el dropdown de segmento.
   // Vive SIEMPRE en el header (junto a "Nueva Tarea"), en todas las pestañas, para
   // que el administrador pueda cambiar de área desde cualquier vista.
   const areaSelector = (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
-      {/* Chip SUAVE, no relleno (corrección del usuario, ago-2026): naranjo claro con el
-          ícono naranjo. El Área es el contexto del módulo, no una acción; en naranjo
-          sólido competía con el botón principal y con el chip de la sección, que están a
-          centímetros en la misma pantalla, y en negro pesaba de más. */}
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/30 text-[#fd6301] flex-shrink-0">
+      {/* Ícono naranjo suelto, sin recuadro de color detrás (corrección del usuario,
+          ago-2026). El Área es el contexto del módulo, no una acción: primero se le
+          quitó el relleno sólido —competía con el botón principal— y después también
+          el tinte claro, que seguía leyéndose como un botón chico. */}
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg text-[#fd6301] flex-shrink-0">
         <Building2 className="h-4 w-4" />
       </div>
       <div className="flex flex-col leading-none">
-        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Área</span>
+        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Área</span>
         <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
-          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-semibold text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1666,14 +1734,14 @@ export default function TareasPage() {
           data-testid="select-tab-movil"
         >
           <div className="flex items-center gap-3 min-w-0">
-            {/* Chip suave, igual que el del Área (corrección del usuario, ago-2026): las dos
-                tarjetas van una sobre la otra y en naranjo sólido competían con el botón. */}
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/30 text-[#fd6301] shrink-0">
+            {/* Ícono naranjo suelto, igual que el del Área: las dos tarjetas van una
+                sobre la otra y cualquier fondo las hacía competir con el botón. */}
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
               <tabActiva.Icon className="h-4 w-4" />
             </div>
             <div className="flex flex-col items-start leading-none min-w-0">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Sección</span>
-              <span className="font-semibold text-sm text-slate-700 dark:text-slate-100 truncate">{tabActiva.label}</span>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
+              <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{tabActiva.label}</span>
             </div>
           </div>
         </SelectTrigger>
@@ -1772,7 +1840,7 @@ export default function TareasPage() {
           <Search className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none flex-1 min-w-0">
-          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Buscar cliente</span>
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Buscar cliente</span>
           <input
             value={seguimientoSearch}
             onChange={(e) => { setSeguimientoSearch(e.target.value); setShowSeguimientoSuggestions(true); }}
@@ -1854,7 +1922,11 @@ export default function TareasPage() {
               {/* En Obras el (+) bajó a la barra de la cartera, al lado de
                   "Agregar constructora": ahí es donde están las dos acciones de
                   la pantalla, y arriba quedaba lejos de lo que se está mirando. */}
-              {activeTab !== 'obras' && (
+              {/* En Estimación de ventas tampoco va: lo que se crea ahí es una promesa,
+                  y su botón "Nueva Promesa" está unos centímetros más abajo; el (+) de
+                  arriba creaba una tarea suelta que no tiene que ver con la pantalla
+                  (pedido del usuario, ago-2026). */}
+              {activeTab !== 'obras' && activeTab !== 'estimacion' && !altaSeguimientoEnLaLista && (
                 <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
                   <Plus className="h-4 w-4 mr-2" />
                   {accionNueva.label}
@@ -2115,7 +2187,7 @@ export default function TareasPage() {
 
                       {/* Section: Equipo — el vendedor no asigna trabajo a terceros:
                           lo que crea queda a su nombre, así que no ve el selector. */}
-                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${asignaSoloASiMismo ? 'hidden' : ''}`}>
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${!seguimientoMode ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                           <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center">
                             <Users className="w-3.5 h-3.5" />
@@ -2270,12 +2342,13 @@ export default function TareasPage() {
             </Dialog>
 
             {/* Selector de tipo de tarea (Etapa 1) */}
-            <Dialog open={showChooser} onOpenChange={setShowChooser}>
-              <DialogContent className="sm:max-w-[520px]">
-                <DialogHeader>
-                  <DialogTitle>¿Qué querés crear?</DialogTitle>
-                  <DialogDescription>Elegí el tipo de trabajo para este segmento.</DialogDescription>
-                </DialogHeader>
+            {/* Selector de qué crear. En celular entra como panel lateral desde la
+                izquierda, con el mismo diseño que los filtros del Dashboard (pedido del
+                usuario, ago-2026): la ventana al centro tapaba la pantalla completa. En
+                computador sigue siendo la ventana de siempre. Las tres opciones se
+                arman una sola vez y se muestran en el envase que corresponda. */}
+            {(() => {
+              const opciones = (
                 <div className="grid gap-3 py-2">
                   {([
                     { flow: 'seguimiento', icon: <Building2 className="h-5 w-5" />, title: 'Seguimiento a clientes', desc: 'Tarea ligada a un cliente activo (responsable → cliente → detalle).' },
@@ -2299,8 +2372,16 @@ export default function TareasPage() {
                         setSelectedClienteTask(null);
                         setSearchClienteTask("");
                         form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: asignacionesPorDefecto() });
-                        if (opt.flow === 'marketing') setShowMarketingDialog(true);
-                        else setShowCreateDialog(true);
+                        // En celular el selector es un panel lateral: si el formulario se
+                        // abre en el mismo instante, los dos se pisan y el paso siguiente
+                        // no llegaba a aparecer. Se espera a que el panel termine de
+                        // cerrarse y recién ahí se abre el formulario.
+                        const abrirSiguiente = () => {
+                          if (opt.flow === 'marketing') setShowMarketingDialog(true);
+                          else setShowCreateDialog(true);
+                        };
+                        if (esCelular) setTimeout(abrirSiguiente, 320);
+                        else abrirSiguiente();
                       }}
                       className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-left transition-all"
                       data-testid={`task-flow-${opt.flow}`}
@@ -2313,8 +2394,34 @@ export default function TareasPage() {
                     </button>
                   ))}
                 </div>
-              </DialogContent>
-            </Dialog>
+              );
+              if (esCelular) {
+                return (
+                  <Drawer open={showChooser} onOpenChange={setShowChooser} direction="left" shouldScaleBackground={false}>
+                    <DrawerContent side="left" className="h-full w-[92vw] max-w-[26rem] sm:w-[24rem]">
+                      <DrawerHeader className="text-left px-5 pt-6 pb-0">
+                        <DrawerTitle>¿Qué querés crear?</DrawerTitle>
+                        <DrawerDescription>Elegí el tipo de trabajo para este segmento.</DrawerDescription>
+                      </DrawerHeader>
+                      <div className="px-5 pb-6 overflow-y-auto flex-1">
+                        {opciones}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                );
+              }
+              return (
+                <Dialog open={showChooser} onOpenChange={setShowChooser}>
+                  <DialogContent className="sm:max-w-[520px]">
+                    <DialogHeader>
+                      <DialogTitle>¿Qué querés crear?</DialogTitle>
+                      <DialogDescription>Elegí el tipo de trabajo para este segmento.</DialogDescription>
+                    </DialogHeader>
+                    {opciones}
+                  </DialogContent>
+                </Dialog>
+              );
+            })()}
 
             {/* Solicitud de Marketing (Etapa 1) */}
             <MarketingSolicitudDialog
@@ -2347,15 +2454,18 @@ export default function TareasPage() {
             {/* En Industrial esta pestaña es "Proyectos": mismo espacio, otra
                 unidad de trabajo (ver modoProyectos). El value se mantiene en
                 "tareas" para no romper filtros, avisos ni enlaces guardados. */}
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
-              {modoProyectos ? <FolderOpen className={tabIconClass} /> : <CheckSquare className={tabIconClass} />}
-              {modoProyectos ? 'Proyectos' : 'Tareas'}
-              {tabChangeBadge("tareas")}
-            </TabsTrigger>
+            {/* Seguimiento va PRIMERA (corrección del usuario, ago-2026): es la pestaña con
+                la que el equipo comercial arranca el día, y es también donde aterriza el
+                panel cuando se entra sin `?tab=`. */}
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className={tabTriggerClass} onClick={() => handleTabTriggerClick("seguimiento")}>
               <UserCheck className={tabIconClass} />
               Seguimiento
               {tabChangeBadge("seguimiento")}
+            </TabsTrigger>
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
+              {modoProyectos ? <FolderOpen className={tabIconClass} /> : <CheckSquare className={tabIconClass} />}
+              {modoProyectos ? 'Proyectos' : 'Tareas'}
+              {tabChangeBadge("tareas")}
             </TabsTrigger>
             {/* Estimación de ventas solo aplica a Ferreterías (ver showEstimacionTab). */}
             {showEstimacionTab && (
@@ -2645,7 +2755,10 @@ export default function TareasPage() {
 
           {/* Group Management Bar */}
           {/* Group Management Bar - hidden for salesperson y oculta en Seguimiento (Mi Equipo / Nuevo Grupo / ayuda / Seleccionar) */}
-          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && (
+          {/* En celular esta barra no se muestra (pedido del usuario, ago-2026): el
+              cambio Proyectos/Terminadas, "Nuevo Grupo", la ayuda y "Seleccionar" son
+              trabajo de escritorio y empujaban la lista fuera de la primera pantalla. */}
+          {!isSalesperson && segmentoFilter !== "all" && activeTab !== 'seguimiento' && !esCelular && (
             <div className="flex items-center gap-2 flex-wrap">
               {/* Toggle Tareas / Terminadas — la vista por persona vive ahora en Seguimiento */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 shadow-inner">
@@ -2781,14 +2894,9 @@ export default function TareasPage() {
           {/* La bandeja de Solicitudes de Marketing dejó de vivir acá: ahora está
               en el módulo Marketing. */}
 
-          {/* Cómo se usa una tarjeta: el círculo completa y el resto abre. Sin decirlo,
-              pinchar la tarjeta para leer la tarea terminaba marcándola completada. */}
-          {!selectionMode && filteredTasks.length > 0 && (
-            <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mb-3" data-testid="text-hint-tarjetas">
-              <Circle className="h-3 w-3 flex-shrink-0" />
-              El círculo completa la tarea. Para abrirla, pinchá en cualquier otra parte de la tarjeta.
-            </p>
-          )}
+          {/* Acá iba la ayuda "El círculo completa la tarea…". Se sacó de todas las
+              secciones (pedido del usuario, ago-2026): ocupaba dos líneas arriba de la
+              lista en cada pantalla. El círculo sigue funcionando igual. */}
 
           {/* Tasks List - Modern Grouped Layout */}
           <div className="space-y-6">
@@ -2891,7 +2999,12 @@ export default function TareasPage() {
                 return (
                   <div
                     key={task.id}
-                    className={`group flex items-start gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
+                    // En celular la tarjeta se parte en dos líneas: arriba el título y su
+                    // detalle usando TODO el ancho, y abajo los chips de estado. Antes los
+                    // chips iban al costado en la misma línea y dejaban al texto una
+                    // columna de dos dedos, con el nombre del proyecto cayendo letra por
+                    // letra hacia abajo (corrección del usuario, ago-2026).
+                    className={`group flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
                       selectionMode && isTaskSelected
                         ? 'bg-red-50 border-red-300 ring-1 ring-red-300'
                         : isCompleted
@@ -2961,12 +3074,34 @@ export default function TareasPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Alta prioridad" />
                         )}
                       </div>
-                      {task.description && (
-                        <p className={`text-xs leading-relaxed line-clamp-1 ${isCompleted ? 'text-slate-300' : 'text-slate-500'}`}>
-                          {task.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {/* Debajo del título va el ÚLTIMO MOVIMIENTO —el último mensaje del
+                          chat o la última actividad registrada, con su fecha— en vez de la
+                          descripción, el proyecto y el responsable (pedido del usuario,
+                          ago-2026): en la lista lo que se quiere saber es en qué quedó cada
+                          tarea, no lo que decía cuando se creó. Si todavía no pasó nada, se
+                          muestra la descripción como antes. */}
+                      {(() => {
+                        const mov = (task as any).ultimoMovimiento;
+                        if (mov?.texto) {
+                          return (
+                            <p className={`text-xs leading-relaxed line-clamp-2 ${isCompleted ? 'text-slate-300' : 'text-slate-500'}`}>
+                              <span className="font-semibold text-slate-400">
+                                {format(new Date(mov.fecha), "dd MMM", { locale: es })} ·{' '}
+                              </span>
+                              {mov.texto}
+                            </p>
+                          );
+                        }
+                        if (task.description) {
+                          return (
+                            <p className={`text-xs leading-relaxed line-clamp-1 ${isCompleted ? 'text-slate-300' : 'text-slate-500'}`}>
+                              {task.description}
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                      <div className="hidden sm:flex items-center gap-2 mt-1.5 flex-wrap">
                         {task.dueDate && (
                           <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${
                             isSeguimientoCard ? 'bg-violet-50 text-violet-700' :
@@ -2988,7 +3123,10 @@ export default function TareasPage() {
                           const gi = gId ? groups.findIndex((g: any) => g.id === gId) : -1;
                           if (gi < 0) return null;
                           const grp: any = groups[gi];
-                          const color = grp.color || groupColors[gi % groupColors.length];
+                          // Por el mismo camino que la franja del proyecto: si no, el
+                          // nombre guardado ('blue') se usaba como color crudo y el chip
+                          // salía azul puro dentro de una lista naranja.
+                          const color = resolveGroupColor(grp.color, gi);
                           return (
                             <span
                               className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded"
@@ -3040,7 +3178,7 @@ export default function TareasPage() {
                         no se "completa"—; lo que importa es si tiene tareas internas
                         pendientes y hace cuánto que no pasa nada con el cliente. */}
                     {isSeguimientoCard ? (
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <div className="flex flex-row flex-wrap items-start gap-1 w-full mt-1 sm:w-auto sm:mt-0 sm:flex-col sm:items-end sm:flex-shrink-0">
                         {pendientes > 0 ? (
                           <span
                             className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] dark:bg-orange-500/15 dark:text-orange-400 px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
@@ -3082,7 +3220,7 @@ export default function TareasPage() {
                     ) : isProyectoCard ? (
                       /* Proyecto: avance de sus tareas siempre visible; prioridad y
                          estado siguen apareciendo al pasar el mouse, como en una tarea. */
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 w-full mt-1 sm:w-auto sm:mt-0 sm:flex-shrink-0">
                         {pendientes > 0 ? (
                           <span
                             className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] dark:bg-orange-500/15 dark:text-orange-400 px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
@@ -3108,8 +3246,11 @@ export default function TareasPage() {
                         </span>
                       </div>
                     ) : (
-                      /* Right badges - show on hover */
-                      <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      /* Chips de prioridad y estado: aparecen al pasar el mouse. En celular
+                         no se muestran —no hay "pasar el mouse"— y además, aunque invisibles,
+                         seguían ocupando su lugar y le robaban ancho al título (corrección
+                         del usuario, ago-2026). */
+                      <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         {getPriorityBadge(task.priority ?? 'medium')}
                         {getStatusBadge(task.status ?? 'pendiente')}
                       </div>
@@ -3118,14 +3259,20 @@ export default function TareasPage() {
                 );
               };
 
-              const groupColors = ['#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#06b6d4', '#f59e0b', '#ef4444'];
+              // Escala de naranjos de la marca (pedido del usuario, ago-2026): los grupos
+              // se distinguen por intensidad, no por colores distintos. Antes la lista
+              // salía azul, morada, rosada y verde y no se parecía al resto del panel.
+              const groupColors = ['#fd6301', '#ff8c3d', '#e35400', '#ffb37a', '#b34400', '#ff7a1a', '#9a3a00', '#ffc9a3'];
               // Los grupos guardan su color como nombre Tailwind ('blue', 'indigo'…) o como hex.
               // Sin normalizar, un nombre se usa como color CSS crudo (ej. 'blue' → azul puro #00f),
               // que sale saturado y desentona con la paleta. Lo mapeamos a un hex armónico.
               const NAMED_COLOR_HEX: Record<string, string> = {
                 slate: '#64748b', gray: '#6b7280', red: '#ef4444', orange: '#f97316', amber: '#f59e0b',
                 yellow: '#eab308', lime: '#84cc16', green: '#10b981', emerald: '#10b981', teal: '#14b8a6',
-                cyan: '#06b6d4', sky: '#0ea5e9', blue: '#3b82f6', indigo: '#6366f1', violet: '#8b5cf6',
+                // 'blue' era el color por defecto con el que se guardaban TODOS los grupos,
+                // no una elección de nadie: por eso la lista entera salía azul. Se mapea al
+                // naranjo de marca (pedido del usuario, ago-2026).
+                cyan: '#06b6d4', sky: '#0ea5e9', blue: '#fd6301', indigo: '#6366f1', violet: '#8b5cf6',
                 purple: '#8b5cf6', fuchsia: '#d946ef', pink: '#ec4899', rose: '#f43f5e',
               };
               const resolveGroupColor = (raw: string | null | undefined, i: number): string => {
@@ -3451,6 +3598,62 @@ export default function TareasPage() {
 
                 return (
                   <div className="space-y-4">
+                    {/* Resumen del equipo — lo que el supervisor mira de un vistazo.
+                        Va arriba de todo, pegado a las pestañas (corrección del usuario,
+                        ago-2026): es la foto del área, así que se lee antes de buscar o
+                        filtrar, y no después de las herramientas. Misma posición en
+                        celular y en escritorio; la grilla ya baja a 2 columnas sola. */}
+                    {people.length > 0 && (() => {
+                      // Mismo molde que las tarjetas del CRM (pedido del usuario, ago-2026):
+                      // ícono en negro y suelto, número grande y el nombre debajo en gris.
+                      // Centrado en celular; en pantalla grande el ícono pasa al costado.
+                      const TarjetaResumen = ({ icono, valor, etiqueta, tono, testId }: {
+                        icono: React.ReactNode; valor: React.ReactNode; etiqueta: string; tono?: string; testId?: string;
+                      }) => (
+                        <div className="rounded-2xl border border-slate-200/80 bg-white dark:bg-slate-800/40 dark:border-slate-700/60 p-4 shadow-sm flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-2 sm:gap-3">
+                          <span className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 text-slate-900 dark:text-slate-100">
+                            {icono}
+                          </span>
+                          <div className="min-w-0">
+                            <div className={`text-2xl font-bold leading-none tabular-nums ${tono ?? 'text-slate-900 dark:text-slate-100'}`} data-testid={testId}>
+                              {valor}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{etiqueta}</p>
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                          <TarjetaResumen
+                            icono={<Users className="h-5 w-5" />}
+                            valor={people.length}
+                            etiqueta={`persona${people.length !== 1 ? 's' : ''}`}
+                          />
+                          <TarjetaResumen
+                            icono={<Building2 className="h-5 w-5" />}
+                            valor={teamTotal}
+                            etiqueta="en seguimiento"
+                          />
+                          {/* Un seguimiento no se "completa": lo accionable es cuántos
+                              clientes tienen tareas internas abiertas y cuántos están frenados. */}
+                          <TarjetaResumen
+                            icono={<Clock className="h-5 w-5" />}
+                            valor={teamConPendientes}
+                            etiqueta={`${teamPendientesTotal} tarea${teamPendientesTotal !== 1 ? 's' : ''} abierta${teamPendientesTotal !== 1 ? 's' : ''}`}
+                            tono={teamConPendientes > 0 ? 'text-[#fd6301]' : undefined}
+                            testId="kpi-con-pendientes"
+                          />
+                          <TarjetaResumen
+                            icono={<AlertTriangle className="h-5 w-5" />}
+                            valor={teamFrenados}
+                            etiqueta={`hace ${DIAS_SIN_MOVIMIENTO_ALERTA}+ días`}
+                            tono={teamFrenados > 0 ? 'text-[#fd6301]' : undefined}
+                            testId="kpi-sin-movimiento"
+                          />
+                        </div>
+                      );
+                    })()}
+
                     {/* Marketing: sus solicitudes son su trabajo asignado */}
                     {isMarketing && <MarketingSolicitudesInbox />}
 
@@ -3465,62 +3668,29 @@ export default function TareasPage() {
                       )}
                     </div>
 
-                    {/* Prioridad de la vista: qué mirar primero. Ordena los clientes
-                        dentro de cada colaborador y también los colaboradores entre sí. */}
-                    <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 whitespace-nowrap hidden sm:inline">Ver primero</span>
-                      <button
-                        onClick={() => toggleSeguimientoOrden('pendientes')}
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-2xl px-3 py-1.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
-                          seguimientoOrden === 'pendientes'
-                            ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-sm shadow-orange-500/25'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-orange-200 hover:text-orange-600'
-                        }`}
-                        data-testid="button-orden-pendientes"
-                      >
-                        <Clock className="h-3.5 w-3.5" /> Pendientes primero
-                      </button>
-                      <button
-                        onClick={() => toggleSeguimientoOrden('sin-movimiento')}
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-2xl px-3 py-1.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
-                          seguimientoOrden === 'sin-movimiento'
-                            ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-sm shadow-orange-500/25'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-orange-200 hover:text-orange-600'
-                        }`}
-                        data-testid="button-orden-sin-movimiento"
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5" /> Sin movimientos primero
-                      </button>
-                      {seguimientoOrden !== 'default' && (
-                        <button
-                          onClick={() => setSeguimientoOrden('default')}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap flex-shrink-0"
-                          data-testid="button-orden-limpiar"
-                        >
-                          <X className="h-3.5 w-3.5" /> Quitar orden
-                        </button>
-                      )}
-                      {people.length > 0 && (
-                        <button
-                          onClick={() => setExpandedSeguimientoPeople((prev) =>
-                            prev.size > 0 ? new Set() : new Set(people.map(([pid]) => pid)))}
-                          className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-orange-600 transition-colors whitespace-nowrap flex-shrink-0"
-                          data-testid="button-expandir-todo"
-                        >
-                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedSeguimientoPeople.size > 0 ? 'rotate-180' : ''}`} />
-                          {expandedSeguimientoPeople.size > 0 ? 'Contraer todo' : 'Expandir todo'}
-                        </button>
-                      )}
-                    </div>
+                    {/* Acá vivía la franja de herramientas de la vista: los chips
+                        "Ver primero" (Pendientes / Sin movimientos) y el "Expandir todo".
+                        Se sacaron los tres (pedido del usuario, ago-2026): lo que decían
+                        ya se lee en las tarjetas de arriba y en los badges de cada
+                        colaborador, y ocupaban una franja entera antes de llegar al
+                        equipo. Cada tarjeta se sigue abriendo una por una, y la lista
+                        queda en su orden por defecto; `seguimientoOrden` y
+                        `expandedSeguimientoPeople` siguen vivos por si vuelven a
+                        ofrecerse desde otro lado. */}
 
                     {/* Buscador para sumar puntualmente cualquier colaborador del sistema */}
                     {canManageTeam && (
-                      <div className="rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm">
+                      // En reposo los dos botones van sueltos, sin tarjeta que los
+                      // encierre (corrección del usuario, ago-2026): la caja blanca con
+                      // borde parecía una sección más y competía con las tarjetas de
+                      // arriba. El recuadro vuelve solo cuando se abre el buscador de
+                      // colaboradores, que sí es un panel con contenido propio.
+                      <div className={showAddMember ? "rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm" : ""}>
                         {!showAddMember ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <button
                               onClick={() => { setShowAddMember(true); setAddMemberSearch(""); }}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-white hover:bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
                             >
                               <Plus className="h-3.5 w-3.5" /> Agregar colaborador
                             </button>
@@ -3530,7 +3700,6 @@ export default function TareasPage() {
                             >
                               <Building2 className="h-3.5 w-3.5" /> Nuevo seguimiento
                             </button>
-                            <span className="text-[11px] text-slate-400 ml-auto pr-1">Suma a alguien de tu equipo para asignarle clientes.</span>
                           </div>
                         ) : (
                           <div className="space-y-2">
@@ -3588,44 +3757,6 @@ export default function TareasPage() {
 
                     {people.length > 0 ? (
                       <>
-                        {/* Resumen del equipo — lo que el supervisor mira de un vistazo */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              <Users className="h-3 w-3" /> Equipo
-                            </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">{people.length}</div>
-                            <div className="text-[11px] text-slate-400 mt-1">persona{people.length !== 1 ? 's' : ''}</div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              <Building2 className="h-3 w-3" /> Clientes
-                            </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">{teamTotal}</div>
-                            <div className="text-[11px] text-slate-400 mt-1">en seguimiento</div>
-                          </div>
-                          {/* Un seguimiento no se "completa": lo accionable es cuántos
-                              clientes tienen tareas internas abiertas y cuántos están frenados. */}
-                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              <Clock className="h-3 w-3" /> Con pendientes
-                            </div>
-                            <div className={`text-2xl font-bold leading-none ${teamConPendientes > 0 ? 'text-[#fd6301]' : 'text-slate-800'}`} data-testid="kpi-con-pendientes">
-                              {teamConPendientes}
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-1">{teamPendientesTotal} tarea{teamPendientesTotal !== 1 ? 's' : ''} abierta{teamPendientesTotal !== 1 ? 's' : ''}</div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              <AlertTriangle className="h-3 w-3" /> Sin movimiento
-                            </div>
-                            <div className={`text-2xl font-bold leading-none ${teamFrenados > 0 ? 'text-amber-600' : 'text-emerald-600'}`} data-testid="kpi-sin-movimiento">
-                              {teamFrenados}
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-1">hace {DIAS_SIN_MOVIMIENTO_ALERTA}+ días</div>
-                          </div>
-                        </div>
-
                         <div className="space-y-2.5">
                           {people.map(([id, grp]) => renderPersonRow(id, grp))}
                         </div>
@@ -3800,9 +3931,12 @@ export default function TareasPage() {
                               onClick={() => toggleGroupCollapsed(group.id)}
                               className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-4 py-3 hover:bg-slate-50/70 transition-colors group/header text-left"
                             >
-                              {/* Chip de identidad: inicial sobre un tinte del color del grupo */}
+                              {/* Chip de identidad: inicial sobre un tinte del color del
+                                  grupo. En celular no se muestra (pedido del usuario,
+                                  ago-2026): repetía la primera letra del nombre que está
+                                  al lado y la franja de color ya identifica la fila. */}
                               <div
-                                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-[13px] font-bold"
+                                className="hidden sm:flex w-9 h-9 rounded-xl items-center justify-center flex-shrink-0 text-[13px] font-bold"
                                 style={{ backgroundColor: hexToRgba(borderColor, 0.14), color: borderColor }}
                               >
                                 {(group.name?.charAt(0) || '·').toUpperCase()}
@@ -3903,7 +4037,10 @@ export default function TareasPage() {
           </div>
 
           {/* Barra flotante de acción para eliminación masiva - solo administrador */}
-          {selectionMode && user.role === 'admin' && (() => {
+          {/* La barra negra de selección tampoco va en celular: el modo seleccionar se
+              activa desde la barra de escritorio, y en el teléfono quedaba flotando al
+              pie, pisada por el botón del menú (pedido del usuario, ago-2026). */}
+          {selectionMode && user.role === 'admin' && !esCelular && (() => {
             const { taskIds, groupIds } = getBulkDeletionTargets();
             const partes: string[] = [];
             if (taskIds.length) partes.push(`${taskIds.length} tarea${taskIds.length !== 1 ? 's' : ''}`);
@@ -4065,7 +4202,7 @@ export default function TareasPage() {
         {/* Rutas Comerciales — el supervisor crea rutas y asigna clientes; el vendedor ve las suyas */}
         {showRutasTab && (
           <TabsContent value="rutas-comerciales" className="space-y-6">
-            <RutasComercialesContent ref={rutasRef} />
+            <RutasComercialesContent ref={rutasRef} embebido />
           </TabsContent>
         )}
 
@@ -4204,14 +4341,15 @@ function EstimacionSemanalTab({
     <div className="space-y-3 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0">
-            <TrendingUp className="h-6 w-6 text-white" />
+          {/* Mismo tamaño que el ícono del título del módulo ("Panel de Trabajo"):
+              40px y esquina xl (corrección del usuario, ago-2026). La bajada
+              "Registra compromisos de compra…" se sacó: explicaba lo que la propia
+              pantalla muestra y ocupaba dos líneas en celular. */}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] flex items-center justify-center shadow-md shadow-orange-500/25 flex-shrink-0">
+            <TrendingUp className="h-5 w-5 text-white" />
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base mt-0.5">
-              Registra compromisos de compra y compara con ventas reales
-            </p>
           </div>
         </div>
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -4219,13 +4357,15 @@ function EstimacionSemanalTab({
               de la pestaña, por eso va en el encabezado y no sobre la tabla. */}
           {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
             <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+              {/* Ícono naranjo suelto, rótulo en negro y valor sin negrita
+                  (corrección del usuario, ago-2026). */}
+              <div className="flex items-center justify-center w-9 h-9 text-orange-600 dark:text-orange-400 flex-shrink-0">
                 <Users className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none min-w-0">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
                 <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                  <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
+                  <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-normal text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -4256,8 +4396,8 @@ function EstimacionSemanalTab({
                 <CalendarIcon className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</span>
-                <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{getPeriodLabel()}</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</span>
+                <span className="font-normal text-sm text-slate-700 dark:text-slate-200">{getPeriodLabel()}</span>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
@@ -4283,24 +4423,24 @@ function EstimacionSemanalTab({
             <div className="grid grid-cols-2 divide-x divide-slate-200/70 dark:divide-slate-800">
               <div className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">Prometido</span>
-                  <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="h-4 w-4 text-slate-500" />
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Prometido</span>
+                  <div className="h-8 w-8 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="h-4 w-4 text-[#fd6301]" />
                   </div>
                 </div>
-                <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+                <div className="text-lg sm:text-xl font-normal text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
                   ${resumen.totalPrometido.toLocaleString('es-CL')}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">{resumen.totalPromesas} promesas</p>
               </div>
               <div className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#fd6301]">Vendido</span>
-                  <div className="h-8 w-8 rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
-                    <Building2 className="h-4 w-4 text-white" />
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Vendido</span>
+                  <div className="h-8 w-8 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="h-4 w-4 text-[#fd6301]" />
                   </div>
                 </div>
-                <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
+                <div className="text-lg sm:text-xl font-normal text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
                   ${resumen.totalVendido.toLocaleString('es-CL')}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">NVV + GDV de lo prometido</p>
@@ -4315,24 +4455,24 @@ function EstimacionSemanalTab({
             <div className="grid grid-cols-2 divide-x divide-slate-200/70 dark:divide-slate-800">
               <div className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-600">Cumplidas</span>
-                  <div className="h-8 w-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Cumplidas</span>
+                  <div className="h-8 w-8 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-4 w-4 text-[#fd6301]" />
                   </div>
                 </div>
-                <div className="text-lg sm:text-xl font-bold text-emerald-600 tracking-tight tabular-nums">
+                <div className="text-lg sm:text-xl font-bold text-[#fd6301] tracking-tight tabular-nums">
                   {resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">{resumen.superadas} superadas · {resumen.cumplidasParcialmente} parcial</p>
               </div>
               <div className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-red-600">Incumplidas</span>
-                  <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Incumplidas</span>
+                  <div className="h-8 w-8 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-4 w-4 text-[#fd6301]" />
                   </div>
                 </div>
-                <div className="text-lg sm:text-xl font-bold text-red-600 tracking-tight tabular-nums">
+                <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
                   {resumen.insuficientes + resumen.noCumplidas}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">{resumen.insuficientes} insufic. · {resumen.noCumplidas} sin ventas</p>

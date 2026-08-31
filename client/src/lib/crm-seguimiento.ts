@@ -14,6 +14,19 @@ import { getTodayAtMidnight } from "@/lib/dateUtils";
 // Tokens de color por etapa para todos los contextos visuales:
 // badge (chip), bgCard/border (tarjetas), column (fondo columna kanban),
 // dot (acento sólido: stepper, indicadores), text (texto acentuado).
+//
+// `acento` es la escala de naranjos del tablero (pedido del usuario, ago-2026):
+// las columnas del pipeline dejaron de tener fondo de color propio —celeste,
+// azul, ámbar, verde, rojo— y ahora se distinguen por la intensidad del naranjo
+// de marca, de más claro (primer contacto) a más quemado (perdido). El resto de
+// los tokens no cambia: los chips de estado de la tabla y la ficha siguen igual.
+export const ACENTOS_PIPELINE: Record<string, string> = {
+  prospecto: "#ffb37a",
+  seguimiento: "#ff8c3d",
+  cotizacion: "#fd6301",
+  venta: "#e35400",
+  perdido: "#9a3a00",
+};
 export const ESTADOS = [
   {
     value: "prospecto",

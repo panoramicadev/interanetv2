@@ -70,6 +70,7 @@ import {
 } from "@/components/obras/columnas";
 import { BORDE_GRUPO, Th } from "@/components/obras/celdas";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { CatalogoObraItem, Obra, ObraConCliente, ObraEtapa, ObraProducto } from "@shared/schema";
 import {
   AlertTriangle,
@@ -259,6 +260,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   const [filtroCartera, setFiltroCartera] = useState("");
   // Portada: agrupada por constructora o el listado plano de todas las obras.
   const [vistaCartera, setVistaCartera] = useState<"constructoras" | "obras">("constructoras");
+  // En celular las pestañas, el buscador y los dos botones bajan debajo de las
+  // tarjetas de resumen (pedido del usuario, ago-2026); en computador siguen
+  // arriba, en la misma fila del título.
+  const esCelular = useIsMobile();
   const [filtroEstado, setFiltroEstado] = useState<EstadoObra | "todos">("todos");
   const [dialogAgregarCliente, setDialogAgregarCliente] = useState(false);
   // El buscador de constructoras se usa para dos cosas: sumarla a la cartera o
@@ -762,6 +767,69 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
     );
   }
 
+  // Las tres piezas de la barra de la cartera. Se arman una sola vez y se ubican
+  // arriba (computador) o debajo de las tarjetas de resumen (celular).
+  const pestanasCartera = (
+    <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 flex-shrink-0">
+      {([
+        { key: "constructoras", label: "Constructoras" },
+        { key: "obras", label: "Todas las obras" },
+      ] as const).map((v) => (
+        <button
+          key={v.key}
+          onClick={() => setVistaCartera(v.key)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+            vistaCartera === v.key
+              ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+          data-testid={`button-vista-${v.key}`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const buscadorCartera = (
+    <div className="relative flex-1 sm:min-w-[240px]">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+      <Input
+        value={filtroCartera}
+        onChange={(e) => setFiltroCartera(e.target.value)}
+        placeholder={vistaCartera === "obras" ? "Buscar obra, ciudad o constructora…" : "Buscar constructora, obra o ciudad…"}
+        className="pl-9 rounded-2xl bg-white dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60"
+        data-testid="input-obras-filtrar-cartera"
+      />
+    </div>
+  );
+
+  const botonesCartera = (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setBusqueda("");
+          setAltaTrasElegir(false);
+          setDialogAgregarCliente(true);
+        }}
+        className="rounded-2xl border-slate-200/70 dark:border-slate-700/60 flex-shrink-0"
+        data-testid="button-agregar-constructora"
+      >
+        <Building2 className="h-4 w-4 mr-2" />
+        Agregar constructora
+      </Button>
+      <Button
+        onClick={abrirNueva}
+        className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
+        data-testid="button-obras-nueva-portada"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Añadir obra
+      </Button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       {/* ===================== PORTADA: CARTERA ===================== */}
@@ -788,14 +856,17 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   obras y la pantalla queda vacía. */}
               {mandaEnCartera && (
                 <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all flex-shrink-0">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                  {/* Ícono naranjo suelto, sin recuadro de color detrás; el rótulo en
+                      negro y el nombre elegido en gris (corrección del usuario,
+                      ago-2026): el rótulo es el que ubica, el valor acompaña. */}
+                  <div className="flex items-center justify-center w-9 h-9 text-orange-600 dark:text-orange-400 flex-shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
                   <div className="flex flex-col leading-none min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
                     <Select value={vendedorFiltro} onValueChange={setVendedorFiltro}>
                       <SelectTrigger
-                        className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60"
+                        className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-400 dark:text-slate-500 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60"
                         data-testid="select-obras-vendedor"
                       >
                         <SelectValue />
@@ -813,65 +884,19 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   </div>
                 </div>
               )}
-              {cartera.length > 0 && (
+              {cartera.length > 0 && !esCelular && (
                 <>
                   {/* Las mismas obras en dos listados: agrupadas por constructora
                       o todas juntas cuando lo que se busca es una obra puntual. */}
-                  <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 flex-shrink-0">
-                    {([
-                      { key: "constructoras", label: "Constructoras" },
-                      { key: "obras", label: "Todas las obras" },
-                    ] as const).map((v) => (
-                      <button
-                        key={v.key}
-                        onClick={() => setVistaCartera(v.key)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-                          vistaCartera === v.key
-                            ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
-                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                        }`}
-                        data-testid={`button-vista-${v.key}`}
-                      >
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="relative flex-1 sm:min-w-[240px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                    <Input
-                      value={filtroCartera}
-                      onChange={(e) => setFiltroCartera(e.target.value)}
-                      placeholder={vistaCartera === "obras" ? "Buscar obra, ciudad o constructora…" : "Buscar constructora, obra o ciudad…"}
-                      className="pl-9 rounded-2xl bg-white dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60"
-                      data-testid="input-obras-filtrar-cartera"
-                    />
-                  </div>
+                  {pestanasCartera}
+                  {buscadorCartera}
                 </>
               )}
               {/* Agregar constructora suma una a la cartera; Añadir obra le
-                  carga una obra a la que ya está. El (+) del header bajó acá
-                  porque las dos acciones son de esta barra, no del panel. */}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setBusqueda("");
-                  setAltaTrasElegir(false);
-                  setDialogAgregarCliente(true);
-                }}
-                className="rounded-2xl border-slate-200/70 dark:border-slate-700/60 flex-shrink-0"
-                data-testid="button-agregar-constructora"
-              >
-                <Building2 className="h-4 w-4 mr-2" />
-                Agregar constructora
-              </Button>
-              <Button
-                onClick={abrirNueva}
-                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
-                data-testid="button-obras-nueva-portada"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Añadir obra
-              </Button>
+                  carga una obra a la que ya está. En celular estos dos bajan con
+                  las pestañas y el buscador; solo se quedan arriba cuando la
+                  cartera está vacía y abajo no hay nada donde ponerlos. */}
+              {(!esCelular || cartera.length === 0) && botonesCartera}
             </div>
           </div>
 
@@ -934,7 +959,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   pie={
                     <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-orange-600">
                       {criticos > 0 && (
-                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                        <span className="inline-flex items-center gap-1 text-[#fd6301]">
                           <AlertTriangle className="h-3 w-3" />
                           {fmt(criticos)} {criticos === 1 ? "crítico" : "críticos"}
                         </span>
@@ -947,6 +972,18 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                   }
                 />
               </div>
+
+              {/* En celular la barra de la cartera va acá, debajo del resumen: las
+                  pestañas en su fila, el buscador a lo largo justo abajo, y los dos
+                  botones al final (pedido del usuario, ago-2026). Arriba solo quedan
+                  el título y el vendedor, que es lo que ubica la pantalla. */}
+              {esCelular && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">{pestanasCartera}</div>
+                  <div className="flex">{buscadorCartera}</div>
+                  <div className="flex items-center gap-2">{botonesCartera}</div>
+                </div>
+              )}
 
               {/* ---------- Listado de constructoras ---------- */}
               {vistaCartera === "constructoras" && (
@@ -2488,21 +2525,26 @@ function MiniStat({
   onClick?: () => void;
   testId?: string;
 }) {
+  // Mismo molde que las tarjetas del CRM (pedido del usuario, ago-2026): el ícono en
+  // negro y suelto arriba, el número grande y, debajo, el nombre del indicador en gris.
+  // En celular va todo centrado; en pantalla grande el ícono pasa al costado.
   const contenido = (
     <>
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold text-slate-400">
-        <span className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${TONOS[tono] ?? TONOS.slate}`}>{icon}</span>
-        <span className="leading-tight">{label}</span>
+      <span className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 text-slate-900 dark:text-slate-100 [&>svg]:h-5 [&>svg]:w-5">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-baseline justify-center sm:justify-start gap-1.5">
+          <span className="text-2xl font-bold tabular-nums leading-none text-[#fd6301]">{valor}</span>
+          {sufijo && <span className="text-[11px] font-semibold text-slate-400">{sufijo}</span>}
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</p>
+        {pie}
       </div>
-      <div className="mt-1.5 flex items-baseline gap-1.5">
-        <span className="text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{valor}</span>
-        {sufijo && <span className="text-[11px] font-semibold text-slate-400">{sufijo}</span>}
-      </div>
-      {pie}
     </>
   );
 
-  const base = "rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 px-3.5 py-3 shadow-sm";
+  const base = "rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-2 sm:gap-3";
 
   if (!onClick) return <div className={base}>{contenido}</div>;
 
@@ -2510,7 +2552,7 @@ function MiniStat({
     <button
       type="button"
       onClick={onClick}
-      className={`${base} text-left hover:border-orange-300 dark:hover:border-orange-700 hover:shadow transition-all`}
+      className={`${base} hover:border-orange-300 dark:hover:border-orange-700 hover:shadow transition-all`}
       data-testid={testId}
     >
       {contenido}
