@@ -1144,7 +1144,7 @@ export default function ProductCatalogDetail() {
 
             {/* Sticky save bar */}
             {isDirty && (
-                <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-30 bg-white/95 backdrop-blur-sm border-t shadow-lg">
+                <div className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 lg:left-64 right-0 z-30 bg-white/95 backdrop-blur-sm border-t shadow-lg">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse" />

@@ -37,11 +37,15 @@ export function PanelChangesBell({ changes, onNavigate }: Props) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm hover:border-orange-200 hover:shadow transition-all"
+          /* En celular la campana es un círculo negro chico arriba a la derecha del
+             encabezado (corrección del usuario, ago-2026): como tarjeta blanca de 44px
+             pesaba lo mismo que el selector de Área, que sí es una decisión. De `sm`
+             para arriba queda la tarjeta blanca de siempre. */
+          className="relative flex items-center justify-center w-9 h-9 rounded-full bg-[#0a0a0a] border border-transparent shadow-md sm:w-11 sm:h-11 sm:rounded-2xl sm:bg-white sm:dark:bg-slate-900 sm:border-slate-200 sm:dark:border-slate-800 sm:shadow-sm hover:sm:border-orange-200 transition-all"
           data-testid="button-panel-changes"
           aria-label={total > 0 ? `${total} cambios sin ver` : "Sin cambios nuevos"}
         >
-          <Bell className={`h-[18px] w-[18px] ${total > 0 ? "text-[#fd6301]" : "text-slate-400"}`} />
+          <Bell className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${total > 0 ? "text-[#fd6301]" : "text-white sm:text-slate-400"}`} />
           {total > 0 && (
             <span
               className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[19px] h-[19px] px-1 rounded-full bg-[#fd6301] text-white text-[10px] font-bold shadow-sm shadow-orange-500/40"

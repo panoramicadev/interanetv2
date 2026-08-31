@@ -1042,6 +1042,7 @@ export default function SegmentDetail({
                         </div>
 
                         <YearMonthSelector
+                          inline
                           value={localSelection}
                           onChange={setLocalSelection}
                         />

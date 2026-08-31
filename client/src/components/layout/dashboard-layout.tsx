@@ -11,7 +11,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { buildSidebarItems } from "@/lib/sidebar-permissions";
@@ -23,6 +23,24 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
+/* Botón del menú en móvil: arriba o abajo.
+ *
+ * Por defecto va en una barra fija al pie de la pantalla (ver el render). La excepción es
+ * una página que ya tiene su propia barra superior móvil con el logo — hoy solo el
+ * Dashboard principal —: ahí el botón vuelve al círculo de arriba a la izquierda, calzado
+ * con esa barra. Esa página lo pide con `useBotonMenuArriba()` en vez de que el shell
+ * adivine la ruta o el rol, que cambian con el tiempo. */
+const BotonMenuArribaContext = createContext<(claimed: boolean) => void>(() => {});
+
+export function useBotonMenuArriba(activo: boolean = true) {
+  const claim = useContext(BotonMenuArribaContext);
+  useEffect(() => {
+    if (!activo) return;
+    claim(true);
+    return () => claim(false);
+  }, [claim, activo]);
+}
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logoutMutation } = useAuth();
   const { can, permissions } = usePermissions();
@@ -31,6 +49,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showChangelogDialog, setShowChangelogDialog] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  // Lo prende la página que tiene barra superior propia (ver BotonMenuArribaContext).
+  const [botonMenuArriba, setBotonMenuArriba] = useState(false);
 
   // Colapsar el sidebar a un rail de íconos (persistido por navegador). Solo aplica en desktop;
   // en móvil el drawer siempre se abre a ancho completo.
@@ -415,24 +435,51 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
+    <BotonMenuArribaContext.Provider value={setBotonMenuArriba}>
     <div className="min-h-screen bg-white dark:bg-slate-900">
-      {/* Botón del menú en móvil: círculo negro abajo a la izquierda, del mismo tamaño
-          que el botón naranjo de filtros, para que los dos se lean como un par
-          (corrección del usuario, ago-2026).
-          z-40 para quedar por encima de las cabeceras pegajosas de las páginas (z-30),
-          pero por debajo del menú cuando se abre: el sidebar también es z-40 y va
-          después en el orden del documento, así que lo cubre.
+      {/* Botón del menú en móvil.
+          Cuando la página tiene su propia barra superior con el logo (hoy solo el
+          Dashboard principal, que lo reclama con `useBotonMenuArriba`), el botón va
+          arriba a la izquierda, calzado con esa barra.
           ⚠️ El `top-[42px]` está calzado con el centro de la barra móvil del Dashboard
           (`pt-7` + fila de 4rem = centro en 60px, menos la mitad del botón). Si esa barra
           cambia de alto, de padding o el logo cambia de tamaño, hay que mover este número
-          también. */}
-      <button
-        className="fixed top-[42px] left-4 z-40 lg:hidden w-9 h-9 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        data-testid="mobile-menu-toggle-floating"
-      >
-        <Menu className="h-4 w-4 text-white" />
-      </button>
+          también.
+          En el resto de los módulos (Panorámica Market, Panel de Trabajo, Tomador de
+          Pedidos, Inventario…) no hay barra arriba: ahí el círculo caía justo encima del
+          ícono y del título de la página y los tapaba (corrección del usuario, ago-2026),
+          así que va en una barra blanca fija al pie, con línea de borde arriba. El módulo
+          reserva ese alto con el `pb-[calc(3.5rem+…)]` del contenedor principal — los dos
+          números van juntos.
+          z-40 en las dos formas: por encima de las cabeceras pegajosas de las páginas
+          (z-30), pero por debajo del menú cuando se abre — el sidebar también es z-40 y
+          va después en el orden del documento, así que lo cubre. */}
+      {botonMenuArriba ? (
+        <button
+          className="fixed top-[42px] left-4 z-40 lg:hidden w-9 h-9 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md"
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          aria-label="Abrir menú"
+          data-testid="mobile-menu-toggle-floating"
+        >
+          <Menu className="h-4 w-4 text-white" />
+        </button>
+      ) : (
+        <div
+          className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]"
+          data-testid="mobile-menu-bar"
+        >
+          <div className="h-14 px-4 flex items-center">
+            <button
+              className="w-10 h-10 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform"
+              onClick={() => setIsMobileOpen(!isMobileOpen)}
+              aria-label="Abrir menú"
+              data-testid="mobile-menu-toggle-floating"
+            >
+              <Menu className="h-4 w-4 text-white" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
@@ -573,7 +620,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           canvas gris) y eso lo hacía leer como un recuadro dentro de la pantalla en vez
           de como la pantalla misma (corrección del usuario, ago-2026). El sidebar sí
           sigue siendo una tarjeta flotante: su composición no cambió. */}
-      <div className={`${isCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-[16rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300`}>
+      <div className={`${isCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-[16rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300 ${botonMenuArriba ? "" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0"}`}>
         <main>
           <div className="module-card bg-white dark:bg-slate-900 min-h-screen overflow-clip">
             {children}
@@ -589,5 +636,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
       <ChangelogDialog open={showChangelogDialog} onOpenChange={setShowChangelogDialog} />
     </div >
+    </BotonMenuArribaContext.Provider>
   );
 }

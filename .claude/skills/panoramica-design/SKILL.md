@@ -96,6 +96,22 @@ fuente incluido**: los ítems del sidebar van `font-medium`, no `font-semibold`
 (corrección del usuario, ago-2026: sobre el track negro la seminegrita se lee como
 negrita y ensucia la barra).
 
+**En celular el riel se reemplaza por un desplegable** (corrección del usuario, ago-2026):
+en una barra no entran cinco o seis pestañas, y arrastrarlas a ciegas no deja ver dónde
+estás parado. El riel va `hidden sm:block` y en su lugar aparece la misma **tarjeta-pill de
+filtro** con la que se elige la vista en el panel de filtros del dashboard: ícono-chip
+naranjo, micro-label (`SECCIÓN`) y el nombre de la pestaña activa. Referencia:
+`client/src/pages/tareas.tsx`. Las pestañas se declaran **como datos** (`{ value, label,
+Icon }[]`) para que el riel y el desplegable no se desincronicen.
+
+Si en algún caso hay que dejar el riel scrolleable en celular: `flex w-full justify-start
+overflow-x-auto` en la propia `TabsList`, `shrink-0` en los triggers, scrollbar oculta
+(`[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`) y la activa centrada ajustando
+`scrollLeft` con rects. `justify-start` es obligatorio (la `TabsList` de shadcn trae
+`justify-center` y eso vuelve inalcanzable el comienzo de la lista), y **no** sangrar el
+contenedor con `-mx-*`: la barra se corta contra el borde de la pantalla, sin su esquina
+redondeada.
+
 **Badge contador dentro de una pestaña:** naranja sobre el track negro, pero se
 **invierte a blanco con texto naranja** cuando la pestaña está activa (si no,
 naranja sobre naranja desaparece). Igual que el badge del sidebar. Requiere `group`
@@ -330,6 +346,31 @@ Color del ícono por categoría: Vista→naranja, Estado→emerald, Prioridad→
 Fila `flex ... justify-between`: los filtros a la **izquierda**; a la **derecha**,
 el badge contador. No dejar el contador solo flotando: aprovechar el ancho.
 
+### Encabezado de módulo en celular (Panel de Trabajo, ago-2026)
+
+Orden fijado por el usuario, de arriba hacia abajo:
+
+1. **Título** + la **campana** anclada arriba a la derecha, a la altura del título.
+   La bajada del módulo no se muestra en celular (`hidden sm:block`).
+2. **Selector de Área** (el contexto manda: primero el área…).
+3. **Selector de sección** (…y después dónde dentro de ella).
+4. **Botón de acción** naranjo.
+
+Jerarquía de peso visual en esa pila, de menor a mayor:
+
+- **Campana:** círculo `bg-[#0a0a0a]` de `w-9 h-9` con el ícono blanco en celular; de `sm`
+  para arriba vuelve a ser la tarjeta blanca de 44px. Es un aviso, no una decisión.
+- **Chips del Área y de la Sección:** naranjo **suave** — `bg-orange-50` con el ícono
+  `text-[#fd6301]`, sin relleno sólido ni sombra. Los dos iguales: son selectores de
+  contexto, no acciones.
+- **Botón de acción:** el único naranjo sólido de la pantalla.
+
+Tres naranjos sólidos seguidos (Área, Sección y el botón) se leen como tres botones; por eso
+los dos selectores bajan a suave y la campana sale del naranjo. Y sus **íconos tienen que ser
+distintos entre sí**: con el edificio en los dos, las dos tarjetas se leían como la misma
+(Seguimiento pasó a `UserCheck`). Se mueve **con posición**, no dibujando
+dos campanas: una segunda instancia traería su propio estado.
+
 ### Selector de Área (contexto global)
 El selector de Área vive **siempre en el header de la página** (junto al CTA
 "Nueva Tarea"), visible en **todas las pestañas** — cambia el contexto de todo
@@ -365,6 +406,18 @@ la fila de filtros en Tareas/Marketing y parecía "desaparecer" en otras pestañ
   ⚠️ `overflow-clip`, **no** `overflow-hidden`: hidden convierte el bloque en
   scroll container y rompe los `sticky top-0` de las páginas.
 
+- **Móvil: dónde va el botón del menú.** En el **Dashboard principal** sigue arriba a la
+  izquierda (`fixed top-[42px] left-4`), calzado con su barra superior del logo. En **todos
+  los demás módulos** (Panorámica Market, Panel de Trabajo, Tomador de Pedidos, Inventario…)
+  no hay barra arriba y el círculo tapaba el ícono y el título de la página: ahí va en una
+  **barra blanca fija al pie** (`fixed bottom-0 inset-x-0 h-14`, borde superior
+  `border-slate-200`, `pb-[env(safe-area-inset-bottom)]`) y el módulo reserva ese alto con
+  `pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0` — los dos números van juntos.
+  El shell no adivina la ruta ni el rol: la página que tiene barra propia lo pide con
+  `useBotonMenuArriba()` (exportado por `dashboard-layout.tsx`). Cualquier barra fija propia
+  de una página tiene que subir por encima en móvil
+  (`bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0`).
+
 Corrección del usuario (ago-2026), en dos pasos: hasta julio esto era un **shell de dos
 tarjetas** (sidebar y módulo con `rounded-3xl` y `p-3`, flotando sobre un canvas
 `bg-slate-100`). Primero se sacó el marco del módulo —el recuadro lo hacía leer como una
@@ -381,6 +434,26 @@ seguir al `w-` del sidebar**: son el mismo número en dos lugares.
   `rounded-3xl` para las dos tarjetas del shell.
 - Tipografía de títulos: `font-bold text-slate-800 dark:text-slate-100`.
 - Soportar dark mode siempre con los prefijos `dark:`.
+
+### Panel de filtros en móvil (Drawer)
+
+Reglas fijadas en el cajón de filtros del dashboard (ago-2026), válidas para cualquier
+panel de filtros en celular:
+
+- **Nada de popovers adentro.** Un Radix Popover se portala al `body`, y mientras el
+  Drawer está abierto el `body` va con `pointer-events: none`: el popover se ve pero no se
+  puede tocar. El contenido se dibuja **inline**, sin portal — `YearMonthSelector` tiene la
+  prop `inline` justamente para eso.
+- **Un solo botón "Aplicar"**, el del pie del cajón. Los controles de adentro publican su
+  selección al toque (`onChange` en cada cambio); dos botones seguidos se leen como dos
+  pasos distintos.
+- **Sin cabecera de cajón ni títulos repetidos.** El `DrawerHeader` va `sr-only` (los
+  lectores de pantalla sí lo necesitan para nombrar el diálogo): el título y la bajada
+  llenaban la primera pantalla del celular sin aportar nada.
+- **Ancho:** el default del cajón es `w-[16rem]`, muy angosto para un calendario. Si adentro
+  hay una grilla, subilo (`w-[92vw] max-w-[26rem] sm:w-[24rem]`).
+- **Objetivos de toque de 36px** (`h-9`) para años, meses y días, en `rounded-xl` (días
+  `rounded-lg`), con el activo en `bg-[#fd6301]`.
 
 ## Landing por rol
 
