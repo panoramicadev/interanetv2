@@ -117,14 +117,16 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
       data-testid="card-margen-resumen"
     >
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0 min-w-0">
+        <div className="flex-1 mb-2 lg:mb-0 min-w-0">
           {/* Sin bajada de contexto (corrección del usuario, ago-2026): antes acá decía
               a qué estaba acotado el margen ("Segmento: INDUSTRIAL", "Todo lo que estás
               viendo") y sobraba, porque el recorte ya se ve en el selector de arriba y en
               el resto de las tarjetas. Se conserva como texto al pasar el mouse. */}
-          <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2">
+          {/* El hueco del ícono va solo acá, no en todo el bloque: si no, en celular le
+              come ancho a las cifras y quedan cortadas. */}
+          <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2 pr-12 sm:pr-16 lg:pr-0">
             <p
-              className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400"
+              className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white"
               title={scopeLabel}
             >
               Margen
@@ -142,20 +144,24 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
             </p>
           ) : (
             <>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                {/* La cifra grande va en el mismo negro que las otras tres tarjetas del
-                    bloque (corrección del usuario, ago-2026). Estaba en naranjo y era la
-                    única distinta. El acento naranjo queda para la variación, igual que
-                    el "+17,8%" de Ventas Totales. */}
-                <p
-                  className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1"
-                  data-testid="text-margen-pct"
-                >
-                  {formatPct(data?.marginPct ?? 0)}
-                </p>
-                {data?.deltaPctPoints != null && (
+              {/* La cifra grande va en el mismo negro que las otras tres tarjetas del
+                  bloque (corrección del usuario, ago-2026). Estaba en naranjo y era la
+                  única distinta. El acento naranjo queda para la variación, igual que
+                  el "+17,8%" de Ventas Totales. */}
+              <p
+                className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold text-gray-900 dark:text-white mb-1"
+                data-testid="text-margen-pct"
+              >
+                {formatPct(data?.marginPct ?? 0)}
+              </p>
+
+              {/* La variación y el período comparado van juntos en su propia línea,
+                  debajo del porcentaje (pedido del usuario, ago-2026). Es el mismo orden
+                  que usa Ventas Totales: primero la cifra, y debajo contra qué se compara. */}
+              {data?.deltaPctPoints != null && (
+                <div className="flex items-baseline gap-2 flex-wrap">
                   <span
-                    className={`text-xs font-semibold ${data.deltaPctPoints >= 0 ? "text-[#fd6301]" : "text-red-600"}`}
+                    className={`text-sm sm:text-base lg:text-lg font-semibold ${data.deltaPctPoints >= 0 ? "text-[#fd6301]" : "text-red-600"}`}
                     title={`Variación en puntos porcentuales contra ${rangoEnPalabras(data.prevDateRange) || "el período anterior"}`}
                     data-testid="text-margen-delta"
                   >
@@ -166,33 +172,38 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                     })}{" "}
                     pts
                   </span>
-                )}
-                {data?.deltaPctPoints != null && rangoEnPalabras(data.prevDateRange) && (
+                  {rangoEnPalabras(data.prevDateRange) && (
+                    <span
+                      className="text-xs lg:text-sm text-gray-400 dark:text-gray-500"
+                      data-testid="text-margen-comparacion"
+                    >
+                      vs {rangoEnPalabras(data.prevDateRange)}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* El monto del margen pasó a llamarse "Beneficio" y a mostrarse con el
+                  mismo formato de "Ventas sin flete" y "Costo" (pedido del usuario,
+                  ago-2026): antes iba suelto y en grande arriba del grupo. */}
+              <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2">
+                <div className="flex items-baseline gap-2 lg:justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Beneficio:</span>
                   <span
-                    className="text-[10px] text-gray-400 dark:text-gray-500"
-                    data-testid="text-margen-comparacion"
+                    className="font-medium text-gray-700 dark:text-gray-300 truncate"
+                    title={formatCurrency(data?.margin ?? 0)}
+                    data-testid="text-margen-monto"
                   >
-                    vs {rangoEnPalabras(data.prevDateRange)}
+                    {formatCurrency(data?.margin ?? 0)}
                   </span>
-                )}
-              </div>
-
-              <p
-                className="text-sm font-semibold text-gray-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap"
-                title={formatCurrency(data?.margin ?? 0)}
-                data-testid="text-margen-monto"
-              >
-                {formatCurrency(data?.margin ?? 0)}
-              </p>
-
-              <div className="mt-2 space-y-1 text-xs pt-2">
-                <div className="flex justify-between items-center gap-2">
+                </div>
+                <div className="flex items-baseline gap-2 lg:justify-between">
                   <span className="text-gray-500 dark:text-gray-400">Ventas sin flete:</span>
                   <span className="font-medium text-gray-700 dark:text-gray-300 truncate">
                     {formatCurrency(data?.revenue ?? 0)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center gap-2">
+                <div className="flex items-baseline gap-2 lg:justify-between">
                   <span className="text-gray-500 dark:text-gray-400">Costo:</span>
                   <span className="font-medium text-gray-700 dark:text-gray-300 truncate">
                     {formatCurrency(data?.cost ?? 0)}
@@ -200,7 +211,10 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                 </div>
               </div>
 
-              <p className="mt-2 text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+              {/* Nota al pie: en celular no se muestra (pedido del usuario, ago-2026),
+                  porque ocupaba casi un tercio de la tarjeta. En pantalla grande sigue
+                  visible, que es donde hay espacio de sobra para la aclaración. */}
+              <p className="hidden md:block mt-3 pb-1 text-xs lg:text-sm leading-snug text-gray-400 dark:text-gray-500">
                 Sobre lo facturado del período (facturas menos notas de crédito), sin el flete.
                 No incluye pedidos ni guías pendientes.
               </p>
