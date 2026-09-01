@@ -24,6 +24,7 @@ import {
   Banknote,
   Building2,
   Check,
+  Download,
   FileText,
   Loader2,
   Paperclip,
@@ -33,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { DIAS_SOLICITUD_CREDITO } from "@shared/schema";
+import { descargarSolicitudCreditoPdf } from "@/lib/solicitud-credito-pdf";
 import type { SolicitudCredito } from "@shared/schema";
 
 const ROLES_RESUELVEN = ["admin", "supervisor", "encargado_area", "recursos_humanos"];
@@ -44,7 +46,10 @@ const FORM_VACIO = {
   ciudad: "",
   telefono: "",
   giro: "",
+  // Dos correos separados: por el de cobranza se cobra, al de DTE le llegan las
+  // facturas electrónicas. El del SII es el que no puede faltar.
   correo: "",
+  correoDte: "",
   socio1Nombre: "",
   socio1Direccion: "",
   socio2Nombre: "",
@@ -176,6 +181,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
     form.direccion.trim() &&
     form.ciudad.trim() &&
     form.telefono.trim() &&
+    form.correoDte.trim() &&
     Number(form.creditoSolicitado) > 0 &&
     Number(form.diasSolicitados) > 0;
 
@@ -184,7 +190,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
       toast({
         title: "Faltan datos",
         description:
-          "Razón social, RUT, dirección, ciudad, teléfono, crédito solicitado y plazo son obligatorios.",
+          "Razón social, RUT, dirección, ciudad, teléfono, correo DTE, crédito solicitado y plazo son obligatorios.",
         variant: "destructive",
       });
       return;
@@ -192,6 +198,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
     enviar.mutate({
       ...form,
       correo: form.correo.trim() || null,
+      correoDte: form.correoDte.trim(),
       creditoSolicitado: Number(form.creditoSolicitado),
       diasSolicitados: Number(form.diasSolicitados),
       carpetaTributariaUrl: carpeta?.url ?? null,
@@ -287,8 +294,16 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
             <Campo k="direccion" label="Dirección" obligatorio />
             <Campo k="ciudad" label="Ciudad" obligatorio />
             <Campo k="telefono" label="Teléfono" obligatorio placeholder="+56 9 ..." />
-            <Campo k="correo" label="Correo" placeholder="contacto@empresa.cl" />
             <Campo k="giro" label="Giro" />
+            {/* En el teléfono, tipo email cambia el teclado: aparece la arroba. */}
+            <Campo k="correo" label="Correo cobranza" placeholder="cobranza@empresa.cl" tipo="email" />
+            <Campo
+              k="correoDte"
+              label="Correo receptor DTE (SII)"
+              obligatorio
+              placeholder="dte@empresa.cl"
+              tipo="email"
+            />
           </Seccion>
 
           <Seccion icono={<Users className="h-3.5 w-3.5" />} titulo="Socios y representante legal">
@@ -472,8 +487,10 @@ function FilaSolicitud({
   resolviendo: boolean;
   onResolver: (datos: Record<string, unknown>) => void;
 }) {
+  const { toast } = useToast();
   const [abierto, setAbierto] = useState(false);
   const [detalle, setDetalle] = useState(false);
+  const [bajandoPdf, setBajandoPdf] = useState(false);
   const [monto, setMonto] = useState("");
   const [motivo, setMotivo] = useState("");
 
@@ -548,6 +565,38 @@ function FilaSolicitud({
           {detalle ? "Ocultar" : "Ver datos"}
         </Button>
 
+        {/* El PDF es la solicitud completa, con la resolución adentro: es lo que
+            se archiva y lo que se le manda al cliente. Se arma en el navegador
+            con lo que ya está cargado, así que no hay ida al servidor. */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={bajandoPdf}
+          className="h-8 rounded-lg text-xs gap-1.5"
+          onClick={async () => {
+            setBajandoPdf(true);
+            try {
+              await descargarSolicitudCreditoPdf(solicitud);
+            } catch (error: any) {
+              toast({
+                title: "No se pudo generar el PDF",
+                description: error?.message,
+                variant: "destructive",
+              });
+            } finally {
+              setBajandoPdf(false);
+            }
+          }}
+          data-testid={`button-pdf-${solicitud.id}`}
+        >
+          {bajandoPdf ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          PDF
+        </Button>
+
         {puedeResolver && (
           <Button
             variant="outline"
@@ -568,7 +617,8 @@ function FilaSolicitud({
         <div className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
           {dato("Giro", solicitud.giro)}
           {dato("Teléfono", solicitud.telefono)}
-          {dato("Correo", solicitud.correo)}
+          {dato("Correo cobranza", solicitud.correo)}
+          {dato("Correo DTE (SII)", solicitud.correoDte)}
           {dato("Dirección", solicitud.direccion)}
           {dato("Ciudad", solicitud.ciudad)}
           {dato("Plazo solicitado", solicitud.diasSolicitados ? `${solicitud.diasSolicitados} días` : null)}

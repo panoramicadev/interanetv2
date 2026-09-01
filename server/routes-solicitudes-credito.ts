@@ -112,7 +112,8 @@ function cuerpoDelCorreo(s: SolicitudCredito): string {
       ${fila('Giro', s.giro)}
       ${fila('Dirección', `${s.direccion}, ${s.ciudad}`)}
       ${fila('Teléfono', s.telefono)}
-      ${fila('Correo', s.correo)}
+      ${fila('Correo cobranza', s.correo)}
+      ${fila('Correo DTE (SII)', s.correoDte)}
       ${fila('Representante legal', s.representanteNombre)}
       ${fila('Banco', s.banco1 ? `${s.banco1}${s.cuenta1 ? ` · cuenta ${s.cuenta1}` : ''}` : null)}
     </table>

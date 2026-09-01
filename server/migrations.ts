@@ -1370,6 +1370,7 @@ export async function bootstrapDatabase(): Promise<void> {
         telefono VARCHAR(40) NOT NULL,
         giro TEXT,
         correo VARCHAR(160),
+        correo_dte VARCHAR(160),
         socio1_nombre TEXT,
         socio1_direccion TEXT,
         socio2_nombre TEXT,
@@ -1405,6 +1406,8 @@ export async function bootstrapDatabase(): Promise<void> {
     // Plazo de pago pedido (migración 081). Va como ADD COLUMN IF NOT EXISTS para
     // las tablas que se crearon antes de que existiera el campo.
     await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS dias_solicitados INTEGER`);
+    // Receptor de DTE, aparte del correo de cobranza (migración 082).
+    await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS correo_dte VARCHAR(160)`);
 
     // Nuevo Cliente (migración 080). Ver migrations/080_solicitudes_nuevo_cliente.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
