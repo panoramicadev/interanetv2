@@ -45,6 +45,30 @@ interface NvvMetrics {
   cancelledCount: number;
 }
 
+/**
+ * Segmentos que en la planilla de presupuesto están guardados con otro nombre.
+ *
+ * Los segmentos de las ventas y las categorías del presupuesto se escriben distinto en
+ * dos casos: INDUSTRIAL quedó en la planilla como "FABRICACION MODULAR" (su nombre
+ * antiguo) y DIGITAL como "CANALES DIGITALES". Como la tarjeta buscaba la meta exigiendo
+ * el mismo nombre exacto, con esos dos filtros no encontraba ningún presupuesto, la meta
+ * quedaba en cero y "Meta a la Fecha" y "Diferencia" desaparecían de la tarjeta
+ * (reporte del usuario, ago-2026). Los otros cuatro segmentos con presupuesto cargado
+ * —CONSTRUCCION, FERRETERIAS, MCT y PANORAMICA STORE— sí calzan por nombre.
+ *
+ * Si mañana se renombra un segmento en la planilla, la equivalencia se agrega acá.
+ */
+const CATEGORIAS_PRESUPUESTO_POR_SEGMENTO: Record<string, string[]> = {
+  "INDUSTRIAL": ["INDUSTRIAL", "FABRICACION MODULAR", "FABRICACIÓN MODULAR"],
+  "DIGITAL": ["DIGITAL", "CANALES DIGITALES"],
+};
+
+/** ¿Esta categoría del presupuesto corresponde al segmento que se está mirando? */
+const categoriaPresupuestoCoincide = (categoria: string, segmento: string): boolean => {
+  const equivalentes = CATEGORIAS_PRESUPUESTO_POR_SEGMENTO[segmento.toUpperCase()] ?? [segmento];
+  return equivalentes.some((nombre) => nombre.toLowerCase() === categoria.toLowerCase());
+};
+
 interface KPICardsProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -1106,8 +1130,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       }
 
       budgetData.forEach(record => {
-        // Filter by segment if selected (case insensitive match of category)
-        if (segment && record.categoria.toLowerCase() !== segment.toLowerCase()) {
+        // Filter by segment if selected (equivalencias de nombre incluidas)
+        if (segment && !categoriaPresupuestoCoincide(record.categoria, segment)) {
           return;
         }
         // Filter by salesperson if selected (case insensitive match of entity)
@@ -1179,26 +1203,35 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {formatCurrency(displayValue)}
             </p>
-            {budgetYTD > 0 && (
-              <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2">
-                {/* En celular la etiqueta y su cifra van juntas: con el número pegado al
-                    borde derecho quedaban tan separados que costaba leer cuál iba con
-                    cuál. En pantalla grande sí se separan a los extremos, porque ahí la
-                    columna es angosta y se lee como tabla. */}
-                <div className="flex items-baseline gap-2 lg:justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    Meta a la Fecha:
-                  </span>
-                  <span className="text-gray-700 dark:text-gray-300">{formatCurrency(budgetYTD)}</span>
-                </div>
-                {/* Sin negrita (pedido del usuario, ago-2026): el naranjo ya destaca
-                    bastante la Diferencia, y en negrita competía con la cifra grande. */}
-                <div className={`flex items-baseline gap-2 lg:justify-between ${budgetColor}`}>
-                  <span>Diferencia:</span>
-                  <span>{differenceSign}{differenceFormatted} ({budgetPct})</span>
-                </div>
+            {/* Meta y Diferencia se muestran SIEMPRE, con filtro o sin él (pedido del
+                usuario, ago-2026). Antes el bloque entero se escondía cuando la meta daba
+                cero, así que en las vistas por segmento la tarjeta aparecía sin ninguna
+                referencia y parecía que faltaban datos. Cuando ese recorte de verdad no
+                tiene presupuesto cargado se dice con todas sus letras, en vez de mostrar
+                un "$0" que se leería como una meta de cero y una diferencia enorme a
+                favor. */}
+            <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2">
+              {/* En celular la etiqueta y su cifra van juntas: con el número pegado al
+                  borde derecho quedaban tan separados que costaba leer cuál iba con
+                  cuál. En pantalla grande sí se separan a los extremos, porque ahí la
+                  columna es angosta y se lee como tabla. */}
+              <div className="flex items-baseline gap-2 lg:justify-between">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Meta a la Fecha:
+                </span>
+                <span className="text-gray-700 dark:text-gray-300">
+                  {budgetYTD > 0 ? formatCurrency(budgetYTD) : "Sin presupuesto cargado"}
+                </span>
               </div>
-            )}
+              {/* Sin negrita (pedido del usuario, ago-2026): el naranjo ya destaca
+                  bastante la Diferencia, y en negrita competía con la cifra grande. */}
+              <div className={`flex items-baseline gap-2 lg:justify-between ${budgetYTD > 0 ? budgetColor : "text-gray-400 dark:text-gray-500"}`}>
+                <span>Diferencia:</span>
+                <span>
+                  {budgetYTD > 0 ? `${differenceSign}${differenceFormatted} (${budgetPct})` : "—"}
+                </span>
+              </div>
+            </div>
 
           </div>
           {conIcono && (
