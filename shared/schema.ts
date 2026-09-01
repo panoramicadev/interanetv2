@@ -4399,7 +4399,12 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   ciudad: varchar("ciudad", { length: 120 }).notNull(),
   telefono: varchar("telefono", { length: 40 }).notNull(),
   giro: text("giro"),
+  // Son dos correos distintos y se usan para cosas distintas: a cobranza se le
+  // mandan los estados de cuenta, al receptor DTE le llegan las facturas
+  // electrónicas. Mezclados en un solo campo, la factura terminaba en la casilla
+  // equivocada. El de cobranza es opcional; el DTE no, sin él no se factura.
   correo: varchar("correo", { length: 160 }),
+  correoDte: varchar("correo_dte", { length: 160 }),
 
   // Socios y representante legal
   socio1Nombre: text("socio1_nombre"),
@@ -4450,8 +4455,8 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
 export const ESTADOS_SOLICITUD_CREDITO = ["enviada", "aprobada", "rechazada"] as const;
 export type EstadoSolicitudCredito = (typeof ESTADOS_SOLICITUD_CREDITO)[number];
 
-/** Plazos de pago que se ofrecen en el formulario. */
-export const DIAS_SOLICITUD_CREDITO = [30, 45, 60, 90] as const;
+/** Plazos de pago que se ofrecen en el formulario. El tope es 60 días. */
+export const DIAS_SOLICITUD_CREDITO = [30, 45, 60] as const;
 export type DiasSolicitudCredito = (typeof DIAS_SOLICITUD_CREDITO)[number];
 
 // Lo que manda el vendedor. Todo lo del flujo (estado, quién la envió, quién la
@@ -4477,7 +4482,14 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
     direccion: z.string().trim().min(1, "La dirección es obligatoria"),
     ciudad: z.string().trim().min(1, "La ciudad es obligatoria"),
     telefono: z.string().trim().min(1, "El teléfono es obligatorio"),
-    correo: z.string().trim().email("Correo inválido").optional().or(z.literal("")).or(z.null()),
+    correo: z
+      .string()
+      .trim()
+      .email("Correo de cobranza inválido")
+      .optional()
+      .or(z.literal(""))
+      .or(z.null()),
+    correoDte: z.string().trim().min(1, "El correo DTE es obligatorio").email("Correo DTE inválido"),
     creditoSolicitado: z.coerce.number().positive("El crédito solicitado tiene que ser mayor que cero"),
     diasSolicitados: z.coerce
       .number()
