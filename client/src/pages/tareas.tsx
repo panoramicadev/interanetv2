@@ -305,6 +305,10 @@ export default function TareasPage() {
   const [editingTask, setEditingTask] = useState<Task & { assignments: TaskAssignment[] } | null>(null);
 
   const isSalesperson = user?.role === 'salesperson';
+  // Quién ve más de una cartera: los mismos roles que ya podían filtrar por vendedor
+  // dentro de Estimación de ventas, ahora que ese selector subió al encabezado.
+  const puedeFiltrarPorVendedor =
+    user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area';
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
   // Marketing: sub-vista dentro del Panel de Trabajo. Antes el panel de solicitudes y
@@ -328,8 +332,13 @@ export default function TareasPage() {
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
   // (antes usaban `inline` + `mr-2`, que desalineaba verticalmente y hacía que los
   // íconos se vieran de distinto tamaño). El ícono es `shrink-0` para no deformarse.
+  //
+  // Pestaña activa = SUBRAYADO NEGRO, sin relleno (corrección del usuario, sep-2026,
+  // para todas las áreas): la píldora naranja sólida competía con el botón de acción
+  // y con los chips de contexto del encabezado. El borde inferior transparente está
+  // también en la inactiva para que al cambiar de pestaña no salte el alto.
   const tabTriggerClass =
-    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] hover:bg-orange-50 dark:hover:bg-slate-800/70 dark:hover:text-white data-[state=active]:bg-[#fd6301] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30 dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white rounded-lg whitespace-nowrap shrink-0";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] -mb-px dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 rounded-none whitespace-nowrap shrink-0";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // La pestaña activa se centra dentro del riel al montar y al cambiar de pestaña. Se
@@ -887,16 +896,55 @@ export default function TareasPage() {
     }
   }, [crmVendedor]);
 
-  // Mismo endpoint que usaba la toolbar del CRM; react-query comparte la caché con la
-  // pestaña, así que traerlo acá no agrega una segunda llamada.
-  const { data: crmVendedores = [] } = useQuery<Array<{ id: string; salespersonName: string }>>({
-    queryKey: ["/api/crm/vendedores"],
+  // Vendedor de Estimación de ventas: mismo criterio que el del CRM (pedido del usuario,
+  // sep-2026). El selector vive en el encabezado del módulo, no dentro de la pestaña, así
+  // que el filtro tiene que vivir acá arriba.
+  const [estimacionVendedor, setEstimacionVendedor] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem("panel-estimacion-vendedor") ?? "all";
+    } catch {
+      return "all";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("panel-estimacion-vendedor", estimacionVendedor);
+    } catch {
+      /* sesión sin storage: el filtro simplemente no sobrevive al remonte */
+    }
+  }, [estimacionVendedor]);
+
+  // Vendedor de la pestaña Obras: mismo criterio que el del CRM y Estimación, su
+  // selector vive en el encabezado (pedido del usuario, sep-2026). "sin-asignar" trae
+  // las obras que todavía no tienen dueño.
+  const [obrasVendedor, setObrasVendedor] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem("panel-obras-vendedor") ?? "all";
+    } catch {
+      return "all";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("panel-obras-vendedor", obrasVendedor);
+    } catch {
+      /* sesión sin storage: el filtro simplemente no sobrevive al remonte */
+    }
+  }, [obrasVendedor]);
+
+  // Vendedores que se ofrecen en el filtro "Vendedor" del panel (pedido del usuario,
+  // sep-2026): solo los que tienen algo cargado este año —tareas, seguimiento, CRM,
+  // estimación semanal, obras o proyectos— en el área que se está mirando. Antes el CRM
+  // listaba todas las cuentas activas (clientes y demo incluidos) y Estimación usaba la
+  // lista de asignación de tareas.
+  const { data: vendedoresDelPanel = [] } = useQuery<Array<{ id: string; salespersonName: string }>>({
+    queryKey: ["/api/panel/vendedores", segmentoFilter],
     queryFn: async () => {
-      const res = await fetch("/api/crm/vendedores");
+      const res = await fetch(`/api/panel/vendedores?segmento=${encodeURIComponent(segmentoFilter)}`);
       if (!res.ok) throw new Error("Error al cargar vendedores");
       return res.json();
     },
-    enabled: showCrmTab,
+    enabled: !!user && !isSalesperson,
   });
 
   // Query for available supervisors (for assignments)
@@ -1671,6 +1719,12 @@ export default function TareasPage() {
     if (activeTab === 'crm') {
       return { label: 'Nuevo cliente', onClick: () => crmRef.current?.nuevoCliente() };
     }
+    // Estimación de ventas: el (+) abre la promesa (su botón subió al encabezado,
+    // pedido del usuario sep-2026). El diálogo lo controla el Panel, así que no
+    // hace falta un ref a la pestaña.
+    if (activeTab === 'estimacion') {
+      return { label: 'Nueva promesa', onClick: () => setCreatePromesaDialogOpen(true) };
+    }
     // Crear rutas es de supervisor/encargado/admin (mismo `canManage` que usa el
     // módulo): al vendedor no le ofrecemos una acción que no puede hacer y el
     // (+) vuelve a ser la tarea.
@@ -1695,6 +1749,16 @@ export default function TareasPage() {
     };
   })();
 
+  // Botón naranjo del encabezado. Se declara una sola vez porque tiene dos lugares
+  // posibles: junto al Vendedor (escritorio, cuando esa pestaña filtra por cartera) o
+  // a la derecha del Área / al final de la pila en celular.
+  const botonAccionNueva = (
+    <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
+      <Plus className="h-4 w-4 mr-2" />
+      {accionNueva.label}
+    </Button>
+  );
+
   // En Seguimiento (vista Clientes) el alta ya vive abajo, en la barra de la
   // cartera ("Nuevo seguimiento", al lado de "Agregar colaborador") y en el
   // estado vacío: ahí es donde se está mirando el equipo. Repetirla arriba
@@ -1706,6 +1770,10 @@ export default function TareasPage() {
   // ve igual para cualquiera que entre, no cambia según el cargo.
   const altaSeguimientoEnLaLista =
     activeTab === 'seguimiento' && seguimientoVista === 'clientes';
+
+  // En Obras el (+) bajó a la barra de la cartera, al lado de "Agregar constructora":
+  // ahí están las dos acciones de la pantalla, y arriba quedaba lejos de lo que se mira.
+  const mostrarBotonAccion = activeTab !== 'obras' && !altaSeguimientoEnLaLista;
 
   // Selector de Área — la card-pill con el ícono de edificio y el dropdown de segmento.
   // Vive SIEMPRE en el header (junto a "Nueva Tarea"), en todas las pestañas, para
@@ -1735,11 +1803,20 @@ export default function TareasPage() {
     </div>
   );
 
-  // Selector de Vendedor del CRM: mismo pill que el de Área, una fila más abajo
-  // (pedido del usuario, ago-2026). Solo aparece en la pestaña CRM —es lo único que
-  // filtra— y solo para quien ve más de una cartera: un vendedor mira la suya y el
-  // selector no tendría nada que elegir.
-  const vendedorSelector = (
+  // Selector de Vendedor: mismo pill que el de Área, una fila más abajo (pedido del
+  // usuario, ago-2026). Lo usan la pestaña CRM y la de Estimación de ventas —las dos
+  // filtran por cartera— y solo aparece para quien ve más de una: un vendedor mira la
+  // suya y el selector no tendría nada que elegir.
+  const pillVendedor = (opts: {
+    value: string;
+    onChange: (v: string) => void;
+    opciones: Array<{ id: string; nombre: string }>;
+    valorTodos: string;
+    etiquetaTodos: string;
+    /** Opciones propias de la pestaña que van justo debajo de "Todos". */
+    extras?: Array<{ id: string; nombre: string }>;
+    testId: string;
+  }) => (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
       <div className="flex items-center justify-center w-8 h-8 rounded-lg text-[#fd6301] flex-shrink-0">
         {/* `User`, no `UserCheck`: ese último es el ícono de la pestaña Seguimiento y
@@ -1748,20 +1825,80 @@ export default function TareasPage() {
       </div>
       <div className="flex flex-col leading-none">
         <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
-        <Select value={crmVendedor} onValueChange={setCrmVendedor}>
-          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-vendedor-panel">
+        <Select value={opts.value} onValueChange={opts.onChange}>
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid={opts.testId}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos los vendedores</SelectItem>
-            {crmVendedores.map((v) => (
-              <SelectItem key={v.id} value={v.id}>{v.salespersonName}</SelectItem>
+            <SelectItem value={opts.valorTodos}>{opts.etiquetaTodos}</SelectItem>
+            {(opts.extras ?? []).map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.nombre}</SelectItem>
+            ))}
+            {opts.opciones.map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.nombre}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
     </div>
   );
+
+  // Qué pill de Vendedor corresponde a la pestaña que se está mirando (ninguno en las
+  // demás: un filtro que no filtra nada de lo que se ve confunde más de lo que ayuda).
+  const opcionesVendedor = vendedoresDelPanel.map((v) => ({ id: v.id, nombre: v.salespersonName }));
+
+  // Si el vendedor guardado de la sesión ya no está en la lista (cambió de área, o dejó
+  // de tener movimiento), el Select quedaría en blanco: se vuelve a "todos".
+  useEffect(() => {
+    if (opcionesVendedor.length === 0) return;
+    if (crmVendedor !== 'todos' && !opcionesVendedor.some((v) => v.id === crmVendedor)) setCrmVendedor('todos');
+    if (estimacionVendedor !== 'all' && !opcionesVendedor.some((v) => v.id === estimacionVendedor)) setEstimacionVendedor('all');
+    if (obrasVendedor !== 'all' && obrasVendedor !== 'sin-asignar' && !opcionesVendedor.some((v) => v.id === obrasVendedor)) setObrasVendedor('all');
+  }, [vendedoresDelPanel]);
+
+  // Recibe un sufijo para el data-testid porque en celular y en escritorio se dibuja
+  // en lugares distintos de la pila (una sola de las dos copias es visible a la vez).
+  const selectorVendedorPara = (sufijo = '') => {
+    if (isSalesperson) return null;
+    // Con un solo vendedor el filtro no filtra nada: se esconde entero (pedido del
+    // usuario, sep-2026) en vez de ofrecer un desplegable de una sola opción.
+    if (opcionesVendedor.length < 2) return null;
+    if (activeTab === 'crm') {
+      return pillVendedor({
+        value: crmVendedor,
+        onChange: setCrmVendedor,
+        opciones: opcionesVendedor,
+        valorTodos: 'todos',
+        etiquetaTodos: 'Todos los vendedores',
+        testId: `select-vendedor-panel${sufijo}`,
+      });
+    }
+    if (activeTab === 'obras' && puedeFiltrarPorVendedor) {
+      return pillVendedor({
+        value: obrasVendedor,
+        onChange: setObrasVendedor,
+        opciones: opcionesVendedor,
+        valorTodos: 'all',
+        etiquetaTodos: 'Todos',
+        // Las obras que quedaron sin dueño: se filtran acá para poder asignarles
+        // vendedor desde el formulario de la obra.
+        extras: [{ id: 'sin-asignar', nombre: 'Sin asignar' }],
+        testId: `select-obras-vendedor${sufijo}`,
+      });
+    }
+    if (activeTab === 'estimacion' && puedeFiltrarPorVendedor) {
+      return pillVendedor({
+        value: estimacionVendedor,
+        onChange: setEstimacionVendedor,
+        opciones: opcionesVendedor,
+        valorTodos: 'all',
+        etiquetaTodos: 'Todos',
+        testId: `select-filtro-vendedor${sufijo}`,
+      });
+    }
+    return null;
+  };
+  const hayselectorVendedor = selectorVendedorPara() !== null;
 
   // Badge naranja de cambios no vistos de una pestaña (misma familia que el
   // pill de conteo de Solicitudes de Marketing).
@@ -1771,7 +1908,9 @@ export default function TareasPage() {
     if (!count) return null;
     return (
       <span
-        className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#fd6301] text-white group-data-[state=active]:bg-white group-data-[state=active]:text-[#fd6301] text-[10px] font-bold shadow-sm shadow-orange-500/30"
+        /* Antes se invertía a blanco sobre la píldora naranja; con la pestaña activa
+           sin relleno el badge se queda siempre naranjo con texto blanco. */
+        className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#fd6301] text-white text-[10px] font-bold shadow-sm shadow-orange-500/30"
         data-testid={`badge-tab-changes-${tab}`}
       >
         {count > 99 ? "99+" : count}
@@ -1976,27 +2115,40 @@ export default function TareasPage() {
                   (corrección del usuario, ago-2026). La campana sigue en la fila del
                   Área. */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
+                {/* `sm:justify-end`: cuando abajo va la fila del botón + Vendedor, esta
+                    fila es más angosta y el Área quedaba flotando al medio, sin calzar
+                    con el borde derecho del Vendedor (corrección del usuario, sep-2026).
+                    En celular no aplica: ahí el Área va pegada a la izquierda. */}
+                <div className="flex items-center gap-2 sm:justify-end">
                   <div className="absolute -top-1 right-0 sm:static">
                     <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
                   </div>
                   {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
                 </div>
-                {activeTab === 'crm' && !isSalesperson && vendedorSelector}
+                {/* Cuando hay pill de Vendedor, el botón de acción se sienta a su
+                    izquierda en esa misma fila (pedido del usuario, sep-2026): arriba
+                    quedaba solo, con un hueco vacío al lado del Vendedor. Esta fila es
+                    solo de escritorio; en celular el Vendedor baja debajo de la Sección
+                    y el botón cierra la pila. */}
+                {hayselectorVendedor && (
+                  <div className="hidden sm:flex items-center justify-end gap-2">
+                    {mostrarBotonAccion && botonAccionNueva}
+                    {selectorVendedorPara()}
+                  </div>
+                )}
               </div>
               {selectorSeccionMovil}
-              {/* En Obras el (+) bajó a la barra de la cartera, al lado de
-                  "Agregar constructora": ahí es donde están las dos acciones de
-                  la pantalla, y arriba quedaba lejos de lo que se está mirando. */}
-              {/* En Estimación de ventas tampoco va: lo que se crea ahí es una promesa,
-                  y su botón "Nueva Promesa" está unos centímetros más abajo; el (+) de
-                  arriba creaba una tarea suelta que no tiene que ver con la pantalla
-                  (pedido del usuario, ago-2026). */}
-              {activeTab !== 'obras' && activeTab !== 'estimacion' && !altaSeguimientoEnLaLista && (
-                <Button onClick={accionNueva.onClick} className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all" data-testid="button-create-task">
-                  <Plus className="h-4 w-4 mr-2" />
-                  {accionNueva.label}
-                </Button>
+              {/* Celular: la Sección va ARRIBA del Vendedor (corrección del usuario,
+                  sep-2026). El orden de la pila queda Área → Sección → Vendedor → acción:
+                  primero dónde estoy parado, y recién ahí con qué cartera lo miro. */}
+              {hayselectorVendedor && (
+                <div className="sm:hidden">{selectorVendedorPara('-movil')}</div>
+              )}
+              {/* Sin pill de Vendedor el botón se queda donde siempre, a la derecha del
+                  Área. Con pill, en escritorio se dibuja arriba (junto al Vendedor) y acá
+                  solo queda la copia de celular. */}
+              {mostrarBotonAccion && (
+                <div className={hayselectorVendedor ? 'sm:hidden' : undefined}>{botonAccionNueva}</div>
               )}
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
@@ -2512,11 +2664,13 @@ export default function TareasPage() {
         {/* En celular el selector de sección ya está arriba, dentro del encabezado
             (ver `selectorSeccionMovil`). Acá queda solo el riel de escritorio. */}
         {/* Riel de pestañas (sin track: sobre el fondo blanco de la página, texto
-            negro y la activa en píldora naranja): de tablet para arriba. */}
+            negro y la activa marcada con una línea negra abajo, sin relleno): de
+            tablet para arriba. La línea base gris corre bajo TODAS las pestañas
+            para que el riel se lea como una sola barra en cualquier área. */}
         <div className={`hidden sm:block ${isMarketing ? 'hidden' : ''}`}>
           <TabsList
             ref={tabsListRef}
-            className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 rounded-2xl ${tabsGridClass}`}
+            className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 border-b border-slate-200 dark:border-slate-800 rounded-none ${tabsGridClass}`}
           >
             {/* En Industrial esta pestaña es "Proyectos": mismo espacio, otra
                 unidad de trabajo (ver modoProyectos). El value se mantiene en
@@ -3665,65 +3819,10 @@ export default function TareasPage() {
 
                 return (
                   <div className="space-y-4">
-                    {/* Resumen del equipo — lo que el supervisor mira de un vistazo.
-                        Va arriba de todo, pegado a las pestañas (corrección del usuario,
-                        ago-2026): es la foto del área, así que se lee antes de buscar o
-                        filtrar, y no después de las herramientas. Misma posición en
-                        celular y en escritorio; la grilla ya baja a 2 columnas sola. */}
-                    {people.length > 0 && (() => {
-                      // Mismo molde que las tarjetas del CRM (pedido del usuario, ago-2026):
-                      // ícono en negro y suelto, número grande y el nombre debajo en gris.
-                      // Centrado en celular; en pantalla grande el ícono pasa al costado.
-                      const TarjetaResumen = ({ icono, valor, etiqueta, tono, testId }: {
-                        icono: React.ReactNode; valor: React.ReactNode; etiqueta: string; tono?: string; testId?: string;
-                      }) => (
-                        <div className="rounded-2xl border border-slate-200/80 bg-white dark:bg-slate-800/40 dark:border-slate-700/60 p-4 shadow-sm flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-2 sm:gap-3">
-                          <span className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 text-slate-900 dark:text-slate-100">
-                            {icono}
-                          </span>
-                          <div className="min-w-0">
-                            <div className={`text-2xl font-bold leading-none tabular-nums ${tono ?? 'text-slate-900 dark:text-slate-100'}`} data-testid={testId}>
-                              {valor}
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{etiqueta}</p>
-                          </div>
-                        </div>
-                      );
-                      return (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                          <TarjetaResumen
-                            icono={<Users className="h-5 w-5" />}
-                            valor={people.length}
-                            etiqueta={`persona${people.length !== 1 ? 's' : ''}`}
-                          />
-                          <TarjetaResumen
-                            icono={<Building2 className="h-5 w-5" />}
-                            valor={teamTotal}
-                            etiqueta="en seguimiento"
-                          />
-                          {/* Un seguimiento no se "completa": lo accionable es cuántos
-                              clientes tienen tareas internas abiertas y cuántos están frenados. */}
-                          <TarjetaResumen
-                            icono={<Clock className="h-5 w-5" />}
-                            valor={teamConPendientes}
-                            etiqueta={`${teamPendientesTotal} tarea${teamPendientesTotal !== 1 ? 's' : ''} abierta${teamPendientesTotal !== 1 ? 's' : ''}`}
-                            tono={teamConPendientes > 0 ? 'text-[#fd6301]' : undefined}
-                            testId="kpi-con-pendientes"
-                          />
-                          <TarjetaResumen
-                            icono={<AlertTriangle className="h-5 w-5" />}
-                            valor={teamFrenados}
-                            etiqueta={`hace ${DIAS_SIN_MOVIMIENTO_ALERTA}+ días`}
-                            tono={teamFrenados > 0 ? 'text-[#fd6301]' : undefined}
-                            testId="kpi-sin-movimiento"
-                          />
-                        </div>
-                      );
-                    })()}
-
-                    {/* Marketing: sus solicitudes son su trabajo asignado */}
-                    {isMarketing && <MarketingSolicitudesInbox />}
-
+                    {/* Buscar y las dos acciones de la vista van ARRIBA DE TODO, pegadas
+                        al selector de Sección (corrección del usuario, sep-2026): son con lo
+                        que se entra a trabajar, y quedaban abajo del resumen, a un scroll en
+                        celular. El resumen del equipo pasa a leerse después. */}
                     {/* Buscador de clientes en seguimiento */}
                     <div className="flex items-center gap-3 flex-wrap">
                       {seguimientoSearchBox}
@@ -3735,16 +3834,6 @@ export default function TareasPage() {
                       )}
                     </div>
 
-                    {/* Acá vivía la franja de herramientas de la vista: los chips
-                        "Ver primero" (Pendientes / Sin movimientos) y el "Expandir todo".
-                        Se sacaron los tres (pedido del usuario, ago-2026): lo que decían
-                        ya se lee en las tarjetas de arriba y en los badges de cada
-                        colaborador, y ocupaban una franja entera antes de llegar al
-                        equipo. Cada tarjeta se sigue abriendo una por una, y la lista
-                        queda en su orden por defecto; `seguimientoOrden` y
-                        `expandedSeguimientoPeople` siguen vivos por si vuelven a
-                        ofrecerse desde otro lado. */}
-
                     {/* Buscador para sumar puntualmente cualquier colaborador del sistema */}
                     {canManageTeam && (
                       // En reposo los dos botones van sueltos, sin tarjeta que los
@@ -3754,18 +3843,26 @@ export default function TareasPage() {
                       // colaboradores, que sí es un panel con contenido propio.
                       <div className={showAddMember ? "rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm" : ""}>
                         {!showAddMember ? (
-                          <div className="flex items-center gap-2 flex-wrap">
+                          /* Mismo molde que los botones del encabezado (corrección del
+                             usuario, sep-2026): rounded-2xl y alto normal, no los chips
+                             chicos de antes. El secundario va blanco con borde gris; el
+                             naranjo sólido queda solo para la acción principal. */
+                          /* En celular van apilados y a todo el ancho: uno al lado del
+                             otro, "Agregar colaborador" parte la palabra en dos líneas. */
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                             <button
                               onClick={() => { setShowAddMember(true); setAddMemberSearch(""); }}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-white hover:bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 transition-colors"
+                              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold whitespace-nowrap text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-[#fd6301] rounded-2xl shadow-sm transition-all"
+                              data-testid="button-agregar-colaborador"
                             >
-                              <Plus className="h-3.5 w-3.5" /> Agregar colaborador
+                              <Plus className="h-4 w-4" /> Agregar colaborador
                             </button>
                             <button
                               onClick={() => openNuevoSeguimiento()}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#fd6301] hover:bg-[#e35400] rounded-lg px-3 py-1.5 transition-colors"
+                              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold whitespace-nowrap text-white bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] rounded-2xl shadow-md shadow-orange-500/25 transition-all"
+                              data-testid="button-nuevo-seguimiento"
                             >
-                              <Building2 className="h-3.5 w-3.5" /> Nuevo seguimiento
+                              <Building2 className="h-4 w-4" /> Nuevo seguimiento
                             </button>
                           </div>
                         ) : (
@@ -3821,6 +3918,73 @@ export default function TareasPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Resumen del equipo — la foto del área de un vistazo. Va debajo del
+                        buscador y de las acciones (corrección del usuario, sep-2026). Misma
+                        posición en celular y en escritorio; la grilla baja a 2 columnas sola. */}
+                    {people.length > 0 && (() => {
+                      // Mismo molde que las tarjetas del CRM (pedido del usuario, ago-2026):
+                      // ícono en negro y suelto, número grande y el nombre debajo en gris.
+                      // Centrado en celular; en pantalla grande el ícono pasa al costado.
+                      const TarjetaResumen = ({ icono, valor, etiqueta, tono, testId }: {
+                        icono: React.ReactNode; valor: React.ReactNode; etiqueta: string; tono?: string; testId?: string;
+                      }) => (
+                        <div className="rounded-2xl border border-slate-200/80 bg-white dark:bg-slate-800/40 dark:border-slate-700/60 p-4 shadow-sm flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-2 sm:gap-3">
+                          <span className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 text-slate-900 dark:text-slate-100">
+                            {icono}
+                          </span>
+                          <div className="min-w-0">
+                            <div className={`text-2xl font-bold leading-none tabular-nums ${tono ?? 'text-slate-900 dark:text-slate-100'}`} data-testid={testId}>
+                              {valor}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{etiqueta}</p>
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                          <TarjetaResumen
+                            icono={<Users className="h-5 w-5" />}
+                            valor={people.length}
+                            etiqueta={`persona${people.length !== 1 ? 's' : ''}`}
+                          />
+                          <TarjetaResumen
+                            icono={<Building2 className="h-5 w-5" />}
+                            valor={teamTotal}
+                            etiqueta="en seguimiento"
+                          />
+                          {/* Un seguimiento no se "completa": lo accionable es cuántos
+                              clientes tienen tareas internas abiertas y cuántos están frenados. */}
+                          <TarjetaResumen
+                            icono={<Clock className="h-5 w-5" />}
+                            valor={teamConPendientes}
+                            etiqueta={`${teamPendientesTotal} tarea${teamPendientesTotal !== 1 ? 's' : ''} abierta${teamPendientesTotal !== 1 ? 's' : ''}`}
+                            tono={teamConPendientes > 0 ? 'text-[#fd6301]' : undefined}
+                            testId="kpi-con-pendientes"
+                          />
+                          <TarjetaResumen
+                            icono={<AlertTriangle className="h-5 w-5" />}
+                            valor={teamFrenados}
+                            etiqueta={`hace ${DIAS_SIN_MOVIMIENTO_ALERTA}+ días`}
+                            tono={teamFrenados > 0 ? 'text-[#fd6301]' : undefined}
+                            testId="kpi-sin-movimiento"
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {/* Marketing: sus solicitudes son su trabajo asignado */}
+                    {isMarketing && <MarketingSolicitudesInbox />}
+
+                    {/* Acá vivía la franja de herramientas de la vista: los chips
+                        "Ver primero" (Pendientes / Sin movimientos) y el "Expandir todo".
+                        Se sacaron los tres (pedido del usuario, ago-2026): lo que decían
+                        ya se lee en las tarjetas de arriba y en los badges de cada
+                        colaborador, y ocupaban una franja entera antes de llegar al
+                        equipo. Cada tarjeta se sigue abriendo una por una, y la lista
+                        queda en su orden por defecto; `seguimientoOrden` y
+                        `expandedSeguimientoPeople` siguen vivos por si vuelven a
+                        ofrecerse desde otro lado. */}
 
                     {people.length > 0 ? (
                       <>
@@ -4254,6 +4418,7 @@ export default function TareasPage() {
               setSearchClient={setSearchClient}
               user={user}
               esConstruccion={esConstruccion}
+              vendedorFilter={estimacionVendedor}
             />
           </TabsContent>
         )}
@@ -4262,7 +4427,11 @@ export default function TareasPage() {
             control de avance por obra de cada constructora (ex planilla Excel). */}
         {showObrasTab && (
           <TabsContent value="obras" className="space-y-6">
-            <ControlObrasContent ref={obrasRef} />
+            <ControlObrasContent
+              ref={obrasRef}
+              vendedorFiltro={obrasVendedor}
+              onVerTodaLaCartera={() => setObrasVendedor('all')}
+            />
           </TabsContent>
         )}
 
@@ -4308,6 +4477,7 @@ function EstimacionSemanalTab({
   setSearchClient,
   user,
   esConstruccion,
+  vendedorFilter,
 }: {
   selectedWeek: Date;
   promesasCumplimiento: PromesaCumplimiento[];
@@ -4322,11 +4492,13 @@ function EstimacionSemanalTab({
   setSearchClient: (value: string) => void;
   user: any;
   esConstruccion: boolean;
+  /** Filtro de cartera. Vive en el Panel: su selector está en el encabezado del
+      módulo, junto al de Área (pedido del usuario, sep-2026). */
+  vendedorFilter: string;
 }) {
   // Estados locales para edición de promesas
   const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
   const [selectedPromesa, setSelectedPromesa] = useState<PromesaCumplimiento | null>(null);
-  const [vendedorFilter, setVendedorFilter] = useState<string>("all");
   // Promesas con cambios recientes no vistos: quedan destacadas al entrar.
   const estimacionHighlights = usePanelHighlights('estimacion');
 
@@ -4419,39 +4591,10 @@ function EstimacionSemanalTab({
             <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
           </div>
         </div>
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {/* Filtro por vendedor (solo admin/supervisor): acota TODOS los cuadros
-              de la pestaña, por eso va en el encabezado y no sobre la tabla. */}
-          {(user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area')) && salespeople.length > 0 && (
-            <div className="flex items-center gap-3 w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-              {/* Ícono naranjo suelto, rótulo en negro y valor sin negrita
-                  (corrección del usuario, ago-2026). */}
-              <div className="flex items-center justify-center w-9 h-9 text-orange-600 dark:text-orange-400 flex-shrink-0">
-                <Users className="h-4 w-4" />
-              </div>
-              <div className="flex flex-col leading-none min-w-0">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
-                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                  <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-normal text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-filtro-vendedor">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {salespeople.map((salesperson) => (
-                      <SelectItem key={salesperson.id} value={salesperson.id}>
-                        {salesperson.fullName || salesperson.salespersonName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10 rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all">
-            <Plus className="mr-1 sm:mr-2 h-4 w-4" />
-            Nueva Promesa
-          </Button>
-        </div>
+        {/* El filtro de Vendedor y el botón "Nueva Promesa" que vivían acá subieron al
+            encabezado del módulo (pedido del usuario, sep-2026): quedan en la misma fila
+            que el Área y el botón de las demás pestañas, en vez de repetir una barra de
+            acciones a media pantalla. */}
       </div>
 
       {/* Selector de período */}

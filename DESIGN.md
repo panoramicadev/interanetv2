@@ -13,7 +13,10 @@ El módulo de referencia en código es el **Panel de Trabajo**
 - **Botones:** esquinas `rounded-2xl` (≈16px), igual radio que las tarjetas de filtro.
   - Primario: gradiente naranja + texto blanco + sombra naranja.
   - Secundario: blanco con borde gris y hover naranja.
-- **Tabs:** track gris `rounded-2xl`; pestaña activa = fondo blanco + texto naranja.
+- **Tabs (barra principal de un módulo):** sin track, sobre el fondo blanco; la pestaña
+  activa se marca con una **línea negra abajo, sin relleno**, y una línea base gris corre
+  bajo todas (sep-2026). Las **sub-pestañas** dentro de una vista sí llevan track gris
+  `rounded-2xl` con la activa en fondo blanco + texto naranja.
 - **Filtros:** cada filtro es una "tarjeta-pill" blanca con un ícono de color y un
   selector sin bordes. La fila deja los filtros a la izquierda y el contador a la
   derecha. El selector de contexto (Área) vive siempre en el header de la página,

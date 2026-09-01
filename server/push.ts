@@ -109,13 +109,15 @@ export async function sendPushToAll(payload: PushPayload): Promise<number> {
 const PANEL_ROLES = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'marketing'];
 
 /**
- * Push a todos los usuarios que usan el Panel de Trabajo, excluyendo a los ids
+ * Push a los usuarios que usan el Panel de Trabajo, excluyendo a los ids
  * dados (típicamente el autor del cambio y los asignados que ya reciben una
- * notificación personal).
+ * notificación personal). Con onlyUserIds el envío se limita además a esa
+ * lista (audiencia del cambio: admins, el autor y su supervisor).
  */
 export async function sendPushToPanelUsers(
   payload: PushPayload,
   excludeUserIds: string[] = [],
+  onlyUserIds?: string[] | null,
 ): Promise<number> {
   if (!pushEnabled) return 0;
   const subs = await db
@@ -131,7 +133,13 @@ export async function sendPushToPanelUsers(
     .where(inArray(users.role, PANEL_ROLES));
 
   const excluded = new Set(excludeUserIds);
-  const targets = subs.filter((sub) => !excluded.has(sub.userId));
+  // onlyUserIds acota el envío a quienes pueden VER ese cambio en el panel
+  // (mismo criterio que /api/panel-changes/summary): sin esto un vendedor
+  // recibía el push de un cambio que después no aparece en su campana.
+  const allowed = onlyUserIds ? new Set(onlyUserIds) : null;
+  const targets = subs.filter(
+    (sub) => !excluded.has(sub.userId) && (!allowed || allowed.has(sub.userId)),
+  );
   const results = await Promise.all(targets.map((sub) => sendToSubscription(sub, payload)));
   return results.filter(Boolean).length;
 }

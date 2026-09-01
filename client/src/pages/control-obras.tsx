@@ -239,7 +239,14 @@ export interface ControlObrasHandle {
   nuevaObra: () => void;
 }
 
-export const ControlObrasContent = forwardRef<ControlObrasHandle>(function ControlObrasContent(_props, ref) {
+export const ControlObrasContent = forwardRef<ControlObrasHandle, {
+  /** Vendedor elegido en el encabezado del Panel ("all" = toda la cartera visible,
+      "sin-asignar" = las obras sin dueño). El selector vive arriba, junto al de Área y
+      Sección (pedido del usuario, sep-2026). */
+  vendedorFiltro?: string;
+  /** Vuelve el filtro del encabezado a "Todos" desde el estado vacío. */
+  onVerTodaLaCartera?: () => void;
+}>(function ControlObrasContent({ vendedorFiltro = "all", onVerTodaLaCartera }, ref) {
   const { toast } = useToast();
   const { user } = useAuth();
   // Las etapas quedan disponibles para todas las obras, así que solo las suman
@@ -251,10 +258,6 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
   const mandaEnCartera =
     user?.role === "admin" || user?.role === "supervisor" || user?.role === "encargado_area";
   const esSupervisor = user?.role === "supervisor" || user?.role === "encargado_area";
-  // Vendedor elegido en el selector: "all" = toda la cartera visible,
-  // "sin-asignar" = las obras que todavía no tienen dueño.
-  const [vendedorFiltro, setVendedorFiltro] = useState<string>("all");
-
   // Constructora abierta. null = portada (cartera).
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
   const [filtroCartera, setFiltroCartera] = useState("");
@@ -849,41 +852,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Filtro por vendedor (solo admin/supervisor): acota TODA la
-                  pestaña —cartera, indicadores y detalle de la constructora—,
-                  por eso va en el encabezado. Va fuera del `cartera.length > 0`
-                  para poder volver atrás cuando el vendedor elegido no tiene
-                  obras y la pantalla queda vacía. */}
-              {mandaEnCartera && (
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all flex-shrink-0">
-                  {/* Ícono naranjo suelto, sin recuadro de color detrás; el rótulo en
-                      negro y el nombre elegido en gris (corrección del usuario,
-                      ago-2026): el rótulo es el que ubica, el valor acompaña. */}
-                  <div className="flex items-center justify-center w-9 h-9 text-orange-600 dark:text-orange-400 flex-shrink-0">
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div className="flex flex-col leading-none min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
-                    <Select value={vendedorFiltro} onValueChange={setVendedorFiltro}>
-                      <SelectTrigger
-                        className="h-5 border-0 shadow-none p-0 gap-2 w-auto max-w-[200px] bg-transparent font-semibold text-sm text-slate-400 dark:text-slate-500 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60"
-                        data-testid="select-obras-vendedor"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {/* Las obras que quedaron sin dueño: se filtran acá para
-                            entrar a asignarles vendedor desde el formulario. */}
-                        <SelectItem value="sin-asignar">Sin asignar</SelectItem>
-                        {vendedores.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>{nombreVendedor(v)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+              {/* El filtro por vendedor se fue al encabezado del Panel, debajo del
+                  selector de Sección (pedido del usuario, sep-2026): es contexto de toda
+                  la pestaña, igual que el del CRM y el de Estimación, y acá abajo quedaba
+                  perdido entre el título y las tarjetas. Llega por prop. */}
               {cartera.length > 0 && !esCelular && (
                 <>
                   {/* Las mismas obras en dos listados: agrupadas por constructora
@@ -915,10 +887,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle>(function Contr
                     : "Este vendedor todavía no tiene obras a su nombre. Si la obra existe pero la cargó otra persona, ábrela con el filtro en “Todos” y asígnasela desde el formulario de la obra."
                   : "Agrega las constructoras con las que estás trabajando esta temporada. De cada una vas a ver el avance de sus obras, las tinetas pedidas y entregadas, el saldo en obra y el próximo pedido sugerido."}
               </p>
-              {vendedorFiltro !== "all" ? (
+              {vendedorFiltro !== "all" && onVerTodaLaCartera ? (
                 <Button
                   variant="outline"
-                  onClick={() => setVendedorFiltro("all")}
+                  onClick={onVerTodaLaCartera}
                   className="mt-5 rounded-2xl"
                   data-testid="button-obras-ver-todos"
                 >

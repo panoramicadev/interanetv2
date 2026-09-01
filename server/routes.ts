@@ -39964,6 +39964,108 @@ export function registerRoutes(app: Express): Server {
     res.json(vendedores);
   }));
 
+  // GET /api/panel/vendedores — vendedores que se ofrecen en el filtro "Vendedor" del
+  // Panel de Trabajo (pedido del usuario, sep-2026). Antes el CRM listaba TODAS las
+  // cuentas activas —incluidas las de clientes y las demo— y Estimación usaba la lista
+  // de asignación de tareas, así que el desplegable traía gente que no vende.
+  //
+  // Entra al filtro quien cumple las tres cosas:
+  //   1. cuenta activa y rol que vende (vendedor, encargado de área o supervisor);
+  //   2. tiene movimiento DE ESTE AÑO en el panel — tareas, seguimiento, CRM,
+  //      estimación semanal u obras (así lo definió el usuario);
+  //   3. ese movimiento es del área que se está mirando, o el área está asignada en su
+  //      ficha y tiene movimiento en el panel. Lo segundo es lo que evita que un área
+  //      recién armada quede con el filtro vacío.
+  // El alcance por rol es el mismo del CRM: el vendedor se ve solo a sí mismo y el
+  // supervisor ve a su equipo.
+  app.get('/api/panel/vendedores', requireAuth, asyncHandler(async (req: any, res: any) => {
+    // Cómo se escribe cada área en los datos: el ERP guarda "FERRETERIAS", el lead
+    // "Ferretería" y el área Industrial viaja como "digital" o como "Industrial".
+    const RAICES_POR_AREA: Record<string, string[]> = {
+      ferreterias: ['ferreteria'],
+      construccion: ['construccion'],
+      digital: ['digital', 'industrial'],
+      marketing: ['marketing'],
+    };
+    const area = String(req.query.segmento ?? 'all').toLowerCase().trim();
+    const raices = RAICES_POR_AREA[area] ?? null;
+    const scope = await getVendedorScope(req.user);
+
+    // Mismo criterio de comparación que el resto del CRM: minúscula, sin tildes y sin
+    // la "s" final, para que "Ferretería" y "FERRETERIAS" sean el mismo valor.
+    const raiz = (col: any) =>
+      sql`regexp_replace(lower(translate(COALESCE(${col}, ''), 'áéíóúüÁÉÍÓÚÜñÑ', 'aeiouuAEIOUUnN')), 's+$', '')`;
+    const listaRaices = raices
+      ? sql`ARRAY[${sql.join(raices.map((r) => sql`${r}`), sql`, `)}]`
+      : null;
+    const desdeEsteAnio = sql`date_trunc('year', now())`;
+    const anioActual = new Date().getFullYear();
+
+    const tareasDelVendedor = (condicionArea: any) => sql`EXISTS (
+      SELECT 1 FROM tasks t
+       LEFT JOIN task_assignments ta ON ta.task_id = t.id
+       WHERE (t.created_by_user_id = su.id OR ta.assignee_id = su.id)
+         AND COALESCE(t.updated_at, t.created_at) >= ${desdeEsteAnio}
+         ${condicionArea}
+    )`;
+    const seguimientoDelVendedor = (condicionArea: any) => sql`EXISTS (
+      SELECT 1 FROM crm_seguimiento_clientes c
+       WHERE c.vendedor_id = su.id
+         AND COALESCE(c.updated_at, c.created_at) >= ${desdeEsteAnio}
+         ${condicionArea}
+    )`;
+    const leadsDelVendedor = (condicionArea: any) => sql`EXISTS (
+      SELECT 1 FROM crm_leads l
+       WHERE l.salesperson_id = su.id
+         AND COALESCE(l.updated_at, l.created_at) >= ${desdeEsteAnio}
+         ${condicionArea}
+    )`;
+    const obrasDelVendedor = sql`EXISTS (
+      SELECT 1 FROM obras o
+       WHERE (o.vendedor_id = su.id OR o.supervisor_id = su.id)
+         AND COALESCE(o.updated_at, o.created_at) >= ${desdeEsteAnio}
+    )`;
+    // La promesa no guarda área: cuenta como movimiento del panel y el área sale de
+    // la ficha del vendedor (rama de abajo).
+    const promesasDelVendedor = sql`EXISTS (
+      SELECT 1 FROM promesas_compra p WHERE p.vendedor_id = su.id AND p.anio = ${anioActual}
+    )`;
+
+    const sinFiltroDeArea = sql``;
+    const movimientoEnElPanel = sql`(
+      ${tareasDelVendedor(sinFiltroDeArea)}
+      OR ${seguimientoDelVendedor(sinFiltroDeArea)}
+      OR ${leadsDelVendedor(sinFiltroDeArea)}
+      OR ${promesasDelVendedor}
+      OR ${obrasDelVendedor}
+    )`;
+
+    const condicionArea = listaRaices
+      ? sql`AND (
+          ${tareasDelVendedor(sql`AND ${raiz(sql`t.segmento`)} = ANY(${listaRaices})`)}
+          OR ${seguimientoDelVendedor(sql`AND ${raiz(sql`c.segmento`)} = ANY(${listaRaices})`)}
+          OR ${leadsDelVendedor(sql`AND ${raiz(sql`l.segment`)} = ANY(${listaRaices})`)}
+          ${raices!.includes('construccion') ? sql`OR ${obrasDelVendedor}` : sql``}
+          OR (${raiz(sql`su.assigned_segment`)} = ANY(${listaRaices}) AND ${movimientoEnElPanel})
+        )`
+      : sql``;
+    const condicionScope = scope
+      ? sql`AND su.id IN (${sql.join(scope.vendedorIds.map((id) => sql`${id}`), sql`, `)})`
+      : sql``;
+
+    const filas = await db.execute(sql`
+      SELECT su.id, su.salesperson_name AS "salespersonName", su.assigned_segment AS "assignedSegment"
+        FROM salespeople_users su
+       WHERE su.is_active = true
+         AND su.role IN ('salesperson', 'encargado_area', 'supervisor')
+         ${condicionScope}
+         AND ${movimientoEnElPanel}
+         ${condicionArea}
+       ORDER BY su.salesperson_name
+    `);
+    res.json(filas.rows ?? []);
+  }));
+
   // GET /api/erp/vendedores — Get ERP vendedores (from stg_maeven staging table)
   app.get('/api/erp/vendedores', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
