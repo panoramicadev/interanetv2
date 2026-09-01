@@ -412,10 +412,13 @@ pantalla. La página standalone (`/seguimiento-clientes`) conserva su toolbar.
 `client/src/components/layout/dashboard-layout.tsx`:
 
 - Fondo de la app: **`bg-white dark:bg-slate-900`**. No hay canvas gris.
-- Sidebar: `fixed inset-y-0 left-0` **sin padding**, con
+- Sidebar: `fixed top-0 left-0 h-[100dvh]` **sin padding**, con
   `w-[16rem]` expandido / `w-[4.25rem]` colapsado (256px / 68px, el mismo ancho
   visible de siempre). Adentro `bg-[#0a0a0a] shadow-xl shadow-slate-900/10
   overflow-hidden`, **sin `rounded-*`**: llega pegado arriba, abajo y a la izquierda.
+  ⚠️ `h-[100dvh]`, **no** `inset-y-0`: en el teléfono un `fixed` con top+bottom se estira
+  al viewport grande (el de la barra de direcciones escondida) y la tarjeta de usuario
+  queda debajo del borde. Y `transition-[transform,width]`, **no** `transition-all`.
 - Módulo: `<main>` sin padding, con
   `bg-white dark:bg-slate-900 min-h-screen overflow-clip`, desplazado con
   `lg:pl-[16rem]` / `lg:pl-[4.25rem]`. Ocupa todo el ancho y alto disponible,
@@ -430,6 +433,9 @@ pantalla. La página standalone (`/seguimiento-clientes`) conserva su toolbar.
   **barra blanca fija al pie** (`fixed bottom-0 inset-x-0 h-14`, borde superior
   `border-slate-200`, `pb-[env(safe-area-inset-bottom)]`) y el módulo reserva ese alto con
   `pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0` — los dos números van juntos.
+  Esa barra va en `z-40`, pero **baja a `z-30` mientras el menú móvil está abierto**: en
+  `z-40` quedaba por encima de la capa oscura (`z-35`), sin oscurecer y comiéndose los
+  toques, justo donde cae el pulgar para cerrar el menú.
   El shell no adivina la ruta ni el rol: la página que tiene barra propia lo pide con
   `useBotonMenuArriba()` (exportado por `dashboard-layout.tsx`). Cualquier barra fija propia
   de una página tiene que subir por encima en móvil
