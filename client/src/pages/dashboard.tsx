@@ -694,26 +694,12 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLocation]);
 
-  // Red de seguridad del panel de filtros en móvil.
-  //
-  // Adentro del panel hay varios selectores (Radix) y el panel mismo es de otra librería
-  // (vaul). Las dos bloquean los clics del resto de la página mientras están abiertas,
-  // poniendo `pointer-events: none` en el `body`, y cada una lo devuelve al cerrarse. Si
-  // se cierran casi al mismo tiempo —que es justo lo que pasa al elegir un segmento y
-  // tocar "Aplicar filtros"— una puede volver a ponerlo después de que la otra lo sacó, y
-  // la app queda visible pero sin responder a nada: hay que cerrarla y volver a entrar.
-  //
-  // Al cerrarse el panel, esto lo devuelve a la normalidad. No estorba si nada quedó
-  // trabado: vuelve a dejar el valor vacío, que es el estado normal.
-  useEffect(() => {
-    if (isDrawerOpen) return;
-    const t = setTimeout(() => {
-      if (document.body.style.pointerEvents === 'none') {
-        document.body.style.pointerEvents = '';
-      }
-    }, 400);
-    return () => clearTimeout(t);
-  }, [isDrawerOpen]);
+  // La red de seguridad contra el `pointer-events: none` que dejaban trabado el panel
+  // (vaul) y los selectores (Radix) al cerrarse casi juntos vive ahora en el shell
+  // (`dashboard-layout.tsx`): allá se destraba con el propio toque del usuario y
+  // comprobando que no haya ninguna capa abierta de verdad, en vez de a ciegas 400ms
+  // después de cerrar el panel. Así también cubre quedarse trabado con el panel abierto,
+  // que es lo que pasa al elegir el segmento por segunda vez.
 
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
