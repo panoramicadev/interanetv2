@@ -11,7 +11,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { buildSidebarItems } from "@/lib/sidebar-permissions";
@@ -41,6 +41,317 @@ export function useBotonMenuArriba(activo: boolean = true) {
   }, [claim, activo]);
 }
 
+/* Avatar: foto de perfil si existe, si no un círculo naranja con las iniciales.
+   Vive fuera de `DashboardLayout` por lo mismo que `NavItem` (ver ahí). */
+const UserAvatar = memo(function UserAvatar({
+  foto,
+  nombre,
+  iniciales,
+  size = "w-9 h-9",
+}: {
+  foto?: string;
+  nombre: string;
+  iniciales: string;
+  size?: string;
+}) {
+  if (foto) {
+    return (
+      <img
+        src={foto}
+        alt={nombre}
+        className={`${size} rounded-xl object-cover flex-shrink-0`}
+      />
+    );
+  }
+  return (
+    <div className={`${size} rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0`}>
+      <span className="text-sm font-bold text-white">
+        {iniciales}
+      </span>
+    </div>
+  );
+});
+
+/* Un ítem del menú.
+ *
+ * Vive acá afuera, a nivel de módulo, y no adentro de `DashboardLayout`. Estaba adentro y
+ * eso era la razón de fondo de que el menú se sintiera pesado: un componente declarado
+ * dentro de otro es una función nueva en cada render, así que React no lo reconoce como
+ * el mismo tipo y **desmonta y vuelve a montar el menú entero** — los ~20 ítems, sus
+ * íconos y sus submenús— en vez de actualizar lo que cambió. Y el shell se re-renderiza
+ * solo cada 30s por los contadores de notificaciones y pedidos, más cada vez que se
+ * navega. En el escritorio no se nota; en un teléfono ese trabajo caía justo encima de la
+ * animación del menú y de la carga de la página nueva.
+ *
+ * Con el componente afuera y `memo`, un contador que no cambió no vuelve a dibujar nada.
+ * Para que `memo` sirva, todo lo que le llega tiene que ser estable: por eso los tres
+ * `on…` del padre van con `useCallback` y los ítems salen de un `useMemo`. */
+type NavItemProps = {
+  item: any;
+  collapsed: boolean;
+  location: string;
+  expandedItems: Set<string>;
+  unreadCount: number;
+  pendingOrdersCount: number;
+  marketingPorAceptar: number;
+  publicSlug?: string;
+  onNavegar: () => void;
+  onToggleSubmenu: (href: string) => void;
+  onAbrirGrupoDesdeRail: (href: string) => void;
+};
+
+const NavItem = memo(function NavItem({
+  item,
+  collapsed,
+  location,
+  expandedItems,
+  unreadCount,
+  pendingOrdersCount,
+  marketingPorAceptar,
+  publicSlug,
+  onNavegar,
+  onToggleSubmenu,
+  onAbrirGrupoDesdeRail,
+}: NavItemProps) {
+  const Icon = item.icon;
+  const isActive = location === item.href;
+  const isNotif = item.href === "/notificaciones";
+  const isAi = item.href === "/ai-assistant";
+  // Bandeja de Marketing suelta en el primer nivel: lleva el mismo contador que
+  // cuando cuelga del grupo "Marketing".
+  const isMarketingInbox = item.href === "/marketing/solicitudes";
+  const isPremium = item.isPremium;
+  const isExpanded = expandedItems.has(item.href);
+  const hasChildren = item.children && item.children.length > 0;
+  const hasActiveChild = hasChildren && item.children.some(
+    (c: any) => location === c.href || (c.href !== "/mantenciones" && location.startsWith(c.href + "/"))
+  );
+  const hasPendingChild = hasChildren &&
+    ((pendingOrdersCount > 0 && item.children.some((c: any) => c.href === "/ecommerce-pedidos")) ||
+      (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")));
+
+  if (item.disabled) {
+    if (collapsed) {
+      return (
+        <div title={item.label} className="flex items-center justify-center py-2.5 rounded-xl text-slate-600 opacity-50 cursor-not-allowed">
+          <Icon className="w-5 h-5 flex-shrink-0" />
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 text-sm opacity-50 cursor-not-allowed">
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1">{item.label}</span>
+        {item.comingSoon && (
+          <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">Pronto</span>
+        )}
+      </div>
+    );
+  }
+
+  if (hasChildren) {
+    // Rail colapsado: el grupo se muestra como ícono; al pulsar, expande el sidebar y abre el submenú
+    if (collapsed) {
+      return (
+        <button
+          title={item.label}
+          onClick={() => onAbrirGrupoDesdeRail(item.href)}
+          className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
+            hasActiveChild
+              ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
+              : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
+          }`}
+          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+          data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
+        >
+          <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
+          {hasPendingChild && (
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+          )}
+        </button>
+      );
+    }
+    return (
+      <div>
+        <button
+          onClick={() => onToggleSubmenu(item.href)}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+            isPremium
+              ? "hover:bg-amber-500/10 group"
+              : hasActiveChild
+                ? "text-white bg-slate-800/70"
+                : "text-slate-200 hover:text-white hover:bg-slate-800/70"
+          }`}
+          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+          /* El tour guiado necesita saber qué módulos viven dentro del grupo:
+             el anidamiento cambia según el rol y no se puede inferir del DOM
+             cuando el submenú está cerrado. */
+          data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
+        >
+          <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
+          {isPremium ? (
+            <span
+              className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] max-lg:animate-none motion-reduce:animate-none bg-[length:200%_100%]"
+              style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+            >
+              {item.label}
+            </span>
+          ) : (
+            <span className="flex-1 text-left">{item.label}</span>
+          )}
+          {hasPendingChild && !isExpanded && (
+            <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""} ${isPremium ? "text-amber-400/60" : "text-slate-500"}`} />
+        </button>
+
+        {isExpanded && (
+          <div className="mt-1 ml-4 pl-3 border-l border-slate-600/50 space-y-0.5 mb-1">
+            {item.children?.map((child: any) => {
+              const ChildIcon = child.icon;
+              const isChildActive = location === child.href || (child.href !== "/mantenciones" && location.startsWith(child.href + "/"));
+              return (
+                <Link key={child.href} href={child.href}>
+                  <button
+                    onClick={onNavegar}
+                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150
+                      ${isChildActive ? "text-white bg-[#fd6301] shadow-sm shadow-[#fd6301]/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
+                    data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="flex-1 text-left">{child.label}</span>
+                    {child.href === "/ecommerce-pedidos" && pendingOrdersCount > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
+                    )}
+                    {child.href === "/marketing/solicitudes" && marketingPorAceptar > 0 && (
+                      <span
+                        className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                          isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+                        }`}
+                        data-testid="badge-solicitudes-marketing"
+                      >
+                        {marketingPorAceptar}
+                      </span>
+                    )}
+                  </button>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+        {item.separator && !collapsed && <div className="h-px bg-slate-700/40 my-1 mx-2" />}
+      </div>
+    );
+  }
+
+  if ((item as any).isExternalCatalog) {
+    if (!publicSlug) return null;
+    return (
+      <a href={`/catalogo/${publicSlug}`} target="_blank" rel="noopener noreferrer">
+        <button
+          onClick={onNavegar}
+          title={collapsed ? item.label : undefined}
+          className={`w-full flex items-center ${collapsed ? "justify-center py-3" : "gap-3 px-4 py-2.5"} rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/70 transition-all duration-150`}
+          data-testid="nav-mi-catalogo"
+        >
+          <Icon className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} flex-shrink-0 text-slate-400`} />
+          {!collapsed && item.label}
+        </button>
+      </a>
+    );
+  }
+
+  // Rail colapsado: ítem simple como ícono con tooltip
+  if (collapsed) {
+    return (
+      <div>
+        <Link href={item.href}>
+          <button
+            onClick={onNavegar}
+            title={item.label}
+            className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
+              isActive
+                ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
+                : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
+            }`}
+            data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+          >
+            <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
+            {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0)) && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
+          </button>
+        </Link>
+        {item.separator && <div className="h-px bg-slate-700/40 my-1.5 mx-2" />}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Link href={item.href}>
+        <button
+          onClick={onNavegar}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative group
+            ${isPremium
+              ? isActive ? "bg-amber-500/15 group" : "hover:bg-amber-500/10 group"
+              : isAi
+                ? isActive
+                  ? "text-blue-400 bg-blue-500/10 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                  : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
+                : isNotif
+                  ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                  : isActive ? "text-white bg-[#fd6301] shadow-md shadow-[#fd6301]/30" : "text-slate-200 hover:text-white hover:bg-slate-800/70"
+            }`}
+          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+        >
+          <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isPremium
+            ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]"
+            : isAi
+              ? "text-blue-500"
+              : isActive && !isNotif ? "text-white" : "text-slate-400"
+            }`}
+          />
+          {isPremium ? (
+            <span
+              className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] max-lg:animate-none motion-reduce:animate-none bg-[length:200%_100%]"
+              style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+            >
+              {item.label}
+            </span>
+          ) : (
+            <span className={`flex-1 text-left ${isAi ? "font-bold tracking-tight" : ""}`}>
+              {item.label}
+            </span>
+          )}
+          {isAi && (
+            <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
+          )}
+          {isNotif && unreadCount > 0 && (
+            <span
+              className="min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center"
+              data-testid="notification-badge"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+          {isMarketingInbox && marketingPorAceptar > 0 && (
+            <span
+              className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                isActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+              }`}
+              data-testid="badge-solicitudes-marketing"
+            >
+              {marketingPorAceptar}
+            </span>
+          )}
+        </button>
+      </Link>
+      {item.separator && <div className="h-px bg-slate-700/40 my-1.5 mx-2" />}
+    </div>
+  );
+});
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logoutMutation } = useAuth();
   const { can, permissions } = usePermissions();
@@ -57,10 +368,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem("sidebar_collapsed") === "1"; } catch { return false; }
   });
-  const setCollapsed = (val: boolean) => {
+  const setCollapsed = useCallback((val: boolean) => {
     setIsCollapsed(val);
     try { localStorage.setItem("sidebar_collapsed", val ? "1" : "0"); } catch {}
-  };
+  }, []);
   const toggleCollapsed = () => setCollapsed(!isCollapsed);
 
   // Colapso efectivo: en móvil (drawer abierto) siempre expandido
@@ -83,6 +394,34 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     };
   }, [isMobileOpen]);
 
+  // Red de seguridad: destrabar la app si queda con `pointer-events: none`.
+  //
+  // Radix (selectores, diálogos) y vaul (los paneles deslizables) bloquean los clics del
+  // resto de la página poniendo `pointer-events: none` en el `body`, y cada una lo devuelve
+  // al cerrarse. Cuando se anidan —un selector adentro de un panel— y se cierran casi
+  // juntas, una puede volver a ponerlo después de que la otra ya lo sacó: la app queda
+  // visible pero sin responder a nada y hay que recargar. Se reproduce eligiendo el
+  // segmento por segunda vez en los filtros del Dashboard.
+  //
+  // El toque igual llega hasta acá: el `body` no recibe eventos, pero el `document` sí. Y
+  // solo destraba si no quedó ninguna capa realmente abierta en el DOM — si hay una, el
+  // bloqueo es legítimo y no se toca. Esto reemplaza la red que vivía en `dashboard.tsx`,
+  // que corría a ciegas 400ms después de cerrar el panel y no cubría el caso de quedarse
+  // trabado con el panel todavía abierto, que es justo el que se reportó.
+  useEffect(() => {
+    const hayCapaAbierta = () =>
+      !!document.querySelector(
+        '[data-radix-popper-content-wrapper], [vaul-drawer], [data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"], [data-state="open"][role="menu"], [data-state="open"][role="listbox"]',
+      );
+    const destrabar = () => {
+      if (document.body.style.pointerEvents !== "none") return;
+      if (hayCapaAbierta()) return;
+      document.body.style.pointerEvents = "";
+    };
+    document.addEventListener("pointerdown", destrabar, true);
+    return () => document.removeEventListener("pointerdown", destrabar, true);
+  }, []);
+
   // El menú se cierra al cambiar de ruta. Cada ítem ya lo cierra por su cuenta, pero eso
   // no cubre el gesto de "atrás" del teléfono ni ninguna navegación que no nazca de un
   // clic en el menú: ahí quedaba abierto encima de la página nueva, que es la otra forma
@@ -93,13 +432,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleLogout = () => logoutMutation.mutate();
 
-  const toggleSubmenu = (itemHref: string) => {
+  const toggleSubmenu = useCallback((itemHref: string) => {
     setExpandedItems(prev => {
       const next = new Set(prev);
       next.has(itemHref) ? next.delete(itemHref) : next.add(itemHref);
       return next;
     });
-  };
+  }, []);
+
+  // Los tres handlers que reciben los ítems del menú, con identidad estable: si cambian
+  // en cada render, el `memo` de `NavItem` no sirve de nada (ver el comentario allá).
+  const cerrarMenuMovil = useCallback(() => setIsMobileOpen(false), []);
+  const abrirGrupoDesdeRail = useCallback((href: string) => {
+    setCollapsed(false);
+    setExpandedItems(prev => (prev.has(href) ? prev : new Set(prev).add(href)));
+  }, [setCollapsed]);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     return ((firstName?.charAt(0) || "") + (lastName?.charAt(0) || "")).toUpperCase() || "U";
@@ -138,27 +485,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     };
     const key = raw.trim().toLowerCase();
     return map[key] || raw.trim().replace(/\b\w/g, (c) => c.toUpperCase());
-  };
-
-  // Avatar: foto de perfil si existe, si no un círculo naranja con las iniciales
-  const UserAvatar = ({ size = "w-9 h-9" }: { size?: string }) => {
-    const photo = (user as any)?.profileImageUrl as string | undefined;
-    if (photo) {
-      return (
-        <img
-          src={photo}
-          alt={getDisplayName(user?.firstName, user?.lastName)}
-          className={`${size} rounded-xl object-cover flex-shrink-0`}
-        />
-      );
-    }
-    return (
-      <div className={`${size} rounded-xl bg-[#fd6301] flex items-center justify-center flex-shrink-0`}>
-        <span className="text-sm font-bold text-white">
-          {getInitials(user?.firstName, user?.lastName)}
-        </span>
-      </div>
-    );
   };
 
   // Sidebar dinámico: base del rol filtrado por permisos efectivos
@@ -214,250 +540,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (!grupoActivo) return;
     setExpandedItems((prev) => (prev.has(grupoActivo.href) ? prev : new Set(prev).add(grupoActivo.href)));
   }, [location, sidebarItems]);
-
-  // Each nav item rendered
-  const NavItem = ({ item, index }: { item: any; index: number }) => {
-    const Icon = item.icon;
-    const isActive = location === item.href;
-    const isNotif = item.href === "/notificaciones";
-    const isAi = item.href === "/ai-assistant";
-    // Bandeja de Marketing suelta en el primer nivel: lleva el mismo contador que
-    // cuando cuelga del grupo "Marketing".
-    const isMarketingInbox = item.href === "/marketing/solicitudes";
-    const isPremium = item.isPremium;
-    const isExpanded = expandedItems.has(item.href);
-    const hasChildren = item.children && item.children.length > 0;
-    const hasActiveChild = hasChildren && item.children.some(
-      (c: any) => location === c.href || (c.href !== "/mantenciones" && location.startsWith(c.href + "/"))
-    );
-    const hasPendingChild = hasChildren &&
-      ((pendingOrdersCount > 0 && item.children.some((c: any) => c.href === "/ecommerce-pedidos")) ||
-        (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")));
-
-    if (item.disabled) {
-      if (collapsed) {
-        return (
-          <div title={item.label} className="flex items-center justify-center py-2.5 rounded-xl text-slate-600 opacity-50 cursor-not-allowed">
-            <Icon className="w-5 h-5 flex-shrink-0" />
-          </div>
-        );
-      }
-      return (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 text-sm opacity-50 cursor-not-allowed">
-          <Icon className="w-4 h-4 flex-shrink-0" />
-          <span className="flex-1">{item.label}</span>
-          {item.comingSoon && (
-            <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">Pronto</span>
-          )}
-        </div>
-      );
-    }
-
-    if (hasChildren) {
-      // Rail colapsado: el grupo se muestra como ícono; al pulsar, expande el sidebar y abre el submenú
-      if (collapsed) {
-        return (
-          <button
-            title={item.label}
-            onClick={() => {
-              setCollapsed(false);
-              if (!expandedItems.has(item.href)) toggleSubmenu(item.href);
-            }}
-            className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
-              hasActiveChild
-                ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
-                : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
-            }`}
-            data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-            data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
-          >
-            <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
-            {hasPendingChild && (
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
-            )}
-          </button>
-        );
-      }
-      return (
-        <div>
-          <button
-            onClick={() => toggleSubmenu(item.href)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-              isPremium
-                ? "hover:bg-amber-500/10 group"
-                : hasActiveChild
-                  ? "text-white bg-slate-800/70"
-                  : "text-slate-200 hover:text-white hover:bg-slate-800/70"
-            }`}
-            data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-            /* El tour guiado necesita saber qué módulos viven dentro del grupo:
-               el anidamiento cambia según el rol y no se puede inferir del DOM
-               cuando el submenú está cerrado. */
-            data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
-          >
-            <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
-            {isPremium ? (
-              <span
-                className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]"
-                style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-              >
-                {item.label}
-              </span>
-            ) : (
-              <span className="flex-1 text-left">{item.label}</span>
-            )}
-            {hasPendingChild && !isExpanded && (
-              <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
-            )}
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""} ${isPremium ? "text-amber-400/60" : "text-slate-500"}`} />
-          </button>
-
-          {isExpanded && (
-            <div className="mt-1 ml-4 pl-3 border-l border-slate-600/50 space-y-0.5 mb-1">
-              {item.children?.map((child: any) => {
-                const ChildIcon = child.icon;
-                const isChildActive = location === child.href || (child.href !== "/mantenciones" && location.startsWith(child.href + "/"));
-                return (
-                  <Link key={child.href} href={child.href}>
-                    <button
-                      onClick={() => setIsMobileOpen(false)}
-                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150
-                        ${isChildActive ? "text-white bg-[#fd6301] shadow-sm shadow-[#fd6301]/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
-                      data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
-                    >
-                      <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="flex-1 text-left">{child.label}</span>
-                      {child.href === "/ecommerce-pedidos" && pendingOrdersCount > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
-                      )}
-                      {child.href === "/marketing/solicitudes" && marketingPorAceptar > 0 && (
-                        <span
-                          className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
-                            isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
-                          }`}
-                          data-testid="badge-solicitudes-marketing"
-                        >
-                          {marketingPorAceptar}
-                        </span>
-                      )}
-                    </button>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-          {item.separator && !collapsed && <div className="h-px bg-slate-700/40 my-1 mx-2" />}
-        </div>
-      );
-    }
-
-    if ((item as any).isExternalCatalog) {
-      if (!(user as any)?.publicSlug) return null;
-      return (
-        <a href={`/catalogo/${(user as any).publicSlug}`} target="_blank" rel="noopener noreferrer">
-          <button
-            onClick={() => setIsMobileOpen(false)}
-            title={collapsed ? item.label : undefined}
-            className={`w-full flex items-center ${collapsed ? "justify-center py-3" : "gap-3 px-4 py-2.5"} rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/70 transition-all duration-150`}
-            data-testid="nav-mi-catalogo"
-          >
-            <Icon className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} flex-shrink-0 text-slate-400`} />
-            {!collapsed && item.label}
-          </button>
-        </a>
-      );
-    }
-
-    // Rail colapsado: ítem simple como ícono con tooltip
-    if (collapsed) {
-      return (
-        <div>
-          <Link href={item.href}>
-            <button
-              onClick={() => setIsMobileOpen(false)}
-              title={item.label}
-              className={`relative w-full flex items-center justify-center py-3 rounded-xl transition-all duration-150 ${
-                isActive
-                  ? "bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30"
-                  : isPremium ? "hover:bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-800/70"
-              }`}
-              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-            >
-              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
-              {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0)) && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-              )}
-            </button>
-          </Link>
-          {item.separator && <div className="h-px bg-slate-700/40 my-1.5 mx-2" />}
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        <Link href={item.href}>
-          <button
-            onClick={() => setIsMobileOpen(false)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative group
-              ${isPremium
-                ? isActive ? "bg-amber-500/15 group" : "hover:bg-amber-500/10 group"
-                : isAi
-                  ? isActive
-                    ? "text-blue-400 bg-blue-500/10 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
-                    : "text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10"
-                  : isNotif
-                    ? isActive ? "text-amber-300 bg-amber-500/20" : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                    : isActive ? "text-white bg-[#fd6301] shadow-md shadow-[#fd6301]/30" : "text-slate-200 hover:text-white hover:bg-slate-800/70"
-              }`}
-            data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-          >
-            <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isPremium
-              ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]"
-              : isAi
-                ? "text-blue-500"
-                : isActive && !isNotif ? "text-white" : "text-slate-400"
-              }`}
-            />
-            {isPremium ? (
-              <span
-                className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]"
-                style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-              >
-                {item.label}
-              </span>
-            ) : (
-              <span className={`flex-1 text-left ${isAi ? "font-bold tracking-tight" : ""}`}>
-                {item.label}
-              </span>
-            )}
-            {isAi && (
-              <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
-            )}
-            {isNotif && unreadCount > 0 && (
-              <span
-                className="min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center"
-                data-testid="notification-badge"
-              >
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-            {isMarketingInbox && marketingPorAceptar > 0 && (
-              <span
-                className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
-                  isActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
-                }`}
-                data-testid="badge-solicitudes-marketing"
-              >
-                {marketingPorAceptar}
-              </span>
-            )}
-          </button>
-        </Link>
-        {item.separator && <div className="h-px bg-slate-700/40 my-1.5 mx-2" />}
-      </div>
-    );
-  };
 
   return (
     <BotonMenuArribaContext.Provider value={setBotonMenuArriba}>
@@ -542,7 +624,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
        * z-30 — no subas el sidebar.
        */}
       <div
-        className={`fixed top-0 left-0 h-[100dvh] z-40 ${collapsed ? "w-[4.25rem]" : "w-[16rem]"} transition-[transform,width] duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed top-0 left-0 h-[100dvh] z-40 will-change-transform ${collapsed ? "w-[4.25rem]" : "w-[16rem]"} transition-[transform,width] duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
         /* `h-[100dvh]`, no `inset-y-0`: en el teléfono un `fixed` con top+bottom se estira
            al viewport grande (barra de direcciones escondida), así que con la barra a la
@@ -581,7 +663,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Navigation */}
         <nav className={`flex-1 ${collapsed ? "px-2.5" : "px-4"} pt-1 pb-4 space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide`}>
           {sidebarItems.map((item, index) => (
-            <NavItem key={item.disabled ? `disabled-${index}` : item.href} item={item} index={index} />
+            <NavItem
+              key={item.disabled ? `disabled-${index}` : item.href}
+              item={item}
+              collapsed={collapsed}
+              location={location}
+              expandedItems={expandedItems}
+              unreadCount={unreadCount}
+              pendingOrdersCount={pendingOrdersCount}
+              marketingPorAceptar={marketingPorAceptar}
+              publicSlug={(user as any)?.publicSlug}
+              onNavegar={cerrarMenuMovil}
+              onToggleSubmenu={toggleSubmenu}
+              onAbrirGrupoDesdeRail={abrirGrupoDesdeRail}
+            />
           ))}
 
           {can("config.importar") && (
@@ -607,7 +702,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div
                 title={`${getDisplayName(user?.firstName, user?.lastName)} · ${getRoleTitle(user?.role)}${getSegmentLabel(user) ? ` · ${getSegmentLabel(user)}` : ""}`}
               >
-                <UserAvatar />
+                <UserAvatar
+                  foto={(user as any)?.profileImageUrl}
+                  nombre={getDisplayName(user?.firstName, user?.lastName)}
+                  iniciales={getInitials(user?.firstName, user?.lastName)}
+                />
               </div>
               <button
                 className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
@@ -623,7 +722,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <UserAvatar />
+              <UserAvatar
+                  foto={(user as any)?.profileImageUrl}
+                  nombre={getDisplayName(user?.firstName, user?.lastName)}
+                  iniciales={getInitials(user?.firstName, user?.lastName)}
+                />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate leading-tight">
                   {getDisplayName(user?.firstName, user?.lastName)}
