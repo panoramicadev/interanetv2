@@ -13,9 +13,9 @@
  * viven en el bucket '__all'.
  */
 import type { Express } from "express";
-import { desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
-import { panelChangeLog, panelChangeSeen } from "@shared/schema";
+import { panelChangeLog, panelChangeSeen, salespeopleUsers, users } from "@shared/schema";
 import { requireAuth } from "./auth";
 import { sendPushToPanelUsers } from "./push";
 
@@ -113,6 +113,96 @@ export function panelTaskTitle(
   return `Tarea "${task.title ?? ""}" ${TASK_ACTION_FEM[action] ?? action}`;
 }
 
+// ==================================================
+// Visibilidad: quién ve qué cambio
+// --------------------------------------------------
+// El change-log solo guarda el AUTOR del cambio (userId), así que el alcance
+// se define por autor:
+//   admin                      → ve todos los cambios
+//   supervisor / encargado_area→ los suyos + los de los vendedores a su cargo
+//   resto (vendedor, marketing)→ solo los suyos
+// Mismo criterio de equipo que usa getTasks en storage.ts (salespeople_users.
+// supervisor_id apuntando al supervisor).
+// ==================================================
+
+const ROLES_VEN_TODO = ["admin"];
+const ROLES_CON_EQUIPO = ["supervisor", "encargado_area"];
+
+/**
+ * Una misma persona puede tener fila en `users` y en `salespeople_users` con
+ * ids distintos (según cómo se creó la cuenta), y el change-log guarda el id
+ * con el que inició sesión. Esto devuelve TODOS los ids que representan a esas
+ * personas, cruzando por email en ambas tablas, para que el filtro no se caiga
+ * por un id que no calza.
+ */
+async function expandirIdsDeUsuario(ids: string[]): Promise<string[]> {
+  const base = Array.from(new Set(ids.filter(Boolean)));
+  if (base.length === 0) return [];
+  const todos = new Set(base);
+  const [enUsers, enSp] = await Promise.all([
+    db.select({ email: users.email }).from(users).where(inArray(users.id, base)),
+    db.select({ email: salespeopleUsers.email }).from(salespeopleUsers).where(inArray(salespeopleUsers.id, base)),
+  ]);
+  const emails = Array.from(
+    new Set([...enUsers, ...enSp].map((r) => r.email?.toLowerCase()).filter(Boolean) as string[]),
+  );
+  if (emails.length > 0) {
+    const lista = sql.join(emails.map((e) => sql`${e}`), sql`, `);
+    const [u2, s2] = await Promise.all([
+      db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) IN (${lista})`),
+      db.select({ id: salespeopleUsers.id }).from(salespeopleUsers).where(sql`lower(${salespeopleUsers.email}) IN (${lista})`),
+    ]);
+    [...u2, ...s2].forEach((r) => todos.add(r.id));
+  }
+  return Array.from(todos);
+}
+
+/**
+ * Ids de autor cuyos cambios puede ver este usuario.
+ * `null` = sin filtro (ve todo). Ante cualquier error se cierra al mínimo
+ * (solo lo propio): es preferible mostrar de menos que filtrar información
+ * de otros equipos.
+ */
+export async function autoresVisiblesParaUsuario(user: any): Promise<string[] | null> {
+  const rol = String(user?.role ?? "");
+  if (ROLES_VEN_TODO.includes(rol)) return null;
+  try {
+    const propios = await expandirIdsDeUsuario([user?.id]);
+    if (!ROLES_CON_EQUIPO.includes(rol)) return propios;
+    const equipo = await db
+      .select({ id: salespeopleUsers.id })
+      .from(salespeopleUsers)
+      .where(inArray(salespeopleUsers.supervisorId, propios));
+    return await expandirIdsDeUsuario([...propios, ...equipo.map((v) => v.id)]);
+  } catch (error: any) {
+    console.error("⚠️ [panel-changes] No se pudo calcular la visibilidad:", error?.message);
+    return [user?.id].filter(Boolean) as string[];
+  }
+}
+
+/**
+ * Espejo de autoresVisiblesParaUsuario para el push: dado el autor de un
+ * cambio, quiénes pueden verlo (los admins, el propio autor y su supervisor).
+ * `null` = no se pudo calcular; el llamador entonces no acota.
+ */
+async function destinatariosDelCambio(user: any): Promise<string[] | null> {
+  try {
+    const propios = await expandirIdsDeUsuario([user?.id]);
+    const filas = propios.length
+      ? await db
+          .select({ supervisorId: salespeopleUsers.supervisorId })
+          .from(salespeopleUsers)
+          .where(inArray(salespeopleUsers.id, propios))
+      : [];
+    const supervisores = filas.map((f) => f.supervisorId).filter(Boolean) as string[];
+    const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+    return await expandirIdsDeUsuario([...propios, ...supervisores, ...admins.map((a) => a.id)]);
+  } catch (error: any) {
+    console.error("⚠️ [panel-changes] No se pudo calcular la audiencia del push:", error?.message);
+    return null;
+  }
+}
+
 export interface PanelChangeEntry {
   section: PanelSection;
   action: "created" | "updated" | "completed" | "reopened" | "deleted" | "commented" | "estado" | string;
@@ -146,16 +236,21 @@ export async function logPanelChange(
   // cambios seguidos de la misma pestaña colapsen en una sola notificación.
   const actorName = panelUserName(user);
   const skip = [user?.id, ...(opts?.skipPushUserIds ?? [])].filter(Boolean) as string[];
-  sendPushToPanelUsers(
-    {
-      title: `Panel de Trabajo · ${SECTION_LABELS[entry.section] ?? entry.section}`,
-      body: actorName ? `${entry.title} — ${actorName}` : entry.title,
-      url: "/tareas",
-      tag: `panel-${entry.section}`,
-      priority: "media",
-    },
-    skip,
-  ).catch((error: any) => console.error("[push] Error enviando push del panel:", error?.message));
+  destinatariosDelCambio(user)
+    .then((audiencia) =>
+      sendPushToPanelUsers(
+        {
+          title: `Panel de Trabajo · ${SECTION_LABELS[entry.section] ?? entry.section}`,
+          body: actorName ? `${entry.title} — ${actorName}` : entry.title,
+          url: "/tareas",
+          tag: `panel-${entry.section}`,
+          priority: "media",
+        },
+        skip,
+        audiencia,
+      ),
+    )
+    .catch((error: any) => console.error("[push] Error enviando push del panel:", error?.message));
 
   try {
     await db.insert(panelChangeLog).values({
@@ -179,11 +274,20 @@ export function registerPanelChangesRoutes(app: Express): void {
     try {
       const userId = req.user.id;
       const since = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      // Cada quien ve solo lo que le compete: admin todo, supervisor lo suyo y
+      // lo de sus vendedores, vendedor solo lo suyo.
+      const autoresVisibles = await autoresVisiblesParaUsuario(req.user);
+      const filtroAutor =
+        autoresVisibles === null
+          ? undefined
+          : autoresVisibles.length > 0
+            ? inArray(panelChangeLog.userId, autoresVisibles)
+            : sql`false`;
       const [changes, markers] = await Promise.all([
         db
           .select()
           .from(panelChangeLog)
-          .where(gte(panelChangeLog.createdAt, since))
+          .where(and(gte(panelChangeLog.createdAt, since), filtroAutor))
           .orderBy(desc(panelChangeLog.createdAt))
           .limit(SUMMARY_LIMIT),
         db.select().from(panelChangeSeen).where(eq(panelChangeSeen.userId, userId)),

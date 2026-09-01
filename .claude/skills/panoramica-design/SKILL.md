@@ -77,25 +77,36 @@ className="... data-[state=active]:bg-white data-[state=active]:text-orange-600 
 Esta variante queda **solo para sub-pestañas** dentro de una vista (ficha de
 cliente, detalle). Para la barra principal de un módulo, ver abajo.
 
-### Barra de pestañas principal del módulo (sin track, ago-2026)
+### Barra de pestañas principal del módulo (subrayado negro, sep-2026)
 
-Corrección del usuario (ago-2026, posterior a la barra negra): la barra principal de
-pestañas **no lleva track**. Va directamente sobre el fondo blanco de la página, con el
-texto en negro y solo la pestaña activa en píldora naranja de marca. La versión de track
-negro que replicaba el sidebar quedó descartada: sumaba un bloque oscuro entre el
-encabezado y las tarjetas, y partía la pantalla en dos.
+Corrección del usuario (sep-2026): la pestaña activa se marca con una **línea negra
+abajo, sin relleno** — en **todas las áreas**. La píldora naranja sólida quedó
+descartada: era el tercer naranjo fuerte de la misma pantalla (junto al botón de
+acción y a la campana) y le daba peso de botón a lo que solo dice dónde estás.
+Antes de eso ya se había descartado el track negro que replicaba el sidebar.
+
+La barra **no lleva track**: va sobre el fondo blanco, con una **línea base gris
+corriendo bajo todas las pestañas** para que el riel se lea como una sola barra.
 
 ```
-TabsList    → gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 rounded-2xl
+TabsList    → gap-1.5 bg-transparent dark:bg-transparent p-0 border-0
+              border-b border-slate-200 dark:border-slate-800 rounded-none
 TabsTrigger → group ... font-medium text-[#0a0a0a] dark:text-slate-200
-              hover:text-[#fd6301] hover:bg-orange-50
-              dark:hover:bg-slate-800/70 dark:hover:text-white
-              data-[state=active]:bg-[#fd6301] data-[state=active]:text-white
-              data-[state=active]:shadow-md data-[state=active]:shadow-[#fd6301]/30
-              dark:data-[state=active]:bg-[#fd6301] dark:data-[state=active]:text-white
-              rounded-lg
+              hover:text-[#fd6301] dark:hover:text-white
+              border-b-2 border-transparent bg-transparent -mb-px rounded-none
+              data-[state=active]:bg-transparent data-[state=active]:shadow-none
+              data-[state=active]:font-semibold
+              data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a]
+              dark:data-[state=active]:bg-transparent
+              dark:data-[state=active]:text-white
+              dark:data-[state=active]:border-slate-100
 ```
-Peso de fuente `font-medium`, igual que los ítems del sidebar.
+Peso de fuente `font-medium`, `font-semibold` en la activa. El borde inferior
+transparente va también en las inactivas: sin eso, al cambiar de pestaña salta el alto.
+El `-mb-px` monta el subrayado sobre la línea base, para que no se vean dos líneas.
+
+⚠️ El **badge contador ya no se invierte**: sin relleno detrás, se queda siempre
+naranjo con texto blanco (`bg-[#fd6301] text-white`).
 
 **En celular el riel se reemplaza por un desplegable** (corrección del usuario, ago-2026):
 en una barra no entran cinco o seis pestañas, y arrastrarlas a ciegas no deja ver dónde
@@ -355,7 +366,9 @@ Orden fijado por el usuario, de arriba hacia abajo:
    La bajada del módulo no se muestra en celular (`hidden sm:block`).
 2. **Selector de Área** (el contexto manda: primero el área…).
 3. **Selector de sección** (…y después dónde dentro de ella).
-4. **Botón de acción** naranjo.
+4. **Selector de Vendedor**, cuando la sección filtra por cartera (CRM, Estimación de
+   ventas): va DESPUÉS de la Sección (corrección del usuario, sep-2026).
+5. **Botón de acción** naranjo.
 
 Jerarquía de peso visual en esa pila, de menor a mayor:
 
@@ -372,6 +385,41 @@ distintos entre sí**: con el edificio en los dos, las dos tarjetas se leían co
 (Seguimiento pasó a `UserCheck`). Se mueve **con posición**, no dibujando
 dos campanas: una segunda instancia traería su propio estado.
 
+### Dónde va el botón de acción del módulo (sep-2026)
+
+- **Sin pill de Vendedor:** a la derecha del Área, como siempre.
+- **Con pill de Vendedor** (CRM, Estimación de ventas, Obras): en escritorio el botón se sienta
+  **a la izquierda del Vendedor**, en esa misma fila (corrección del usuario, sep-2026);
+  arriba quedaba solo, con un hueco vacío al lado del pill.
+- **En celular** la pila va Área → Sección → Vendedor → botón, a todo el ancho.
+- **Toda pestaña que filtre por cartera usa ESE pill del encabezado**, no uno propio
+  adentro: Obras tenía el suyo entre el título y las tarjetas y quedaba perdido
+  (corrección del usuario, sep-2026). La pestaña recibe el valor por prop.
+- **Qué vendedores se ofrecen:** solo los que tienen movimiento DE ESTE AÑO en el panel
+  —tareas, seguimiento, CRM, estimación semanal, obras o proyectos— y del área que se
+  está mirando (`GET /api/panel/vendedores?segmento=`). Nada de listar todas las cuentas
+  activas: traía clientes y cuentas demo.
+- **Con un solo vendedor el filtro no se muestra**: un desplegable de una sola opción no
+  filtra nada (pedido del usuario, sep-2026).
+- **Las dos filas se alinean por la derecha** (`sm:justify-end` en la fila de la
+  campana + Área): la fila de abajo es más ancha por el botón, y sin eso el Área
+  flota al medio y no calza con el borde derecho del Vendedor.
+- El botón hace **lo que dice la pestaña**: en Estimación de ventas abre la promesa
+  ("Nueva promesa"), no una tarea suelta. El "Nueva Promesa" y el filtro de Vendedor que
+  vivían dentro de esa pestaña subieron al encabezado.
+
+### Buscador y acciones, antes que el resumen (sep-2026)
+
+En una vista de trabajo (Seguimiento), el **buscador y los dos botones de la vista van
+arriba de todo, pegados al selector de Sección**, y el resumen de tarjetas KPI se lee
+**después** (corrección del usuario, sep-2026; antes el resumen iba primero). Son con lo
+que se entra a trabajar y quedaban a un scroll en celular.
+
+Esos botones usan el molde del encabezado, no chips chicos: `h-10 px-4 text-sm
+font-semibold rounded-2xl`, el secundario blanco con borde gris (`hover:border-orange-200
+hover:text-[#fd6301]`) y el principal en naranjo sólido. **En celular van apilados y a
+todo el ancho**: lado a lado, una etiqueta larga se parte en dos líneas.
+
 ### Selector de Área y de Vendedor (contexto global)
 El selector de Área vive **siempre en el header de la página** (junto al CTA
 "Nueva Tarea"), visible en **todas las pestañas** — cambia el contexto de todo
@@ -386,7 +434,9 @@ en mayúsculas y el ícono naranjo suelto sin recuadro. Se leen de arriba hacia 
 `UserCheck`: ese es el de la pestaña Seguimiento, y dos controles con el mismo ícono se
 leen como el mismo control.
 
-En celular el orden de la pila queda: **Área → Vendedor → Sección → botón de acción**.
+En celular el orden de la pila queda: **Área → Sección → Vendedor → botón de acción**
+(corrección del usuario, sep-2026): primero dónde estoy parado, y recién ahí con qué
+cartera lo miro.
 
 **Corolario: la pestaña embebida no repite el filtro abajo.** Al subir el Vendedor al
 encabezado se sacó la caja de filtros completa del CRM embebido (buscador, Estado,
