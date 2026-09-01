@@ -12,6 +12,14 @@
  */
 import jsPDF from "jspdf";
 import type { SolicitudCredito } from "@shared/schema";
+import {
+  fmtFecha,
+  resumenDeSolicitud,
+  seccionesDeSolicitud,
+  slug,
+  texto,
+  type CampoSolicitud,
+} from "./solicitud-credito-datos";
 
 // jsPDF no lee las variables CSS del tema: acá el naranja de marca y los grises
 // van en RGB, que es lo único que entiende el generador.
@@ -35,34 +43,6 @@ const PISO = ALTO_PAGINA - 20;
 
 const LOGO_BLANCO = "/panoramica-logo-white.png";
 const LOGO_RATIO = 371 / 1000; // alto/ancho del PNG, para no deformarlo
-
-type Campo = { label: string; valor: string | null | undefined; ancho?: 1 | 2 };
-
-const texto = (valor: unknown) => {
-  const s = valor == null ? "" : String(valor).trim();
-  return s || "—";
-};
-
-const money = (valor: unknown) => {
-  const n = Number(valor ?? 0);
-  return Number.isFinite(n) ? `$${Math.round(n).toLocaleString("es-CL")}` : "—";
-};
-
-const fmtFecha = (valor: string | Date | null | undefined) => {
-  if (!valor) return "—";
-  const d = new Date(valor as any);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-CL");
-};
-
-/** Para el nombre del archivo: "Constructora Los Ríos" → "constructora-los-rios". */
-const slug = (valor: string) =>
-  valor
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "solicitud";
 
 /**
  * El logo va embebido en el PDF, así que hay que traerlo como bytes. Si no se
@@ -139,16 +119,14 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
   y += 7;
 
   // ── Las tres cifras que se miran primero ──────────────────────────────────
+  const resumen = resumenDeSolicitud(solicitud);
+  const delResumen = (label: string) => texto(resumen.find((c) => c.label === label)?.valor);
   const tiles: { label: string; valor: string; color: [number, number, number] }[] = [
-    { label: "Crédito solicitado", valor: money(solicitud.creditoSolicitado), color: TINTA },
-    {
-      label: "Plazo solicitado",
-      valor: solicitud.diasSolicitados ? `${solicitud.diasSolicitados} días` : "—",
-      color: TINTA,
-    },
+    { label: "Crédito solicitado", valor: delResumen("Crédito solicitado"), color: TINTA },
+    { label: "Plazo solicitado", valor: delResumen("Plazo solicitado"), color: TINTA },
     {
       label: "Crédito aprobado",
-      valor: solicitud.creditoAprobado != null ? money(solicitud.creditoAprobado) : "—",
+      valor: delResumen("Crédito aprobado"),
       color: solicitud.creditoAprobado != null ? VERDE : GRIS,
     },
   ];
@@ -175,15 +153,15 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
     (ANCHO_CONTENIDO - PAD * 2 - GAP * (columnas - 1)) / columnas;
 
   /** Alto de un campo: la etiqueta arriba y el valor abajo, ya cortado en líneas. */
-  const altoCampo = (campo: Campo, columnas: number) => {
+  const altoCampo = (campo: CampoSolicitud, columnas: number) => {
     const ancho = campo.ancho === 2 ? ANCHO_CONTENIDO - PAD * 2 : anchoColumna(columnas);
     doc.setFontSize(9.5);
     return 3.5 + doc.splitTextToSize(texto(campo.valor), ancho).length * 4.4;
   };
 
   /** Los campos se acomodan de a `columnas`; los de ancho 2 toman la fila entera. */
-  const filas = (campos: Campo[], columnas: number) => {
-    const salida: Campo[][] = [];
+  const filas = (campos: CampoSolicitud[], columnas: number) => {
+    const salida: CampoSolicitud[][] = [];
     for (let i = 0; i < campos.length; i++) {
       if (campos[i].ancho === 2) {
         salida.push([campos[i]]);
@@ -198,7 +176,7 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
     return salida;
   };
 
-  const seccion = (titulo: string, campos: Campo[], columnas = 2) => {
+  const seccion = (titulo: string, campos: CampoSolicitud[], columnas = 2) => {
     const grupos = filas(campos, columnas);
     // El aire va entre filas, no después de la última: si no, la tarjeta queda
     // con el doble de espacio abajo que arriba y se nota.
@@ -246,63 +224,9 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
     y += alto + GAP;
   };
 
-  seccion("Datos de la empresa", [
-    { label: "Razón social", valor: solicitud.razonSocial },
-    { label: "RUT", valor: solicitud.rut },
-    { label: "Dirección", valor: solicitud.direccion },
-    { label: "Ciudad", valor: solicitud.ciudad },
-    { label: "Teléfono", valor: solicitud.telefono },
-    { label: "Giro", valor: solicitud.giro },
-    { label: "Correo cobranza", valor: solicitud.correo },
-    { label: "Correo electrónico receptor DTE (SII)", valor: solicitud.correoDte },
-  ]);
-
-  seccion("Socios principales", [
-    { label: "Socio 1", valor: solicitud.socio1Nombre },
-    { label: "Dirección particular", valor: solicitud.socio1Direccion },
-    { label: "Socio 2", valor: solicitud.socio2Nombre },
-    { label: "Dirección particular", valor: solicitud.socio2Direccion },
-  ]);
-
-  seccion("Representante legal", [
-    { label: "Nombre", valor: solicitud.representanteNombre },
-    { label: "Cédula de identidad", valor: solicitud.representanteCedula },
-  ]);
-
-  seccion(
-    "Cuentas corrientes",
-    [
-      { label: "Banco 1", valor: solicitud.banco1 },
-      { label: "Cuenta corriente Nº", valor: solicitud.cuenta1 },
-      { label: "Sucursal", valor: solicitud.sucursal1 },
-      { label: "Banco 2", valor: solicitud.banco2 },
-      { label: "Cuenta corriente Nº", valor: solicitud.cuenta2 },
-      { label: "Sucursal", valor: solicitud.sucursal2 },
-    ],
-    3,
-  );
-
-  seccion("Carpeta tributaria", [
-    {
-      label: "Adjunto",
-      valor: solicitud.carpetaTributariaNombre || (solicitud.carpetaTributariaUrl ? "Adjunta" : "Sin carpeta tributaria"),
-      ancho: 2,
-    },
-    ...(solicitud.carpetaTributariaUrl
-      ? [{ label: "Enlace", valor: solicitud.carpetaTributariaUrl, ancho: 2 } as Campo]
-      : []),
-  ]);
-
-  seccion("Resolución de Finanzas", [
-    { label: "Estado", valor: estado ? estado[0].toUpperCase() + estado.slice(1) : "—" },
-    {
-      label: "Crédito aprobado",
-      valor: solicitud.creditoAprobado != null ? money(solicitud.creditoAprobado) : "—",
-    },
-    { label: "Resuelta por", valor: solicitud.resueltaPorNombre },
-    { label: "Resuelta el", valor: solicitud.resueltaAt ? fmtFecha(solicitud.resueltaAt) : "—" },
-    { label: "Observaciones", valor: solicitud.observaciones, ancho: 2 },
-  ]);
+  for (const { titulo, campos, columnas } of seccionesDeSolicitud(solicitud)) {
+    seccion(titulo, campos, columnas ?? 2);
+  }
 
   // ── Pie, en todas las páginas ─────────────────────────────────────────────
   const paginas = doc.getNumberOfPages();

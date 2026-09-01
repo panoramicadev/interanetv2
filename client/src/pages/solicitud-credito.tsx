@@ -24,7 +24,7 @@ import {
   Banknote,
   Building2,
   Check,
-  Download,
+  FileSpreadsheet,
   FileText,
   Loader2,
   Paperclip,
@@ -35,6 +35,10 @@ import {
 } from "lucide-react";
 import { DIAS_SOLICITUD_CREDITO } from "@shared/schema";
 import { descargarSolicitudCreditoPdf } from "@/lib/solicitud-credito-pdf";
+import {
+  descargarCarpetaTributaria,
+  descargarSolicitudCreditoCsv,
+} from "@/lib/solicitud-credito-descargas";
 import type { SolicitudCredito } from "@shared/schema";
 
 const ROLES_RESUELVEN = ["admin", "supervisor", "encargado_area", "recursos_humanos"];
@@ -475,6 +479,45 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
   );
 }
 
+/**
+ * Botón de descarga de la fila. Los tres se ven igual y se comportan igual:
+ * cambian el icono por un spinner mientras bajan y quedan bloqueados entre sí,
+ * para que no se disparen dos descargas encima.
+ */
+function Descarga({
+  etiqueta,
+  titulo,
+  icono,
+  cargando,
+  deshabilitado,
+  testId,
+  onClick,
+}: {
+  etiqueta: string;
+  titulo: string;
+  icono: React.ReactNode;
+  cargando: boolean;
+  deshabilitado: boolean;
+  testId: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      title={titulo}
+      aria-label={titulo}
+      disabled={deshabilitado}
+      className="h-8 rounded-lg text-xs gap-1.5"
+      onClick={onClick}
+      data-testid={testId}
+    >
+      {cargando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icono}
+      {etiqueta}
+    </Button>
+  );
+}
+
 /** Una solicitud del listado, con la resolución de Finanzas cuando corresponde. */
 function FilaSolicitud({
   solicitud,
@@ -490,9 +533,25 @@ function FilaSolicitud({
   const { toast } = useToast();
   const [abierto, setAbierto] = useState(false);
   const [detalle, setDetalle] = useState(false);
-  const [bajandoPdf, setBajandoPdf] = useState(false);
+  const [bajando, setBajando] = useState<null | "pdf" | "carpeta" | "csv">(null);
   const [monto, setMonto] = useState("");
   const [motivo, setMotivo] = useState("");
+
+  /** Las tres descargas se comportan igual: spinner mientras baja, aviso si falla. */
+  const bajar = async (
+    cual: "pdf" | "carpeta" | "csv",
+    tituloError: string,
+    hacer: () => Promise<void>,
+  ) => {
+    setBajando(cual);
+    try {
+      await hacer();
+    } catch (error: any) {
+      toast({ title: tituloError, description: error?.message, variant: "destructive" });
+    } finally {
+      setBajando(null);
+    }
+  };
 
   const dato = (label: string, valor: React.ReactNode) => (
     <div>
@@ -514,21 +573,6 @@ function FilaSolicitud({
           </div>
           <div className="text-[11px] text-slate-400">
             {solicitud.solicitanteNombre ?? "—"} · {fmtFecha(solicitud.createdAt)}
-            {solicitud.carpetaTributariaUrl ? (
-              <>
-                {" · "}
-                <a
-                  href={solicitud.carpetaTributariaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-orange-600 font-semibold hover:underline"
-                >
-                  carpeta tributaria
-                </a>
-              </>
-            ) : (
-              " · sin carpeta tributaria"
-            )}
           </div>
         </div>
 
@@ -565,37 +609,59 @@ function FilaSolicitud({
           {detalle ? "Ocultar" : "Ver datos"}
         </Button>
 
-        {/* El PDF es la solicitud completa, con la resolución adentro: es lo que
-            se archiva y lo que se le manda al cliente. Se arma en el navegador
-            con lo que ya está cargado, así que no hay ida al servidor. */}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={bajandoPdf}
-          className="h-8 rounded-lg text-xs gap-1.5"
-          onClick={async () => {
-            setBajandoPdf(true);
-            try {
-              await descargarSolicitudCreditoPdf(solicitud);
-            } catch (error: any) {
-              toast({
-                title: "No se pudo generar el PDF",
-                description: error?.message,
-                variant: "destructive",
-              });
-            } finally {
-              setBajandoPdf(false);
+        {/* Las tres descargas: el PDF para archivar y mandar, la carpeta
+            tributaria que subió el vendedor, y el CSV para trabajarla en Excel.
+            Van agrupadas para que en el teléfono bajen juntas cuando la fila se
+            parte, en vez de quedar una arriba y dos abajo. */}
+        <div className="flex items-center gap-1.5">
+          <Descarga
+            etiqueta="PDF"
+            titulo="Descargar la solicitud en PDF"
+            icono={<FileText className="h-3.5 w-3.5" />}
+            cargando={bajando === "pdf"}
+            deshabilitado={bajando !== null}
+            testId={`button-pdf-${solicitud.id}`}
+            onClick={() =>
+              bajar("pdf", "No se pudo generar el PDF", () =>
+                descargarSolicitudCreditoPdf(solicitud),
+              )
             }
-          }}
-          data-testid={`button-pdf-${solicitud.id}`}
-        >
-          {bajandoPdf ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="h-3.5 w-3.5" />
-          )}
-          PDF
-        </Button>
+          />
+          <Descarga
+            etiqueta="Carpeta"
+            titulo={
+              solicitud.carpetaTributariaUrl
+                ? `Descargar la carpeta tributaria${
+                    solicitud.carpetaTributariaNombre
+                      ? ` (${solicitud.carpetaTributariaNombre})`
+                      : ""
+                  }`
+                : "Esta solicitud se envió sin carpeta tributaria"
+            }
+            icono={<Paperclip className="h-3.5 w-3.5" />}
+            cargando={bajando === "carpeta"}
+            deshabilitado={bajando !== null || !solicitud.carpetaTributariaUrl}
+            testId={`button-carpeta-${solicitud.id}`}
+            onClick={() =>
+              bajar("carpeta", "No se pudo bajar la carpeta tributaria", () =>
+                descargarCarpetaTributaria(solicitud),
+              )
+            }
+          />
+          <Descarga
+            etiqueta="CSV"
+            titulo="Descargar en CSV para editarlo en Excel"
+            icono={<FileSpreadsheet className="h-3.5 w-3.5" />}
+            cargando={bajando === "csv"}
+            deshabilitado={bajando !== null}
+            testId={`button-csv-${solicitud.id}`}
+            onClick={() =>
+              bajar("csv", "No se pudo generar el CSV", async () =>
+                descargarSolicitudCreditoCsv(solicitud),
+              )
+            }
+          />
+        </div>
 
         {puedeResolver && (
           <Button
