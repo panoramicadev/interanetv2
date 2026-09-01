@@ -66,6 +66,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Colapso efectivo: en móvil (drawer abierto) siempre expandido
   const collapsed = isCollapsed && !isMobileOpen;
 
+  // Con el menú móvil abierto, la página de atrás no se mueve.
+  //
+  // Sin esto, arrastrar el dedo sobre la capa oscura —o sobre el logo y la tarjeta de
+  // usuario del propio menú, que no scrollean— movía el `body`. En un teléfono de verdad
+  // eso además esconde o muestra la barra de direcciones del navegador, y cada cambio de
+  // alto del viewport obliga a recolocar todo lo que es `position: fixed`: el menú se
+  // queda a medio camino y se siente pegado. En la vista adaptable del computador no
+  // pasa, porque ahí no hay barra de direcciones que se encoja — por eso se veía bien.
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previo;
+    };
+  }, [isMobileOpen]);
+
+  // El menú se cierra al cambiar de ruta. Cada ítem ya lo cierra por su cuenta, pero eso
+  // no cubre el gesto de "atrás" del teléfono ni ninguna navegación que no nazca de un
+  // clic en el menú: ahí quedaba abierto encima de la página nueva, que es la otra forma
+  // de verlo "pegado".
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location]);
+
   const handleLogout = () => logoutMutation.mutate();
 
   const toggleSubmenu = (itemHref: string) => {
@@ -453,7 +478,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           números van juntos.
           z-40 en las dos formas: por encima de las cabeceras pegajosas de las páginas
           (z-30), pero por debajo del menú cuando se abre — el sidebar también es z-40 y
-          va después en el orden del documento, así que lo cubre. */}
+          va después en el orden del documento, así que lo cubre.
+          ⚠️ La barra de abajo baja a z-30 mientras el menú está abierto. En z-40 quedaba
+          por encima de la capa oscura (z-35): la mitad derecha se veía sin oscurecer y se
+          comía los toques, así que tocar ahí para cerrar no hacía nada — y en el teléfono
+          el pulgar cae justo ahí. Con el mouse uno hace clic al medio de la pantalla y
+          por eso en el computador nunca se notó. */}
       {botonMenuArriba ? (
         <button
           className="fixed top-[42px] left-4 z-40 lg:hidden w-9 h-9 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md"
@@ -465,7 +495,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </button>
       ) : (
         <div
-          className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]"
+          className={`fixed bottom-0 inset-x-0 ${isMobileOpen ? "z-30" : "z-40"} lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]`}
           data-testid="mobile-menu-bar"
         >
           {/* El botón no va pegado al borde: queda centrado dentro de la mitad izquierda,
@@ -484,10 +514,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       )}
 
-      {/* Mobile Overlay */}
+      {/* Capa oscura del menú móvil.
+          Sin `backdrop-blur`: desenfocar la pantalla completa es de lo más caro que hay en
+          un teléfono, y le tocaba hacerlo en los mismos 300ms en que el menú se desliza —
+          la animación se trababa a media entrada. `touch-none overscroll-none` para que
+          arrastrar sobre la capa no mueva nada de atrás. */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 z-[35] bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[35] bg-black/60 lg:hidden touch-none overscroll-none"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -508,8 +542,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
        * z-30 — no subas el sidebar.
        */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 ${collapsed ? "w-[4.25rem]" : "w-[16rem]"} transition-all duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed top-0 left-0 h-[100dvh] z-40 ${collapsed ? "w-[4.25rem]" : "w-[16rem]"} transition-[transform,width] duration-300 lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
+        /* `h-[100dvh]`, no `inset-y-0`: en el teléfono un `fixed` con top+bottom se estira
+           al viewport grande (barra de direcciones escondida), así que con la barra a la
+           vista la tarjeta de usuario y el botón de salir quedaban debajo del borde y no
+           se alcanzaban. En el computador `100dvh` es lo mismo que `100vh`.
+           `transition-[transform,width]`, no `transition-all`: el `all` también animaba
+           sombras y colores en cada cuadro, gratis en el escritorio y caro en el celular. */
       >
       {/* El menú va a sangre: pegado arriba, abajo y a la izquierda, sin esquinas
           redondeadas (corrección del usuario, ago-2026). Antes flotaba con 12px de
