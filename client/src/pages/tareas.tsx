@@ -1673,6 +1673,24 @@ export default function TareasPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t)
   ).length;
 
+  // Qué pill de Vendedor corresponde a la pestaña que se está mirando (ninguno en las
+  // demás: un filtro que no filtra nada de lo que se ve confunde más de lo que ayuda).
+  const opcionesVendedor = vendedoresDelPanel.map((v) => ({ id: v.id, nombre: v.salespersonName }));
+
+  // Si el vendedor guardado de la sesión ya no está en la lista (cambió de área, o dejó
+  // de tener movimiento), el Select quedaría en blanco: se vuelve a "todos".
+  //
+  // Va ARRIBA del early return del detalle de tarea a propósito: abajo quedaba como un
+  // hook que solo se ejecutaba en la vista de lista, y al abrir la ficha de un cliente
+  // React contaba menos hooks que en el render anterior ("Rendered fewer hooks than
+  // expected") y tiraba abajo la página entera —pantalla en blanco (sep-2026).
+  useEffect(() => {
+    if (opcionesVendedor.length === 0) return;
+    if (crmVendedor !== 'todos' && !opcionesVendedor.some((v) => v.id === crmVendedor)) setCrmVendedor('todos');
+    if (estimacionVendedor !== 'all' && !opcionesVendedor.some((v) => v.id === estimacionVendedor)) setEstimacionVendedor('all');
+    if (obrasVendedor !== 'all' && obrasVendedor !== 'sin-asignar' && !opcionesVendedor.some((v) => v.id === obrasVendedor)) setObrasVendedor('all');
+  }, [vendedoresDelPanel]);
+
   // El detalle de tarea se muestra como PÁGINA dentro del área de contenido
   // (el sidebar del DashboardLayout queda visible a la izquierda), no como modal.
   if (selectedTaskId && selectedTask) {
@@ -1842,19 +1860,6 @@ export default function TareasPage() {
       </div>
     </div>
   );
-
-  // Qué pill de Vendedor corresponde a la pestaña que se está mirando (ninguno en las
-  // demás: un filtro que no filtra nada de lo que se ve confunde más de lo que ayuda).
-  const opcionesVendedor = vendedoresDelPanel.map((v) => ({ id: v.id, nombre: v.salespersonName }));
-
-  // Si el vendedor guardado de la sesión ya no está en la lista (cambió de área, o dejó
-  // de tener movimiento), el Select quedaría en blanco: se vuelve a "todos".
-  useEffect(() => {
-    if (opcionesVendedor.length === 0) return;
-    if (crmVendedor !== 'todos' && !opcionesVendedor.some((v) => v.id === crmVendedor)) setCrmVendedor('todos');
-    if (estimacionVendedor !== 'all' && !opcionesVendedor.some((v) => v.id === estimacionVendedor)) setEstimacionVendedor('all');
-    if (obrasVendedor !== 'all' && obrasVendedor !== 'sin-asignar' && !opcionesVendedor.some((v) => v.id === obrasVendedor)) setObrasVendedor('all');
-  }, [vendedoresDelPanel]);
 
   // Recibe un sufijo para el data-testid porque en celular y en escritorio se dibuja
   // en lugares distintos de la pila (una sola de las dos copias es visible a la vez).
