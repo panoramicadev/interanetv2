@@ -194,6 +194,19 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
     },
   });
 
+  /**
+   * Las solicitudes viven en dos pestañas distintas según si ya se cerraron.
+   *
+   * "Solicitudes" es la bandeja de trabajo: solo lo que sigue esperando
+   * respuesta. "Estado" es el archivo de lo ya resuelto —aprobado o
+   * rechazado—. Mezclarlas hacía que la bandeja creciera para siempre y que
+   * lo pendiente se perdiera entre cierres viejos.
+   */
+  // Solo lo pendiente lleva número: es lo que le queda a alguien por hacer.
+  // Los cierres no se cuentan — nadie tiene que actuar sobre ellos.
+  const pendientes = solicitudes.filter((s) => s.estado === "enviada");
+  const resueltas = solicitudes.filter((s) => s.estado !== "enviada");
+
   const enviar = useMutation({
     mutationFn: async (datos: Record<string, unknown>) => {
       const res = await apiRequest("/api/solicitudes-credito", { method: "POST", data: datos });
@@ -307,9 +320,12 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
           </TabsTrigger>
           <TabsTrigger value="historial" className={TAB_PILL} data-testid="tab-credito-historial">
             Solicitudes
-            {solicitudes.length > 0 && (
-              <span className="tabular-nums opacity-70">{solicitudes.length}</span>
+            {pendientes.length > 0 && (
+              <span className="tabular-nums opacity-70">{pendientes.length}</span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="estado" className={TAB_PILL} data-testid="tab-credito-estado">
+            Estado
           </TabsTrigger>
         </TabsList>
 
@@ -480,15 +496,42 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
             <div className="flex items-center gap-2 text-sm text-slate-400 py-8 justify-center">
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
             </div>
-          ) : solicitudes.length === 0 ? (
-            <p className="text-sm text-slate-400 py-10 text-center">Todavía no hay solicitudes enviadas.</p>
+          ) : pendientes.length === 0 ? (
+            <p className="text-sm text-slate-400 py-10 text-center">
+              No hay solicitudes esperando respuesta.
+              {resueltas.length > 0 && " Las que ya se cerraron están en Estado."}
+            </p>
           ) : (
             <div className="space-y-2">
-              {solicitudes.map((s) => (
+              {pendientes.map((s) => (
                 <FilaSolicitud
                   key={s.id}
                   solicitud={s}
-                  puedeResolver={puedeResolver && s.estado === "enviada"}
+                  puedeResolver={puedeResolver}
+                  resolviendo={resolver.isPending}
+                  onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="estado" className="mt-4">
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-8 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            </div>
+          ) : resueltas.length === 0 ? (
+            <p className="text-sm text-slate-400 py-10 text-center">
+              Todavía no hay solicitudes aprobadas ni rechazadas.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {resueltas.map((s) => (
+                <FilaSolicitud
+                  key={s.id}
+                  solicitud={s}
+                  puedeResolver={false}
                   resolviendo={resolver.isPending}
                   onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
                 />
