@@ -589,12 +589,18 @@ function FilaSolicitud({
       data-testid={`solicitud-credito-${solicitud.id}`}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">
-            {solicitud.razonSocial}
-            <span className="ml-2 text-xs font-normal text-slate-400">{solicitud.rut}</span>
+        {/* En celular el nombre del cliente se lleva la fila entera (pedido del
+            usuario, sep-2026). Compartiendo línea con los montos y el estado le
+            quedaban unos pocos píxeles: el nombre salía cortado ("B&A ...") y el
+            vendedor bajaba partido en una columna de una palabra por línea. */}
+        <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">
+              {solicitud.razonSocial}
+            </span>
+            <span className="shrink-0 text-xs font-normal text-slate-400">{solicitud.rut}</span>
           </div>
-          <div className="text-[11px] text-slate-400">
+          <div className="text-[11px] text-slate-400 truncate">
             {solicitud.solicitanteNombre ?? "—"} · {fmtFecha(solicitud.createdAt)}
           </div>
         </div>
