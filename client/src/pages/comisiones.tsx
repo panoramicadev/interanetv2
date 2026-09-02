@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCLP } from "@/lib/crm-seguimiento";
+import { ICONO_CHIP_SM, ICONO_CHIP_ICONO_SM } from "@/lib/icono-chip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -323,8 +324,10 @@ export default function Comisiones() {
 
             {/* Filtro por vendedor */}
             <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
-                <Users className="h-4 w-4" />
+              {/* Ícono naranjo suelto, sin recuadro de fondo (pedido del usuario,
+                  sep-2026) — igual que el pill de Área del Panel de Trabajo. */}
+              <div className="flex items-center justify-center w-9 h-9 text-[#fd6301] dark:text-orange-400 flex-shrink-0">
+                <Users className="h-5 w-5" />
               </div>
               <div className="flex flex-col leading-none">
                 <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Vendedor</span>
@@ -365,15 +368,21 @@ export default function Comisiones() {
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(totals?.netRevenue)} loading={isLoading} accent="orange" />
+      {/* La comisión a pagar es la cifra que se viene a buscar acá: en celular se
+          lleva las dos columnas para que el número no compita con nada al lado. */}
+      {/* Cinco columnas solo en pantallas muy anchas: en un notebook normal cada
+          tarjeta quedaba de 160px y un monto de nueve cifras no entra. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3 sm:gap-4">
+        <KpiCard icon={Receipt} label="Facturado neto (base)" value={formatCLP(totals?.netRevenue)} loading={isLoading} />
         <KpiCard icon={TrendingUp} label="Margen neto total" value={formatCLP(totals?.netMargin)} loading={isLoading} />
         <KpiCard icon={Truck} label="Regularización flete (4%)" value={formatCLP(totals?.fleteDeficit)} loading={isLoading}
           sub={totals ? `Cobrado ${formatCLP(totals.fleteCobrado)} · objetivo ${formatCLP(totals.fleteObjetivo)}` : undefined}
-          accent="amber" showMinus />
+          accent="descuento" showMinus />
         <KpiCard icon={Scale} label="Margen ajustado (base comisión)" value={formatCLP(totals?.marginAdjusted)} loading={isLoading} />
-        <KpiCard icon={BadgeDollarSign} label="Comisión total a pagar" value={formatCLP(totals?.commissionAmount)} loading={isLoading}
-          accent="emerald" />
+        <div className="col-span-2 lg:col-span-1">
+          <KpiCard icon={BadgeDollarSign} label="Comisión total a pagar" value={formatCLP(totals?.commissionAmount)} loading={isLoading}
+            accent="destacada" />
+        </div>
       </div>
 
       {/* Tabla principal */}
@@ -577,56 +586,52 @@ function PresetButton({ active, onClick, children }: {
   );
 }
 
-type KpiAccent = "slate" | "emerald" | "amber" | "orange";
+/**
+ * Color de la cifra de una tarjeta KPI. La tarjeta y el chip del ícono son iguales
+ * en las cinco (guía de diseño de Panorámica, ago-2026: chip naranjo sólido con el
+ * ícono en blanco, superficie blanca); lo único que cambia es el número:
+ *
+ *   neutro   → cifra informativa
+ *   destacada→ la cifra que se viene a buscar a esta pantalla, en naranjo de marca
+ *   descuento→ lo que se resta, en rojo — la única alerta que sobrevive al naranjo
+ */
+type KpiAccent = "neutro" | "destacada" | "descuento";
 
-const KPI_ACCENTS: Record<KpiAccent, {
-  card: string; iconWrap: string; icon: string; value: string;
-}> = {
-  slate: {
-    card: "border-slate-200 dark:border-slate-800",
-    iconWrap: "bg-slate-100 dark:bg-slate-800",
-    icon: "text-slate-500",
-    value: "text-slate-900 dark:text-white",
-  },
-  orange: {
-    card: "border-orange-200 bg-orange-50/40 dark:border-orange-900/50 dark:bg-orange-950/10",
-    iconWrap: "bg-gradient-to-br from-orange-500 to-[#fd6301] shadow-sm shadow-orange-500/25",
-    icon: "text-white",
-    value: "text-slate-900 dark:text-white",
-  },
-  emerald: {
-    card: "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800/60 dark:bg-emerald-900/10",
-    iconWrap: "bg-emerald-500/15",
-    icon: "text-emerald-600",
-    value: "text-emerald-600",
-  },
-  amber: {
-    card: "border-amber-300 bg-amber-50/50 dark:border-amber-800/60 dark:bg-amber-900/10",
-    iconWrap: "bg-amber-500/15",
-    icon: "text-amber-600",
-    value: "text-amber-600",
-  },
+const KPI_VALOR: Record<KpiAccent, string> = {
+  neutro: "text-slate-900 dark:text-white",
+  destacada: "text-[#fd6301]",
+  descuento: "text-red-600",
 };
 
-function KpiCard({ icon: Icon, label, value, loading, accent = "slate", showMinus, sub }: {
+function KpiCard({ icon: Icon, label, value, loading, accent = "neutro", showMinus, sub }: {
   icon?: LucideIcon; label: string; value: string; loading?: boolean;
   accent?: KpiAccent; showMinus?: boolean; sub?: string;
 }) {
-  const a = KPI_ACCENTS[accent];
   const displayValue = showMinus && value !== "$0" && value !== "—" ? `− ${value}` : value;
   return (
-    <Card className={`rounded-2xl shadow-sm ${a.card}`}>
-      <CardContent className="py-4">
-        <div className="flex items-center gap-2 mb-2">
+    <Card className="rounded-2xl shadow-sm border-slate-200/70 dark:border-slate-800 overflow-hidden">
+      {/* En celular las tarjetas van de a dos y adentro entra un monto de nueve
+          cifras: con el relleno de escritorio el número se salía del marco
+          (corrección del usuario, sep-2026). De ahí el px-4 y que la cifra
+          arranque chica y vaya creciendo con el ancho de la pantalla. */}
+      <CardContent className="px-4 py-4 sm:px-6">
+        <div className="flex items-center gap-2 mb-2 min-w-0">
           {Icon && (
-            <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${a.iconWrap}`}>
-              <Icon className={`w-4 h-4 ${a.icon}`} />
+            <span className={ICONO_CHIP_SM}>
+              <Icon className={ICONO_CHIP_ICONO_SM} />
             </span>
           )}
-          <p className="text-xs font-medium text-slate-500 leading-tight">{label}</p>
+          <p className="text-xs font-medium text-slate-500 leading-tight min-w-0">{label}</p>
         </div>
         {loading ? <Skeleton className="h-8 w-32" />
-          : <p className={`text-2xl font-bold tabular-nums ${a.value}`}>{displayValue}</p>}
+          : (
+            <p
+              className={`text-base min-[400px]:text-lg sm:text-xl 2xl:text-2xl font-bold tabular-nums truncate ${KPI_VALOR[accent]}`}
+              title={displayValue}
+            >
+              {displayValue}
+            </p>
+          )}
         {sub && !loading && <p className="text-[11px] text-slate-400 mt-1 leading-tight">{sub}</p>}
       </CardContent>
     </Card>

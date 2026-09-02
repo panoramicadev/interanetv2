@@ -206,6 +206,11 @@ segmento, sucursal, vendedor, supervisor y técnico. Regla:
 - **Cifras destacadas y variaciones positivas:** `text-[#fd6301]`.
   **Las negativas se quedan en `text-red-600`** — es la única alerta que sobrevive
   al barrido, y sin ella una caída se lee igual que una subida.
+  ⚠️ **Excepción: la "Diferencia" de la tarjeta Presupuesto va SIEMPRE en naranjo**
+  (corrección del usuario, sep-2026), esté sobre o bajo la meta. Ahí el signo y el
+  `(-9.5%)` entre paréntesis ya dicen que falta; en rojo la línea se leía como si la
+  tarjeta estuviera fallando, no como el estado normal de un mes recién empezado.
+  La regla general sigue valiendo para las variaciones vs. período anterior.
 - **Dos series que hay que distinguir** (NVV vs GDV en Documentos Pendientes):
   una en naranjo y la otra en pizarra (`slate`), no en dos colores nuevos.
 - La paleta categórica de gráficos (abajo) es la excepción: ahí sí hacen falta

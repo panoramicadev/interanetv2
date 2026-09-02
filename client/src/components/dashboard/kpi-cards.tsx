@@ -841,12 +841,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   {!effectiveCombined ? (
                     <>
                       {kpi.change.percentage !== "Sin datos previos" && (
-                        <span className={`text-sm sm:text-base lg:text-lg font-semibold ${kpi.changeColor}`}>
+                        <span className={`text-sm sm:text-base lg:text-lg ${kpi.changeColor}`}>
                           {kpi.change.percentage}
                         </span>
                       )}
                       {previousSales > 0 && (
-                        <span className={`text-sm sm:text-base lg:text-lg font-semibold ${kpi.changeColor}`}>
+                        <span className={`text-sm sm:text-base lg:text-lg ${kpi.changeColor}`}>
                           {salesDifferenceSign}{salesDifferenceFormatted}
                         </span>
                       )}
@@ -856,7 +856,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                         </span>
                       )}
                       {kpi.change.percentage === "Sin datos previos" && (
-                        <span className="text-sm sm:text-base lg:text-lg font-semibold text-gray-500">
+                        <span className="text-sm sm:text-base lg:text-lg text-gray-500">
                           Sin datos previos
                         </span>
                       )}
@@ -865,15 +865,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                     <>
                       {combinedHasPrev ? (
                         <>
-                          <span className={`text-sm sm:text-base lg:text-lg font-semibold ${combinedPctColor}`}>
+                          <span className={`text-sm sm:text-base lg:text-lg ${combinedPctColor}`}>
                             {combinedPctFormatted}
                           </span>
-                          <span className={`text-sm sm:text-base lg:text-lg font-semibold ${combinedPctColor}`}>
+                          <span className={`text-sm sm:text-base lg:text-lg ${combinedPctColor}`}>
                             {combinedDiffSign}{combinedDiffFormatted}
                           </span>
                         </>
                       ) : (
-                        <span className="text-sm sm:text-base lg:text-lg font-semibold text-gray-500">
+                        <span className="text-sm sm:text-base lg:text-lg text-gray-500">
                           Sin datos previos
                         </span>
                       )}
@@ -1187,7 +1187,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     if (budgetYTD > 0) {
       const pct = ((displayValue - budgetYTD) / budgetYTD) * 100;
       budgetPct = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
-      budgetColor = pct >= 0 ? "text-[#fd6301]" : "text-red-600";
+      // La Diferencia va SIEMPRE en naranjo, esté sobre o bajo la meta (pedido del
+      // usuario, sep-2026). El signo y el paréntesis con el % ya dicen si falta o
+      // sobra; en rojo la línea se leía como un error de la tarjeta.
+      budgetColor = "text-[#fd6301]";
     }
 
     // Igual que renderSalesBody: devuelve solo el contenido, sin la tarjeta que lo envuelve.
