@@ -29,6 +29,7 @@ import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Databas
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
 
 // Helper function to determine if user has inventory access with prices (all authenticated users)
 function hasInventoryAccess(role: string): boolean {
@@ -220,10 +221,9 @@ export default function Inventario() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
-          <p className="text-muted-foreground">Gestión de stock y disponibilidad de productos</p>
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
         </div>
         {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
           <SyncCatalogButton />
@@ -460,79 +460,83 @@ function StockSummary({
   });
 
   return (
-    <div className={`grid gap-4 ${showTotalValue ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-      <Card data-testid="card-total-products" className="rounded-3xl border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">Total Productos</CardTitle>
-          <div className="w-10 h-10 rounded-full bg-purple-500/20 dark:bg-purple-500/30 flex items-center justify-center">
-            <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+    <div className={`grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 ${showTotalValue ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
+      {/* Tarjetas KPI al diseño de Panorámica: superficie blanca, chip naranjo sólido
+          con el ícono en blanco. Antes cada una traía su propio pastel (lila, celeste,
+          verde, índigo) y se leían como si tuvieran jerarquías distintas. */}
+      <Card data-testid="card-total-products" className="rounded-2xl border border-gray-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all duration-200">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium leading-tight text-gray-900 dark:text-white">Total Productos</CardTitle>
+          <div className={ICONO_CHIP}>
+            <Package className={ICONO_CHIP_ICONO} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{summary?.totalProducts?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || 0}</div>
-          <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">SKUs únicos en inventario</p>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0 [container-type:inline-size]">
+          <div className="text-[clamp(0.8rem,12cqw,1.5rem)] leading-tight whitespace-nowrap font-bold text-gray-900 dark:text-white tabular-nums">{summary?.totalProducts?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || 0}</div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">SKUs únicos en inventario</p>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-total-quantity" className="rounded-3xl border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Stock Total</CardTitle>
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 dark:bg-blue-500/30 flex items-center justify-center">
-            <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+      <Card data-testid="card-total-quantity" className="rounded-2xl border border-gray-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all duration-200">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium leading-tight text-gray-900 dark:text-white">Stock Total</CardTitle>
+          <div className={ICONO_CHIP}>
+            <Package className={ICONO_CHIP_ICONO} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0 [container-type:inline-size]">
+          <div className="text-[clamp(0.8rem,12cqw,1.5rem)] leading-tight whitespace-nowrap font-bold text-gray-900 dark:text-white tabular-nums">
             {summary?.totalQuantity?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) ?? '0'}
           </div>
-          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Unidades totales</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Unidades totales</p>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-available" className="rounded-3xl border-0 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/40 dark:to-green-900/40 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Disponible</CardTitle>
-          <div className="w-10 h-10 rounded-full bg-green-500/20 dark:bg-green-500/30 flex items-center justify-center">
-            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+      <Card data-testid="card-available" className="rounded-2xl border border-gray-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all duration-200">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium leading-tight text-gray-900 dark:text-white">Disponible</CardTitle>
+          <div className={ICONO_CHIP}>
+            <CheckCircle className={ICONO_CHIP_ICONO} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0 [container-type:inline-size]">
+          <div className="text-[clamp(0.8rem,12cqw,1.5rem)] leading-tight whitespace-nowrap font-bold text-gray-900 dark:text-white tabular-nums">
             {summary?.totalAvailable?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) ?? '0'}
           </div>
-          <p className="text-xs text-green-700 dark:text-green-300 mt-1">Unidades disponibles</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Unidades disponibles</p>
         </CardContent>
       </Card>
 
       {showTotalValue && (
-        <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
-            <div className="w-10 h-10 rounded-full bg-indigo-500/20 dark:bg-indigo-500/30 flex items-center justify-center">
-              <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+        <Card data-testid="card-total-value" className="rounded-2xl border border-gray-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all duration-200">
+          <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium leading-tight text-gray-900 dark:text-white">Valor Total Inventario</CardTitle>
+            <div className={ICONO_CHIP}>
+              <Package className={ICONO_CHIP_ICONO} />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0 [container-type:inline-size]">
+            <div className="text-[clamp(0.8rem,12cqw,1.5rem)] leading-tight whitespace-nowrap font-bold text-gray-900 dark:text-white tabular-nums">
               ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
             </div>
-            <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Valorización total a precio medio</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Valorización total a precio medio</p>
           </CardContent>
         </Card>
       )}
 
-      <Card data-testid="card-low-stock" className="rounded-3xl border-0 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/40 dark:to-orange-900/40 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">Stock Bajo</CardTitle>
-          <div className="w-10 h-10 rounded-full bg-orange-500/20 dark:bg-orange-500/30 flex items-center justify-center">
-            <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+      <Card data-testid="card-low-stock" className="rounded-2xl border border-gray-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all duration-200">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium leading-tight text-gray-900 dark:text-white">Stock Bajo</CardTitle>
+          <div className={ICONO_CHIP}>
+            <AlertCircle className={ICONO_CHIP_ICONO} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0 [container-type:inline-size]">
+          {/* La única cifra en naranjo del bloque: es la que pide acción. */}
+          <div className="text-[clamp(0.8rem,12cqw,1.5rem)] leading-tight whitespace-nowrap font-bold text-[#fd6301] tabular-nums">
             {(summary?.lowStock || 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
           </div>
-          <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">Productos con stock bajo</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Productos con stock bajo</p>
         </CardContent>
       </Card>
     </div>
@@ -1045,12 +1049,12 @@ function SyncCatalogButton() {
   });
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex w-full flex-col items-start gap-2 sm:w-auto sm:items-end">
       <Button
         onClick={() => syncMutation.mutate()}
         disabled={syncMutation.isPending}
         data-testid="button-sync-catalog"
-        className="gap-2"
+        className="w-full sm:w-auto gap-2 h-10 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-[#fd6301]/25 transition-all"
       >
         {syncMutation.isPending ? (
           <>
