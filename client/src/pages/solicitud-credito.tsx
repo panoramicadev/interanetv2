@@ -9,7 +9,7 @@
  * La carpeta tributaria se sube por /api/upload —el mismo camino que el resto de
  * los adjuntos del sistema— y en la solicitud queda su enlace.
  */
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -100,6 +100,75 @@ const BADGE_ESTADO: Record<string, string> = {
 
 export default function SolicitudCreditoPage() {
   return <SolicitudCreditoContent />;
+}
+
+/**
+ * El formulario y su función para escribir en él, compartidos con los campos.
+ *
+ * ⚠️ `Campo` y `Seccion` TIENEN que vivir acá afuera, no dentro de
+ * SolicitudCreditoContent. Cuando estaban definidos adentro, React los tomaba como
+ * componentes nuevos en cada render: con cada tecla desmontaba el input y montaba otro
+ * en su lugar, el foco se perdía y no se podía escribir en ningún campo del formulario
+ * (reporte del usuario, sep-2026). Se pasan por contexto para no tener que arrastrar
+ * `form` y `campo` como props en los veinte campos.
+ */
+const FormularioCreditoCtx = createContext<{
+  form: FormSolicitud;
+  campo: (k: keyof FormSolicitud, valor: string) => void;
+} | null>(null);
+
+function Campo({
+  k,
+  label,
+  obligatorio,
+  placeholder,
+  tipo = "text",
+}: {
+  k: keyof FormSolicitud;
+  label: string;
+  obligatorio?: boolean;
+  placeholder?: string;
+  tipo?: string;
+}) {
+  const ctx = useContext(FormularioCreditoCtx);
+  if (!ctx) return null;
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
+        {label} {obligatorio && <span className="text-[#fd6301]">obligatorio</span>}
+      </div>
+      <Input
+        value={ctx.form[k]}
+        onChange={(e) => ctx.campo(k, e.target.value)}
+        placeholder={placeholder}
+        type={tipo}
+        className="h-9 rounded-xl text-sm"
+        data-testid={`input-credito-${k}`}
+      />
+    </div>
+  );
+}
+
+function Seccion({
+  icono,
+  titulo,
+  children,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+        <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+          {icono}
+        </span>
+        {titulo}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
 }
 
 /**
@@ -210,55 +279,8 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
     });
   };
 
-  const Campo = ({
-    k,
-    label,
-    obligatorio,
-    placeholder,
-    tipo = "text",
-  }: {
-    k: keyof FormSolicitud;
-    label: string;
-    obligatorio?: boolean;
-    placeholder?: string;
-    tipo?: string;
-  }) => (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">
-        {label} {obligatorio && <span className="text-[#fd6301]">obligatorio</span>}
-      </div>
-      <Input
-        value={form[k]}
-        onChange={(e) => campo(k, e.target.value)}
-        placeholder={placeholder}
-        type={tipo}
-        className="h-9 rounded-xl text-sm"
-        data-testid={`input-credito-${k}`}
-      />
-    </div>
-  );
-
-  const Seccion = ({
-    icono,
-    titulo,
-    children,
-  }: {
-    icono: React.ReactNode;
-    titulo: string;
-    children: React.ReactNode;
-  }) => (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-        <span className="w-7 h-7 rounded-lg bg-[#fd6301] text-white dark:text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
-          {icono}
-        </span>
-        {titulo}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
-    </div>
-  );
-
   return (
+    <FormularioCreditoCtx.Provider value={{ form, campo }}>
     <div className={embedded ? "space-y-4 max-w-5xl" : "p-3 sm:p-5 space-y-4 max-w-5xl mx-auto"}>
       {embedded ? (
         <p className="text-sm text-muted-foreground">
@@ -476,6 +498,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
         </TabsContent>
       </Tabs>
     </div>
+    </FormularioCreditoCtx.Provider>
   );
 }
 

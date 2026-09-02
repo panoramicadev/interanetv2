@@ -116,15 +116,21 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
       className={`modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden ${className || ""}`}
       data-testid="card-margen-resumen"
     >
+      {/* El ícono va arriba a la izquierda, en su propia fila, igual que en la tarjeta
+          de Ventas Totales (pedido del usuario, sep-2026). Antes flotaba suelto a media
+          altura sobre el borde derecho y se salía de la tarjeta. */}
+      <div className="flex items-center gap-3 pb-2">
+        <div className={`transition-transform hover:scale-105 ${ICONO_CHIP}`}>
+          <Percent className={ICONO_CHIP_ICONO} />
+        </div>
+      </div>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 mb-2 lg:mb-0 min-w-0">
           {/* Sin bajada de contexto (corrección del usuario, ago-2026): antes acá decía
               a qué estaba acotado el margen ("Segmento: INDUSTRIAL", "Todo lo que estás
               viendo") y sobraba, porque el recorte ya se ve en el selector de arriba y en
               el resto de las tarjetas. Se conserva como texto al pasar el mouse. */}
-          {/* El hueco del ícono va solo acá, no en todo el bloque: si no, en celular le
-              come ancho a las cifras y quedan cortadas. */}
-          <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2 pr-12 sm:pr-16 lg:pr-0">
+          <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2">
             <p
               className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white"
               title={scopeLabel}
@@ -149,7 +155,7 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                   única distinta. El acento naranjo queda para la variación, igual que
                   el "+17,8%" de Ventas Totales. */}
               <p
-                className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold text-gray-900 dark:text-white mb-1"
+                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1"
                 data-testid="text-margen-pct"
               >
                 {formatPct(data?.marginPct ?? 0)}
@@ -186,7 +192,11 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
               {/* El monto del margen pasó a llamarse "Beneficio" y a mostrarse con el
                   mismo formato de "Ventas sin flete" y "Costo" (pedido del usuario,
                   ago-2026): antes iba suelto y en grande arriba del grupo. */}
-              <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2">
+              {/* En pantalla grande el bloque se acota en ancho (pedido del usuario,
+                  sep-2026): con el ancho completo de la tarjeta, la etiqueta quedaba en
+                  un borde y la cifra en el otro, tan separadas que costaba leer cuál iba
+                  con cuál. Las cifras siguen alineadas entre ellas. */}
+              <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2 lg:max-w-[15rem]">
                 <div className="flex items-baseline gap-2 lg:justify-between">
                   <span className="text-gray-500 dark:text-gray-400">Beneficio:</span>
                   <span
@@ -211,20 +221,10 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                 </div>
               </div>
 
-              {/* Nota al pie: en celular no se muestra (pedido del usuario, ago-2026),
-                  porque ocupaba casi un tercio de la tarjeta. En pantalla grande sigue
-                  visible, que es donde hay espacio de sobra para la aclaración. */}
-              <p className="hidden md:block mt-3 pb-1 text-xs lg:text-sm leading-snug text-gray-400 dark:text-gray-500">
-                Sobre lo facturado del período (facturas menos notas de crédito), sin el flete.
-                No incluye pedidos ni guías pendientes.
-              </p>
             </>
           )}
         </div>
 
-        <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 transition-transform hover:scale-105 ${ICONO_CHIP}`}>
-          <Percent className={ICONO_CHIP_ICONO} />
-        </div>
       </div>
     </div>
   );

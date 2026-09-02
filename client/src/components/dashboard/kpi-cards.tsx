@@ -830,7 +830,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </div>
 
               <p
-                className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
                 data-testid={kpi.testId}
                 title={effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               >
@@ -959,18 +959,26 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             }
           }}
         >
+          {/* El ícono va arriba a la izquierda, en su propia fila, igual que en la
+              tarjeta de Ventas Totales (pedido del usuario, sep-2026). Antes flotaba
+              suelto a media altura sobre el borde derecho y se salía de la tarjeta. */}
+          <div className="flex items-center gap-3 pb-2">
+            <div className={kpi.bgColor}>
+              <kpi.icon className={kpi.iconColor} />
+            </div>
+          </div>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 mb-2 lg:mb-0 min-w-0">
               {/* Mismo encabezado con línea divisoria que las otras tres tarjetas del
                   bloque (corrección del usuario, ago-2026): esta era la única sin línea
                   y el título quedaba pegado a la cifra. */}
-              <div className="flex items-center justify-between mb-1 sm:mb-2 pr-12 sm:pr-16 lg:pr-0">
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
                 <p className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
                   {kpi.title}
                 </p>
               </div>
               <p
-                className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
                 title={kpi.value}
               >
@@ -987,21 +995,21 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               </div>
               <div className="mt-2 pt-2">
-                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-x-2 gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300 mb-1">
+                {/* Los tres datos van uno debajo del otro, en una sola columna (pedido
+                    del usuario, sep-2026). Antes "órdenes" se iba a una segunda columna
+                    a media tarjeta de distancia y se leía como si fuera otro bloque. */}
+                <div className="flex flex-col gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300">
                   <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
                     {formatNumber(totalCustomers)} clientes totales
+                  </span>
+                  <span className="truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
+                    {formatNumber(totalUnits)} unidades vendidas
                   </span>
                   <span className="truncate" title={`${formatNumber(totalOrders)} órdenes`}>
                     {formatNumber(totalOrders)} órdenes
                   </span>
                 </div>
-                <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300 truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
-                  {formatNumber(totalUnits)} unidades vendidas
-                </p>
               </div>
-            </div>
-            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 ${kpi.bgColor} transition-transform hover:scale-105`}>
-              <kpi.icon className={`${kpi.iconColor}`} />
             </div>
           </div>
         </div>
@@ -1197,7 +1205,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </div>
 
             <p
-              className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+              className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
               data-testid={kpi.testId}
               title={formatCurrency(displayValue)}
             >
@@ -1210,7 +1218,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 tiene presupuesto cargado se dice con todas sus letras, en vez de mostrar
                 un "$0" que se leería como una meta de cero y una diferencia enorme a
                 favor. */}
-            <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2">
+            {/* Igual que en la tarjeta de Margen: en pantalla grande el bloque se acota
+                en ancho (pedido del usuario, sep-2026), porque con el ancho completo la
+                etiqueta quedaba en un borde y la cifra en el otro. */}
+            <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2 lg:max-w-[18rem]">
               {/* En celular la etiqueta y su cifra van juntas: con el número pegado al
                   borde derecho quedaban tan separados que costaba leer cuál iba con
                   cuál. En pantalla grande sí se separan a los extremos, porque ahí la
