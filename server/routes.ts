@@ -32302,8 +32302,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      // Only salesperson, supervisor, admin and recursos_humanos can upload evidence
-      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
+      // Mismo criterio que crear un gasto: todo perfil interno puede adjuntar su comprobante.
+      if (user.role === 'client') {
         return res.status(403).json({ message: 'No autorizado para subir evidencia' });
       }
 
@@ -32555,7 +32555,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
-      if (!['salesperson', 'supervisor', 'encargado_area', 'admin', 'recursos_humanos'].includes(user.role)) {
+      // El OCR acompaña a la subida del comprobante: mismo criterio de perfiles internos.
+      if (user.role === 'client') {
         return res.status(403).json({ message: 'No autorizado' });
       }
 

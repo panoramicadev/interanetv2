@@ -345,7 +345,10 @@ export default function FormularioGasto({
       });
 
       if (!response.ok) {
-        throw new Error("Error al subir archivo");
+        // El servidor explica el motivo (perfil sin permiso, archivo muy pesado, etc.):
+        // se muestra tal cual en vez de un "no se pudo" que no dice nada.
+        const detalle = await response.json().catch(() => null);
+        throw new Error(detalle?.message || "No se pudo subir el archivo de evidencia");
       }
 
       const data = await response.json();
@@ -364,10 +367,10 @@ export default function FormularioGasto({
       if (file.type.startsWith("image/")) {
         extractDataFromImage(file);
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "No se pudo subir el archivo de evidencia",
+        description: error?.message || "No se pudo subir el archivo de evidencia",
         variant: "destructive",
       });
     } finally {
