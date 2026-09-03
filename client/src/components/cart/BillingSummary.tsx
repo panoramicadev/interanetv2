@@ -524,10 +524,12 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
 
       const orderData = {
         items: mappedItems,
-        subtotal: state.subtotal - state.discountAmount,
-        tax: state.taxAmount,
-        shipping: deliveryMethod === 'despacho' ? shippingCost : 0,
-        total: deliveryMethod === 'despacho' ? state.total + shippingCost : state.total,
+        // El flete viaja como línea de facturación (ZZFLETE*) y además dentro del
+        // subtotal afecto, para que el IVA y el total incluyan el despacho.
+        subtotal: subtotalAfterDiscount,
+        tax: taxAmount,
+        shipping: effectiveShipping,
+        total,
         discount: state.discountAmount,
         appliedCoupons: state.appliedCoupons.map(c => ({
           code: c.code,
@@ -635,14 +637,16 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
     .map(b => `${b.qty}x ${b.unit} a ${formatPrice(b.cost)}`)
     .join(' + ') + (effectiveShippingDiscountPercent > 0 ? ` (-${effectiveShippingDiscountPercent}%)` : "");
   
-  // Calculate final subtotal after discounts
-  const subtotalAfterDiscount = neto - state.discountAmount;
-  
-  // Tax calculation (IVA 19%)
-  const taxAmount = state.taxAmount;
-  
-  // Final total (includes shipping only if despacho)
+  // El flete es una línea de facturación más: entra ANTES del IVA, así el
+  // impuesto se calcula sobre productos + despacho (como sale en la factura).
   const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
+
+  // Subtotal afecto = neto - descuentos + despacho
+  const subtotalProductos = neto - state.discountAmount;
+  const subtotalAfterDiscount = subtotalProductos + effectiveShipping;
+
+  // Tax calculation (IVA 19% sobre el subtotal, flete incluido)
+  const taxAmount = Math.round(subtotalAfterDiscount * 0.19);
 
   // Inform parent of shipping cost and method changes
   useEffect(() => {
@@ -650,7 +654,7 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
       onShippingChange(shippingCost, deliveryMethod);
     }
   }, [shippingCost, deliveryMethod, onShippingChange]);
-  const total = state.total + effectiveShipping;
+  const total = subtotalAfterDiscount + taxAmount;
 
   // Determine payment instructions based on condition
   const isCredit = hasCredit;
@@ -729,6 +733,61 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
             </span>
           </div>
 
+          {/* Shipping / Despacho — only if method is despacho */}
+          {deliveryMethod === 'despacho' && (
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                  <Truck className="h-3.5 w-3.5" />
+                  Despacho:
+                </span>
+                {hasFreeShipping && (
+                  <span className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                    🎉 ¡Envío gratis aplicado!
+                  </span>
+                )}
+                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && (
+                  <span className="text-[10px] text-orange-600 font-bold mt-0.5">
+                     ¡Descuento de envío aplicado ({effectiveShippingDiscountPercent}%)!
+                  </span>
+                )}
+                {!hasFreeShipping && shippingDiscountPercent > 0 && !shippingDiscountActive && shippingDiscountMinAmount > 0 && (
+                  <span className="text-[10px] text-gray-500 mt-0.5">
+                    Te faltan {formatPrice(shippingDiscountMinAmount - neto)} para activar el {shippingDiscountPercent}% de descuento en envío
+                  </span>
+                )}
+                {!hasFreeShipping && shippingBreakdownText && (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">
+                    ({shippingBreakdownText})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && originalShippingCost > shippingCost && (
+                  <span className="text-sm line-through text-gray-400">
+                    {formatPrice(originalShippingCost)}
+                  </span>
+                )}
+                <span className={`font-medium ${hasFreeShipping ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white'}`} data-testid="text-billing-shipping">
+                  {hasFreeShipping ? 'Gratis' : formatPrice(shippingCost)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Retiro label */}
+          {deliveryMethod === 'retiro' && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" />
+                Retiro en Bodega:
+              </span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400 text-sm">
+                Sin costo
+              </span>
+            </div>
+          )}
+
           {/* Convenio (branch) discount — informational, already baked into neto */}
           {convenioPct > 0 && convenioSavings > 0 && (
             <div className="flex justify-between items-start gap-2 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1.5">
@@ -804,61 +863,6 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
               {formatPrice(taxAmount)}
             </span>
           </div>
-
-          {/* Shipping / Despacho — only if method is despacho */}
-          {deliveryMethod === 'despacho' && (
-            <div className="flex justify-between items-start">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
-                  <Truck className="h-3.5 w-3.5" />
-                  Despacho:
-                </span>
-                {hasFreeShipping && (
-                  <span className="text-[10px] text-emerald-600 font-bold mt-0.5">
-                    🎉 ¡Envío gratis aplicado!
-                  </span>
-                )}
-                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && (
-                  <span className="text-[10px] text-orange-600 font-bold mt-0.5">
-                     ¡Descuento de envío aplicado ({effectiveShippingDiscountPercent}%)!
-                  </span>
-                )}
-                {!hasFreeShipping && shippingDiscountPercent > 0 && !shippingDiscountActive && shippingDiscountMinAmount > 0 && (
-                  <span className="text-[10px] text-gray-500 mt-0.5">
-                    Te faltan {formatPrice(shippingDiscountMinAmount - neto)} para activar el {shippingDiscountPercent}% de descuento en envío
-                  </span>
-                )}
-                {!hasFreeShipping && shippingBreakdownText && (
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">
-                    ({shippingBreakdownText})
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {!hasFreeShipping && effectiveShippingDiscountPercent > 0 && originalShippingCost > shippingCost && (
-                  <span className="text-sm line-through text-gray-400">
-                    {formatPrice(originalShippingCost)}
-                  </span>
-                )}
-                <span className={`font-medium ${hasFreeShipping ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white'}`} data-testid="text-billing-shipping">
-                  {hasFreeShipping ? 'Gratis' : formatPrice(shippingCost)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Retiro label */}
-          {deliveryMethod === 'retiro' && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
-                <Store className="h-3.5 w-3.5" />
-                Retiro en Bodega:
-              </span>
-              <span className="font-medium text-emerald-600 dark:text-emerald-400 text-sm">
-                Sin costo
-              </span>
-            </div>
-          )}
 
           <Separator />
 
@@ -1366,10 +1370,6 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                   </div>
                 )}
                 <Separator />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Impuestos (IVA 19%)</span>
-                  <span className="text-sm font-medium text-gray-700">{formatPrice(state.taxAmount)}</span>
-                </div>
 
                 {/* Show delivery method in confirmation */}
                 <div className="flex justify-between items-center">
@@ -1393,6 +1393,11 @@ export default function BillingSummary({ onShippingChange }: BillingSummaryProps
                       <span className="text-emerald-600">Sin costo</span>
                     )}
                   </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Impuestos (IVA 19%)</span>
+                  <span className="text-sm font-medium text-gray-700">{formatPrice(taxAmount)}</span>
                 </div>
 
                 {/* Payment method row */}

@@ -149,9 +149,12 @@ export default function Carrito() {
 
     const totalProducts = state.subtotal;
     const discount = state.discountAmount;
-    const tax = state.taxAmount;
+    // El flete entra al subtotal afecto: el IVA y el total lo incluyen,
+    // igual que en el resumen de facturación y en la factura.
     const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
-    const finalTotal = state.total + effectiveShipping;
+    const taxableBase = totalProducts - discount + effectiveShipping;
+    const tax = Math.round(taxableBase * 0.19);
+    const finalTotal = taxableBase + tax;
 
     const discountRow = discount > 0 ? `
       <div class="total-row">
