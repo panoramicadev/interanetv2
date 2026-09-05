@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -74,6 +74,13 @@ app.use((req, res, next) => {
       await ensureMarketSubUserColumns();
     } catch (error: any) {
       console.error('❌ Error al verificar columnas de compradores del Market:', error.message);
+    }
+    // Idem: el chat del Panel de Trabajo selecciona estas columnas en cada
+    // lectura y en cada alta; sin ellas no carga ni deja escribir.
+    try {
+      await ensureTaskCommentsAudioColumns();
+    } catch (error: any) {
+      console.error('❌ Error al verificar columnas de audio del chat:', error.message);
     }
   }
 
