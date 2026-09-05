@@ -2045,6 +2045,20 @@ export async function ensureMarketSubUserColumns(): Promise<void> {
   console.log('👥 Columnas de compradores del Market verificadas');
 }
 
+/**
+ * Columnas de los mensajes de voz del chat (task_comments.audio_url /
+ * audio_duration_ms). Fuera del bucle de migraciones a propósito, igual que
+ * las de OAuth y del Market: el listado del chat y el alta de comentarios
+ * seleccionan estas columnas (drizzle las pide en el RETURNING), así que si
+ * la migración 083 no llega a correr —porque una anterior corta el bucle— el
+ * chat entero queda muerto: no se cargan mensajes ni se puede escribir.
+ */
+export async function ensureTaskCommentsAudioColumns(): Promise<void> {
+  await db.execute(sql`ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS audio_url VARCHAR`);
+  await db.execute(sql`ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS audio_duration_ms INTEGER`);
+  console.log('🎤 Columnas de audio del chat verificadas');
+}
+
 export async function ensureOAuthTables(): Promise<void> {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS oauth_clients (

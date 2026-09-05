@@ -6125,11 +6125,15 @@ function TaskDetailDialog({
   const actividadesCompletadas = actividades.filter((a) => a.estado === 'completada').length;
 
   return (
-    // Alto fijo para que el chat y las pestañas tengan su propio scroll. Fuera de
-    // desktop se descuentan los paddings del layout (main p-3 + página p-2 = 2.5rem;
-    // desde sm la página usa p-3 = 3rem) y se mide en dvh: con 100vh la barra del
-    // navegador móvil tapaba el input del chat y parecía que "faltaba info".
-    <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100dvh-2.5rem)] sm:h-[calc(100dvh-3rem)] lg:h-[calc(100vh-1rem)]">
+    // En desktop es una página dentro del layout (alto fijo para que el chat y
+    // las pestañas tengan su propio scroll). Fuera de desktop es una HOJA a
+    // pantalla completa (fixed, z-50): el layout móvil tiene una barra fija
+    // abajo (z-40, 56px + safe area) y una tarjeta de 100dvh quedaba tapada por
+    // ella — la página scrolleaba, el título se cortaba arriba y quedaba un
+    // hueco abajo. Tapando la barra el chat usa toda la pantalla y el composer
+    // queda siempre a la vista; se sale con la flecha o la X del encabezado.
+    // dvh, no vh: con 100vh la barra del navegador móvil tapaba el input.
+    <div className="flex flex-col bg-white overflow-hidden fixed inset-0 z-50 h-[100dvh] pb-[env(safe-area-inset-bottom)] lg:static lg:z-auto lg:pb-0 lg:h-[calc(100vh-1rem)] lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm">
         {/* Header */}
         <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-muted/30 flex-shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-2 sm:gap-4">
@@ -6149,7 +6153,7 @@ function TaskDetailDialog({
                   {task.title}
                 </h2>
                 <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
-                  <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+                  <span className="hidden sm:inline">Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
                     <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-0 text-xs">
                       {SEGMENTOS.find(s => s.value === (task as any).segmento)?.label || (task as any).segmento}
@@ -6261,7 +6265,7 @@ function TaskDetailDialog({
               <div className="relative flex-1 min-h-0">
                 {/* Chat en móvil: usa todo el alto disponible, con su input abajo */}
                 <TabsContent value="chat" className="lg:hidden absolute inset-0 flex flex-col min-h-0 mt-0 bg-slate-50/40 data-[state=inactive]:hidden">
-                  <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
                     <DetailChatPanel taskId={task.id} iaPensando={iaPensando} />
                   </div>
                   <DetailChatInput taskId={task.id} onIaPensando={setIaPensando} />
@@ -6907,9 +6911,9 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
   };
 
   return (
-    // En móvil el botón flotante del menú (fixed bottom-5 left-5) queda encima de
-    // esta barra: se deja libre su esquina para poder escribir.
-    <div className="pl-16 pr-4 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+    // En móvil el detalle es una hoja a pantalla completa que tapa la barra del
+    // menú: no hay nada que esquivar y el ancho entero es para escribir.
+    <div className="px-3 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
       {grabando ? (
         /* Grabando: el campo se reemplaza por el contador; X descarta, el botón
            naranjo manda. */
