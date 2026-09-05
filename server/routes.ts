@@ -114,6 +114,7 @@ import { parseOrdenDeCompra } from "./oc-parser";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
 import { responderEnChatDeTarea } from "./ai-panel-asistente";
+import { guardarAudioChat, transcribirAudioChat, AUDIO_SIN_TRANSCRIPCION, AUDIO_MAX_SEGUNDOS } from "./chat-audio";
 import { mencionaIA } from "@shared/ai-mention";
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { parseActividadCrm } from "./crm-voz";
@@ -1224,6 +1225,12 @@ export function registerRoutes(app: Express): Server {
         '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         '.xls': 'application/vnd.ms-excel',
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        // Mensajes de voz del chat (respaldo local cuando no hay Supabase)
+        '.webm': 'audio/webm',
+        '.m4a': 'audio/mp4',
+        '.ogg': 'audio/ogg',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
       };
 
       const contentType = contentTypes[ext] || 'application/octet-stream';
@@ -14875,6 +14882,63 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error adding task comment:", error);
       res.status(500).json({ message: "Failed to add comment" });
+    }
+  });
+
+  // Mensaje de voz en el hilo: el audio se sube al storage y se transcribe; el
+  // comentario queda con la transcripción como texto (o un marcador si no se
+  // pudo) y la URL del audio para escucharlo. Mismo anclaje de asignación que
+  // el comentario de texto.
+  const uploadAudioChat = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+  });
+  app.post('/api/tasks/:taskId/comments/audio', requireAuth, uploadAudioChat.single('audio'), async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const user = req.user;
+      if (!req.file || !req.file.buffer?.length) {
+        return res.status(400).json({ message: "No llegó ningún audio" });
+      }
+      const duracionMs = Math.max(0, Math.round(Number(req.body?.duracionMs) || 0));
+      if (duracionMs > AUDIO_MAX_SEGUNDOS * 1000) {
+        return res.status(400).json({ message: `El audio no puede durar más de ${AUDIO_MAX_SEGUNDOS} segundos` });
+      }
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!task.assignments || task.assignments.length === 0) {
+        return res.status(400).json({ message: "La tarea no tiene asignaciones" });
+      }
+
+      const mimetype = req.file.mimetype || 'audio/webm';
+      const [audioUrl, transcripcion] = await Promise.all([
+        guardarAudioChat(req.file.buffer, mimetype),
+        transcribirAudioChat(req.file.buffer, mimetype),
+      ]);
+
+      const own = task.assignments.find(a => a.assigneeId === user.id);
+      const targetAssignment = own || task.assignments[0];
+      const authorName = user.name || user.fullName || user.email || 'Usuario';
+      const comment = await storage.addTaskComment({
+        assignmentId: targetAssignment.id,
+        authorId: user.id,
+        authorName,
+        content: transcripcion || AUDIO_SIN_TRANSCRIPCION,
+        audioUrl,
+        audioDurationMs: duracionMs || null,
+      });
+      await logPanelChange(user, {
+        section: panelSectionForTask(task),
+        action: 'commented',
+        entityType: 'task',
+        entityId: taskId,
+        title: `Mensaje de voz en "${task.title}"`,
+        segmento: normalizePanelSegmento(task.segmento),
+      });
+      res.status(201).json({ ...comment, transcrito: Boolean(transcripcion) });
+    } catch (error: any) {
+      console.error("Error publicando mensaje de voz:", error);
+      res.status(500).json({ message: error?.message || "No se pudo enviar el audio" });
     }
   });
 

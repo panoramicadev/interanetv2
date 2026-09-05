@@ -1576,6 +1576,12 @@ export const taskComments = pgTable("task_comments", {
   authorId: varchar("author_id").notNull(), // FK to users.id
   authorName: text("author_name").notNull(), // Cached author name for display
   content: text("content").notNull(),
+  // Mensaje de voz: el audio queda en el storage y `content` guarda su
+  // transcripción, así la bitácora se lee y se busca igual que el texto (y el
+  // asistente IA lo entiende). Si la transcripción falla, content lleva un
+  // marcador y el audio se escucha igual.
+  audioUrl: varchar("audio_url"),
+  audioDurationMs: integer("audio_duration_ms"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   assignmentIdIdx: index("IDX_task_comments_assignment_id").on(table.assignmentId),
