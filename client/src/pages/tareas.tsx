@@ -73,13 +73,15 @@ import {
   FileCheck,
   RotateCcw,
   Target,
-  Wallet
+  Wallet,
+  Sparkles
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
+import { IA_AUTHOR_NAME, IA_MENTION, esMensajeDeIA, mencionaIA } from "@shared/ai-mention";
 import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
 import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
@@ -5949,6 +5951,12 @@ function TaskDetailDialog({
   const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
   const [selectedSegmento, setSelectedSegmento] = useState<string>((task as any).segmento || "__none__");
 
+  // El asistente IA es un integrante más del chat: mientras prepara su respuesta
+  // el hilo muestra "escribiendo…". El estado vive acá porque lo dispara el
+  // composer y lo pinta el panel de mensajes (y hay una copia de cada uno para
+  // desktop y para la pestaña de móvil).
+  const [iaPensando, setIaPensando] = useState(false);
+
   // Pestaña activa del panel derecho. En móvil el chat es una pestaña más y es la
   // que se abre primero (en desktop vive en su columna fija y arranca en Detalle).
   const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 1024;
@@ -6209,9 +6217,9 @@ function TaskDetailDialog({
               </h4>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <DetailChatPanel taskId={task.id} />
+              <DetailChatPanel taskId={task.id} iaPensando={iaPensando} />
             </div>
-            <DetailChatInput taskId={task.id} />
+            <DetailChatInput taskId={task.id} onIaPensando={setIaPensando} />
           </div>
 
           {/* Right Panel: pestañas (Detalle + info del cliente) */}
@@ -6252,9 +6260,9 @@ function TaskDetailDialog({
                 {/* Chat en móvil: usa todo el alto disponible, con su input abajo */}
                 <TabsContent value="chat" className="lg:hidden absolute inset-0 flex flex-col min-h-0 mt-0 bg-slate-50/40 data-[state=inactive]:hidden">
                   <div className="flex-1 overflow-y-auto min-h-0">
-                    <DetailChatPanel taskId={task.id} />
+                    <DetailChatPanel taskId={task.id} iaPensando={iaPensando} />
                   </div>
-                  <DetailChatInput taskId={task.id} />
+                  <DetailChatInput taskId={task.id} onIaPensando={setIaPensando} />
                 </TabsContent>
 
                 {/* Detalle: descripción, enlaces, asignaciones, eliminar */}
@@ -6553,7 +6561,12 @@ function TaskDetailDialog({
 // qué contestó. Por eso NO se puede borrar (ni el autor ni el admin) — antes se
 // podía y quedaban acuerdos con clientes sin rastro. El backend también lo
 // rechaza (DELETE /api/tasks/:id/comments/:commentId responde 403).
-function DetailChatPanel({ taskId }: { taskId: string }) {
+//
+// El asistente IA es un integrante más del hilo: sus mensajes llegan en la misma
+// lista, firmados por "Panorámica AI", y se pintan con la identidad del asistente
+// (azul + chispa, la misma de components/ai-chat) para distinguirlos de las
+// personas sin sacarlos de la conversación.
+function DetailChatPanel({ taskId, iaPensando = false }: { taskId: string; iaPensando?: boolean }) {
   const { user } = useAuth();
   // Hilo único de la tarea (todas las asignaciones) estilo WhatsApp: no se filtra por miembro.
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
@@ -6565,7 +6578,7 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments.length]);
+  }, [comments.length, iaPensando]);
 
   if (isLoading) {
     return (
@@ -6575,7 +6588,7 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
     );
   }
 
-  if (comments.length === 0) {
+  if (comments.length === 0 && !iaPensando) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
@@ -6583,6 +6596,9 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
         </div>
         <p className="text-sm font-medium text-slate-600">Sin mensajes aún</p>
         <p className="text-xs text-slate-400 mt-1">Escribe el primer mensaje de esta bitácora</p>
+        <p className="text-xs text-slate-400 mt-2">
+          Escribe <span className="font-semibold text-blue-600">{IA_MENTION}</span> para preguntarle al asistente
+        </p>
       </div>
     );
   }
@@ -6590,16 +6606,29 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
   return (
     <div className="p-4 space-y-2">
       {comments.map((comment) => {
-        const isMine = comment.authorId === user?.id;
+        const esIA = esMensajeDeIA(comment.authorId);
+        const isMine = !esIA && comment.authorId === user?.id;
         return (
           <div key={comment.id} className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
             {!isMine && (
-              <span className="text-[11px] font-semibold text-slate-500 ml-1 mb-0.5">{comment.authorName}</span>
+              <span className={`text-[11px] font-semibold ml-1 mb-0.5 flex items-center gap-1 ${esIA ? 'text-blue-600' : 'text-slate-500'}`}>
+                {esIA && <Sparkles className="h-3 w-3" />}
+                {comment.authorName}
+              </span>
             )}
             <div className="flex items-end gap-1.5 max-w-[85%]">
-              <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#fd6301] text-white rounded-br-md' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md'}`}>
+              <div
+                className={`rounded-2xl px-3 py-2 shadow-sm ${
+                  isMine
+                    ? 'bg-[#fd6301] text-white rounded-br-md'
+                    : esIA
+                      ? 'bg-blue-50 border border-blue-200 text-slate-700 rounded-bl-md'
+                      : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md'
+                }`}
+                data-testid={esIA ? 'chat-mensaje-ia' : undefined}
+              >
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
-                <span className={`block text-[10px] mt-0.5 text-right ${isMine ? 'text-white/70' : 'text-slate-400'}`}>
+                <span className={`block text-[10px] mt-0.5 text-right ${isMine ? 'text-white/70' : esIA ? 'text-blue-400' : 'text-slate-400'}`}>
                   {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
                 </span>
               </div>
@@ -6607,6 +6636,24 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
           </div>
         );
       })}
+
+      {/* El asistente está preparando su respuesta */}
+      {iaPensando && (
+        <div className="flex flex-col items-start" data-testid="chat-ia-escribiendo">
+          <span className="text-[11px] font-semibold text-blue-600 ml-1 mb-0.5 flex items-center gap-1">
+            <Sparkles className="h-3 w-3" />
+            {IA_AUTHOR_NAME}
+          </span>
+          <div className="rounded-2xl rounded-bl-md bg-blue-50 border border-blue-200 px-3 py-2.5 shadow-sm">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
+              <span className="ml-1.5 text-[11px] font-medium text-blue-600">escribiendo…</span>
+            </div>
+          </div>
+        </div>
+      )}
       <div ref={chatEndRef} />
     </div>
   );
@@ -6615,9 +6662,38 @@ function DetailChatPanel({ taskId }: { taskId: string }) {
 // ==================================================================================
 // DetailChatInput - Input de chat para el panel de detalle
 // ==================================================================================
-function DetailChatInput({ taskId }: { taskId: string }) {
+// Además de publicar el mensaje, este composer es la puerta del asistente: si el
+// texto nombra a la IA (@IA), después de guardar el mensaje de la persona se le
+// pide la respuesta al backend, que la publica en el mismo hilo. El mensaje del
+// equipo aparece al instante; la respuesta llega cuando el modelo termina.
+function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensando?: (v: boolean) => void }) {
   const { toast } = useToast();
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Si se le pregunta dos veces seguidas, el "escribiendo…" tiene que quedar
+  // hasta que conteste la última: se cuentan las consultas en vuelo.
+  const consultasIA = useRef(0);
+
+  const preguntarIA = async (pregunta: string) => {
+    consultasIA.current += 1;
+    onIaPensando?.(true);
+    try {
+      await apiRequest(`/api/tasks/${taskId}/asistente`, {
+        method: 'POST',
+        data: { pregunta },
+      });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
+    } catch (error: any) {
+      toast({
+        title: "El asistente no pudo responder",
+        description: error?.message || "Intenta de nuevo en un momento.",
+        variant: "destructive",
+      });
+    } finally {
+      consultasIA.current -= 1;
+      if (consultasIA.current <= 0) onIaPensando?.(false);
+    }
+  };
 
   const addCommentMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -6627,9 +6703,10 @@ function DetailChatInput({ taskId }: { taskId: string }) {
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, content: string) => {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
       setText("");
+      if (mencionaIA(content)) void preguntarIA(content);
     },
     onError: () => {
       toast({
@@ -6639,6 +6716,17 @@ function DetailChatInput({ taskId }: { taskId: string }) {
       });
     }
   });
+
+  // Nombrar al asistente desde el botón: deja el @IA al principio y el foco al
+  // final para seguir escribiendo la pregunta.
+  const mencionarIA = () => {
+    setText((t) => (mencionaIA(t) ? t : t.trim() ? `${IA_MENTION} ${t.trimStart()}` : `${IA_MENTION} `));
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -6659,11 +6747,30 @@ function DetailChatInput({ taskId }: { taskId: string }) {
     // esta barra: se deja libre su esquina para poder escribir.
     <div className="pl-16 pr-4 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        {/* Llamar al asistente: queda junto al campo porque es una forma más de
+            escribir el mensaje, no una acción aparte del chat. */}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={mencionarIA}
+          title="Preguntarle al asistente en este chat"
+          className={`h-10 px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
+            mencionaIA(text)
+              ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+              : 'text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50'
+          }`}
+          data-testid="button-mencionar-ia"
+        >
+          <Sparkles className="h-4 w-4" />
+          IA
+        </Button>
         <Textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Escribe un mensaje..."
+          placeholder={`Escribe un mensaje… o ${IA_MENTION} para preguntar`}
           className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
           rows={1}
           data-testid="chat-input-detail"

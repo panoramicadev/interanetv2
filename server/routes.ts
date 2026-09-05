@@ -113,6 +113,8 @@ import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import { parseOrdenDeCompra } from "./oc-parser";
 import sharp from "sharp";
 import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
+import { responderEnChatDeTarea } from "./ai-panel-asistente";
+import { mencionaIA } from "@shared/ai-mention";
 import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
@@ -14873,6 +14875,54 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error adding task comment:", error);
       res.status(500).json({ message: "Failed to add comment" });
+    }
+  });
+
+  // El asistente IA como un integrante más del hilo: se lo llama con @IA en un
+  // mensaje del chat y contesta ahí mismo, firmado como "Panorámica AI". La
+  // respuesta se guarda en task_comments (la ve todo el equipo, queda en la
+  // bitácora). Va en una ruta aparte del POST de comentarios para que el mensaje
+  // de la persona se publique al instante y la espera del modelo no lo trabe.
+  app.post('/api/tasks/:taskId/asistente', requireAuth, async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      const user = req.user;
+      const { pregunta } = req.body;
+      if (!pregunta || !mencionaIA(pregunta)) {
+        return res.status(400).json({ message: "El mensaje tiene que nombrar al asistente con @IA" });
+      }
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!task.assignments || task.assignments.length === 0) {
+        return res.status(400).json({ message: "La tarea no tiene asignaciones" });
+      }
+
+      const kbItems = await db.select().from(aiKnowledgeBase);
+      const { comment, toolsUsed } = await responderEnChatDeTarea({
+        task,
+        pregunta,
+        user: {
+          id: user.id,
+          role: user.role || 'salesperson',
+          salespersonName: user.salespersonName || null,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+        },
+        permissions: await getEffectivePermissionsForUser(user?.email, user?.role || 'salesperson'),
+        knowledgeBase: kbItems.map((k: any) => ({
+          title: k.title,
+          content: k.content || '',
+          fileType: k.fileType || 'text',
+        })),
+      });
+
+      // Sin logPanelChange a propósito: la pregunta que disparó esta respuesta ya
+      // dejó su cambio (y su push) en la sección, y la respuesta llega al mismo
+      // hilo segundos después. Registrarla otra vez duplicaría badges y avisos.
+      res.status(201).json({ comment, toolsUsed });
+    } catch (error: any) {
+      console.error("Error respondiendo con el asistente IA:", error);
+      res.status(500).json({ message: error?.message || "El asistente no pudo responder" });
     }
   });
 
