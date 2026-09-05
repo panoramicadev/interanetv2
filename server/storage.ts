@@ -14624,6 +14624,8 @@ export class DatabaseStorage implements IStorage {
         authorId: taskComments.authorId,
         authorName: taskComments.authorName,
         content: taskComments.content,
+        audioUrl: taskComments.audioUrl,
+        audioDurationMs: taskComments.audioDurationMs,
         createdAt: taskComments.createdAt,
       })
       .from(taskComments)

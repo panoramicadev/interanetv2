@@ -74,7 +74,9 @@ import {
   RotateCcw,
   Target,
   Wallet,
-  Sparkles
+  Sparkles,
+  Mic,
+  Pause
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -6627,7 +6629,11 @@ function DetailChatPanel({ taskId, iaPensando = false }: { taskId: string; iaPen
                 }`}
                 data-testid={esIA ? 'chat-mensaje-ia' : undefined}
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
+                {(comment as any).audioUrl ? (
+                  <AudioMensaje url={(comment as any).audioUrl} duracionMs={(comment as any).audioDurationMs} texto={comment.content} isMine={isMine} />
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
+                )}
                 <span className={`block text-[10px] mt-0.5 text-right ${isMine ? 'text-white/70' : esIA ? 'text-blue-400' : 'text-slate-400'}`}>
                   {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
                 </span>
@@ -6655,6 +6661,80 @@ function DetailChatPanel({ taskId, iaPensando = false }: { taskId: string; iaPen
         </div>
       )}
       <div ref={chatEndRef} />
+    </div>
+  );
+}
+
+// ==================================================================================
+// AudioMensaje - Mensaje de voz dentro de la burbuja: play/pausa, barra y
+// transcripción. Sin los controles nativos del navegador: en iOS ocupan toda la
+// burbuja y se ven distintos en cada celular.
+// ==================================================================================
+const formatDuracion = (ms?: number | null) => {
+  const total = Math.max(0, Math.round((ms || 0) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+};
+
+function AudioMensaje({ url, duracionMs, texto, isMine }: { url: string; duracionMs?: number | null; texto: string; isMine: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progreso, setProgreso] = useState(0); // 0..1
+  const [duracion, setDuracion] = useState<number>((duracionMs || 0) / 1000);
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.paused) void el.play(); else el.pause();
+  };
+
+  const tono = isMine ? 'text-white' : 'text-slate-700';
+  const barra = isMine ? 'bg-white/30' : 'bg-slate-200';
+  const barraLlena = isMine ? 'bg-white' : 'bg-[#fd6301]';
+  const boton = isMine ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-[#fd6301] hover:bg-[#e35400] text-white';
+  const esTranscripcion = texto && !texto.startsWith('🎤');
+
+  return (
+    <div className="min-w-[200px]">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgreso(0); }}
+        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDuracion(d); }}
+        onTimeUpdate={(e) => { const el = e.currentTarget; if (el.duration > 0) setProgreso(el.currentTime / el.duration); }}
+      />
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={toggle}
+          className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${boton}`}
+          aria-label={playing ? 'Pausar' : 'Reproducir'}
+          data-testid="audio-play"
+        >
+          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div
+            className={`h-1.5 rounded-full ${barra} overflow-hidden cursor-pointer`}
+            onClick={(e) => {
+              const el = audioRef.current;
+              if (!el || !Number.isFinite(el.duration)) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              el.currentTime = ((e.clientX - r.left) / r.width) * el.duration;
+            }}
+          >
+            <div className={`h-full rounded-full ${barraLlena}`} style={{ width: `${Math.round(progreso * 100)}%` }} />
+          </div>
+          <span className={`block text-[10px] mt-1 ${isMine ? 'text-white/70' : 'text-slate-400'}`}>
+            {playing && audioRef.current ? formatDuracion(audioRef.current.currentTime * 1000) : formatDuracion(duracion * 1000)} · voz
+          </span>
+        </div>
+      </div>
+      {esTranscripcion && (
+        <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words mt-2 ${tono}`}>{texto}</p>
+      )}
     </div>
   );
 }
@@ -6717,6 +6797,90 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
     }
   });
 
+  // ── Mensaje de voz ──
+  // Tocar el micrófono graba; tocar de nuevo manda. Se sube al backend, que lo
+  // guarda y lo transcribe; el mensaje aparece con el audio y el texto. Si la
+  // transcripción nombra al asistente, se le pregunta igual que por escrito.
+  const puedeGrabar = typeof window !== 'undefined'
+    && typeof (window as any).MediaRecorder !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia;
+  const [grabando, setGrabando] = useState(false);
+  const [subiendoAudio, setSubiendoAudio] = useState(false);
+  const [segundos, setSegundos] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const inicioRef = useRef(0);
+  const descartarRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const AUDIO_MAX_SEGUNDOS = 180;
+
+  const detenerTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const enviarAudio = async (blob: Blob, duracionMs: number) => {
+    setSubiendoAudio(true);
+    try {
+      const ext = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const form = new FormData();
+      form.append('audio', blob, `voz.${ext}`);
+      form.append('duracionMs', String(duracionMs));
+      const res = await apiRequest(`/api/tasks/${taskId}/comments/audio`, { method: 'POST', data: form });
+      const comment = await res.json();
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'comments'] });
+      if (comment?.content && mencionaIA(comment.content)) void preguntarIA(comment.content);
+    } catch (error: any) {
+      toast({ title: "No se pudo enviar el audio", description: error?.message || "Intenta de nuevo.", variant: "destructive" });
+    } finally {
+      setSubiendoAudio(false);
+    }
+  };
+
+  const empezarGrabacion = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Chrome/Android graban webm (opus); Safari/iOS solo mp4. Se elige lo que
+      // el navegador soporte; sin opciones, MediaRecorder usa su default.
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      descartarRef.current = false;
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        detenerTimer();
+        setGrabando(false);
+        setSegundos(0);
+        const duracionMs = Date.now() - inicioRef.current;
+        if (descartarRef.current || chunksRef.current.length === 0 || duracionMs < 500) return;
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || mime || 'audio/webm' });
+        void enviarAudio(blob, duracionMs);
+      };
+      recorderRef.current = rec;
+      inicioRef.current = Date.now();
+      rec.start();
+      setGrabando(true);
+      setSegundos(0);
+      timerRef.current = setInterval(() => {
+        const s = Math.floor((Date.now() - inicioRef.current) / 1000);
+        setSegundos(s);
+        if (s >= AUDIO_MAX_SEGUNDOS) recorderRef.current?.stop();
+      }, 250);
+    } catch {
+      toast({ title: "Sin acceso al micrófono", description: "Permite el micrófono en el navegador para grabar.", variant: "destructive" });
+    }
+  };
+
+  const terminarGrabacion = (descartar = false) => {
+    descartarRef.current = descartar;
+    const rec = recorderRef.current;
+    if (rec && rec.state !== 'inactive') rec.stop();
+  };
+
+  // Si se cierra el detalle a mitad de una grabación, soltar el micrófono.
+  useEffect(() => () => { descartarRef.current = true; recorderRef.current?.state === 'recording' && recorderRef.current.stop(); detenerTimer(); }, []);
+
   // Nombrar al asistente desde el botón: deja el @IA al principio y el foco al
   // final para seguir escribiendo la pregunta.
   const mencionarIA = () => {
@@ -6746,16 +6910,47 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
     // En móvil el botón flotante del menú (fixed bottom-5 left-5) queda encima de
     // esta barra: se deja libre su esquina para poder escribir.
     <div className="pl-16 pr-4 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+      {grabando ? (
+        /* Grabando: el campo se reemplaza por el contador; X descarta, el botón
+           naranjo manda. */
+        <div className="flex items-center gap-2" data-testid="chat-grabando">
+          <button
+            type="button"
+            onClick={() => terminarGrabacion(true)}
+            className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
+            aria-label="Descartar grabación"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex-1 h-10 rounded-xl border border-red-200 bg-red-50 px-3 flex items-center gap-2 text-sm text-red-700">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="font-semibold tabular-nums">{formatDuracion(segundos * 1000)}</span>
+            <span className="text-red-500/80 truncate">Grabando…</span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => terminarGrabacion(false)}
+            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            aria-label="Enviar audio"
+            data-testid="button-enviar-audio"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
         {/* Llamar al asistente: queda junto al campo porque es una forma más de
-            escribir el mensaje, no una acción aparte del chat. */}
+            escribir el mensaje, no una acción aparte del chat. En móvil va solo
+            el ícono: el ancho es para escribir. */}
         <Button
           type="button"
           size="sm"
           variant="outline"
           onClick={mencionarIA}
           title="Preguntarle al asistente en este chat"
-          className={`h-10 px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
+          aria-label="Preguntarle al asistente"
+          className={`h-10 w-10 p-0 sm:w-auto sm:px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
             mencionaIA(text)
               ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
               : 'text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50'
@@ -6763,32 +6958,53 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           data-testid="button-mencionar-ia"
         >
           <Sparkles className="h-4 w-4" />
-          IA
+          <span className="hidden sm:inline">IA</span>
         </Button>
+        {/* text-base en móvil: con menos de 16px iOS hace zoom al enfocar el campo
+            y la pantalla queda corrida y agrandada. El placeholder es corto para
+            que no se parta en dos líneas y agrande la caja. */}
         <Textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Escribe un mensaje… o ${IA_MENTION} para preguntar`}
-          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
+          placeholder="Escribe un mensaje…"
+          enterKeyHint="send"
+          className="flex-1 min-h-[40px] max-h-[120px] text-base md:text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
           rows={1}
           data-testid="chat-input-detail"
         />
-        <Button
-          type="submit"
-          size="sm"
-          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
-          disabled={addCommentMutation.isPending || !text.trim()}
-          data-testid="button-send-chat"
-        >
-          {addCommentMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+        {/* Con el campo vacío el botón es el micrófono (como WhatsApp); apenas
+            hay texto pasa a ser enviar. Así no se suma un botón más a la fila. */}
+        {!text.trim() && puedeGrabar ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={empezarGrabacion}
+            disabled={subiendoAudio}
+            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            aria-label="Grabar mensaje de voz"
+            data-testid="button-grabar-audio"
+          >
+            {subiendoAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="sm"
+            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            disabled={addCommentMutation.isPending || !text.trim()}
+            data-testid="button-send-chat"
+          >
+            {addCommentMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        )}
       </form>
+      )}
     </div>
   );
 }
