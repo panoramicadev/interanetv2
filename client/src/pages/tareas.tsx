@@ -6748,14 +6748,16 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
     <div className="pl-16 pr-4 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
         {/* Llamar al asistente: queda junto al campo porque es una forma más de
-            escribir el mensaje, no una acción aparte del chat. */}
+            escribir el mensaje, no una acción aparte del chat. En móvil va solo
+            el ícono: el ancho es para escribir. */}
         <Button
           type="button"
           size="sm"
           variant="outline"
           onClick={mencionarIA}
           title="Preguntarle al asistente en este chat"
-          className={`h-10 px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
+          aria-label="Preguntarle al asistente"
+          className={`h-10 w-10 p-0 sm:w-auto sm:px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
             mencionaIA(text)
               ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
               : 'text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50'
@@ -6763,15 +6765,19 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           data-testid="button-mencionar-ia"
         >
           <Sparkles className="h-4 w-4" />
-          IA
+          <span className="hidden sm:inline">IA</span>
         </Button>
+        {/* text-base en móvil: con menos de 16px iOS hace zoom al enfocar el campo
+            y la pantalla queda corrida y agrandada. El placeholder es corto para
+            que no se parta en dos líneas y agrande la caja. */}
         <Textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Escribe un mensaje… o ${IA_MENTION} para preguntar`}
-          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
+          placeholder="Escribe un mensaje…"
+          enterKeyHint="send"
+          className="flex-1 min-h-[40px] max-h-[120px] text-base md:text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
           rows={1}
           data-testid="chat-input-detail"
         />
