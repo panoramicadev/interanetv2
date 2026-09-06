@@ -5914,6 +5914,46 @@ function EditPromesaDialog({
 }
 
 // ==================================================================================
+// useHojaMovil - alto real de la hoja del detalle en el teléfono
+// ==================================================================================
+// En iOS Safari, al abrir el teclado la pantalla visible se achica pero `100dvh`
+// no cambia: la hoja sigue midiendo la pantalla entera, Safari la corre para
+// mostrar el campo enfocado y queda desalineada — el composer a media altura y
+// un hueco abajo, que es lo que se veía en el teléfono (sep-2026). Acá la hoja
+// se mide con el visual viewport (lo que de verdad se ve) y se pega a su borde
+// superior, así el composer queda siempre justo encima del teclado y vuelve al
+// fondo cuando se cierra. Fuera del teléfono no hace nada (la hoja es página).
+function useHojaMovil(): React.CSSProperties | undefined {
+  const [estilo, setEstilo] = useState<React.CSSProperties | undefined>(undefined);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const mql = window.matchMedia("(min-width: 1024px)");
+    if (!vv) return;
+    const medir = () => {
+      if (mql.matches) { setEstilo(undefined); return; }
+      setEstilo({ height: `${Math.round(vv.height)}px`, top: `${Math.round(vv.offsetTop)}px` });
+      // Safari corre la página al enfocar el campo; se la devuelve al origen
+      // para que la hoja (fixed) no quede a medio camino.
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    medir();
+    vv.addEventListener("resize", medir);
+    vv.addEventListener("scroll", medir);
+    mql.addEventListener("change", medir);
+    // La página de atrás no se mueve mientras la hoja está abierta.
+    const previo = document.body.style.overflow;
+    if (!mql.matches) document.body.style.overflow = "hidden";
+    return () => {
+      vv.removeEventListener("resize", medir);
+      vv.removeEventListener("scroll", medir);
+      mql.removeEventListener("change", medir);
+      document.body.style.overflow = previo;
+    };
+  }, []);
+  return estilo;
+}
+
+// ==================================================================================
 // TaskDetailDialog - Vista de detalle de tarea con panel de chat
 // ==================================================================================
 interface TaskDetailDialogProps {
@@ -5958,6 +5998,9 @@ function TaskDetailDialog({
   // composer y lo pinta el panel de mensajes (y hay una copia de cada uno para
   // desktop y para la pestaña de móvil).
   const [iaPensando, setIaPensando] = useState(false);
+
+  // Alto real de la hoja en el teléfono (ver useHojaMovil).
+  const estiloHoja = useHojaMovil();
 
   // Pestaña activa del panel derecho. En móvil el chat es una pestaña más y es la
   // que se abre primero (en desktop vive en su columna fija y arranca en Detalle).
@@ -6133,7 +6176,10 @@ function TaskDetailDialog({
     // hueco abajo. Tapando la barra el chat usa toda la pantalla y el composer
     // queda siempre a la vista; se sale con la flecha o la X del encabezado.
     // dvh, no vh: con 100vh la barra del navegador móvil tapaba el input.
-    <div className="flex flex-col bg-white overflow-hidden fixed inset-0 z-50 h-[100dvh] pb-[env(safe-area-inset-bottom)] lg:static lg:z-auto lg:pb-0 lg:h-[calc(100vh-1rem)] lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm">
+    <div
+      style={estiloHoja}
+      className="flex flex-col bg-white overflow-hidden fixed inset-0 z-50 h-[100dvh] pb-[env(safe-area-inset-bottom)] lg:static lg:z-auto lg:pb-0 lg:h-[calc(100vh-1rem)] lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm"
+    >
         {/* Header */}
         <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-muted/30 flex-shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-2 sm:gap-4">
