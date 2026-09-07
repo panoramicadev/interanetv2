@@ -28,6 +28,7 @@ import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import Comisiones from "@/pages/comisiones";
+import Remuneraciones from "@/pages/remuneraciones";
 import TareasPage from "@/pages/tareas";
 import RutasComerciales from "@/pages/rutas-comerciales";
 
@@ -303,6 +304,7 @@ function Router() {
             }} />
             <Route path="/metas" component={guarded("config.metas", Metas)} />
             <Route path="/comisiones" component={guarded("rrhh.comisiones", Comisiones)} />
+            <Route path="/remuneraciones" component={guarded("rrhh.remuneraciones", Remuneraciones)} />
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra

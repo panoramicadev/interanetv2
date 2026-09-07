@@ -82,6 +82,14 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error al verificar columnas de audio del chat:', error.message);
     }
+    // Idem: el módulo de Remuneraciones lee talana_vinculos en cada carga del
+    // cruce. Si la tabla no está, la pantalla abre sin ningún vínculo guardado.
+    try {
+      const { ensureRemuneracionesTables } = await import('./routes-remuneraciones');
+      await ensureRemuneracionesTables();
+    } catch (error: any) {
+      console.error('❌ Error al verificar las tablas de Remuneraciones:', error.message);
+    }
   }
 
   const server = registerRoutes(app);

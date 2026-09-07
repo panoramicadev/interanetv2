@@ -122,6 +122,7 @@ import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
 import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser, canEditPricing } from "./permissions";
 import { registerCommissionRoutes } from "./commissions";
+import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -593,6 +594,9 @@ export function registerRoutes(app: Express): Server {
 
   // Módulo de Recursos Humanos: comisiones de vendedores
   registerCommissionRoutes(app);
+
+  // Módulo de Recursos Humanos: remuneraciones (Talana cruzado con la intranet)
+  registerRemuneracionesRoutes(app);
 
   // Panel de Trabajo: cambios recientes por sección (badges de pestañas + campana)
   registerPanelChangesRoutes(app);

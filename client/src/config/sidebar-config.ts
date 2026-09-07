@@ -39,7 +39,8 @@ import {
   Send,
   CalendarClock,
   Inbox,
-  Share2
+  Share2,
+  Wallet
 } from "lucide-react";
 
 export interface SidebarItem {
@@ -250,6 +251,13 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     href: "/comisiones",
     label: "Comisiones",
     icon: DollarSign,
+  },
+  // Remuneraciones va pegado a Comisiones: la comisión que se calcula ahí es la
+  // que después se compara contra la liquidación de Talana.
+  {
+    href: "/remuneraciones",
+    label: "Remuneraciones",
+    icon: Wallet,
   },
   // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito
   // (la misma pantalla vive además como pestaña del Panel de Trabajo) y quien
@@ -875,6 +883,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/comisiones",
       label: "Comisiones",
       icon: DollarSign,
+    },
+    {
+      href: "/remuneraciones",
+      label: "Remuneraciones",
+      icon: Wallet,
     },
     {
       href: "/solicitud-credito",
