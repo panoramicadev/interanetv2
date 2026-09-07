@@ -266,6 +266,13 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     separator: true,
   },
   // ── Post-venta ──
+  // Visitas Técnicas volvió al sidebar (sep-2026), sobre Reclamos: dejó de ser
+  // pestaña del Panel de Trabajo.
+  {
+    href: "/visitas-tecnicas",
+    label: "Visitas Técnicas",
+    icon: FileCheck,
+  },
   {
     href: "/reclamos-generales",
     label: "Reclamos",
@@ -273,8 +280,6 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     separator: true,
   },
   // ── Resto de módulos del admin (fuera del orden pedido, van al final) ──
-  // Visitas Técnicas salió del sidebar: su acceso vive como pestaña del Panel
-  // de Trabajo en el área Construcción (la ruta /visitas-tecnicas sigue activa).
   // Mantención (CMMS) oculto: módulo a eliminar (ver nota arriba y
   // DEPRECAR-MANTENCION.md).
   {
@@ -350,6 +355,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: FileCheck,
     },
     {
       href: "/reclamos-generales",
@@ -541,6 +551,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: UserPlus,
     },
     {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: FileCheck,
+    },
+    {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
@@ -697,6 +712,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   tecnico_obra: [
     {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: Wrench,
+    },
+    {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
@@ -709,6 +729,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   ],
 
   laboratorio: [
+    {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: FileCheck,
+    },
     {
       href: "/reclamos-generales",
       label: "Reclamos",

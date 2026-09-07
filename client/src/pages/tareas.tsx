@@ -70,7 +70,6 @@ import {
   MapPin,
   Palette,
   HardHat,
-  FileCheck,
   RotateCcw,
   Target,
   Wallet,
@@ -85,7 +84,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { IA_AUTHOR_NAME, IA_MENTION, esMensajeDeIA, mencionaIA } from "@shared/ai-mention";
 import { RutasComercialesContent, type RutasComercialesHandle } from "@/pages/rutas-comerciales";
-import { VisitasTecnicasContent } from "@/pages/visitas-tecnicas";
 import { ControlObrasContent, type ControlObrasHandle } from "@/pages/control-obras";
 import { CreditoPanel, useCredito } from "@/components/clients/credito-panel";
 import { EnviarCobranzaButton } from "@/components/clients/enviar-cobranza";
@@ -323,14 +321,12 @@ export default function TareasPage() {
   const { can, isReady: permissionsReady } = usePermissions();
   const showCrmTab = !isMarketing && can("clientes.seguimiento");
   // Pestañas siempre presentes: Tareas, Seguimiento, Calendario (3).
-  // Rutas Comerciales se muestra en todas las áreas salvo Construcción, que en su
-  // lugar tiene Visitas Técnicas (ver showVisitasTab más abajo, junto a esConstruccion).
+  // Rutas Comerciales se muestra en todas las áreas salvo Construcción.
   // Estimación (solo Ferreterías) y Obras (solo Construcción) requieren además no ser
   // técnico ni marketing; CRM según permiso.
   // Marketing ya no es pestaña acá: el área completa vive en el módulo Marketing.
+  // Visitas Técnicas tampoco: volvió a ser un módulo del sidebar (/visitas-tecnicas).
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
-  // Visitas Técnicas dejó de estar en el sidebar: su acceso vive en esta pestaña.
-  const canVerVisitas = can("postventa.visitas");
   // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
   // propio en el sidebar (/solicitud-credito).
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
@@ -469,7 +465,7 @@ export default function TareasPage() {
   // hay rol que aterrice en una pestaña que no existe para él.
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "visitas-tecnicas", "calendario"];
+    const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "calendario"];
     return tab && validas.includes(tab) ? tab : "seguimiento";
   });
 
@@ -1029,15 +1025,13 @@ export default function TareasPage() {
   // propia pestaña: en Seguimiento se siguen contando clientes.
   const vistaProyectos = modoProyectos && activeTab === 'tareas';
 
-  // Construcción cambia dos pestañas: "Estimación de ventas" → "Obras" y
-  // "Rutas Comerciales" → "Visitas Técnicas" (que salió del sidebar).
+  // Construcción cambia "Estimación de ventas" por "Obras".
   const showEstimacionTab = showExtraSegmentTabs && esFerreterias;
   const showObrasTab = showExtraSegmentTabs && esConstruccion;
   // Rutas Comerciales es de las áreas que salen a la calle a visitar cartera:
-  // Construcción tiene Visitas Técnicas en su lugar e Industrial trabaja por
-  // proyectos, así que ninguna de las dos la muestra.
+  // Construcción sigue su trabajo por obra e Industrial por proyectos, así que
+  // ninguna de las dos la muestra.
   const showRutasTab = !esConstruccion && !esIndustrial;
-  const showVisitasTab = esConstruccion && canVerVisitas;
   // Las mismas pestañas que arma el riel, como datos: en celular se muestran en un
   // desplegable (ver el render) porque en una barra no entran y había que arrastrarlas.
   const tabsVisibles: { value: string; label: string; Icon: typeof CheckSquare }[] = [
@@ -1051,13 +1045,12 @@ export default function TareasPage() {
     ...(showObrasTab ? [{ value: "obras", label: "Obras", Icon: HardHat }] : []),
     ...(showCrmTab ? [{ value: "crm", label: "CRM", Icon: Users }] : []),
     ...(showRutasTab ? [{ value: "rutas-comerciales", label: "Rutas Comerciales", Icon: MapPin }] : []),
-    ...(showVisitasTab ? [{ value: "visitas-tecnicas", label: "Visitas Técnicas", Icon: FileCheck }] : []),
     { value: "calendario", label: "Calendario", Icon: CalendarIcon },
   ];
   const tabActiva = tabsVisibles.find((t) => t.value === activeTab) ?? tabsVisibles[0];
 
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showVisitasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
+    3 + (showRutasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
   // Centrar la pestaña activa dentro del riel (ver el comentario de tabsListRef).
   useEffect(() => {
     const riel = tabsListRef.current;
@@ -1079,7 +1072,7 @@ export default function TareasPage() {
 
   // Si el usuario venía parado en una pestaña que el área actual no ofrece
   // (Estimación solo existe en Ferreterías; Rutas Comerciales no existe en
-  // Construcción; Visitas Técnicas y Obras solo existen ahí), regresa a Tareas
+  // Construcción; Obras solo existe ahí), regresa a Tareas
   // para no quedar en una pestaña sin trigger.
   useEffect(() => {
     if (!showEstimacionTab && activeTab === "estimacion") {
@@ -1091,15 +1084,12 @@ export default function TareasPage() {
     if (!showObrasTab && activeTab === "obras") {
       setActiveTab("tareas");
     }
-    if (!showVisitasTab && activeTab === "visitas-tecnicas") {
-      setActiveTab("tareas");
-    }
     // La sub-vista de obras del Seguimiento existe solo donde existe la pestaña
     // Obras: cambiando de área vuelve a los clientes en seguimiento.
     if (!showObrasTab && seguimientoVista === "obras") {
       setSeguimientoVista("clientes");
     }
-  }, [showEstimacionTab, showObrasTab, showRutasTab, showVisitasTab, activeTab, seguimientoVista]);
+  }, [showEstimacionTab, showObrasTab, showRutasTab, activeTab, seguimientoVista]);
 
   const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
@@ -2720,18 +2710,12 @@ export default function TareasPage() {
                 {tabChangeBadge("crm")}
               </TabsTrigger>
             )}
-            {/* Rutas Comerciales no aplica a Construcción: ahí su lugar lo toma Visitas Técnicas. */}
+            {/* Rutas Comerciales no aplica a Construcción ni a Industrial. */}
             {showRutasTab && (
               <TabsTrigger value="rutas-comerciales" data-testid="tab-rutas-comerciales" className={tabTriggerClass} onClick={() => handleTabTriggerClick("rutas-comerciales")}>
                 <MapPin className={tabIconClass} />
                 Rutas Comerciales
                 {tabChangeBadge("rutas-comerciales")}
-              </TabsTrigger>
-            )}
-            {showVisitasTab && (
-              <TabsTrigger value="visitas-tecnicas" data-testid="tab-visitas-tecnicas" className={tabTriggerClass}>
-                <FileCheck className={tabIconClass} />
-                Visitas Técnicas
               </TabsTrigger>
             )}
             {/* Solicitud de Crédito ya NO es pestaña del panel: vive solo en su
@@ -4448,13 +4432,6 @@ export default function TareasPage() {
         {showRutasTab && (
           <TabsContent value="rutas-comerciales" className="space-y-6">
             <RutasComercialesContent ref={rutasRef} embebido />
-          </TabsContent>
-        )}
-
-        {/* Visitas Técnicas — módulo propio de Construcción (salió del sidebar y vive acá) */}
-        {showVisitasTab && (
-          <TabsContent value="visitas-tecnicas" className="space-y-6">
-            <VisitasTecnicasContent embedded />
           </TabsContent>
         )}
 
