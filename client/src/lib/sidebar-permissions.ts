@@ -181,10 +181,9 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "solicitud_credito", item: { href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck } },
   { key: "nuevo_cliente", item: { href: "/nuevo-cliente", label: "Nuevo Cliente", icon: UserPlus } },
   { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
-  // Visitas Técnicas oculto del sidebar para todos los roles: su acceso vive como
-  // pestaña del Panel de Trabajo en el área Construcción (la ruta /visitas-tecnicas
-  // sigue activa y el permiso postventa.visitas sigue gobernando el acceso).
-  // { key: "postventa.visitas", item: { href: "/visitas-tecnicas", label: "Visita Técnica", icon: FileCheck } },
+  // Visitas Técnicas va sobre Reclamos: volvió al sidebar (sep-2026) y dejó de ser
+  // pestaña del Panel de Trabajo. El permiso postventa.visitas gobierna el acceso.
+  { key: "postventa.visitas", item: { href: "/visitas-tecnicas", label: "Visitas Técnicas", icon: FileCheck } },
   { key: "postventa.reclamos", item: { href: "/reclamos-generales", label: "Reclamos", icon: AlertTriangle } },
   // etl_monitor no genera ítem extra: se accede por la pestaña de Configuración
   { key: "configuracion", item: { href: "/configuracion", label: "Configuración", icon: Settings } },
