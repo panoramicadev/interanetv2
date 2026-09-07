@@ -210,6 +210,28 @@ segmento, sucursal, vendedor, supervisor y técnico. Regla:
   (corrección del usuario, sep-2026), esté sobre o bajo la meta. Ahí el signo y el
   `(-9.5%)` entre paréntesis ya dicen que falta; en rojo la línea se leía como si la
   tarjeta estuviera fallando, no como el estado normal de un mes recién empezado.
+  Pero el naranjo es **solo de la cifra**: la etiqueta "Diferencia:" va en el mismo
+  gris que "Meta a la Fecha:" (`text-gray-500 dark:text-gray-400`) — corrección del
+  usuario, sep-2026. Con las dos en naranjo la fila entera se leía como una alerta.
+
+### Escala tipográfica de las tarjetas KPI del dashboard (sep-2026)
+
+Las cuatro tarjetas del bloque superior (Ventas Totales, Presupuesto, Clientes Nuevos y
+Margen) comparten la misma escala. Ajustada a la baja por el usuario (sep-2026): las
+cifras ocupaban tanto que la tarjeta se leía como un cartel y el detalle de abajo
+desaparecía.
+
+| Elemento | Clases |
+|---|---|
+| Título de la tarjeta | `text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white` |
+| Cifra grande | `text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold` |
+| Variación, acumulado y detalle | `text-sm lg:text-base`, **sin negrita** |
+| Etiqueta de contexto ("vs …", "acumulado año") | `text-xs lg:text-sm text-gray-500` |
+
+**Todos los valores destacados de la fila de variación van al mismo tamaño y sin
+negrita** — el `+162.6%` de Ventas, la Diferencia del Presupuesto, el acumulado del año
+de Clientes Nuevos y los `+2,0 pts` del Margen. Antes tres de ellos iban un escalón más
+grandes y en `font-semibold`, y las cuatro tarjetas vecinas no calzaban entre sí.
   La regla general sigue valiendo para las variaciones vs. período anterior.
 - **Dos series que hay que distinguir** (NVV vs GDV en Documentos Pendientes):
   una en naranjo y la otra en pizarra (`slate`), no en dos colores nuevos.

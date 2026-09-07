@@ -294,6 +294,22 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
           color: '#6b7280',
           maxRotation: 45,
           minRotation: 0,
+          // Abajo va solo el número, contado dentro del período que se está mirando
+          // (pedido del usuario, sep-2026): el día del mes en la vista Diaria y la
+          // semana del mes —1, 2, 3…— en la Semanal. El mes y el año ya están en el
+          // selector de período de arriba, y con la fecha completa o con "Semana 36"
+          // las etiquetas se pisaban entre sí. El tooltip sigue mostrando el texto
+          // entero, y cualquier otra etiqueta pasa tal cual.
+          callback: function (this: any, value: any, index: number) {
+            const raw = this.getLabelForValue ? this.getLabelForValue(value) : value;
+            const texto = String(raw ?? '');
+            const fecha = texto.match(/^\d{4}-\d{2}-(\d{2})$/);
+            if (fecha) return String(Number(fecha[1]));
+            // "Semana 36" viene numerada dentro del año; acá se renumera por su
+            // posición en el gráfico, que es su lugar dentro del período.
+            if (/^Semana\s+\d+$/i.test(texto)) return String(index + 1);
+            return texto;
+          },
         },
         grid: {
           display: false,

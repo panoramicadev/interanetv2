@@ -365,22 +365,22 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                         <TabsContent value="nvv" className="px-4 sm:px-5 pb-5 pt-4 space-y-4 mt-0">
                             {/* KPI Row */}
                             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                                <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-2.5 sm:p-3">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
                                     <div className="flex items-center gap-1.5 text-[#fd6301] dark:text-orange-300 mb-0.5">
                                         <DollarSign className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Monto</span>
                                     </div>
                                     <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{formatCurrency(nvvTotalAmount)}</div>
                                 </div>
-                                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 sm:p-3">
-                                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-700 mb-0.5">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
+                                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 mb-0.5">
                                         <Package className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Unidades</span>
                                     </div>
                                     <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100">{formatNumber(nvvTotalUnits)}</div>
                                 </div>
-                                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 sm:p-3">
-                                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-700 mb-0.5">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
+                                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 mb-0.5">
                                         <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Pedidos</span>
                                     </div>
@@ -410,7 +410,7 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1.5">
                                                             <div className="flex items-center gap-2 min-w-0 flex-1">
                                                                 <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg shrink-0">
-                                                                    <Users className="h-3.5 w-3.5 text-slate-700 dark:text-slate-700" />
+                                                                    <Users className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
                                                                 </div>
                                                                 <div className="text-left min-w-0 flex-1">
                                                                     <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{sp.salespersonName}</div>
@@ -503,21 +503,21 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                         <TabsContent value="gdv" className="px-4 sm:px-5 pb-5 pt-4 space-y-4 mt-0">
                             {/* KPI Row */}
                             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 sm:p-3">
-                                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-700 mb-0.5">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
+                                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 mb-0.5">
                                         <DollarSign className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Monto</span>
                                     </div>
                                     <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{formatCurrency(gdvTotalAmount)}</div>
                                 </div>
-                                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 sm:p-3">
-                                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-700 mb-0.5">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
+                                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 mb-0.5">
                                         <Package className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Unidades</span>
                                     </div>
                                     <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100">{formatNumber(gdvTotalUnits)}</div>
                                 </div>
-                                <div className="bg-orange-50/80 dark:bg-orange-900/10 border border-orange-200/60 dark:border-orange-800/40 rounded-xl p-2.5 sm:p-3">
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3">
                                     <div className="flex items-center gap-1.5 text-orange-600 dark:text-orange-400 mb-0.5">
                                         <Truck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                         <span className="text-[10px] sm:text-xs font-medium">Guías</span>
@@ -548,7 +548,7 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1.5">
                                                             <div className="flex items-center gap-2 min-w-0 flex-1">
                                                                 <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg shrink-0">
-                                                                    <Users className="h-3.5 w-3.5 text-slate-700 dark:text-slate-700" />
+                                                                    <Users className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
                                                                 </div>
                                                                 <div className="text-left min-w-0 flex-1">
                                                                     <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{sp.salespersonName}</div>

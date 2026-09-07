@@ -572,6 +572,7 @@ export interface IStorage {
   getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<{
     items: Array<{
       productName: string;
+      productCode: string;
       totalSales: number;
       totalUnits: number;
       transactionCount: number;
@@ -3503,6 +3504,7 @@ export class DatabaseStorage implements IStorage {
   async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, clientScope?: string[]): Promise<{
     items: Array<{
       productName: string;
+      productCode: string;
       totalSales: number;
       totalUnits: number;
       transactionCount: number;
@@ -3560,6 +3562,10 @@ export class DatabaseStorage implements IStorage {
         .then(r => r[0]),
       db.select({
           productName: factVentas.nokoprct,
+          // El código se trae SIN cambiar el agrupamiento (pedido del usuario, sep-2026):
+          // sigue habiendo una fila por nombre de producto y los montos no se mueven; el
+          // MIN solo elige uno cuando un mismo nombre viniera con más de un código.
+          productCode: sql<string>`MIN(${factVentas.koprct})`,
           totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
           totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
           transactionCount: sql<number>`COUNT(*)`,
@@ -3581,6 +3587,7 @@ export class DatabaseStorage implements IStorage {
         const uniqueOrders = Number(r.uniqueOrders) || 1;
         return {
           productName: r.productName || '',
+          productCode: r.productCode || '',
           totalSales: totalSales,
           totalUnits: Number(r.totalUnits),
           transactionCount: Number(r.transactionCount),
@@ -4288,6 +4295,7 @@ export class DatabaseStorage implements IStorage {
 
   async searchProducts(searchTerm: string, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     name: string;
+    code: string;
     totalSales: number;
     totalUnits: number;
   }>> {
@@ -4319,6 +4327,9 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         name: factVentas.nokoprct,
+        // Igual que en getTopProducts: el código viaja como agregado para no alterar el
+        // agrupamiento por nombre ni los montos que ya se mostraban.
+        code: sql<string>`MIN(${factVentas.koprct})`,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
       })
@@ -4330,6 +4341,7 @@ export class DatabaseStorage implements IStorage {
 
     return results.map(r => ({
       name: r.name || '',
+      code: r.code || '',
       totalSales: Number(r.totalSales),
       totalUnits: Number(r.totalUnits),
     }));

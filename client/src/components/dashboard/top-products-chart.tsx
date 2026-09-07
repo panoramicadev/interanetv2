@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 
 interface TopProduct {
   productName: string;
+  productCode?: string;
   totalSales: number;
   totalUnits: number;
 }
@@ -20,6 +21,7 @@ interface TopProductsResponse {
 
 interface SearchProduct {
   name: string;
+  code?: string;
   totalSales: number;
   totalUnits: number;
 }
@@ -62,7 +64,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
 
   // Use search results if searching, otherwise use paginated products
   const displayProducts = debouncedSearchTerm.length >= 2 && searchResults
-    ? searchResults.map(p => ({ productName: p.name, totalSales: p.totalSales, totalUnits: p.totalUnits }))
+    ? searchResults.map(p => ({ productName: p.name, productCode: p.code, totalSales: p.totalSales, totalUnits: p.totalUnits }))
     : topProductsResponse?.items || [];
   
   const periodTotal = topProductsResponse?.periodTotalSales || 0;
@@ -213,6 +215,13 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                         <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 font-medium line-clamp-2 sm:truncate">
                           {product.productName}
                         </p>
+                        {/* El código va bajo el nombre para poder seguir el producto en
+                            Obras del Panel de Trabajo (pedido del usuario, sep-2026). */}
+                        {product.productCode && (
+                          <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 tabular-nums truncate">
+                            {product.productCode}
+                          </p>
+                        )}
                       </div>
                       
                       {/* Barra, porcentaje y monto - mobile: row below name */}
