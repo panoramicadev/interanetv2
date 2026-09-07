@@ -132,7 +132,7 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
               el resto de las tarjetas. Se conserva como texto al pasar el mouse. */}
           <div className="flex items-center justify-between mb-1 sm:mb-2 gap-2">
             <p
-              className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white"
+              className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white"
               title={scopeLabel}
             >
               Margen
@@ -155,7 +155,7 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                   única distinta. El acento naranjo queda para la variación, igual que
                   el "+17,8%" de Ventas Totales. */}
               <p
-                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1"
+                className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1"
                 data-testid="text-margen-pct"
               >
                 {formatPct(data?.marginPct ?? 0)}
@@ -167,7 +167,7 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
               {data?.deltaPctPoints != null && (
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span
-                    className={`text-sm sm:text-base lg:text-lg font-semibold ${data.deltaPctPoints >= 0 ? "text-[#fd6301]" : "text-red-600"}`}
+                    className={`text-sm lg:text-base ${data.deltaPctPoints >= 0 ? "text-[#fd6301]" : "text-red-600"}`}
                     title={`Variación en puntos porcentuales contra ${rangoEnPalabras(data.prevDateRange) || "el período anterior"}`}
                     data-testid="text-margen-delta"
                   >

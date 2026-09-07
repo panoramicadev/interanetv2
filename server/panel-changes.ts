@@ -120,7 +120,12 @@ export function panelTaskTitle(
 // se define por autor:
 //   admin                      → ve todos los cambios
 //   supervisor / encargado_area→ los suyos + los de los vendedores a su cargo
-//   resto (vendedor, marketing)→ solo los suyos
+//   vendedor (con supervisor)  → lo MISMO que ve su supervisor: lo suyo, lo de
+//                                su supervisor y lo de sus compañeros de equipo
+//   resto (sin supervisor)     → solo los suyos
+// El vendedor ve el equipo completo porque en el panel se trabaja por área: si
+// solo veía lo propio, los badges le quedaban casi siempre vacíos y se perdía
+// lo que pasaba en su área (pedido del usuario, sep-2026).
 // Mismo criterio de equipo que usa getTasks en storage.ts (salespeople_users.
 // supervisor_id apuntando al supervisor).
 // ==================================================
@@ -158,6 +163,19 @@ async function expandirIdsDeUsuario(ids: string[]): Promise<string[]> {
 }
 
 /**
+ * Supervisores de un conjunto de ids de persona (expandidos), sin repetir.
+ * Devuelve [] si ninguna de esas fichas tiene supervisor cargado.
+ */
+async function idsDeSupervisores(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const filas = await db
+    .select({ supervisorId: salespeopleUsers.supervisorId })
+    .from(salespeopleUsers)
+    .where(inArray(salespeopleUsers.id, ids));
+  return Array.from(new Set(filas.map((f) => f.supervisorId).filter(Boolean) as string[]));
+}
+
+/**
  * Ids de autor cuyos cambios puede ver este usuario.
  * `null` = sin filtro (ve todo). Ante cualquier error se cierra al mínimo
  * (solo lo propio): es preferible mostrar de menos que filtrar información
@@ -168,12 +186,24 @@ export async function autoresVisiblesParaUsuario(user: any): Promise<string[] | 
   if (ROLES_VEN_TODO.includes(rol)) return null;
   try {
     const propios = await expandirIdsDeUsuario([user?.id]);
-    if (!ROLES_CON_EQUIPO.includes(rol)) return propios;
+    // Supervisor/encargado: lo suyo + lo de los vendedores a su cargo.
+    if (ROLES_CON_EQUIPO.includes(rol)) {
+      const equipo = await db
+        .select({ id: salespeopleUsers.id })
+        .from(salespeopleUsers)
+        .where(inArray(salespeopleUsers.supervisorId, propios));
+      return await expandirIdsDeUsuario([...propios, ...equipo.map((v) => v.id)]);
+    }
+    // Vendedor: se le da la MISMA vista que a su supervisor, o sea el equipo
+    // completo (el supervisor + todos sus vendedores, él incluido). Sin
+    // supervisor en la ficha no hay equipo que mostrar y queda solo lo propio.
+    const supervisores = await idsDeSupervisores(propios);
+    if (supervisores.length === 0) return propios;
     const equipo = await db
       .select({ id: salespeopleUsers.id })
       .from(salespeopleUsers)
-      .where(inArray(salespeopleUsers.supervisorId, propios));
-    return await expandirIdsDeUsuario([...propios, ...equipo.map((v) => v.id)]);
+      .where(inArray(salespeopleUsers.supervisorId, supervisores));
+    return await expandirIdsDeUsuario([...propios, ...supervisores, ...equipo.map((v) => v.id)]);
   } catch (error: any) {
     console.error("⚠️ [panel-changes] No se pudo calcular la visibilidad:", error?.message);
     return [user?.id].filter(Boolean) as string[];
@@ -182,21 +212,31 @@ export async function autoresVisiblesParaUsuario(user: any): Promise<string[] | 
 
 /**
  * Espejo de autoresVisiblesParaUsuario para el push: dado el autor de un
- * cambio, quiénes pueden verlo (los admins, el propio autor y su supervisor).
+ * cambio, quiénes pueden verlo (los admins, el propio autor, su supervisor y
+ * sus compañeros de equipo, que desde sep-2026 ven lo mismo que el supervisor).
  * `null` = no se pudo calcular; el llamador entonces no acota.
  */
 async function destinatariosDelCambio(user: any): Promise<string[] | null> {
   try {
     const propios = await expandirIdsDeUsuario([user?.id]);
-    const filas = propios.length
+    // Si el autor ES un supervisor, su "equipo" son sus propios vendedores;
+    // si es vendedor, son los vendedores de su supervisor. Las dos consultas
+    // juntas cubren los dos casos sin mirar el rol.
+    const supervisores = await idsDeSupervisores(propios);
+    const jefes = [...propios, ...supervisores];
+    const equipo = jefes.length
       ? await db
-          .select({ supervisorId: salespeopleUsers.supervisorId })
+          .select({ id: salespeopleUsers.id })
           .from(salespeopleUsers)
-          .where(inArray(salespeopleUsers.id, propios))
+          .where(inArray(salespeopleUsers.supervisorId, jefes))
       : [];
-    const supervisores = filas.map((f) => f.supervisorId).filter(Boolean) as string[];
     const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
-    return await expandirIdsDeUsuario([...propios, ...supervisores, ...admins.map((a) => a.id)]);
+    return await expandirIdsDeUsuario([
+      ...propios,
+      ...supervisores,
+      ...equipo.map((v) => v.id),
+      ...admins.map((a) => a.id),
+    ]);
   } catch (error: any) {
     console.error("⚠️ [panel-changes] No se pudo calcular la audiencia del push:", error?.message);
     return null;

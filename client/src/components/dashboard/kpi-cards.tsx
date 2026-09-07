@@ -823,14 +823,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 de ancho a las cifras, que terminaban cortadas con puntos suspensivos. */}
             <div className="flex-1 mb-2 lg:mb-0 min-w-0">
               <div className={`flex items-center justify-between mb-1 sm:mb-2 ${conIcono ? 'pr-12 sm:pr-16 lg:pr-0' : ''}`}>
-                <p className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
+                <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
                   {kpi.title}
                 </p>
                 {conToggle && renderToggleFacturadoCombinado()}
               </div>
 
               <p
-                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+                className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
                 data-testid={kpi.testId}
                 title={effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               >
@@ -841,12 +841,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   {!effectiveCombined ? (
                     <>
                       {kpi.change.percentage !== "Sin datos previos" && (
-                        <span className={`text-sm sm:text-base lg:text-lg ${kpi.changeColor}`}>
+                        <span className={`text-sm lg:text-base ${kpi.changeColor}`}>
                           {kpi.change.percentage}
                         </span>
                       )}
                       {previousSales > 0 && (
-                        <span className={`text-sm sm:text-base lg:text-lg ${kpi.changeColor}`}>
+                        <span className={`text-sm lg:text-base ${kpi.changeColor}`}>
                           {salesDifferenceSign}{salesDifferenceFormatted}
                         </span>
                       )}
@@ -856,7 +856,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                         </span>
                       )}
                       {kpi.change.percentage === "Sin datos previos" && (
-                        <span className="text-sm sm:text-base lg:text-lg text-gray-500">
+                        <span className="text-sm lg:text-base text-gray-500">
                           Sin datos previos
                         </span>
                       )}
@@ -865,15 +865,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                     <>
                       {combinedHasPrev ? (
                         <>
-                          <span className={`text-sm sm:text-base lg:text-lg ${combinedPctColor}`}>
+                          <span className={`text-sm lg:text-base ${combinedPctColor}`}>
                             {combinedPctFormatted}
                           </span>
-                          <span className={`text-sm sm:text-base lg:text-lg ${combinedPctColor}`}>
+                          <span className={`text-sm lg:text-base ${combinedPctColor}`}>
                             {combinedDiffSign}{combinedDiffFormatted}
                           </span>
                         </>
                       ) : (
-                        <span className="text-sm sm:text-base lg:text-lg text-gray-500">
+                        <span className="text-sm lg:text-base text-gray-500">
                           Sin datos previos
                         </span>
                       )}
@@ -973,12 +973,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   bloque (corrección del usuario, ago-2026): esta era la única sin línea
                   y el título quedaba pegado a la cifra. */}
               <div className="flex items-center justify-between mb-1 sm:mb-2">
-                <p className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
+                <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
                   {kpi.title}
                 </p>
               </div>
               <p
-                className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
                 title={kpi.value}
               >
@@ -986,7 +986,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-sm sm:text-base lg:text-lg font-semibold text-[#fd6301]">
+                  <span className="text-sm lg:text-base text-[#fd6301]">
                     {formatNumber(yearlyNewClients)}
                   </span>
                   <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
@@ -1201,14 +1201,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               {/* "Presupuesto" en pantalla (pedido del usuario, ago-2026). Adentro el
                   bloque se sigue llamando "Total Acumulado del Año", que es lo que
                   muestra: lo vendido en el año contra la meta a la fecha. */}
-              <p className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
+              <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
                 Presupuesto
               </p>
               {conToggle && renderToggleFacturadoCombinado()}
             </div>
 
             <p
-              className="text-xl min-[400px]:text-2xl lg:text-3xl 2xl:text-4xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+              className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
               data-testid={kpi.testId}
               title={formatCurrency(displayValue)}
             >
@@ -1238,10 +1238,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               </div>
               {/* Sin negrita (pedido del usuario, ago-2026): el naranjo ya destaca
-                  bastante la Diferencia, y en negrita competía con la cifra grande. */}
-              <div className={`flex items-baseline gap-2 lg:justify-between ${budgetYTD > 0 ? budgetColor : "text-gray-400 dark:text-gray-500"}`}>
-                <span>Diferencia:</span>
-                <span>
+                  bastante la Diferencia, y en negrita competía con la cifra grande.
+                  La etiqueta va en el MISMO gris que "Meta a la Fecha" (pedido del
+                  usuario, sep-2026): el naranjo se reserva para la cifra, que es lo
+                  que cambia; en naranjo las dos, la fila entera se leía como alerta. */}
+              <div className="flex items-baseline gap-2 lg:justify-between">
+                <span className="text-gray-500 dark:text-gray-400">Diferencia:</span>
+                <span className={budgetYTD > 0 ? budgetColor : "text-gray-400 dark:text-gray-500"}>
                   {budgetYTD > 0 ? `${differenceSign}${differenceFormatted} (${budgetPct})` : "—"}
                 </span>
               </div>
