@@ -75,6 +75,7 @@ export default function RetailLocationsAdmin() {
   const [months, setMonths] = useState(2);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [candidateSearch, setCandidateSearch] = useState("");
   const [geocodeOnImport, setGeocodeOnImport] = useState(false);
   const [geocodingRowId, setGeocodingRowId] = useState<string | null>(null);
   const [embedOpen, setEmbedOpen] = useState(false);
@@ -168,6 +169,21 @@ export default function RetailLocationsAdmin() {
     );
   });
 
+  const candidateQuery = candidateSearch.trim().toLowerCase();
+  const filteredCandidates = (candidatesQuery.data || []).filter((c) => {
+    if (!candidateQuery) return true;
+    return (
+      c.name.toLowerCase().includes(candidateQuery) ||
+      (c.address || "").toLowerCase().includes(candidateQuery) ||
+      (c.comuna || "").toLowerCase().includes(candidateQuery) ||
+      (c.region || "").toLowerCase().includes(candidateQuery) ||
+      (c.phone || "").toLowerCase().includes(candidateQuery)
+    );
+  });
+  const importableVisibleIds = filteredCandidates.filter((c) => !c.alreadyImported).map((c) => c.id);
+  const allVisibleSelected =
+    importableVisibleIds.length > 0 && importableVisibleIds.every((id) => selectedIds.has(id));
+
   const openNew = () => {
     setEditing(emptyForm());
     setOpen(true);
@@ -235,7 +251,7 @@ export default function RetailLocationsAdmin() {
             variant="outline"
             onClick={() => { setImportResult(null); setImportOpen(true); }}
           >
-            <Download className="w-4 h-4 mr-2" /> Importar ferreterías
+            <Download className="w-4 h-4 mr-2" /> Agregar negocios al mapa
           </Button>
           <Button onClick={openNew} className="bg-[#ff7f33] hover:bg-[#e66a1f]">
             <Plus className="w-4 h-4 mr-2" /> Agregar ubicación
@@ -555,10 +571,10 @@ export default function RetailLocationsAdmin() {
       </Dialog>
 
       {/* Import ferreterías dialog */}
-      <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) setImportResult(null); }}>
+      <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) { setImportResult(null); setCandidateSearch(""); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Importar ferreterías con compras recientes</DialogTitle>
+            <DialogTitle>Agregar negocios al mapa</DialogTitle>
           </DialogHeader>
 
           {importResult ? (
@@ -620,26 +636,45 @@ export default function RetailLocationsAdmin() {
 
               {candidatesQuery.data && (
                 <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar por nombre, dirección, comuna o teléfono..."
+                      value={candidateSearch}
+                      onChange={(e) => setCandidateSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
                   <div className="flex items-center justify-between text-sm text-gray-600">
                     <span>
-                      {candidatesQuery.data.length} ferretería(s) con compras · {candidatesQuery.data.filter(c => !c.alreadyImported).length} importable(s)
+                      {candidateQuery
+                        ? `${filteredCandidates.length} de ${candidatesQuery.data.length} negocio(s)`
+                        : `${candidatesQuery.data.length} negocio(s) con compras`}
+                      {" · "}
+                      {filteredCandidates.filter(c => !c.alreadyImported).length} importable(s)
                     </span>
                     <button
-                      className="text-[#ff7f33] font-semibold hover:underline"
+                      className="text-[#ff7f33] font-semibold hover:underline disabled:opacity-40 disabled:no-underline"
+                      disabled={importableVisibleIds.length === 0}
                       onClick={() => {
-                        const importables = candidatesQuery.data!.filter(c => !c.alreadyImported).map(c => c.id);
-                        setSelectedIds(new Set(selectedIds.size === importables.length ? [] : importables));
+                        const next = new Set(selectedIds);
+                        if (allVisibleSelected) importableVisibleIds.forEach(id => next.delete(id));
+                        else importableVisibleIds.forEach(id => next.add(id));
+                        setSelectedIds(next);
                       }}
                     >
-                      {selectedIds.size > 0 ? "Deseleccionar" : "Seleccionar todas"}
+                      {allVisibleSelected ? "Deseleccionar" : candidateQuery ? "Seleccionar los filtrados" : "Seleccionar todas"}
                     </button>
                   </div>
 
                   <div className="border rounded-lg max-h-96 overflow-y-auto">
-                    {candidatesQuery.data.length === 0 && (
-                      <div className="p-6 text-center text-gray-400 text-sm">Sin ferreterías con compras en el período.</div>
+                    {candidatesQuery.data.length === 0 ? (
+                      <div className="p-6 text-center text-gray-400 text-sm">Sin negocios con compras en el período.</div>
+                    ) : filteredCandidates.length === 0 && (
+                      <div className="p-6 text-center text-gray-400 text-sm">Ningún negocio coincide con la búsqueda.</div>
                     )}
-                    {candidatesQuery.data.map((c) => (
+                    {filteredCandidates.map((c) => (
                       <label
                         key={c.id}
                         className={`flex items-start gap-3 p-3 border-b last:border-0 ${
