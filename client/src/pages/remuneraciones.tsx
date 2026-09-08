@@ -183,6 +183,7 @@ const COL_HELP: Record<string, string> = {
   "Comisión intranet": "Comisión que calcula el módulo de Comisiones sobre el margen facturado del mismo período.",
   "Diferencia": "Comisión intranet − comisión Talana. En rojo cuando la intranet calculó más de lo que Talana paga.",
   "Reembolsos": "Gastos ya aprobados en Rendición de Gastos que se pagan junto con este sueldo (por fecha de aprobación).",
+  "Costo empresa": "Lo que la persona le cuesta a la empresa en el período: líquido más leyes sociales y aportes del empleador (ítem CostoEmpresa de la liquidación). OJO: el finiquito de Talana no trae este ítem, así que en un mes con finiquito la indemnización NO está incluida acá.",
 };
 
 function ColHead({ children, className }: { children: string; className?: string }) {
@@ -577,6 +578,7 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                   <ColHead className="text-right">Diferencia</ColHead>
                   <ColHead className="text-right">Reembolsos</ColHead>
                   <TableHead className="whitespace-nowrap align-bottom">Vínculo</TableHead>
+                  <ColHead className="text-right">Costo empresa</ColHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -633,11 +635,16 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                     <TableCell>
                       <ChipVinculo fila={f} />
                     </TableCell>
+                    {/* Va al final y en semibold: es la cifra con la que se
+                        mira el mes completo, no una más de la fila. */}
+                    <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">
+                      {f.costoEmpresa ? formatCLP(f.costoEmpresa) : <span className="text-slate-300">—</span>}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {!filas.length && (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-slate-500 py-10">
+                    <TableCell colSpan={13} className="text-center text-slate-500 py-10">
                       {busqueda ? `Nadie coincide con "${busqueda}"` : "No hay personas en este período."}
                     </TableCell>
                   </TableRow>
@@ -662,7 +669,7 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                   </div>
                   <ChipVinculo fila={f} />
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                   <div>
                     <p className="text-slate-400">Días</p>
                     <p className="font-semibold tabular-nums">{f.diasTrabajados ?? "—"}</p>
@@ -674,6 +681,10 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                   <div>
                     <p className="text-slate-400">Comisión</p>
                     <p className="font-semibold tabular-nums">{formatCLP(f.comisionTalana)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Costo empresa</p>
+                    <p className="font-semibold tabular-nums">{f.costoEmpresa ? formatCLP(f.costoEmpresa) : "—"}</p>
                   </div>
                 </div>
                 {f.diferenciaComision !== null && Math.abs(f.diferenciaComision) >= umbral && (
