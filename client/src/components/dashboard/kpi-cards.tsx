@@ -888,12 +888,23 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </div>
               {isCurrent && (nvvTotal > 0 || gdvSales > 0) && (
                 <div className="mt-2 pt-2 overflow-hidden">
-                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-x-2 gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300 mb-1">
-                    <span className="truncate" title={`Facturas: ${kpi.value}`}>Fact: {kpi.value}</span>
-                    <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
+                  {/* Ordenado a la izquierda y SIEMPRE uno debajo del otro (pedido del
+                      usuario, sep-2026): antes en pantalla ancha GDV se iba al lado de
+                      Fact y en celular quedaba debajo, así que la tarjeta se leía distinta
+                      según el dispositivo. Ahora móvil y web muestran lo mismo. */}
+                  <div className="flex flex-col gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300 mb-1">
+                    {/* La etiqueta va en el mismo gris que "Meta a la Fecha" del bloque
+                        de Presupuesto (pedido del usuario, sep-2026): así la cifra, que
+                        es lo que se lee, queda un tono más oscura que su nombre. */}
+                    <span className="truncate" title={`Facturas: ${kpi.value}`}>
+                      <span className="text-gray-500 dark:text-gray-400">Fact:</span> {kpi.value}
+                    </span>
+                    <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>
+                      <span className="text-gray-500 dark:text-gray-400">GDV:</span> {formatCurrency(gdvSales)}
+                    </span>
                   </div>
                   <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300 truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>
-                    NVV: {formatCurrency(nvvTotal)}
+                    <span className="text-gray-500 dark:text-gray-400">NVV:</span> {formatCurrency(nvvTotal)}
                   </p>
                 </div>
               )}
@@ -997,17 +1008,30 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               <div className="mt-2 pt-2">
                 {/* Los tres datos van uno debajo del otro, en una sola columna (pedido
                     del usuario, sep-2026). Antes "órdenes" se iba a una segunda columna
-                    a media tarjeta de distancia y se leía como si fuera otro bloque. */}
+                    a media tarjeta de distancia y se leía como si fuera otro bloque.
+                    El nombre del dato va primero y en gris, y la cifra pegada a los dos
+                    puntos de SU etiqueta (pedido del usuario, sep-2026): así se lee igual
+                    que Presupuesto y Margen. No es una grilla a propósito — con columna
+                    común, las etiquetas cortas quedaban con un hueco grande adelante. */}
                 <div className="flex flex-col gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300">
-                  <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
-                    {formatNumber(totalCustomers)} clientes totales
-                  </span>
-                  <span className="truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
-                    {formatNumber(totalUnits)} unidades vendidas
-                  </span>
-                  <span className="truncate" title={`${formatNumber(totalOrders)} órdenes`}>
-                    {formatNumber(totalOrders)} órdenes
-                  </span>
+                  <div className="flex items-baseline gap-x-2 flex-wrap">
+                    <span className="text-gray-500 dark:text-gray-400">Clientes totales:</span>
+                    <span className="truncate" title={formatNumber(totalCustomers)}>
+                      {formatNumber(totalCustomers)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-x-2 flex-wrap">
+                    <span className="text-gray-500 dark:text-gray-400">Unidades vendidas:</span>
+                    <span className="truncate" title={formatNumber(totalUnits)}>
+                      {formatNumber(totalUnits)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-x-2 flex-wrap">
+                    <span className="text-gray-500 dark:text-gray-400">Órdenes:</span>
+                    <span className="truncate" title={formatNumber(totalOrders)}>
+                      {formatNumber(totalOrders)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1221,15 +1245,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 tiene presupuesto cargado se dice con todas sus letras, en vez de mostrar
                 un "$0" que se leería como una meta de cero y una diferencia enorme a
                 favor. */}
-            {/* Igual que en la tarjeta de Margen: en pantalla grande el bloque se acota
-                en ancho (pedido del usuario, sep-2026), porque con el ancho completo la
-                etiqueta quedaba en un borde y la cifra en el otro. */}
-            <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2 lg:max-w-[18rem]">
-              {/* En celular la etiqueta y su cifra van juntas: con el número pegado al
-                  borde derecho quedaban tan separados que costaba leer cuál iba con
-                  cuál. En pantalla grande sí se separan a los extremos, porque ahí la
-                  columna es angosta y se lee como tabla. */}
-              <div className="flex items-baseline gap-2 lg:justify-between">
+            {/* Igual que en la tarjeta de Margen: el bloque se ordena a la izquierda
+                (pedido del usuario, sep-2026). Cada cifra va pegada a los dos puntos de
+                SU etiqueta, no en una columna común: con la columna, la fila de etiqueta
+                corta ("Diferencia:") quedaba con un hueco grande, porque el ancho lo
+                mandaba la etiqueta más larga. Por eso son filas sueltas y no una grilla:
+                se prefirió el número cerca de su nombre antes que las cifras alineadas
+                entre sí. */}
+            <div className="mt-3 flex flex-col gap-y-1.5 text-sm lg:text-base pt-2">
+              <div className="flex items-baseline gap-x-2 flex-wrap">
                 <span className="text-gray-500 dark:text-gray-400">
                   Meta a la Fecha:
                 </span>
@@ -1242,7 +1266,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   La etiqueta va en el MISMO gris que "Meta a la Fecha" (pedido del
                   usuario, sep-2026): el naranjo se reserva para la cifra, que es lo
                   que cambia; en naranjo las dos, la fila entera se leía como alerta. */}
-              <div className="flex items-baseline gap-2 lg:justify-between">
+              <div className="flex items-baseline gap-x-2 flex-wrap">
                 <span className="text-gray-500 dark:text-gray-400">Diferencia:</span>
                 <span className={budgetYTD > 0 ? budgetColor : "text-gray-400 dark:text-gray-500"}>
                   {budgetYTD > 0 ? `${differenceSign}${differenceFormatted} (${budgetPct})` : "—"}

@@ -180,7 +180,10 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                   </span>
                   {rangoEnPalabras(data.prevDateRange) && (
                     <span
-                      className="text-xs lg:text-sm text-gray-400 dark:text-gray-500"
+                      /* Mismo gris, tamaño y tipografía que el "vs ..." de Ventas
+                         Totales (pedido del usuario, sep-2026): antes iba un tono más
+                         claro y se leía como si fuera un dato de menor importancia. */
+                      className="text-xs lg:text-sm text-gray-500 dark:text-gray-400"
                       data-testid="text-margen-comparacion"
                     >
                       vs {rangoEnPalabras(data.prevDateRange)}
@@ -192,30 +195,34 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
               {/* El monto del margen pasó a llamarse "Beneficio" y a mostrarse con el
                   mismo formato de "Ventas sin flete" y "Costo" (pedido del usuario,
                   ago-2026): antes iba suelto y en grande arriba del grupo. */}
-              {/* En pantalla grande el bloque se acota en ancho (pedido del usuario,
-                  sep-2026): con el ancho completo de la tarjeta, la etiqueta quedaba en
-                  un borde y la cifra en el otro, tan separadas que costaba leer cuál iba
-                  con cuál. Las cifras siguen alineadas entre ellas. */}
-              <div className="mt-3 space-y-1.5 text-sm lg:text-base pt-2 lg:max-w-[15rem]">
-                <div className="flex items-baseline gap-2 lg:justify-between">
+              {/* El bloque se ordena a la izquierda (pedido del usuario, sep-2026): la
+                  etiqueta parte pegada al borde izquierdo y su cifra va pegada a los dos
+                  puntos, no en el extremo opuesto de la tarjeta. Son filas sueltas y no
+                  una grilla: con columna común, "Costo:" quedaba con un hueco grande
+                  adelante porque el ancho lo mandaba "Ventas sin flete:".
+                  Las cifras van en peso normal (pedido del usuario, sep-2026): con
+                  negrita mediana se veían de otro tamaño que el resto de los datos de las
+                  tarjetas, como "57 clientes totales". */}
+              <div className="mt-3 flex flex-col gap-y-1.5 text-sm lg:text-base pt-2">
+                <div className="flex items-baseline gap-x-2 flex-wrap">
                   <span className="text-gray-500 dark:text-gray-400">Beneficio:</span>
                   <span
-                    className="font-medium text-gray-700 dark:text-gray-300 truncate"
+                    className="text-gray-700 dark:text-gray-300 truncate"
                     title={formatCurrency(data?.margin ?? 0)}
                     data-testid="text-margen-monto"
                   >
                     {formatCurrency(data?.margin ?? 0)}
                   </span>
                 </div>
-                <div className="flex items-baseline gap-2 lg:justify-between">
+                <div className="flex items-baseline gap-x-2 flex-wrap">
                   <span className="text-gray-500 dark:text-gray-400">Ventas sin flete:</span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300 truncate">
+                  <span className="text-gray-700 dark:text-gray-300 truncate">
                     {formatCurrency(data?.revenue ?? 0)}
                   </span>
                 </div>
-                <div className="flex items-baseline gap-2 lg:justify-between">
+                <div className="flex items-baseline gap-x-2 flex-wrap">
                   <span className="text-gray-500 dark:text-gray-400">Costo:</span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300 truncate">
+                  <span className="text-gray-700 dark:text-gray-300 truncate">
                     {formatCurrency(data?.cost ?? 0)}
                   </span>
                 </div>
