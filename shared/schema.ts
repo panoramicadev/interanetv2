@@ -9047,3 +9047,76 @@ export const insertEmailCampaignTemplateSchema = createInsertSchema(emailCampaig
   createdAt: true,
   updatedAt: true,
 });
+
+// ==================================================================================
+// REMUNERACIONES — vínculo entre las personas de Talana y las de la intranet
+// ==================================================================================
+// Talana identifica a cada persona por RUT; la intranet, por `users.id` (email de
+// login) y las ventas del ERP por el NOMBRE del vendedor (`fact_ventas.nokofu`).
+// Son tres identidades distintas y ninguna tabla las tenía juntas: sin este puente
+// no se puede comparar la comisión que la intranet calcula con la que Talana pagó.
+//
+// La fila la propone el sistema (calce por nombre) y la confirma RR.HH. desde la
+// pestaña "Vínculos". `confirmado` distingue las dos cosas: un calce automático
+// sirve para mostrar el cruce, pero solo el confirmado se considera revisado.
+// `ignorado` es para las personas que no corresponde cruzar (por ejemplo, alguien
+// que no usa la intranet): dejan de aparecer como alerta sin borrar el dato.
+export const talanaVinculos = pgTable("talana_vinculos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  /** id del empleado en Talana (`empleado.id`). Identidad estable del lado de Talana. */
+  talanaEmpleadoId: integer("talana_empleado_id").notNull(),
+  /** RUT normalizado (sin puntos ni guion), para búsquedas y respaldo del calce. */
+  rut: varchar("rut", { length: 20 }),
+  /** Nombre completo en Talana, guardado para poder mostrar el vínculo sin llamar a la API. */
+  nombreTalana: varchar("nombre_talana", { length: 255 }),
+  /** Persona de la intranet (`users.id`). Da los gastos y reembolsos del período. */
+  userId: varchar("user_id"),
+  /** Nombre del vendedor en el ERP (`fact_ventas.nokofu`). Da la comisión calculada. */
+  salespersonName: varchar("salesperson_name", { length: 255 }),
+  /** true = RR.HH. revisó y confirmó el vínculo (no es solo un calce automático). */
+  confirmado: boolean("confirmado").notNull().default(false),
+  /** true = no corresponde cruzar a esta persona; se excluye de las alertas. */
+  ignorado: boolean("ignorado").notNull().default(false),
+  actualizadoPor: varchar("actualizado_por"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  empleadoUnico: uniqueIndex("UQ_talana_vinculos_empleado").on(table.talanaEmpleadoId),
+  rutIdx: index("IDX_talana_vinculos_rut").on(table.rut),
+}));
+
+export type TalanaVinculo = typeof talanaVinculos.$inferSelect;
+export type InsertTalanaVinculo = typeof talanaVinculos.$inferInsert;
+
+// Vendedores del ERP que no son personas: mostradores y canales de venta
+// (MCT Temuco, Mercado Libre, Falabella, Venta Tienda Online…). Facturan y
+// pueden tener comisión configurada, pero no tienen liquidación en Talana
+// porque no son nadie a quien pagarle sueldo. Marcarlos acá saca su alerta de
+// Descuadres sin tocar el cálculo de comisiones, que los sigue informando.
+//
+// Va aparte de `talana_vinculos` porque ese "ignorado" se guarda por
+// `talanaEmpleadoId`, y justamente lo que define a un canal es no tener uno.
+export const talanaVendedoresIgnorados = pgTable("talana_vendedores_ignorados", {
+  salespersonName: varchar("salesperson_name", { length: 255 }).primaryKey(),
+  motivo: varchar("motivo", { length: 255 }),
+  actualizadoPor: varchar("actualizado_por"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type TalanaVendedorIgnorado = typeof talanaVendedoresIgnorados.$inferSelect;
+
+/** Alta de un vendedor del ERP que no corresponde cruzar. */
+export const ignorarVendedorSchema = z.object({
+  salespersonName: z.string().min(1).max(255),
+  motivo: z.string().max(255).nullable().optional(),
+});
+
+/** Alta/edición de un vínculo desde la pestaña "Vínculos". */
+export const guardarTalanaVinculoSchema = z.object({
+  talanaEmpleadoId: z.number().int().positive(),
+  rut: z.string().max(20).nullable().optional(),
+  nombreTalana: z.string().max(255).nullable().optional(),
+  userId: z.string().nullable().optional(),
+  salespersonName: z.string().max(255).nullable().optional(),
+  ignorado: z.boolean().optional(),
+});

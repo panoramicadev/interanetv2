@@ -1142,6 +1142,64 @@ export const MODULE_MAP: ModuleDef[] = [
     guides: [],
   },
 
+  {
+    id: "rrhh.remuneraciones",
+    label: "Remuneraciones",
+    href: "/remuneraciones",
+    permission: "rrhh.remuneraciones",
+    group: "Recursos Humanos",
+    nav: { label: "Remuneraciones" },
+    purpose:
+      "Cruza las liquidaciones y los días trabajados de Talana con lo que calculó la intranet (comisiones y reembolsos aprobados), para revisar el mes antes de cerrarlo.",
+    whoUses: "RRHH y admin. Es la información más sensible del sistema: sueldos persona por persona.",
+    sections: [
+      { label: "Planilla del período", tab: "cruce", what: "Una fila por persona: días, sueldo base, haberes, descuentos, líquido y las dos comisiones (la de Talana y la calculada acá)." },
+      { label: "Descuadres", tab: "descuadres", what: "Solo lo que no calza: comisiones distintas, comisiones que Talana no paga y personas sin vincular." },
+      { label: "Vínculos", tab: "vinculos", what: "Conecta cada persona de Talana con su usuario de la intranet y su nombre de vendedor en el ERP." },
+    ],
+    keyTerms: [
+      { term: "Período", meaning: "El mes de remuneración en Talana. Un mes 'abierto' todavía puede cambiar; uno 'cerrado' ya se liquidó." },
+      { term: "Vínculo", meaning: "La conexión entre la persona en Talana (RUT), su usuario de la intranet y su nombre de vendedor en el ERP. Sin vínculo no hay cruce." },
+      { term: "Descuadre", meaning: "Diferencia entre la comisión que calculó la intranet y la que trae la liquidación de Talana." },
+    ],
+    gotchas: [
+      "Los días trabajados de un mes ya liquidado salen de la liquidación; los del mes en curso son los que van corriendo (Talana no responde días de meses anteriores).",
+      "Un descuadre no significa error de Talana: casi siempre es que la comisión se cargó a mano antes de un ajuste de la intranet.",
+      "Si una persona aparece 'Sin vínculo', su comisión y sus reembolsos no se están comparando con nada: hay que vincularla.",
+    ],
+    guides: [
+      {
+        id: "revisar-descuadres",
+        title: "Revisar el mes antes de cerrar remuneraciones",
+        intent: ["revisar sueldos", "cerrar el mes de remuneraciones", "comisiones no cuadran", "descuadre de comisiones", "revisar liquidaciones"],
+        steps: [
+          {
+            title: "Elige el período",
+            detail: "El selector arriba trae los meses de Talana. El mes abierto todavía puede cambiar.",
+            route: "/remuneraciones",
+          },
+          {
+            title: 'Abre "Descuadres"',
+            detail: "Es lo primero que hay que mirar: muestra solo lo que no calza entre Talana y la intranet.",
+            route: "/remuneraciones",
+            target: { text: "Descuadres", as: "tab" },
+          },
+          {
+            title: "Resuelve los que dicen que falta un vínculo",
+            detail: 'Con el botón "Arreglar en Vínculos" se asigna la persona de la intranet y el vendedor del ERP.',
+            route: "/remuneraciones",
+          },
+          {
+            title: "Contrasta la planilla y exporta",
+            detail: 'En "Planilla del período" se revisa persona por persona; "Exportar CSV" baja el cruce completo.',
+            route: "/remuneraciones",
+            target: { text: "Exportar CSV", as: "button" },
+          },
+        ],
+      },
+    ],
+  },
+
   // ══════════════ POST-VENTA ══════════════
   {
     id: "postventa.reclamos",

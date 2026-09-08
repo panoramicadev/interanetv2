@@ -34,6 +34,7 @@ import {
   MapPin,
   Mail,
   Send,
+  Wallet,
 } from "lucide-react";
 import {
   SIDEBAR_CONFIG,
@@ -175,6 +176,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "finanzas", item: { href: "/facturas", label: "Finanzas", icon: Receipt } },
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
+  { key: "rrhh.remuneraciones", item: { href: "/remuneraciones", label: "Remuneraciones", icon: Wallet } },
   // Solicitud de Crédito va pegada a Comisiones: las dos son Finanzas, y así el
   // orden del menú es el mismo para el rol que la recibe como extra y para el
   // que ya la trae en su sidebar base.
