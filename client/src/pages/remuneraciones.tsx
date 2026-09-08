@@ -101,6 +101,8 @@ interface Vinculo {
 }
 interface EmpleadoTalana {
   id: number; rut: string; nombre: string; cargo: string | null; activo: boolean;
+  /** Lo que el servidor propone calzando por nombre (todavía sin confirmar). */
+  sugerencia: { userId: string | null; salespersonName: string | null };
 }
 interface PersonaIntranet { id: string; nombre: string; email: string | null; role: string | null }
 interface VinculosData {
@@ -141,6 +143,19 @@ const ETIQUETA_VINCULO: Record<EstadoVinculo, { texto: string; clase: string }> 
   },
 };
 
+/** Orden en que se muestran los grupos de alertas: primero lo que mueve plata. */
+const GRAVEDAD_ALERTA: Record<string, number> = {
+  comision_descuadrada: 1,
+  comision_no_pagada: 2,
+  comision_sin_respaldo: 3,
+  vendedor_sin_liquidacion: 4,
+  sin_liquidacion: 5,
+  sin_vinculo: 6,
+};
+
+/** Ítems que se muestran antes de plegar el resto de un grupo. */
+const TOPE_ALERTAS_VISIBLES = 6;
+
 const TITULO_ALERTA: Record<string, string> = {
   comision_descuadrada: "Comisión distinta a la calculada",
   comision_no_pagada: "Comisión calculada que Talana no paga",
@@ -177,6 +192,11 @@ function ColHead({ children, className }: { children: string; className?: string
       </Tooltip>
     </TableHead>
   );
+}
+
+/** "$-3.931.002" se lee mal: el signo va afuera, delante del monto. */
+function montoConSigno(n: number): string {
+  return n < 0 ? `− ${formatCLP(Math.abs(n))}` : formatCLP(n);
 }
 
 function KpiCard({ icon: Icon, label, value, sub, loading, accent = "neutro" }: {
@@ -393,7 +413,7 @@ export default function RemuneracionesPage() {
             sub={totales ? `Intranet calculó ${formatCLP(totales.comisionIntranet)}` : undefined} />
           <div className="col-span-2 lg:col-span-1">
             <KpiCard icon={AlertTriangle} label="Descuadre de comisiones" loading={cargandoCruce}
-              value={formatCLP(diferenciaComisiones)}
+              value={montoConSigno(diferenciaComisiones)}
               accent={Math.abs(diferenciaComisiones) >= (cruce?.umbralDescuadre ?? 1000) ? "alerta" : "neutro"}
               sub={`${alertas.length} ${alertas.length === 1 ? "alerta" : "alertas"} en el período`} />
           </div>
@@ -663,7 +683,11 @@ function Descuadres({ alertas, loading, onIrAVinculos }: {
       lista.push(a);
       m.set(a.tipo, lista);
     }
-    return Array.from(m.entries());
+    // Primero la plata: un mes con 60 personas sin vincular no puede tapar las
+    // tres comisiones que no cuadran, que es a lo que se entra a esta pestaña.
+    return Array.from(m.entries()).sort(
+      (a, b) => (GRAVEDAD_ALERTA[a[0]] ?? 99) - (GRAVEDAD_ALERTA[b[0]] ?? 99),
+    );
   }, [alertas]);
 
   if (loading) return <Skeleton className="h-32 w-full rounded-2xl" />;
@@ -687,38 +711,64 @@ function Descuadres({ alertas, loading, onIrAVinculos }: {
   return (
     <div className="space-y-4">
       {porTipo.map(([tipo, lista]) => (
-        <Card key={tipo} className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-[#fd6301]" />
-              {TITULO_ALERTA[tipo] ?? tipo}
-              <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/60 tabular-nums">
-                {lista.length}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {lista.map((a, i) => (
-              <div key={`${a.nombre}-${i}`} className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{a.nombre}</p>
-                  <p className="text-xs text-slate-500">{a.detalle}</p>
-                </div>
-                {a.monto !== undefined && (
-                  <span className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{formatCLP(a.monto)}</span>
-                )}
-              </div>
-            ))}
-            {(tipo === "sin_vinculo" || tipo === "vendedor_sin_liquidacion" || tipo === "comision_sin_respaldo") && (
-              <Button variant="outline" size="sm" onClick={onIrAVinculos}
-                className="rounded-2xl border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
-                <Link2 className="w-4 h-4 mr-2" /> Arreglar en Vínculos
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <GrupoAlertas key={tipo} tipo={tipo} lista={lista} onIrAVinculos={onIrAVinculos} />
       ))}
     </div>
+  );
+}
+
+function GrupoAlertas({ tipo, lista, onIrAVinculos }: {
+  tipo: string; lista: Alerta[]; onIrAVinculos: () => void;
+}) {
+  const [todas, setTodas] = useState(false);
+  const visibles = todas ? lista : lista.slice(0, TOPE_ALERTAS_VISIBLES);
+  const ocultas = lista.length - visibles.length;
+
+  return (
+    <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-[#fd6301]" />
+          {TITULO_ALERTA[tipo] ?? tipo}
+          <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/60 tabular-nums">
+            {lista.length}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {visibles.map((a, i) => (
+          <div key={`${a.nombre}-${i}`} className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{a.nombre}</p>
+              <p className="text-xs text-slate-500">{a.detalle}</p>
+            </div>
+            {a.monto !== undefined && (
+              <span className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{formatCLP(a.monto)}</span>
+            )}
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {ocultas > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setTodas(true)}
+              className="rounded-2xl text-slate-500 hover:text-[#fd6301]">
+              Ver las {ocultas} restantes
+            </Button>
+          )}
+          {todas && lista.length > TOPE_ALERTAS_VISIBLES && (
+            <Button variant="ghost" size="sm" onClick={() => setTodas(false)}
+              className="rounded-2xl text-slate-500 hover:text-[#fd6301]">
+              Mostrar menos
+            </Button>
+          )}
+          {(tipo === "sin_vinculo" || tipo === "vendedor_sin_liquidacion" || tipo === "comision_sin_respaldo") && (
+            <Button variant="outline" size="sm" onClick={onIrAVinculos}
+              className="rounded-2xl border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
+              <Link2 className="w-4 h-4 mr-2" /> Arreglar en Vínculos
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -822,6 +872,16 @@ function Vinculos() {
               <TableBody>
                 {filtrados.map((e) => {
                   const v = vinculoPorEmpleado.get(e.id);
+                  // Sin fila guardada mandan las sugerencias del servidor: son
+                  // las mismas que usa la planilla, así las dos pantallas dicen
+                  // lo mismo de la misma persona.
+                  const userId = v?.userId ?? (v ? null : e.sugerencia?.userId ?? null);
+                  const vendedor = v?.salespersonName ?? (v ? null : e.sugerencia?.salespersonName ?? null);
+                  const estado: EstadoVinculo = v?.ignorado
+                    ? "ignorado"
+                    : v?.confirmado
+                      ? "confirmado"
+                      : (userId || vendedor) ? "automatico" : "sin_vinculo";
                   return (
                     <TableRow key={e.id} className={v?.ignorado ? "opacity-60" : ""}>
                       <TableCell>
@@ -832,11 +892,11 @@ function Vinculos() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={v?.userId ?? SIN_VALOR}
+                          value={userId ?? SIN_VALOR}
                           onValueChange={(valor) => guardar.mutate({
                             talanaEmpleadoId: e.id, rut: e.rut, nombreTalana: e.nombre,
                             userId: valor === SIN_VALOR ? null : valor,
-                            salespersonName: v?.salespersonName ?? null,
+                            salespersonName: vendedor,
                             ignorado: false,
                           })}>
                           <SelectTrigger className="h-9 w-[15rem] rounded-xl"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
@@ -850,10 +910,10 @@ function Vinculos() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={v?.salespersonName ?? SIN_VALOR}
+                          value={vendedor ?? SIN_VALOR}
                           onValueChange={(valor) => guardar.mutate({
                             talanaEmpleadoId: e.id, rut: e.rut, nombreTalana: e.nombre,
-                            userId: v?.userId ?? null,
+                            userId,
                             salespersonName: valor === SIN_VALOR ? null : valor,
                             ignorado: false,
                           })}>
@@ -867,11 +927,8 @@ function Vinculos() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`rounded-full text-[11px] ${
-                          v?.ignorado ? ETIQUETA_VINCULO.ignorado.clase
-                            : v?.confirmado ? ETIQUETA_VINCULO.confirmado.clase
-                            : ETIQUETA_VINCULO.automatico.clase}`}>
-                          {v?.ignorado ? "Ignorado" : v?.confirmado ? "Confirmado" : "Automático"}
+                        <Badge variant="outline" className={`rounded-full text-[11px] ${ETIQUETA_VINCULO[estado].clase}`}>
+                          {ETIQUETA_VINCULO[estado].texto}
                         </Badge>
                         {!e.activo && (
                           <Badge variant="outline" className="ml-1 rounded-full text-[11px] border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900">
@@ -895,7 +952,8 @@ function Vinculos() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#fd6301]"
-                              onClick={() => borrar.mutate(e.id)} disabled={!v}>
+                              onClick={() => borrar.mutate(e.id)} disabled={!v}
+                              title="Borrar el vínculo guardado">
                               <RotateCcw className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>

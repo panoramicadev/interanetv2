@@ -24,7 +24,10 @@ las tenía juntas. `talana_vinculos` guarda esa correspondencia.
 
 - El sistema **propone** el calce por nombre (todas las palabras del nombre más
   corto tienen que estar en el más largo, con al menos dos coincidencias). Eso
-  aparece como vínculo *Automático*.
+  aparece como vínculo *Automático*. La propuesta la calcula **una sola
+  función** (`proponerVinculo`) que usan el cruce y la pestaña de vínculos: con
+  una copia por lado, la planilla decía "Automático" donde la otra pantalla
+  mostraba "Sin asignar".
 - Guardarlo desde la pestaña **Vínculos** lo deja *Confirmado*.
 - *Ignorado* es para quien no corresponde cruzar: deja de generar alertas sin
   borrar el dato.
@@ -40,12 +43,19 @@ de migraciones no es confiable en producción.
    reembolsos. En celular es una lista de tarjetas: la tabla no entra.
 2. **Descuadres** — solo lo que no calza, agrupado por tipo, con acceso directo a
    arreglar el vínculo cuando esa es la causa.
-3. **Vínculos** — asignar/confirmar la persona de la intranet y el vendedor del ERP.
+3. **Vínculos** — asignar/confirmar la persona de la intranet y el vendedor del
+   ERP. Lista a **todas** las personas que Talana liquida, no solo las que
+   devuelve `/contracts`: son 56 contratos contra 64 liquidaciones, y los 8 de
+   diferencia incluían vendedores con comisión que no se podían vincular.
 
 Además: selector de período (los meses que informa Talana, con su estado
 abierto/cerrado), botón **Actualizar** (vacía el caché de la API) y **Exportar CSV**.
 
 ## Alertas
+
+Los grupos se muestran **por gravedad**: primero lo que mueve plata (comisiones)
+y al final las personas sin vincular, que en un mes recién configurado son
+decenas y tapaban el resto. Cada grupo pliega a partir de 6 ítems.
 
 | Tipo | Cuándo se levanta |
 |---|---|

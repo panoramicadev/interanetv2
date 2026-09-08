@@ -149,6 +149,24 @@ function calzaNombre(a: string, b: string): boolean {
   return comunes.length === corto.length && comunes.length >= 2;
 }
 
+/**
+ * Lo que el sistema PROPONE para una persona de Talana, calzando por nombre.
+ * Es la misma función que usan el cruce y la pestaña de vínculos: si cada lado
+ * calzara por su cuenta, la planilla podría decir "Automático" donde la pantalla
+ * de vínculos muestra "Sin asignar", que fue justamente el error a evitar.
+ */
+export function proponerVinculo(
+  nombreTalana: string,
+  personas: PersonaIntranet[],
+  vendedores: string[],
+): { persona: PersonaIntranet | null; salespersonName: string | null } {
+  const persona = personas.find((p) =>
+    calzaNombre(p.nombre, nombreTalana) || (!!p.salespersonName && calzaNombre(p.salespersonName, nombreTalana))) ?? null;
+  const salespersonName =
+    persona?.salespersonName ?? vendedores.find((v) => calzaNombre(v, nombreTalana)) ?? null;
+  return { persona, salespersonName };
+}
+
 // ─── Datos de la intranet ───────────────────────────────────────────────────
 
 interface PersonaIntranet {
@@ -369,6 +387,8 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     console.warn('[remuneraciones] comisiones no disponibles:', comisionesError);
   }
 
+  const nombresVendedores = (comisiones || []).map((c) => c.salesperson).filter(Boolean);
+
   const reembolsos = await getReembolsosAprobados(periodo.desde, periodo.hasta);
 
   // Índices por empleado de Talana
@@ -423,23 +443,21 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     // Persona de la intranet: la del vínculo guardado o, si no hay, el calce
     // por nombre (que la UI marca como "automático", no como confirmado).
     let persona: PersonaIntranet | null = null;
+    let sugerido: string | null = null;
     if (vinculo?.userId) {
       persona = personas.find((p) => p.id === vinculo!.userId) ?? null;
     } else if (!vinculo?.ignorado) {
-      persona = personas.find((p) =>
-        calzaNombre(p.nombre, nombre) || (!!p.salespersonName && calzaNombre(p.salespersonName, nombre))) ?? null;
+      const propuesta = proponerVinculo(nombre, personas, nombresVendedores);
+      persona = propuesta.persona;
+      sugerido = propuesta.salespersonName;
     }
     const userId = vinculo?.userId ?? persona?.id ?? null;
     const userNombre = persona?.nombre ?? null;
 
-    // Vendedor del ERP. El mejor puente es el `salespersonName` de la propia
-    // persona (es el nombre con el que el ERP graba la venta); recién si no lo
-    // tiene se cae al calce por nombre contra los vendedores del período.
-    let salespersonName = vinculo?.salespersonName ?? persona?.salespersonName ?? null;
-    if (!salespersonName && !vinculo?.ignorado && comisiones) {
-      const auto = comisiones.find((c) => calzaNombre(c.salesperson, nombre));
-      if (auto) salespersonName = auto.salesperson;
-    }
+    // Vendedor del ERP: manda el vínculo guardado; si no, el `salespersonName`
+    // de la propia persona (el nombre con el que el ERP graba la venta) y por
+    // último el calce por nombre contra los vendedores del período.
+    const salespersonName = vinculo?.salespersonName ?? persona?.salespersonName ?? sugerido;
     if (salespersonName) usadosSalesperson.add(normalizar(salespersonName));
 
     const comisionIntranet = salespersonName && comisiones
@@ -702,6 +720,25 @@ export function registerRemuneracionesRoutes(app: Express) {
             activo: !!c.activo && !c.finiquitado,
           });
         }
+        // Talana devuelve 56 contratos pero liquida a 64 personas: quien no tiene
+        // contrato vigente en la lista quedaba fuera de esta pantalla y no se
+        // podía vincular, justo el caso de un vendedor con comisión. Se
+        // completa con los empleados de los dos últimos períodos.
+        const periodos = await getPeriodos();
+        for (const periodo of periodos.slice(0, 2)) {
+          const liquidaciones = await getLiquidaciones(periodo.id).catch(() => []);
+          for (const l of liquidaciones) {
+            if (vistos.has(l.empleado) || !l.empleado_detalles) continue;
+            vistos.add(l.empleado);
+            empleados.push({
+              id: l.empleado,
+              rut: rutNormalizado(l.empleado_detalles.rut),
+              nombre: nombreCompleto(l.empleado_detalles),
+              cargo: null,
+              activo: false,
+            });
+          }
+        }
         empleados.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
       } catch (error: any) {
         talanaError = error?.message || 'Error consultando Talana';
@@ -720,7 +757,21 @@ export function registerRemuneracionesRoutes(app: Express) {
         vendedores = [];
       }
 
-      res.json({ empleados, personas, vendedores, vinculos, talanaError });
+      // Cada empleado viaja con lo que el sistema propone, para que la pantalla
+      // muestre la sugerencia ya elegida en los selectores y distinga
+      // "propuesta sin confirmar" de "no calzó con nadie".
+      const conSugerencia = empleados.map((e) => {
+        const { persona, salespersonName } = proponerVinculo(e.nombre, personas, vendedores);
+        return {
+          ...e,
+          sugerencia: {
+            userId: persona?.id ?? null,
+            salespersonName: salespersonName ?? null,
+          },
+        };
+      });
+
+      res.json({ empleados: conSugerencia, personas, vendedores, vinculos, talanaError });
     } catch (error: any) {
       console.error('[remuneraciones] error listando vínculos:', error);
       res.status(500).json({ message: 'Error obteniendo los vínculos: ' + (error?.message || 'desconocido') });
