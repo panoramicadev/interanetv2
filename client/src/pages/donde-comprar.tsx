@@ -247,8 +247,12 @@ export default function DondeComprar() {
             style={{ height: "100%", width: "100%" }}
             className="z-0"
           >
+            {/* Los basemaps de CARTO exigen key desde ago-2026; sin ella las
+                tiles llegan con la marca de agua "API KEY REQUIRED". La key es
+                pública por diseño (viaja al navegador) y está restringida por
+                dominio en carto.com, por eso va en el código y no en un secreto. */}
             <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              url="https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_326y_1_4686b1c0b0b6751aa355c658"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
             />
             <FlyTo center={focus} />
