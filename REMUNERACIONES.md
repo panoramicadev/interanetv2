@@ -2,7 +2,8 @@
 
 Módulo de RR.HH. que cruza lo que **Talana** va a pagar con lo que la **intranet**
 calculó. Ruta `/remuneraciones`, permiso `rrhh.remuneraciones` (por defecto solo
-`admin` y `recursos_humanos`).
+`admin`; a cualquier otra persona se le entrega a mano desde el panel de
+permisos).
 
 La pregunta que responde es una sola: *antes de cerrar el mes, ¿la liquidación de
 cada persona coincide con la comisión y los reembolsos que se calcularon acá?*
