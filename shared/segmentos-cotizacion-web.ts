@@ -26,7 +26,20 @@ export interface SegmentoCotizacionWeb {
   /** Valor exacto que se escribe en crm_seguimiento_clientes.segmento. */
   crmSegmento: string;
   assignedSegmentLike: string[];
+  /**
+   * Destinatarios de la notificación interna del cotizador para este segmento.
+   * Si el segmento no define los suyos, se usan
+   * DESTINATARIOS_NOTIFICACION_COTIZACION_WEB. Solo aplica al correo interno del
+   * cotizador web: no cambia el ruteo al CRM ni el correo al visitante.
+   */
+  notificacionEmails?: string[];
 }
+
+/** A quién se le avisa una cotización web cuando el segmento no define destinatarios propios. */
+export const DESTINATARIOS_NOTIFICACION_COTIZACION_WEB = [
+  'contacto@pinturaspanoramica.cl',
+  'dhermosilla@pinturaspanoramica.cl',
+];
 
 export const SEGMENTOS_COTIZACION_WEB: SegmentoCotizacionWeb[] = [
   {
@@ -34,6 +47,7 @@ export const SEGMENTOS_COTIZACION_WEB: SegmentoCotizacionWeb[] = [
     label: 'CONSTRUCCIÓN',
     crmSegmento: 'Construcción',
     assignedSegmentLike: ['%construc%'],
+    notificacionEmails: ['prossi@pintureriadelsur.com'],
   },
   {
     value: 'ferreteria',
@@ -63,4 +77,16 @@ export function getSegmentoCotizacionWeb(value?: string | null): SegmentoCotizac
 /** Etiqueta legible del segmento (para emails y panel admin). */
 export function segmentoCotizacionWebLabel(value?: string | null): string | null {
   return getSegmentoCotizacionWeb(value)?.crmSegmento ?? (value || null);
+}
+
+/**
+ * Destinatarios (separados por coma, como los espera el helper de correo) de la
+ * notificación interna del cotizador web para el segmento elegido.
+ */
+export function destinatariosNotificacionCotizacionWeb(value?: string | null): string {
+  const segmento = getSegmentoCotizacionWeb(value);
+  const emails = segmento?.notificacionEmails?.length
+    ? segmento.notificacionEmails
+    : DESTINATARIOS_NOTIFICACION_COTIZACION_WEB;
+  return emails.join(', ');
 }

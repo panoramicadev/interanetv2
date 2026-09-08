@@ -23,7 +23,7 @@ import {
   getVariantsForClient,
 } from './services/custom-color.service';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
-import { segmentoCotizacionWebLabel } from '@shared/segmentos-cotizacion-web';
+import { segmentoCotizacionWebLabel, destinatariosNotificacionCotizacionWeb } from '@shared/segmentos-cotizacion-web';
 import { db } from './db';
 import { eq, sql } from 'drizzle-orm';
 import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
@@ -217,7 +217,7 @@ export function registerB2CRoutes(app: Express) {
         });
         await sendAutoCustomerEmail({
           notificationType: 'ecommerce_quote_interna',
-          to: 'contacto@pinturaspanoramica.cl, dhermosilla@pinturaspanoramica.cl',
+          to: destinatariosNotificacionCotizacionWeb(validationResult.data.segmento),
           subject: built.subject,
           html: built.html,
           force: true,
