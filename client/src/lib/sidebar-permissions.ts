@@ -63,25 +63,34 @@ function filterMarketingByRole(items: SidebarItem[], role: string | undefined): 
   );
 }
 
+/**
+ * Rutas que ningún rol salvo `admin` puede ver, tenga el permiso o no.
+ * Remuneraciones muestra el líquido, el cargo y el costo empresa de toda la
+ * empresa: el permiso existe para el panel, pero el cerrojo es el rol, acá,
+ * en la ruta (App.tsx) y en la API (server/routes-remuneraciones.ts).
+ */
+const HREFS_SOLO_ADMIN = new Set(["/remuneraciones"]);
+
 function permissionKeyForItem(item: SidebarItem): string | null {
   if (item.isExternalCatalog) return "mi_catalogo";
   return PERMISSION_BY_HREF[item.href] || null;
 }
 
 /** Filtra ítems (y sub-ítems) según permisos; ítems sin mapping quedan visibles. */
-function filterByPermissions(items: SidebarItem[], can: Can): SidebarItem[] {
+function filterByPermissions(items: SidebarItem[], can: Can, role?: string): SidebarItem[] {
+  const visible = (item: SidebarItem) => {
+    if (HREFS_SOLO_ADMIN.has(item.href) && role !== "admin") return false;
+    const key = permissionKeyForItem(item);
+    return !key || can(key);
+  };
   const result: SidebarItem[] = [];
   for (const item of items) {
     if (item.children && item.children.length > 0) {
-      const children = item.children.filter((child) => {
-        const key = permissionKeyForItem(child);
-        return key ? can(key) : true;
-      });
+      const children = item.children.filter(visible);
       // Un grupo sin sub-ítems visibles se oculta completo
       if (children.length > 0) result.push({ ...item, children });
-    } else {
-      const key = permissionKeyForItem(item);
-      if (!key || can(key)) result.push(item);
+    } else if (visible(item)) {
+      result.push(item);
     }
   }
   return result;
@@ -230,7 +239,7 @@ export function buildSidebarItems(
     role === "supervisor"
       ? supervisorSidebarItems(ctx.assignedSegment)
       : SIDEBAR_CONFIG[role || ""] || [];
-  const items = filterByPermissions(base, can);
+  const items = filterByPermissions(base, can, role);
 
   // El sidebar del admin es la referencia curada del sistema: tiene todos
   // los permisos pero solo muestra los módulos elegidos para su menú
@@ -270,6 +279,9 @@ export function buildSidebarItems(
   // Módulos sueltos extra
   for (const { key, item } of EXTRA_TOP_LEVEL) {
     if (covered.has(key) || ocultos.has(key) || !can(key)) continue;
+    // Mismo cerrojo que en el sidebar base: hay rutas que no salen del rol
+    // admin ni con el permiso puesto a mano (ver HREFS_SOLO_ADMIN).
+    if (HREFS_SOLO_ADMIN.has(item.href) && role !== "admin") continue;
     if (items.some((existing) => existing.href === item.href && !existing.children)) continue;
     items.push({ ...item, ...(item.children ? { children: item.children.map((c) => ({ ...c })) } : {}) });
   }

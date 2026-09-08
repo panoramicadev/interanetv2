@@ -1151,7 +1151,7 @@ export const MODULE_MAP: ModuleDef[] = [
     nav: { label: "Remuneraciones" },
     purpose:
       "Cruza las liquidaciones y los días trabajados de Talana con lo que calculó la intranet (comisiones y reembolsos aprobados), para revisar el mes antes de cerrarlo.",
-    whoUses: "RRHH y admin. Es la información más sensible del sistema: sueldos persona por persona.",
+    whoUses: "Solo admin por defecto. Es la información más sensible del sistema —sueldos persona por persona—, así que a RR.HH. se le entrega a mano desde el panel de permisos.",
     sections: [
       { label: "Planilla del período", tab: "cruce", what: "Una fila por persona: días, sueldo base, haberes, descuentos, líquido y las dos comisiones (la de Talana y la calculada acá)." },
       { label: "Descuadres", tab: "descuadres", what: "Solo lo que no calza: comisiones distintas, comisiones que Talana no paga y personas sin vincular." },

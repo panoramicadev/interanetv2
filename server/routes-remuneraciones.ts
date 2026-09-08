@@ -39,7 +39,7 @@ import type { Express } from 'express';
 import { z } from 'zod';
 import { eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from './db';
-import { requireAuth } from './auth';
+import { requireAuth, requireRoles } from './auth';
 import { requirePermission } from './permissions';
 import {
   talanaVinculos, talanaVendedoresIgnorados, users, salespeopleUsers,
@@ -766,7 +766,28 @@ function clp(n: number): string {
 // ─── Endpoints ──────────────────────────────────────────────────────────────
 
 export function registerRemuneracionesRoutes(app: Express) {
-  const guard = requirePermission('rrhh.remuneraciones');
+  /**
+   * Doble cerrojo, y es a propósito.
+   *
+   * `requirePermission` sigue ahí para que el módulo aparezca en el panel de
+   * permisos y el sidebar lo trate como a cualquier otro. Pero el permiso, por
+   * sí solo, es asignable: un admin podría dárselo a un rol o a una persona
+   * desde la pantalla de permisos, o quedar una fila suelta en
+   * `role_permissions` / `user_permissions`. Acá se pagan sueldos líquidos,
+   * cargos y costo empresa de toda la empresa: la decisión es que NADIE fuera
+   * de `admin` los vea, y eso no puede depender de que nadie se equivoque
+   * marcando una casilla.
+   *
+   * Con `requireRoles(['admin'])` delante, cualquier grant que aparezca por
+   * cualquier vía se queda en un 403 acá. Si algún día RR.HH. tiene que
+   * entrar, se saca esta línea con intención y queda en el historial.
+   */
+  const soloAdmin = requireRoles(['admin']);
+  const conPermiso = requirePermission('rrhh.remuneraciones');
+  // Encadenados a mano en UN middleware: pasarlos como arreglo hace que
+  // Express pierda el tipo de `res` en los 10 handlers.
+  const guard = (req: any, res: any, next: any) =>
+    soloAdmin(req, res, (err?: any) => (err ? next(err) : conPermiso(req, res, next)));
 
   /** Estado de la integración: sirve para explicar en pantalla qué falta. */
   app.get('/api/rrhh/remuneraciones/estado', requireAuth, guard, async (_req: any, res) => {
