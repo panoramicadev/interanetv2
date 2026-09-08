@@ -224,12 +224,16 @@ export const PERMISSIONS: PermissionDef[] = [
   // Remuneraciones vive al lado de Comisiones porque la comisión calculada acá
   // es la que termina en la liquidación de Talana. Es el permiso MÁS sensible
   // del sistema —sueldos líquidos, cargos y costo empresa persona por persona—,
-  // por eso por defecto solo lo tienen admin y recursos_humanos: ni siquiera
-  // supervisor, que sí ve comisiones.
+  // por eso NINGÚN rol lo trae por defecto: solo admin, que tiene todos los
+  // permisos. Ni siquiera recursos_humanos, que sí ve comisiones.
+  //
+  // Para dárselo a alguien concreto se asigna a mano desde el panel de
+  // permisos; el ítem aparece en su menú justo debajo de Comisiones, porque
+  // SIDEBAR_CONFIG ya lo trae en esa posición y se filtra por permiso.
   {
     key: "rrhh.remuneraciones",
     label: "Remuneraciones",
-    description: "Sueldos y días trabajados de Talana cruzados con la intranet (información muy sensible)",
+    description: "Sueldos y días trabajados de Talana cruzados con la intranet. SOLO ADMINISTRADOR: marcarlo para otro rol no da acceso, el servidor lo rechaza igual.",
     group: "finanzas",
     href: "/remuneraciones",
   },
@@ -694,7 +698,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   planificacion: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
   bodega_materias_primas: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["nuevo_cliente", "postventa.reclamos", "gastos"],
-  recursos_humanos: ["nuevo_cliente", "rrhh.comisiones", "rrhh.remuneraciones", "gastos", "solicitud_credito"],
+  // Sin rrhh.remuneraciones a propósito: se entrega a mano, persona por persona.
+  recursos_humanos: ["nuevo_cliente", "rrhh.comisiones", "gastos", "solicitud_credito"],
   marketing: ["nuevo_cliente", "marketing", "market.campanas", "gastos"],
   area_produccion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   area_logistica: ["nuevo_cliente", "postventa.reclamos", "gastos"],

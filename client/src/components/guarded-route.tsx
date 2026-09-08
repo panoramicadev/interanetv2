@@ -32,12 +32,21 @@ export function AccessDenied() {
  */
 export function Guarded({
   permission,
+  soloRoles,
   children,
 }: {
   permission: string;
+  /**
+   * Roles que además del permiso pueden entrar. Se usa para los módulos donde
+   * el permiso no alcanza como cerrojo porque un admin podría asignarlo por
+   * error desde el panel: hoy, Remuneraciones (sueldos de toda la empresa).
+   * El servidor aplica la misma restricción; esto solo evita que alguien vea
+   * una pantalla que igual le va a responder 403.
+   */
+  soloRoles?: string[];
   children: React.ReactNode;
 }) {
-  const { can, isReady } = usePermissions();
+  const { can, isReady, role } = usePermissions();
 
   if (!isReady) {
     return (
@@ -47,6 +56,7 @@ export function Guarded({
     );
   }
 
+  if (soloRoles && !soloRoles.includes(role)) return <AccessDenied />;
   if (!can(permission)) return <AccessDenied />;
   return <>{children}</>;
 }

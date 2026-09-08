@@ -120,20 +120,23 @@ import NotFound from "@/pages/not-found";
 // identidad estable entre renders de Router: si no, wouter remontaría
 // la página en cada render (perdiendo estado, scroll y datos cargados).
 const guardedCache = new WeakMap<any, Map<string, any>>();
-function guarded(permission: string, Component: any) {
+function guarded(permission: string, Component: any, soloRoles?: string[]) {
   let byPermission = guardedCache.get(Component);
   if (!byPermission) {
     byPermission = new Map();
     guardedCache.set(Component, byPermission);
   }
-  let wrapped = byPermission.get(permission);
+  // La clave del caché incluye los roles: si no, dos rutas del mismo
+  // componente con restricciones distintas se pisarían.
+  const clave = soloRoles ? `${permission}|${soloRoles.join(",")}` : permission;
+  let wrapped = byPermission.get(clave);
   if (!wrapped) {
     wrapped = (props: any) => (
-      <Guarded permission={permission}>
+      <Guarded permission={permission} soloRoles={soloRoles}>
         <Component {...props} />
       </Guarded>
     );
-    byPermission.set(permission, wrapped);
+    byPermission.set(clave, wrapped);
   }
   return wrapped;
 }
@@ -304,7 +307,10 @@ function Router() {
             }} />
             <Route path="/metas" component={guarded("config.metas", Metas)} />
             <Route path="/comisiones" component={guarded("rrhh.comisiones", Comisiones)} />
-            <Route path="/remuneraciones" component={guarded("rrhh.remuneraciones", Remuneraciones)} />
+            {/* Solo administrador: son los sueldos de toda la empresa. El
+                permiso existe para el panel y el sidebar, pero el cerrojo real
+                es el rol, acá y en server/routes-remuneraciones.ts. */}
+            <Route path="/remuneraciones" component={guarded("rrhh.remuneraciones", Remuneraciones, ["admin"])} />
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra
