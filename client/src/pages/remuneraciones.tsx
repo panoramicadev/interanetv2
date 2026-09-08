@@ -64,6 +64,8 @@ interface FilaCruce {
   atrasos: number;
   comisionTalana: number;
   estadoLiquidacion: string | null;
+  liquidacionesDelPeriodo: number;
+  tiposLiquidacion: string[];
   userId: string | null;
   userNombre: string | null;
   salespersonName: string | null;
@@ -91,6 +93,8 @@ interface Cruce {
   totales: Totales | null;
   alertas: Alerta[];
   vendedoresSinLiquidacion: { salesperson: string; commissionAmount: number }[];
+  /** Vendedores del ERP marcados como "no es una persona" (mostradores, canales). */
+  vendedoresIgnorados?: string[];
   comisionesError?: string | null;
   umbralDescuadre?: number;
 }
@@ -271,6 +275,33 @@ export default function RemuneracionesPage() {
       toast({ title: "Datos actualizados", description: "Se volvieron a leer los datos de Talana." });
     },
     onError: (e: any) => toast({ title: "No se pudo actualizar", description: e?.message, variant: "destructive" }),
+  });
+
+  // Marcar un "vendedor" del ERP que en realidad es un mostrador o un canal.
+  const ignorarVendedor = useMutation({
+    mutationFn: async (salespersonName: string) => {
+      const res = await apiRequest("PUT", "/api/rrhh/remuneraciones/vendedores-ignorados", { salespersonName });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "No se pudo guardar");
+      return res.json();
+    },
+    onSuccess: (_d, nombre) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rrhh/remuneraciones/cruce"] });
+      toast({ title: "Fuera de los descuadres", description: `${nombre} ya no se busca en Talana.` });
+    },
+    onError: (e: any) => toast({ title: "No se pudo guardar", description: e?.message, variant: "destructive" }),
+  });
+
+  const restaurarVendedor = useMutation({
+    mutationFn: async (salespersonName: string) => {
+      const res = await apiRequest("DELETE", `/api/rrhh/remuneraciones/vendedores-ignorados?nombre=${encodeURIComponent(salespersonName)}`);
+      if (!res.ok) throw new Error("No se pudo restaurar");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rrhh/remuneraciones/cruce"] });
+      toast({ title: "Vuelve a los descuadres" });
+    },
+    onError: (e: any) => toast({ title: "No se pudo restaurar", description: e?.message, variant: "destructive" }),
   });
 
   const filas = cruce?.filas ?? [];
@@ -473,7 +504,15 @@ export default function RemuneracionesPage() {
         )}
 
         {tab === "descuadres" && (
-          <Descuadres alertas={alertas} loading={cargandoCruce} onIrAVinculos={() => setTab("vinculos")} />
+          <Descuadres
+            alertas={alertas}
+            loading={cargandoCruce}
+            onIrAVinculos={() => setTab("vinculos")}
+            onIgnorarVendedor={(n) => ignorarVendedor.mutate(n)}
+            ignorando={ignorarVendedor.isPending}
+            ignorados={cruce?.vendedoresIgnorados ?? []}
+            onRestaurarVendedor={(n) => restaurarVendedor.mutate(n)}
+          />
         )}
 
         {tab === "vinculos" && <Vinculos />}
@@ -542,7 +581,10 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                   <TableRow key={f.talanaEmpleadoId} className="hover:bg-orange-50/50 dark:hover:bg-orange-950/15">
                     <TableCell className="font-medium">
                       <div className="flex flex-col leading-tight">
-                        <span className="whitespace-nowrap">{f.nombre}</span>
+                        <span className="whitespace-nowrap flex items-center gap-1.5">
+                          {f.nombre}
+                          <ChipFiniquito fila={f} />
+                        </span>
                         <span className="text-xs text-slate-400 tabular-nums">{f.rut}</span>
                       </div>
                     </TableCell>
@@ -609,7 +651,10 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
               <div key={f.talanaEmpleadoId} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{f.nombre}</p>
+                    <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
+                      {f.nombre}
+                      <ChipFiniquito fila={f} />
+                    </p>
                     <p className="text-xs text-slate-400 truncate">{f.cargo ?? f.rut}</p>
                   </div>
                   <ChipVinculo fila={f} />
@@ -671,10 +716,35 @@ function ChipVinculo({ fila }: { fila: FilaCruce }) {
   );
 }
 
+/**
+ * Aviso de que el mes trae DOS liquidaciones de pago para la misma persona
+ * (sueldo y finiquito, de quien se fue a mitad de mes). Las cifras de la fila
+ * son la suma de las dos: sin este chip se leerían como un sueldo normal, que
+ * es justo lo que haría dudar del total.
+ */
+function ChipFiniquito({ fila }: { fila: FilaCruce }) {
+  if ((fila.liquidacionesDelPeriodo ?? 0) <= 1) return null;
+  const detalle = (fila.tiposLiquidacion ?? []).join(" + ");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className="shrink-0 text-[10px] font-medium border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          {fila.liquidacionesDelPeriodo} liquidaciones
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        El mes trae {detalle}. Las cifras de la fila suman las dos.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Descuadres ───
 
-function Descuadres({ alertas, loading, onIrAVinculos }: {
+function Descuadres({ alertas, loading, onIrAVinculos, onIgnorarVendedor, ignorando, ignorados, onRestaurarVendedor }: {
   alertas: Alerta[]; loading: boolean; onIrAVinculos: () => void;
+  onIgnorarVendedor: (nombre: string) => void; ignorando: boolean;
+  ignorados: string[]; onRestaurarVendedor: (nombre: string) => void;
 }) {
   const porTipo = useMemo<[string, Alerta[]][]>(() => {
     const m = new Map<string, Alerta[]>();
@@ -711,14 +781,53 @@ function Descuadres({ alertas, loading, onIrAVinculos }: {
   return (
     <div className="space-y-4">
       {porTipo.map(([tipo, lista]) => (
-        <GrupoAlertas key={tipo} tipo={tipo} lista={lista} onIrAVinculos={onIrAVinculos} />
+        <GrupoAlertas key={tipo} tipo={tipo} lista={lista} onIrAVinculos={onIrAVinculos}
+          onIgnorarVendedor={onIgnorarVendedor} ignorando={ignorando} />
       ))}
+      <VendedoresIgnorados ignorados={ignorados} onRestaurar={onRestaurarVendedor} />
     </div>
   );
 }
 
-function GrupoAlertas({ tipo, lista, onIrAVinculos }: {
+/**
+ * Lo que se sacó a mano de los descuadres. Va al pie y plegado: no es una
+ * alerta, pero tiene que quedar a la vista para que "no aparece" nunca sea un
+ * misterio y se pueda deshacer.
+ */
+function VendedoresIgnorados({ ignorados, onRestaurar }: {
+  ignorados: string[]; onRestaurar: (nombre: string) => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  if (!ignorados.length) return null;
+  return (
+    <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
+      <CardContent className="py-3">
+        <button type="button" onClick={() => setAbierto((v) => !v)}
+          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+          <EyeOff className="w-4 h-4" />
+          {ignorados.length} {ignorados.length === 1 ? "vendedor marcado" : "vendedores marcados"} como mostrador o canal
+        </button>
+        {abierto && (
+          <div className="mt-3 space-y-1.5">
+            {ignorados.map((n) => (
+              <div key={n} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 px-3 py-1.5">
+                <span className="text-sm text-slate-600 dark:text-slate-300">{n}</span>
+                <Button variant="ghost" size="sm" onClick={() => onRestaurar(n)}
+                  className="rounded-2xl h-8 text-slate-400 hover:text-[#fd6301]">
+                  <RotateCcw className="w-4 h-4 mr-1.5" /> Volver a incluir
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GrupoAlertas({ tipo, lista, onIrAVinculos, onIgnorarVendedor, ignorando }: {
   tipo: string; lista: Alerta[]; onIrAVinculos: () => void;
+  onIgnorarVendedor: (nombre: string) => void; ignorando: boolean;
 }) {
   const [todas, setTodas] = useState(false);
   const visibles = todas ? lista : lista.slice(0, TOPE_ALERTAS_VISIBLES);
@@ -742,9 +851,26 @@ function GrupoAlertas({ tipo, lista, onIrAVinculos }: {
               <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{a.nombre}</p>
               <p className="text-xs text-slate-500">{a.detalle}</p>
             </div>
-            {a.monto !== undefined && (
-              <span className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{formatCLP(a.monto)}</span>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {a.monto !== undefined && (
+                <span className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{formatCLP(a.monto)}</span>
+              )}
+              {/* Los mostradores y canales del ERP (MCT, marketplaces, tienda
+                  online) facturan y comisionan pero no tienen liquidación que
+                  buscar: sin esto su alerta no se puede resolver nunca. */}
+              {tipo === "vendedor_sin_liquidacion" && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" disabled={ignorando}
+                      onClick={() => onIgnorarVendedor(a.nombre)}
+                      className="rounded-2xl h-8 px-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                      <EyeOff className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>No es una persona (mostrador o canal de venta)</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
         ))}
         <div className="flex flex-wrap gap-2 pt-1">

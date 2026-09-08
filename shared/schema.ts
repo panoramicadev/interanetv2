@@ -9088,6 +9088,29 @@ export const talanaVinculos = pgTable("talana_vinculos", {
 export type TalanaVinculo = typeof talanaVinculos.$inferSelect;
 export type InsertTalanaVinculo = typeof talanaVinculos.$inferInsert;
 
+// Vendedores del ERP que no son personas: mostradores y canales de venta
+// (MCT Temuco, Mercado Libre, Falabella, Venta Tienda Online…). Facturan y
+// pueden tener comisión configurada, pero no tienen liquidación en Talana
+// porque no son nadie a quien pagarle sueldo. Marcarlos acá saca su alerta de
+// Descuadres sin tocar el cálculo de comisiones, que los sigue informando.
+//
+// Va aparte de `talana_vinculos` porque ese "ignorado" se guarda por
+// `talanaEmpleadoId`, y justamente lo que define a un canal es no tener uno.
+export const talanaVendedoresIgnorados = pgTable("talana_vendedores_ignorados", {
+  salespersonName: varchar("salesperson_name", { length: 255 }).primaryKey(),
+  motivo: varchar("motivo", { length: 255 }),
+  actualizadoPor: varchar("actualizado_por"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type TalanaVendedorIgnorado = typeof talanaVendedoresIgnorados.$inferSelect;
+
+/** Alta de un vendedor del ERP que no corresponde cruzar. */
+export const ignorarVendedorSchema = z.object({
+  salespersonName: z.string().min(1).max(255),
+  motivo: z.string().max(255).nullable().optional(),
+});
+
 /** Alta/edición de un vínculo desde la pestaña "Vínculos". */
 export const guardarTalanaVinculoSchema = z.object({
   talanaEmpleadoId: z.number().int().positive(),

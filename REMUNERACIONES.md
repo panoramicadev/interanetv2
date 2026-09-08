@@ -66,6 +66,39 @@ decenas y tapaban el resto. Cada grupo pliega a partir de 6 ítems.
 | `vendedor_sin_liquidacion` | Vendedor con comisión calculada y sin liquidación en el período. |
 | `sin_liquidacion` | Contrato vigente sin liquidación en un mes ya cerrado. |
 
+### Los "vendedores" que no son personas
+
+`fact_ventas.nokofu` no guarda solo vendedores: también mostradores y canales.
+De los 32 nombres que facturaron en 2026, **13 son canales** (MCT Puerto Montt,
+Osorno, Concepción, Los Ángeles, Temuco, Castro y Villarrica; Mercado Libre,
+Falabella y Ripley Marketplace; Venta Tienda Online, WhatsApp Venta y Cliente
+Fábrica). Uno de ellos —**MCT TEMUCO**— tiene 7% de comisión configurado sobre
+$241M vendidos, así que levanta `vendedor_sin_liquidacion` todos los meses.
+
+Esa alerta no se puede resolver: no hay liquidación que buscarle porque no hay
+a quién pagarle sueldo. Por eso el botón del ojo tachado en cada alerta de ese
+grupo la manda a `talana_vendedores_ignorados`, y el pie de la pestaña deja
+verlas y devolverlas. Va en tabla aparte de `talana_vinculos` porque el
+`ignorado` de esa tabla se guarda por `talanaEmpleadoId`, y lo que define a un
+canal es justamente no tener uno.
+
+### El nombre del vendedor viene cortado
+
+`fact_ventas.nokofu` es `varchar(30)`. Hay 6 vendedores cortados; el que importa
+es `PATRICIO HERNAN GHISELLINI KRO`, que en la intranet es
+`PATRICIO HERNAN GHISELLINI KROLL`. Sin tratar el corte no calzaba con nadie, su
+comisión de la intranet se leía como 0 y el módulo inventaba un descuadre por el
+monto completo. `calzaNombre()` acepta la última palabra como prefijo **solo**
+cuando el nombre viene cortado a 30, y `mismoVendedor()` hace lo mismo con el
+calce exacto que busca la comisión.
+
+### Sueldo y finiquito
+
+Quien se va a mitad de mes tiene **dos** liquidaciones de pago en el mismo
+período. Los montos de la fila (haberes, descuentos, líquido, costo empresa,
+comisión, atrasos) suman las dos, y la planilla marca el caso con un chip
+"2 liquidaciones" para que nadie lea la fila como un sueldo normal.
+
 ## Configuración
 
 ```
@@ -106,14 +139,21 @@ Auth: `Authorization: Token <token>`. Base `https://talana.com/es/api`.
 | `server/services/talana.ts` | Único lugar que habla HTTP con Talana. Tipos, paginación y caché (10 min). |
 | `server/routes-remuneraciones.ts` | El cruce, las alertas y los endpoints `/api/rrhh/remuneraciones/*`. |
 | `client/src/pages/remuneraciones.tsx` | La pantalla (planilla, descuadres, vínculos). |
-| `shared/schema.ts` | Tabla `talana_vinculos`. |
+| `shared/schema.ts` | Tablas `talana_vinculos` y `talana_vendedores_ignorados`. |
 | `shared/permissions.ts` | Permiso `rrhh.remuneraciones`. |
 
 ## Pendiente / a decidir con RR.HH.
 
-- Los reembolsos se imputan al período por **fecha de aprobación**. Si en la
-  práctica se pagan con otro criterio (por ejemplo, corte al día 20), hay que
-  ajustar `getReembolsosAprobados()`.
+- Los reembolsos se imputan al período por **fecha de aprobación**. No es un
+  detalle: medido contra la base real, **48 de los 82 reembolsos aprobados se
+  aprobaron en un mes distinto al de su creación** (desfase promedio 13 días,
+  máximo 43), así que la regla mueve de mes a más de la mitad de la plata. Si
+  RR.HH. paga con otro criterio (por ejemplo, corte al día 20), hay que ajustar
+  `getReembolsosAprobados()`.
+- Al validar el módulo, **no usar julio 2026**: ese mes no tiene ningún reembolso
+  aprobado y la columna sale en cero para todos, que se lee igual que "no hubo".
+  Los meses con datos son febrero (31 · $486.444), mayo (4 · $110.000), junio
+  (18 · $557.784) y agosto (30 · $504.179).
 - Hoy el módulo solo **lee** Talana. Escribir la comisión calculada directo en la
   liquidación (en vez de cargarla a mano) es el paso siguiente natural, y
   requiere confirmar con Talana qué endpoint acepta ítems por contrato.

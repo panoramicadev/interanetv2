@@ -41,7 +41,10 @@ import { eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from './db';
 import { requireAuth } from './auth';
 import { requirePermission } from './permissions';
-import { talanaVinculos, users, salespeopleUsers, guardarTalanaVinculoSchema } from '../shared/schema';
+import {
+  talanaVinculos, talanaVendedoresIgnorados, users, salespeopleUsers,
+  guardarTalanaVinculoSchema, ignorarVendedorSchema,
+} from '../shared/schema';
 import { getCommissionSummary } from './commissions';
 import {
   getContratos,
@@ -105,6 +108,15 @@ function ensureTables(): Promise<void> {
         CREATE INDEX IF NOT EXISTS "IDX_talana_vinculos_rut"
         ON talana_vinculos (rut)
       `);
+      // Canales del ERP que no son personas (ver migrations/085).
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS talana_vendedores_ignorados (
+          salesperson_name varchar(255) PRIMARY KEY,
+          motivo varchar(255),
+          actualizado_por varchar,
+          created_at timestamp DEFAULT now()
+        )
+      `);
     })().catch((error) => {
       ensureTablesPromise = null; // permite reintentar
       throw error;
@@ -132,6 +144,21 @@ function normalizar(texto: string | null | undefined): string {
 }
 
 /**
+ * Largo al que el ERP corta el nombre del vendedor: `fact_ventas.nokofu` es
+ * varchar(30). Verificado en producción — hay 6 vendedores cortados, entre
+ * ellos "PATRICIO HERNAN GHISELLINI KRO", que en la intranet es
+ * "PATRICIO HERNAN GHISELLINI KROLL". Sin tratar el corte ese vendedor no
+ * calza con nadie, su comisión de la intranet se lee como 0 y el módulo
+ * inventa un descuadre por el monto completo.
+ */
+const LARGO_NOKOFU = 30;
+
+/** ¿El texto llegó cortado por el largo de la columna del ERP? */
+function pareceTruncado(texto: string | null | undefined): boolean {
+  return normalizar(texto).length >= LARGO_NOKOFU;
+}
+
+/**
  * Calce por nombre entre Talana y la intranet. No compara cadenas completas
  * porque el orden y la cantidad de nombres cambia según la fuente: en Talana
  * "Luis Antonio Barrientos Becerra", en el ERP "BARRIENTOS LUIS" y en la
@@ -140,13 +167,39 @@ function normalizar(texto: string | null | undefined): string {
  * Barrientos" calza con "Luis Antonio Barrientos Becerra" pero "Luis Soto" no.
  */
 function calzaNombre(a: string, b: string): boolean {
-  const pa = normalizar(a).split(' ').filter((w) => w.length > 2);
-  const pb = normalizar(b).split(' ').filter((w) => w.length > 2);
+  const na = normalizar(a);
+  const nb = normalizar(b);
+  const pa = na.split(' ').filter((w) => w.length > 2);
+  const pb = nb.split(' ').filter((w) => w.length > 2);
   if (pa.length < 2 || pb.length < 2) return false;
-  const [corto, largo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  const cortoEsA = pa.length <= pb.length;
+  const [corto, largo] = cortoEsA ? [pa, pb] : [pb, pa];
+  const vieneCortado = pareceTruncado(cortoEsA ? na : nb);
   const setLargo = new Set(largo);
-  const comunes = corto.filter((w) => setLargo.has(w));
+  const comunes = corto.filter((w, i) => {
+    if (setLargo.has(w)) return true;
+    // Un nombre que el ERP cortó a 30 caracteres pierde el final de su ÚLTIMA
+    // palabra ("KRO" por "KROLL"). Solo ahí, y solo en esa palabra, se acepta
+    // el prefijo: aplicarlo a todas convertiría "PEREZ" en "PEREZA".
+    return vieneCortado && i === corto.length - 1 && largo.some((x) => x.startsWith(w));
+  });
   return comunes.length === corto.length && comunes.length >= 2;
+}
+
+/**
+ * ¿Los dos nombres son el MISMO vendedor del ERP? Se usa para buscar la
+ * comisión calculada, donde los dos lados deberían traer el nombre tal cual lo
+ * graba el ERP, así que el calce es exacto (salvo tildes y espacios). La única
+ * excepción es el corte a `LARGO_NOKOFU`: `fact_ventas.nokofu` entrega
+ * "PATRICIO HERNAN GHISELLINI KRO" donde la intranet guarda el apellido entero.
+ */
+export function mismoVendedor(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = normalizar(a);
+  const nb = normalizar(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const [corto, largo] = na.length <= nb.length ? [na, nb] : [nb, na];
+  return pareceTruncado(corto) && largo.startsWith(corto);
 }
 
 /**
@@ -167,6 +220,16 @@ export function proponerVinculo(
   return { persona, salespersonName };
 }
 
+/** Suma un ítem a través de todas las liquidaciones de pago del período. */
+function sumaItem(liqs: TalanaLiquidacion[], tipo: string): number {
+  return liqs.reduce((acc, l) => acc + item(l, tipo), 0);
+}
+
+/** Ídem para un conjunto de ítems (ej: Comision1 + Comision2). */
+function sumaItems(liqs: TalanaLiquidacion[], tipos: string[]): number {
+  return liqs.reduce((acc, l) => acc + items(l, tipos), 0);
+}
+
 // ─── Datos de la intranet ───────────────────────────────────────────────────
 
 interface PersonaIntranet {
@@ -177,10 +240,15 @@ interface PersonaIntranet {
   /** Nombre con el que aparece en las ventas del ERP, si la persona es vendedor. */
   salespersonName: string | null;
   /**
-   * Todos los ids con los que esta persona puede haber creado gastos. Son dos
-   * porque la intranet tiene dos tablas de login: `users` y `salespeople_users`.
-   * Quien existe en las dos rinde gastos con el id de la tabla por la que entró,
-   * así que sumar por un solo id dejaría reembolsos afuera.
+   * Todos los ids con los que esta persona puede haber creado gastos. La
+   * intranet tiene dos tablas de login (`users` y `salespeople_users`) y quien
+   * existiera en las dos rendiría con el id de la tabla por la que entró.
+   *
+   * En producción hoy no pasa: `users` tiene una sola fila (el administrador
+   * del sistema), las personas reales viven en `salespeople_users`, el cruce
+   * por correo da cero y los gastos apuntan todos a `salespeople_users.id`.
+   * Se deja la lista igual porque es la que hace que el caso de una sola tabla
+   * funcione sin ramas especiales, no porque haya ids repartidos.
    */
   idsGastos: string[];
 }
@@ -274,7 +342,11 @@ async function getReembolsosAprobados(desde: string, hasta: string): Promise<Map
       FROM gastos_empresariales
       WHERE user_id IS NOT NULL
         AND COALESCE(funding_mode, 'reembolso') = 'reembolso'
-        AND (estado_aprobacion = 'aprobado' OR estado = 'aprobado')
+        -- El estado que manda es estado_aprobacion, que recorre
+        -- pendiente_supervisor -> pendiente_rrhh -> aprobado. Con un OR contra
+        -- la columna estado se colaban gastos aun pendientes de supervisor
+        -- (y hasta uno rechazado): solo se paga lo que RR.HH. aprobo.
+        AND estado_aprobacion = 'aprobado'
         AND COALESCE(fecha_aprobacion_rrhh, fecha_aprobacion, created_at)::date
             BETWEEN ${desde}::date AND ${hasta}::date
       GROUP BY user_id
@@ -319,6 +391,9 @@ export interface FilaCruce {
   atrasos: number;
   comisionTalana: number;
   estadoLiquidacion: string | null;
+  /** Cuántas liquidaciones de pago tiene la persona en el mes (sueldo + finiquito). */
+  liquidacionesDelPeriodo: number;
+  tiposLiquidacion: string[];
   // Intranet
   userId: string | null;
   userNombre: string | null;
@@ -371,6 +446,10 @@ export async function construirCruce(periodo: TalanaPeriodo) {
   const vinculos = await db.select().from(talanaVinculos);
   const porEmpleado = new Map(vinculos.map((v) => [v.talanaEmpleadoId, v]));
 
+  const ignorados = new Set(
+    (await db.select().from(talanaVendedoresIgnorados)).map((v) => normalizar(v.salespersonName)),
+  );
+
   const personas = await getPersonasIntranet();
 
   // Comisión calculada por la intranet para el mismo rango de fechas.
@@ -391,14 +470,21 @@ export async function construirCruce(periodo: TalanaPeriodo) {
 
   const reembolsos = await getReembolsosAprobados(periodo.desde, periodo.hasta);
 
-  // Índices por empleado de Talana
-  const sueldoPorEmpleado = new Map<number, TalanaLiquidacion>();
+  // Índices por empleado de Talana.
+  //
+  // Sueldo y finiquito NO son la misma liquidación repetida: quien se va a
+  // mitad de mes cobra las dos, y quedarse con una sola (como se hacía al
+  // elegir el id mayor) borraba de la planilla y de los totales todo lo que
+  // pagaba la otra. Se guardan las dos y los montos se suman; si de un MISMO
+  // tipo llegara más de una, ahí sí manda la última cargada (id mayor).
+  const pagosPorEmpleado = new Map<number, Map<string, TalanaLiquidacion>>();
   const anticipoPorEmpleado = new Map<number, number>();
   for (const liq of liquidaciones) {
     if (liq.tipoLiquidacion === 'sueldo' || liq.tipoLiquidacion === 'finiquito') {
-      // Si hubiera más de una, manda la última cargada (id mayor).
-      const previa = sueldoPorEmpleado.get(liq.empleado);
-      if (!previa || liq.id > previa.id) sueldoPorEmpleado.set(liq.empleado, liq);
+      const porTipo = pagosPorEmpleado.get(liq.empleado) ?? new Map<string, TalanaLiquidacion>();
+      const previa = porTipo.get(liq.tipoLiquidacion);
+      if (!previa || liq.id > previa.id) porTipo.set(liq.tipoLiquidacion, liq);
+      pagosPorEmpleado.set(liq.empleado, porTipo);
     } else if (liq.tipoLiquidacion === 'anticipo') {
       anticipoPorEmpleado.set(
         liq.empleado,
@@ -432,7 +518,12 @@ export async function construirCruce(periodo: TalanaPeriodo) {
   const filas: FilaCruce[] = [];
 
   for (const empleadoId of Array.from(empleadoIds)) {
-    const liq = sueldoPorEmpleado.get(empleadoId) || null;
+    // Todo lo que Talana paga a esta persona en el período (sueldo y, si se
+    // fue durante el mes, también el finiquito). `liq` es la principal, de
+    // donde salen los datos que no se suman (estado, días); los montos se
+    // suman sobre `pagos` para no perder el segundo documento.
+    const pagos = Array.from(pagosPorEmpleado.get(empleadoId)?.values() ?? []);
+    const liq = pagosPorEmpleado.get(empleadoId)?.get('sueldo') ?? pagos[0] ?? null;
     const contrato = contratoPorEmpleado.get(empleadoId) || null;
     const empleado = liq?.empleado_detalles || contrato?.empleadoDetails || null;
     const nombre = nombreCompleto(empleado) || `Empleado ${empleadoId}`;
@@ -461,17 +552,17 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     if (salespersonName) usadosSalesperson.add(normalizar(salespersonName));
 
     const comisionIntranet = salespersonName && comisiones
-      ? comisiones.find((c) => normalizar(c.salesperson) === normalizar(salespersonName!))?.commissionAmount ?? 0
+      ? comisiones.find((c) => mismoVendedor(c.salesperson, salespersonName))?.commissionAmount ?? 0
       : null;
 
-    const comisionTalana = liq ? items(liq, ITEMS_COMISION) : 0;
-    const diasLiquidacion = liq ? item(liq, 'diasTrabajadosItem') : 0;
+    const comisionTalana = sumaItems(pagos, ITEMS_COMISION);
+    const diasLiquidacion = sumaItem(pagos, 'diasTrabajadosItem');
     const diasVigentes = diasVigentesPorEmpleado.get(empleadoId);
 
-    const diasTrabajados = liq && diasLiquidacion > 0
+    const diasTrabajados = diasLiquidacion > 0
       ? diasLiquidacion
       : (diasVigentes ?? null);
-    const fuenteDias: FilaCruce['fuenteDias'] = liq && diasLiquidacion > 0
+    const fuenteDias: FilaCruce['fuenteDias'] = diasLiquidacion > 0
       ? 'liquidacion'
       : diasVigentes !== undefined ? 'workedDays' : null;
 
@@ -506,17 +597,21 @@ export async function construirCruce(periodo: TalanaPeriodo) {
       contratoActivo: !!contrato?.activo && !contrato?.finiquitado,
       diasTrabajados,
       fuenteDias,
-      diasAusencia: liq ? item(liq, 'diasAusenciaItem') : 0,
-      diasLicencia: liq ? item(liq, 'diasLicenciaItem') : 0,
-      sueldoBase: liq ? item(liq, 'SueldoBase') : Number(contrato?.sueldoBase) || 0,
-      haberes: liq ? item(liq, 'SumaHaberes') : 0,
-      descuentos: liq ? item(liq, 'SumaDescuentosLegalesyAdicionales') : 0,
-      liquido: liq ? item(liq, 'SueldoLiquido') || item(liq, 'montoTransfer') : 0,
-      costoEmpresa: liq ? item(liq, 'CostoEmpresa') : 0,
+      diasAusencia: sumaItem(pagos, 'diasAusenciaItem'),
+      diasLicencia: sumaItem(pagos, 'diasLicenciaItem'),
+      sueldoBase: pagos.length ? sumaItem(pagos, 'SueldoBase') : Number(contrato?.sueldoBase) || 0,
+      haberes: sumaItem(pagos, 'SumaHaberes'),
+      descuentos: sumaItem(pagos, 'SumaDescuentosLegalesyAdicionales'),
+      liquido: pagos.reduce((acc, l) => acc + (item(l, 'SueldoLiquido') || item(l, 'montoTransfer')), 0),
+      costoEmpresa: sumaItem(pagos, 'CostoEmpresa'),
       anticipo: anticipoPorEmpleado.get(empleadoId) || 0,
-      atrasos: liq ? item(liq, 'Atraso') : 0,
+      atrasos: sumaItem(pagos, 'Atraso'),
       comisionTalana,
       estadoLiquidacion: liq?.estado ?? null,
+      // >1 cuando el mes trae sueldo y finiquito: la planilla lo muestra para
+      // que nadie lea la fila como un sueldo normal.
+      liquidacionesDelPeriodo: pagos.length,
+      tiposLiquidacion: pagos.map((l) => l.tipoLiquidacion).sort(),
       userId,
       userNombre,
       salespersonName,
@@ -587,9 +682,14 @@ export async function construirCruce(periodo: TalanaPeriodo) {
   }
 
   // Vendedores con comisión calculada que no aparecen en ninguna liquidación:
-  // o no están en Talana, o su vínculo apunta a otra persona.
+  // o no están en Talana, o su vínculo apunta a otra persona. Se descartan los
+  // canales del ERP (MCT, marketplaces, tienda online): facturan y comisionan,
+  // pero no hay ninguna liquidación que buscarles, así que su alerta no se
+  // podría resolver nunca.
   const vendedoresSinLiquidacion = (comisiones || [])
-    .filter((c) => c.commissionAmount > 0 && !usadosSalesperson.has(normalizar(c.salesperson)))
+    .filter((c) => c.commissionAmount > 0
+      && !usadosSalesperson.has(normalizar(c.salesperson))
+      && !ignorados.has(normalizar(c.salesperson)))
     .map((c) => ({ salesperson: c.salesperson, commissionAmount: c.commissionAmount }));
 
   for (const v of vendedoresSinLiquidacion) {
@@ -628,6 +728,7 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     totales,
     alertas,
     vendedoresSinLiquidacion,
+    vendedoresIgnorados: Array.from(ignorados),
     comisionesError,
     umbralDescuadre: UMBRAL_DESCUADRE,
   };
@@ -745,15 +846,23 @@ export function registerRemuneracionesRoutes(app: Express) {
       }
 
       // Vendedores del ERP del año en curso: son los nombres que se pueden
-      // vincular (no toda la historia de la tabla de ventas).
+      // vincular (no toda la historia de la tabla de ventas). Se leen directo
+      // de fact_ventas y no con getCommissionSummary: esa función recorre las
+      // ventas con joins y CTEs para calcular márgenes y comisiones, y acá solo
+      // hacen falta los nombres para llenar un desplegable.
       let vendedores: string[] = [];
       try {
         const hoy = new Date();
         const desde = `${hoy.getFullYear()}-01-01`;
-        const hasta = hoy.toISOString().slice(0, 10);
-        const resumen = await getCommissionSummary(desde, hasta);
-        vendedores = resumen.items.map((i: any) => i.salesperson).filter(Boolean).sort();
-      } catch {
+        const res: any = await db.execute(sql`
+          SELECT DISTINCT nokofu
+          FROM ventas.fact_ventas
+          WHERE nokofu IS NOT NULL AND nokofu <> '' AND feemdo >= ${desde}::date
+          ORDER BY nokofu
+        `);
+        vendedores = (res.rows ?? res ?? []).map((r: any) => String(r.nokofu)).filter(Boolean);
+      } catch (error: any) {
+        console.warn('[remuneraciones] no se pudieron leer los vendedores del ERP:', error?.message);
         vendedores = [];
       }
 
@@ -827,6 +936,49 @@ export function registerRemuneracionesRoutes(app: Express) {
     }
   });
 
+  /**
+   * Marca un vendedor del ERP como "no es una persona" (mostrador o canal).
+   * Sale de las alertas de Descuadres; el cálculo de comisiones no se toca.
+   */
+  app.put('/api/rrhh/remuneraciones/vendedores-ignorados', requireAuth, guard, async (req: any, res) => {
+    try {
+      const parsed = ignorarVendedorSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Formato inválido', errors: parsed.error.flatten() });
+      }
+      await ensureTables();
+      const valores = {
+        salespersonName: parsed.data.salespersonName,
+        motivo: parsed.data.motivo ?? null,
+        actualizadoPor: req.user?.id || null,
+      };
+      await db
+        .insert(talanaVendedoresIgnorados)
+        .values(valores)
+        .onConflictDoUpdate({ target: talanaVendedoresIgnorados.salespersonName, set: valores });
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('[remuneraciones] error ignorando vendedor:', error);
+      res.status(500).json({ message: 'Error guardando: ' + (error?.message || 'desconocido') });
+    }
+  });
+
+  /** Deshace lo anterior: el vendedor vuelve a las alertas. */
+  app.delete('/api/rrhh/remuneraciones/vendedores-ignorados/:nombre?', requireAuth, guard, async (req: any, res) => {
+    try {
+      await ensureTables();
+      // Se acepta por query además de por ruta: un nombre del ERP con "/"
+      // (los hay con guiones y espacios) no sobrevive como segmento de URL.
+      const nombre = String(req.query.nombre || req.params.nombre || '');
+      if (!nombre) return res.status(400).json({ message: 'Vendedor inválido' });
+      await db.delete(talanaVendedoresIgnorados).where(eq(talanaVendedoresIgnorados.salespersonName, nombre));
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('[remuneraciones] error restaurando vendedor:', error);
+      res.status(500).json({ message: 'Error borrando: ' + (error?.message || 'desconocido') });
+    }
+  });
+
   /** Vacía el caché para volver a leer Talana (botón "Actualizar"). */
   app.post('/api/rrhh/remuneraciones/refrescar', requireAuth, guard, async (_req: any, res) => {
     limpiarCacheTalana();
@@ -882,6 +1034,9 @@ async function resolverPeriodo(valor: any): Promise<TalanaPeriodo> {
 }
 
 function csvCampo(v: any): string {
-  const s = v === null || v === undefined ? '' : String(v);
+  let s = v === null || v === undefined ? '' : String(v);
+  // Excel interpreta como fórmula todo lo que empieza con = + - @: un nombre
+  // así ejecutaría al abrir el archivo. Se antepone una comilla simple.
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
