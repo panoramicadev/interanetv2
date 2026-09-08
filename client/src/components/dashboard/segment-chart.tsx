@@ -124,7 +124,15 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
           </div>
         ) : segmentData && segmentData.length > 0 ? (
           <div className="space-y-4">
-            {segmentData.map((segment, index) => (
+            {segmentData.map((segment, index) => {
+              // Un segmento puede quedar negativo (más notas de crédito que ventas).
+              // La barra se dibuja con el largo absoluto y en rojo; sin el Math.abs,
+              // el ancho negativo es CSS inválido y la barra se pinta entera.
+              const esNegativo = segment.totalSales < 0;
+              const anchoBarra = Math.min(100, Math.abs(segment.percentage));
+              const colorBarra = esNegativo ? '#dc2626' : segmentColors[index % segmentColors.length];
+              const colorMonto = esNegativo ? 'text-red-600' : 'text-gray-900';
+              return (
               <div
                 key={segment.segment}
                 onClick={() => onSegmentClick?.(segment.segment)}
@@ -143,12 +151,12 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
                       <span className="text-xs text-gray-600">
                         {segment.percentage.toFixed(1)}%
                       </span>
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className={`text-sm font-semibold ${colorMonto}`}>
                         {formatCurrency(segment.totalSales)}
                       </span>
                     </div>
                   </div>
-                  
+
                   {/* Desktop Layout */}
                   <div className="hidden sm:flex sm:items-center w-full">
                     <div className="w-32 lg:w-48 flex-shrink-0">
@@ -168,9 +176,9 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
                         <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
                           <div 
                             className="h-full rounded-lg transition-all duration-500 ease-out"
-                            style={{ 
-                              width: `${segment.percentage}%`,
-                              backgroundColor: segmentColors[index % segmentColors.length]
+                            style={{
+                              width: `${anchoBarra}%`,
+                              backgroundColor: colorBarra
                             }}
                           ></div>
                         </div>
@@ -178,21 +186,21 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
                     </div>
                     
                     <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className={`text-sm font-semibold ${colorMonto}`}>
                         {formatCurrency(segment.totalSales)}
                       </span>
                     </div>
                   </div>
-                  
+
                   {/* Mobile Progress Bar */}
                   <div className="sm:hidden">
                     <div className="relative">
                       <div className="h-3 bg-gray-100 rounded-lg overflow-hidden">
                         <div 
                           className="h-full rounded-lg transition-all duration-500 ease-out"
-                          style={{ 
-                            width: `${segment.percentage}%`,
-                            backgroundColor: segmentColors[index % segmentColors.length]
+                          style={{
+                            width: `${anchoBarra}%`,
+                            backgroundColor: colorBarra
                           }}
                         ></div>
                       </div>
@@ -200,7 +208,8 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-gray-500">
