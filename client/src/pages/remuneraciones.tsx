@@ -30,7 +30,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Wallet, CalendarDays, Users, AlertTriangle, Link2, Download, RefreshCw,
+  Wallet, CalendarDays, Users, AlertTriangle, Link2, Download, RefreshCw, DollarSign,
   Banknote, CalendarCheck, Building2, Search, X, Check, EyeOff, RotateCcw,
   type LucideIcon,
 } from "lucide-react";
@@ -70,6 +70,7 @@ interface FilaCruce {
   userNombre: string | null;
   salespersonName: string | null;
   comisionIntranet: number | null;
+  motivoSinComision: "sin_vendedor" | "sin_porcentaje" | null;
   diferenciaComision: number | null;
   reembolsosAprobados: number;
   reembolsosCantidad: number;
@@ -152,9 +153,10 @@ const GRAVEDAD_ALERTA: Record<string, number> = {
   comision_descuadrada: 1,
   comision_no_pagada: 2,
   comision_sin_respaldo: 3,
-  vendedor_sin_liquidacion: 4,
-  sin_liquidacion: 5,
-  sin_vinculo: 6,
+  comision_sin_porcentaje: 4,
+  vendedor_sin_liquidacion: 5,
+  sin_liquidacion: 6,
+  sin_vinculo: 7,
 };
 
 /** Ítems que se muestran antes de plegar el resto de un grupo. */
@@ -164,6 +166,7 @@ const TITULO_ALERTA: Record<string, string> = {
   comision_descuadrada: "Comisión distinta a la calculada",
   comision_no_pagada: "Comisión calculada que Talana no paga",
   comision_sin_respaldo: "Comisión pagada sin respaldo en la intranet",
+  comision_sin_porcentaje: "Comisión pagada y vendedor sin % configurado",
   sin_vinculo: "Persona de Talana sin vincular",
   vendedor_sin_liquidacion: "Vendedor sin liquidación en el período",
   sin_liquidacion: "Contrato vigente sin liquidación",
@@ -618,7 +621,7 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                     <TableCell className="text-right tabular-nums whitespace-nowrap">{f.comisionTalana ? formatCLP(f.comisionTalana) : <span className="text-slate-300">—</span>}</TableCell>
                     <TableCell className="text-right tabular-nums whitespace-nowrap">
                       {f.comisionIntranet === null
-                        ? <span className="text-slate-300">—</span>
+                        ? <SinComision fila={f} />
                         : formatCLP(f.comisionIntranet)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums whitespace-nowrap">
@@ -734,6 +737,30 @@ function ChipFiniquito({ fila }: { fila: FilaCruce }) {
       </TooltipTrigger>
       <TooltipContent>
         El mes trae {detalle}. Las cifras de la fila suman las dos.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * El guion de la columna "Comisión intranet". Un guion a secas deja la duda de
+ * si el módulo no calculó o si calculó cero, que son cosas distintas: la
+ * primera se arregla configurando el % en Comisiones, la segunda es un
+ * descuadre de verdad. Verificado contra julio 2026: de los 8 que cobran
+ * comisión en Talana, 3 caían acá.
+ */
+function SinComision({ fila }: { fila: FilaCruce }) {
+  const motivo = fila.motivoSinComision;
+  if (!motivo) return <span className="text-slate-300">—</span>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="text-slate-300 cursor-help underline decoration-dotted underline-offset-4">—</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        {motivo === "sin_porcentaje"
+          ? `La intranet no calcula comisión para ${fila.salespersonName}: no tiene % configurado en Comisiones. No es que haya dado cero.`
+          : "Esta persona no está vinculada a ningún vendedor del ERP, así que no hay comisión que calcular. Se arregla en Vínculos."}
       </TooltipContent>
     </Tooltip>
   );
@@ -884,6 +911,12 @@ function GrupoAlertas({ tipo, lista, onIrAVinculos, onIgnorarVendedor, ignorando
             <Button variant="ghost" size="sm" onClick={() => setTodas(false)}
               className="rounded-2xl text-slate-500 hover:text-[#fd6301]">
               Mostrar menos
+            </Button>
+          )}
+          {tipo === "comision_sin_porcentaje" && (
+            <Button asChild variant="outline" size="sm"
+              className="rounded-2xl border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
+              <a href="/comisiones"><DollarSign className="w-4 h-4 mr-2" /> Configurar en Comisiones</a>
             </Button>
           )}
           {(tipo === "sin_vinculo" || tipo === "vendedor_sin_liquidacion" || tipo === "comision_sin_respaldo") && (

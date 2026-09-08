@@ -399,6 +399,8 @@ export interface FilaCruce {
   userNombre: string | null;
   salespersonName: string | null;
   comisionIntranet: number | null;
+  /** Por qué no hay comisión de la intranet, cuando `comisionIntranet` es null. */
+  motivoSinComision: 'sin_vendedor' | 'sin_porcentaje' | null;
   diferenciaComision: number | null;
   reembolsosAprobados: number;
   reembolsosCantidad: number;
@@ -409,6 +411,7 @@ export type TipoAlerta =
   | 'comision_descuadrada'
   | 'comision_no_pagada'
   | 'comision_sin_respaldo'
+  | 'comision_sin_porcentaje'
   | 'sin_vinculo'
   | 'vendedor_sin_liquidacion'
   | 'sin_liquidacion';
@@ -453,13 +456,16 @@ export async function construirCruce(periodo: TalanaPeriodo) {
   const personas = await getPersonasIntranet();
 
   // Comisión calculada por la intranet para el mismo rango de fechas.
-  let comisiones: { salesperson: string; commissionAmount: number }[] | null = null;
+  let comisiones: { salesperson: string; commissionAmount: number; commissionPct: number }[] | null = null;
   let comisionesError: string | null = null;
   try {
     const resumen = await getCommissionSummary(periodo.desde, periodo.hasta);
     comisiones = resumen.items.map((i: any) => ({
       salesperson: i.salesperson,
       commissionAmount: i.commissionAmount,
+      // El % de `commission_settings`. Sin él, `commissionAmount` viene en 0
+      // porque se multiplica por cero, no porque el margen haya dado cero.
+      commissionPct: Number(i.commissionPct) || 0,
     }));
   } catch (error: any) {
     comisionesError = error?.message || 'no se pudo calcular';
@@ -551,9 +557,21 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     const salespersonName = vinculo?.salespersonName ?? persona?.salespersonName ?? sugerido;
     if (salespersonName) usadosSalesperson.add(normalizar(salespersonName));
 
-    const comisionIntranet = salespersonName && comisiones
-      ? comisiones.find((c) => mismoVendedor(c.salesperson, salespersonName))?.commissionAmount ?? 0
+    // "No calculado" y "calculó cero" no son lo mismo, y confundirlos inventa
+    // descuadres. `getCommissionSummary` multiplica el margen por el % de
+    // `commission_settings`: si el vendedor no tiene fila ahí, o la tiene en 0,
+    // devuelve 0 sin haber calculado nada. Verificado contra julio 2026: de los
+    // 8 que cobran comisión en Talana, 3 caían acá y la pantalla los mostraba
+    // como "Intranet $0 vs. Talana $917.832".
+    const filaComision = salespersonName && comisiones
+      ? comisiones.find((c) => mismoVendedor(c.salesperson, salespersonName)) ?? null
       : null;
+    const sinPorcentaje = !!filaComision && filaComision.commissionPct <= 0;
+    const comisionIntranet = !comisiones || !salespersonName || sinPorcentaje
+      ? null
+      : filaComision?.commissionAmount ?? 0;
+    const motivoSinComision: FilaCruce['motivoSinComision'] =
+      comisionIntranet !== null ? null : (sinPorcentaje ? 'sin_porcentaje' : 'sin_vendedor');
 
     const comisionTalana = sumaItems(pagos, ITEMS_COMISION);
     const diasLiquidacion = sumaItem(pagos, 'diasTrabajadosItem');
@@ -616,6 +634,7 @@ export async function construirCruce(periodo: TalanaPeriodo) {
       userNombre,
       salespersonName,
       comisionIntranet,
+      motivoSinComision,
       diferenciaComision: comisionIntranet === null ? null : Math.round(comisionIntranet - comisionTalana),
       reembolsosAprobados: reembolso.monto,
       reembolsosCantidad: reembolso.cantidad,
@@ -653,12 +672,18 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     // Solo si el cálculo de comisiones SÍ está disponible: cuando falla entero,
     // nadie tiene comisión de la intranet y esto marcaría a todos los vendedores.
     if (comisiones && f.comisionTalana > 0 && f.comisionIntranet === null) {
+      // Las dos son "Talana paga y la intranet no tiene con qué compararlo",
+      // pero se arreglan en lugares distintos: una en Vínculos y la otra en
+      // Comisiones. Mezclarlas mandaba a RR.HH. al lugar equivocado.
+      const porPorcentaje = f.motivoSinComision === 'sin_porcentaje';
       alertas.push({
-        tipo: 'comision_sin_respaldo',
+        tipo: porPorcentaje ? 'comision_sin_porcentaje' : 'comision_sin_respaldo',
         nombre: f.nombre,
         talanaEmpleadoId: f.talanaEmpleadoId,
         monto: f.comisionTalana,
-        detalle: 'Talana paga comisión pero la persona no está vinculada a un vendedor del ERP.',
+        detalle: porPorcentaje
+          ? `Talana le paga comisión y ${f.salespersonName} no tiene % configurado en Comisiones: la intranet no calcula nada con qué compararla.`
+          : 'Talana paga comisión pero la persona no está vinculada a un vendedor del ERP.',
       });
     }
 

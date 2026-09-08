@@ -92,7 +92,46 @@ monto completo. `calzaNombre()` acepta la última palabra como prefijo **solo**
 cuando el nombre viene cortado a 30, y `mismoVendedor()` hace lo mismo con el
 calce exacto que busca la comisión.
 
+### "No calculado" no es "calculó cero"
+
+`getCommissionSummary()` multiplica el margen por el % de `commission_settings`.
+Si el vendedor no tiene fila ahí, o la tiene en 0, devuelve `commissionAmount: 0`
+**sin haber calculado nada**. Leer ese 0 como "la intranet calculó cero" convierte
+cada vendedor sin configurar en un descuadre por el monto completo.
+
+Medido contra Talana (julio 2026): de las **8 personas que cobran comisión**, solo
+3 tienen % configurado. Las otras 5 salían como descuadre por ~$1.97M:
+
+| Persona | Comisión Talana | Qué pasa de verdad |
+|---|---|---|
+| Israel Sanhueza | $2.853.203 | 7% configurado — comparación válida |
+| Pablo Soto | $1.373.222 | 6% configurado — comparación válida |
+| Héctor Urizar | $882.735 | 7% configurado — comparación válida |
+| Mauricio Chaparro | $917.832 | calza como vendedor, **0%** configurado |
+| Fabián Zenteno | $490.986 | calza como vendedor, **sin fila** en commission_settings |
+| Omar Arámbula | $265.996 | calza como vendedor, **0%** configurado |
+| David Aranzáez | $142.268 | no calza con ningún vendedor del ERP |
+| Pierre Bravo | $155.640 | no calza con ningún vendedor del ERP |
+
+Por eso `comisionIntranet` es `null` (y la celda muestra un guion con la
+explicación al pasar el mouse) cuando no hay con qué calcular, y la alerta se
+parte en dos, porque se arreglan en lugares distintos:
+`comision_sin_porcentaje` manda a **Comisiones** y `comision_sin_respaldo` a
+**Vínculos**.
+
 ### Sueldo y finiquito
+
+Verificado contra la API (julio 2026, empleado 3047453): el finiquito trae 12
+ítems —`IndemnizacionAnosServicios`, `IndemnizacionMesdeAviso`,
+`IndemnizacionVacaciones`, `montoTransfer`— y **ninguno se repite** con los 224
+del sueldo. Son documentos complementarios, así que sumarlos es correcto. El
+código anterior se quedaba con el id mayor (el finiquito) y perdía el sueldo
+entero de esa persona.
+
+Ojo: el finiquito **no trae** `SumaHaberes` ni `CostoEmpresa`, así que esa fila
+muestra un líquido muy por encima de sus haberes ($6.346.687 contra $84.125 en
+el caso real). No está mal —es lo que Talana transfirió— pero es justo lo que
+hace dudar del total, y para eso está el chip.
 
 Quien se va a mitad de mes tiene **dos** liquidaciones de pago en el mismo
 período. Los montos de la fila (haberes, descuentos, líquido, costo empresa,
