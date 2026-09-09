@@ -1,3 +1,4 @@
+import { KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Minus, Calendar, Target, ArrowUpRight, ArrowDownRight, Activity, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
@@ -97,8 +98,10 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
   }
 
   const TrendIcon = data.trend === 'alza' ? TrendingUp : data.trend === 'baja' ? TrendingDown : Minus;
-  const trendColor = data.trend === 'alza' ? 'text-[#fd6301]' : data.trend === 'baja' ? 'text-red-600' : 'text-[#fd6301]';
-  const trendBg = data.trend === 'alza' ? 'bg-orange-50 dark:bg-orange-950/30' : data.trend === 'baja' ? 'bg-red-50 dark:bg-red-950/30' : 'bg-orange-50 dark:bg-orange-950/30';
+  // Naranjo también cuando la tendencia va a la baja (corrección del usuario, sep-2026):
+  // la flecha y la palabra "baja" ya lo dicen, y en rojo la tarjeta se leía como un error.
+  const trendColor = 'text-[#fd6301]';
+  const trendBg = 'bg-orange-50 dark:bg-orange-950/30';
   const trendLabel = data.trend === 'alza' ? 'Tendencia al alza' : data.trend === 'baja' ? 'Tendencia a la baja' : 'Tendencia estable';
 
   const salesProgressPct = data.projection > 0 ? Math.min((data.currentSales / data.projection) * 100, 100) : 0;
@@ -156,7 +159,7 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
               {trendLabel}
             </div>
             {data.yoyChange !== null && (
-              <span className={`text-xs font-semibold ${data.yoyChange >= 0 ? 'text-[#fd6301]' : 'text-red-600'} flex items-center gap-0.5`}>
+              <span className={`text-xs font-semibold ${KPI_VARIACION_COLOR(data.yoyChange)} flex items-center gap-0.5`}>
                 {data.yoyChange >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {data.yoyChange >= 0 ? '+' : ''}{data.yoyChange}% YoY
               </span>

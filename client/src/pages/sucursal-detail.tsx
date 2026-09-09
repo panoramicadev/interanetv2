@@ -17,6 +17,7 @@ import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import SalesChart from "@/components/dashboard/sales-chart";
 import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
 
 interface BranchClient {
   clientName: string;
@@ -679,63 +680,36 @@ export default function SucursalDetail({
                 />
               )}
 
-              {/* KPI Cards */}
+              {/* Tarjetas KPI — mismo diseño que el bloque superior del dashboard
+                  principal (pedido del usuario, sep-2026): chip naranjo arriba a la
+                  izquierda, título, cifra en gris oscuro. Antes esta vista tenía su
+                  propia versión, con la cifra en naranjo, el ícono suelto a la derecha
+                  y el chip de Ticket Promedio en naranjo pálido. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-sales">
-                        {formatCurrency(totalSales)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
-                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Clientes / Vendedores</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-clients">
-                        {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Transacciones</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-[#fd6301]" data-testid="text-total-transactions">
-                        {formatNumber(totalTransactions)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-[#fd6301] rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0 shadow-md shadow-[#fd6301]/25">
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Ticket Promedio</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
-                        {formatCurrency(averageTicket)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-orange-600" />
-                    </div>
-                  </div>
-                </div>
+                <TarjetaKpi
+                  titulo="Total Ventas"
+                  valor={formatCurrency(totalSales)}
+                  icono={DollarSign}
+                  testId="text-total-sales"
+                />
+                <TarjetaKpi
+                  titulo="Clientes / Vendedores"
+                  valor={`${formatNumber(totalClients)} / ${formatNumber(totalSalespeople)}`}
+                  icono={Users}
+                  testId="text-total-clients"
+                />
+                <TarjetaKpi
+                  titulo="Transacciones"
+                  valor={formatNumber(totalTransactions)}
+                  icono={ShoppingCart}
+                  testId="text-total-transactions"
+                />
+                <TarjetaKpi
+                  titulo="Ticket Promedio"
+                  valor={formatCurrency(averageTicket)}
+                  icono={TrendingUp}
+                  testId="text-average-ticket"
+                />
               </div>
 
               {/* Margen de la sucursal en el mismo período que las tarjetas de arriba */}

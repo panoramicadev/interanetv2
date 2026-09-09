@@ -22,6 +22,7 @@ import {
   Edit
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
 
 export default function SupervisorDashboard() {
   const { user } = useAuth();
@@ -260,63 +261,35 @@ export default function SupervisorDashboard() {
           </Card>
         )}
 
-        {/* Métricas del Equipo */}
+        {/* Métricas del Equipo — mismo diseño que las tarjetas KPI del dashboard
+            principal (pedido del usuario, sep-2026). Antes iban con el título, la cifra
+            y la bajada las tres en naranjo sobre un borde naranjo, y el ícono suelto sin
+            su chip. */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="rounded-2xl shadow-sm border-orange-200/60">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-[#fd6301]">Total Vendedores</CardTitle>
-              <UserCheck className="h-4 w-4 text-[#fd6301]" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-[#fd6301]">{teamMetrics.totalSalespeople}</div>
-              <p className="text-xs text-[#fd6301]">
-                Vendedores activos
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl shadow-sm border-orange-200/60">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-[#fd6301]">Ventas Totales</CardTitle>
-              <DollarSign className="h-4 w-4 text-[#fd6301]" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-[#fd6301]">
-                ${teamMetrics.totalSales.toLocaleString()}
-              </div>
-              <p className="text-xs text-[#fd6301]">
-                Ventas del equipo completo
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl shadow-sm border-orange-200/60">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-[#fd6301]">Transacciones</CardTitle>
-              <TrendingUp className="h-4 w-4 text-[#fd6301]" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-[#fd6301]">{teamMetricsData?.totalTransactions || teamMetrics.totalTransactions}</div>
-              <p className="text-xs text-[#fd6301]">
-                Total de operaciones
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl shadow-sm border-orange-200/60">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-900">Promedio por Vendedor</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-900">
-                ${teamMetricsData?.averagePerSalesperson?.toLocaleString() || teamMetrics.averagePerSalesperson.toLocaleString()}
-              </div>
-              <p className="text-xs text-orange-700">
-                Rendimiento promedio
-              </p>
-            </CardContent>
-          </Card>
+          <TarjetaKpi
+            titulo="Total Vendedores"
+            valor={String(teamMetrics.totalSalespeople)}
+            icono={UserCheck}
+            variacionEtiqueta="Vendedores activos"
+          />
+          <TarjetaKpi
+            titulo="Ventas Totales"
+            valor={`$${teamMetrics.totalSales.toLocaleString()}`}
+            icono={DollarSign}
+            variacionEtiqueta="Ventas del equipo completo"
+          />
+          <TarjetaKpi
+            titulo="Transacciones"
+            valor={String(teamMetricsData?.totalTransactions || teamMetrics.totalTransactions)}
+            icono={TrendingUp}
+            variacionEtiqueta="Total de operaciones"
+          />
+          <TarjetaKpi
+            titulo="Promedio por Vendedor"
+            valor={`$${teamMetricsData?.averagePerSalesperson?.toLocaleString() || teamMetrics.averagePerSalesperson.toLocaleString()}`}
+            icono={TrendingUp}
+            variacionEtiqueta="Rendimiento promedio"
+          />
         </div>
 
         {/* Gestión del Equipo */}

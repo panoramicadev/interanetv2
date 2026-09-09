@@ -6449,22 +6449,60 @@ export class DatabaseStorage implements IStorage {
     const cached = this.getCached<string[]>(cacheKey);
     if (cached) return cached;
 
-    let query = db
-      .selectDistinct({ salesperson: factVentas.nokofu })
-      .from(factVentas)
-      .where(
-        and(
-          ne(factVentas.nokofu, ''),
-          isNotNull(factVentas.nokofu),
-          filters?.startDate ? gte(factVentas.feemdo, filters.startDate) : undefined,
-          filters?.endDate ? lte(factVentas.feemdo, filters.endDate) : undefined
-        )
-      )
-      .orderBy(factVentas.nokofu);
+    // El selector de vendedor del dashboard debe listar a todo el que tenga
+    // movimiento en el período: facturado (fact_ventas), NVV pendiente o GDV
+    // pendiente. Con solo fact_ventas quedaban fuera los vendedores que en el
+    // mes únicamente tienen notas de venta o guías por facturar.
+    const [ventasResult, nvvResult, gdvResult] = await Promise.all([
+      db
+        .selectDistinct({ salesperson: factVentas.nokofu })
+        .from(factVentas)
+        .where(
+          and(
+            ne(factVentas.nokofu, ''),
+            isNotNull(factVentas.nokofu),
+            filters?.startDate ? gte(factVentas.feemdo, filters.startDate) : undefined,
+            filters?.endDate ? lte(factVentas.feemdo, filters.endDate) : undefined
+          )
+        ),
+      db
+        .selectDistinct({ salesperson: factNvv.nombre_vendedor })
+        .from(factNvv)
+        .where(
+          and(
+            ne(factNvv.nombre_vendedor, ''),
+            isNotNull(factNvv.nombre_vendedor),
+            sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`,
+            filters?.startDate ? gte(factNvv.feemdo, filters.startDate) : undefined,
+            filters?.endDate ? lte(factNvv.feemdo, filters.endDate) : undefined
+          )
+        ),
+      db
+        .selectDistinct({ salesperson: factGdv.nokofu })
+        .from(factGdv)
+        .where(
+          and(
+            ne(factGdv.nokofu, ''),
+            isNotNull(factGdv.nokofu),
+            sql`(${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '')`,
+            sql`${factGdv.cantidadPendiente} = true`,
+            filters?.startDate ? gte(factGdv.feemdo, filters.startDate) : undefined,
+            filters?.endDate ? lte(factGdv.feemdo, filters.endDate) : undefined
+          )
+        ),
+    ]);
 
-    const result = await query;
+    // Dedupe por nombre normalizado (mayúsculas/espacios) conservando el
+    // primer nombre tal cual viene del ERP, que es el que usan los filtros.
+    const byKey = new Map<string, string>();
+    for (const row of [...ventasResult, ...nvvResult, ...gdvResult] as Array<{ salesperson: string | null }>) {
+      const name = (row.salesperson ?? '').trim();
+      if (!name) continue;
+      const key = name.toUpperCase();
+      if (!byKey.has(key)) byKey.set(key, name);
+    }
 
-    const salespeople = result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
+    const salespeople = Array.from(byKey.values()).sort((a, b) => a.localeCompare(b, 'es'));
     this.setCache(cacheKey, salespeople, 300000); // 5 min cache
     return salespeople;
   }

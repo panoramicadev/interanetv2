@@ -18,6 +18,7 @@ import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import { useFilter } from "@/contexts/FilterContext";
 import { mesEs, mesEsCapitalizado, mesAnioEs } from "@/lib/fecha-es";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+import { KPI_CIFRA, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 
 interface SalesMetrics {
   totalSales: number;
@@ -632,7 +633,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
-    const color = change >= 0 ? "text-[#fd6301]" : "text-red-600";
+    const color = KPI_VARIACION_COLOR(change);
 
     return {
       percentage: `${sign}${change.toFixed(1)}%`,
@@ -649,7 +650,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const difference = current - comparison;
     const sign = difference >= 0 ? "+" : "";
-    const color = difference >= 0 ? "text-[#fd6301]" : "text-red-600";
+    const color = KPI_VARIACION_COLOR(difference);
     const formattedDiff = isCurrency ? formatCurrency(Math.abs(difference)) : formatNumber(Math.abs(difference));
 
     return {
@@ -685,7 +686,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
-    const color = change >= 0 ? "text-[#fd6301]" : "text-red-600";
+    const color = KPI_VARIACION_COLOR(change);
 
     // Build comparison text from API data
     let comparisonText = "";
@@ -809,7 +810,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const combinedHasPrev = previousSales > 0;
     const combinedPctValue = combinedHasPrev ? (combinedDifference / previousSales) * 100 : 0;
     const combinedPctFormatted = `${combinedPctValue >= 0 ? '+' : ''}${combinedPctValue.toFixed(1)}%`;
-    const combinedPctColor = combinedPctValue >= 0 ? 'text-[#fd6301]' : 'text-red-600';
+    const combinedPctColor = KPI_VARIACION_COLOR(combinedPctValue);
     const combinedDiffFormatted = formatCurrency(Math.abs(combinedDifference));
     const combinedDiffSign = combinedDifference >= 0 ? '+' : '-';
 
@@ -823,14 +824,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 de ancho a las cifras, que terminaban cortadas con puntos suspensivos. */}
             <div className="flex-1 mb-2 lg:mb-0 min-w-0">
               <div className={`flex items-center justify-between mb-1 sm:mb-2 ${conIcono ? 'pr-12 sm:pr-16 lg:pr-0' : ''}`}>
-                <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
+                <p className={KPI_TITULO}>
                   {kpi.title}
                 </p>
                 {conToggle && renderToggleFacturadoCombinado()}
               </div>
 
               <p
-                className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+                className={`${KPI_CIFRA} transition-all`}
                 data-testid={kpi.testId}
                 title={effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               >
@@ -984,12 +985,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   bloque (corrección del usuario, ago-2026): esta era la única sin línea
                   y el título quedaba pegado a la cifra. */}
               <div className="flex items-center justify-between mb-1 sm:mb-2">
-                <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
+                <p className={KPI_TITULO}>
                   {kpi.title}
                 </p>
               </div>
               <p
-                className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                className={KPI_CIFRA}
                 data-testid={kpi.testId}
                 title={kpi.value}
               >
@@ -1225,14 +1226,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               {/* "Presupuesto" en pantalla (pedido del usuario, ago-2026). Adentro el
                   bloque se sigue llamando "Total Acumulado del Año", que es lo que
                   muestra: lo vendido en el año contra la meta a la fecha. */}
-              <p className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white">
+              <p className={KPI_TITULO}>
                 Presupuesto
               </p>
               {conToggle && renderToggleFacturadoCombinado()}
             </div>
 
             <p
-              className="text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 transition-all"
+              className={`${KPI_CIFRA} transition-all`}
               data-testid={kpi.testId}
               title={formatCurrency(displayValue)}
             >

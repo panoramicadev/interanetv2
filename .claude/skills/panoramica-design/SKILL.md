@@ -203,18 +203,36 @@ segmento, sucursal, vendedor, supervisor y técnico. Regla:
   `bg-[#fd6301] hover:bg-[#e35400]`.
 - **Barras de ranking de una sola serie** (top productos, top vendedores, top
   clientes): `bg-[#fd6301]`.
-- **Cifras destacadas y variaciones positivas:** `text-[#fd6301]`.
-  **Las negativas se quedan en `text-red-600`** — es la única alerta que sobrevive
-  al barrido, y sin ella una caída se lee igual que una subida.
-  ⚠️ **Excepción: la "Diferencia" de la tarjeta Presupuesto va SIEMPRE en naranjo**
-  (corrección del usuario, sep-2026), esté sobre o bajo la meta. Ahí el signo y el
-  `(-9.5%)` entre paréntesis ya dicen que falta; en rojo la línea se leía como si la
-  tarjeta estuviera fallando, no como el estado normal de un mes recién empezado.
-  Pero el naranjo es **solo de la cifra**: la etiqueta "Diferencia:" va en el mismo
-  gris que "Meta a la Fecha:" (`text-gray-500 dark:text-gray-400`) — corrección del
-  usuario, sep-2026. Con las dos en naranjo la fila entera se leía como una alerta.
+- **Cifras destacadas y variaciones: `text-[#fd6301]` SIEMPRE, suba o baje**
+  (corrección del usuario, sep-2026, para TODOS los dashboards). El `-8,3%`, el
+  `-$92.659.399`, los `-0,8 pts` del margen y la "Diferencia" del Presupuesto van en
+  naranjo igual que los positivos: el signo ya dice que bajó, y en rojo la tarjeta se
+  leía como si algo estuviera fallando en vez de mostrar el estado normal del período.
+  Antes esta guía pedía `text-red-600` para las negativas — quedó descartado.
+  Fuente única: **`KPI_VARIACION_COLOR` en `client/src/lib/kpi-tarjeta.ts`**.
+  El naranjo es **solo de la cifra**: la etiqueta ("Diferencia:", "Meta a la Fecha:")
+  va en gris `text-gray-500 dark:text-gray-400` — con las dos en naranjo la fila
+  entera se leía como una alerta.
+  El rojo sigue siendo válido para lo que **sí** es una alerta y no una variación:
+  errores, vencimientos, y avisos de estado.
 
 ### Escala tipográfica de las tarjetas KPI del dashboard (sep-2026)
+
+Fuente única: **`client/src/lib/kpi-tarjeta.ts`** (`KPI_TITULO`, `KPI_CIFRA`,
+`KPI_VARIACION`, `KPI_VARIACION_ETIQUETA`, `KPI_DETALLE`…). Importar de ahí en vez de
+repetir las clases. Para una tarjeta de indicador simple (sin el interruptor
+Facturado/Combinado) ya está armada en **`components/dashboard/kpi-simple-card.tsx`**
+(`TarjetaKpi`): chip naranjo arriba a la izquierda, título, cifra, variación y detalle.
+
+**Este diseño vale para TODAS las vistas** —dashboard, segmento, sucursal, vendedor,
+cliente, supervisor y "Mis Vendedores"— por pedido del usuario (sep-2026). Antes cada
+pantalla tenía su versión: sucursal con la cifra en naranjo y el ícono suelto a la
+derecha, supervisor con título, cifra y bajada las tres en naranjo, "Mis Vendedores" con
+íconos azul, verde, lila y amarillo. El mismo indicador se leía distinto según dónde
+estabas parado.
+
+⚠️ **La cifra grande nunca va en naranjo**: va en `text-gray-900 dark:text-white`. El
+naranjo queda para la fila de variación (y el rojo para las caídas).
 
 Las cuatro tarjetas del bloque superior (Ventas Totales, Presupuesto, Clientes Nuevos y
 Margen) comparten la misma escala. Ajustada a la baja por el usuario (sep-2026): las

@@ -1,3 +1,4 @@
+import { KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -388,7 +389,7 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
                     <Calendar className="h-3 w-3" />
                     <span>{period.label}</span>
                     {changePercent !== null && (
-                      <span className={`text-xs flex items-center gap-1 ${changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`text-xs flex items-center gap-1 ${KPI_VARIACION_COLOR(changePercent)}`}>
                         {changePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                         {Math.abs(changePercent).toFixed(1)}%
                       </span>
@@ -455,7 +456,7 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
                           <td className="text-right py-2 px-2">{formatCurrency(data.avgTicket)}</td>
                           <td className="text-right py-2 px-2">
                             {changePercent !== null ? (
-                              <span className={`flex items-center justify-end gap-1 font-medium ${changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <span className={`flex items-center justify-end gap-1 font-medium ${KPI_VARIACION_COLOR(changePercent)}`}>
                                 {changePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                 {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(1)}%
                               </span>
