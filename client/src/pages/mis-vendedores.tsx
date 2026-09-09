@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Users, UserCheck, TrendingUp, Target, Award, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
 
 interface SalespersonData {
   id: string;
@@ -97,63 +98,36 @@ export default function MisVendedoresPage() {
 
       {/* Main Content */}
       <main className="p-6 space-y-6">
-        {/* Summary Cards */}
+        {/* Resumen — mismo diseño que las tarjetas KPI del dashboard principal (pedido
+            del usuario, sep-2026). Antes cada tarjeta traía su ícono de otro color
+            (azul, verde, lila y amarillo), fuera de la paleta de la app. */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Vendedores</p>
-                  <p className="text-2xl font-bold">{salespeople?.length || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Ventas Totales</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(
-                      salespeople?.reduce((sum, sp) => sum + sp.totalSales, 0) || 0
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <UserCheck className="h-5 w-5 text-purple-500" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Transacciones</p>
-                  <p className="text-2xl font-bold">
-                    {salespeople?.reduce((sum, sp) => sum + sp.transactionCount, 0) || 0}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Award className="h-5 w-5 text-yellow-500" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Metas Activas</p>
-                  <p className="text-2xl font-bold">
-                    {salespeople?.reduce((sum, sp) => sum + sp.goals.length, 0) || 0}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <TarjetaKpi
+            titulo="Total Vendedores"
+            valor={String(salespeople?.length || 0)}
+            icono={Users}
+          />
+          <TarjetaKpi
+            titulo="Ventas Totales"
+            valor={formatCurrency(
+              salespeople?.reduce((sum, sp) => sum + sp.totalSales, 0) || 0
+            )}
+            icono={TrendingUp}
+          />
+          <TarjetaKpi
+            titulo="Transacciones"
+            valor={String(
+              salespeople?.reduce((sum, sp) => sum + sp.transactionCount, 0) || 0
+            )}
+            icono={UserCheck}
+          />
+          <TarjetaKpi
+            titulo="Metas Activas"
+            valor={String(
+              salespeople?.reduce((sum, sp) => sum + sp.goals.length, 0) || 0
+            )}
+            icono={Award}
+          />
         </div>
 
         {/* Salespeople Table */}

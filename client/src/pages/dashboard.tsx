@@ -163,8 +163,13 @@ export default function Dashboard() {
   // Use global filter context
   const { selection, setSelection, globalFilter, setGlobalFilter } = useFilter();
 
-  // Derived values from selection for backward compatibility
-  const selectedPeriod = (() => {
+  // Derived values from selection for backward compatibility.
+  //
+  // Van como funciones puras porque el cajón de filtros del celular necesita las mismas
+  // derivadas sobre SU selección en curso (`localSelection`), que todavía no se aplicó:
+  // sin eso, al cambiar de mes y elegir vendedor en la misma pasada, la lista de
+  // vendedores era la del mes anterior (reporte del usuario, sep-2026).
+  const periodoDeSeleccion = (selection: any): string => {
     if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
       const year = selection.years[0];
       const month = selection.months[0]; // Already in 1-12 format from YearMonthSelector
@@ -191,9 +196,9 @@ export default function Dashboard() {
       return "custom-range";
     }
     return format(new Date(), "yyyy-MM");
-  })();
+  };
 
-  const filterType: "day" | "month" | "year" | "range" = (() => {
+  const tipoDeSeleccion = (selection: any): "day" | "month" | "year" | "range" => {
     if (selection.period === "day") return "day";
     // Un rango de días se trata como período agregado (range), no como comparativa.
     if (selection.period === "days") return "range";
@@ -201,7 +206,10 @@ export default function Dashboard() {
     if (selection.period === "full-year") return "year";
     if (selection.period === "custom-range") return "range";
     return "month";
-  })();
+  };
+
+  const selectedPeriod = periodoDeSeleccion(selection);
+  const filterType = tipoDeSeleccion(selection);
 
   // Helper function to check if we're viewing the current month
   const isCurrentMonth = (): boolean => {
@@ -830,19 +838,31 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000, // 5 min — segments rarely change
   });
 
-  const { data: salespeople } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/salespeople", selectedPeriod, filterType],
+  /**
+   * Vendedores con movimiento en el período: facturado, NVV o GDV pendiente.
+   * (La unión de las tres fuentes la arma el backend en `getUniqueSalespeople`.)
+   */
+  const consultaVendedores = (periodo: string, tipo: string) => ({
+    queryKey: ["/api/goals/data/salespeople", periodo, tipo],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        period: selectedPeriod,
-        filterType
-      });
+      const params = new URLSearchParams({ period: periodo, filterType: tipo });
       const response = await fetch(`/api/goals/data/salespeople?${params}`);
       if (!response.ok) throw new Error('Failed to fetch salespeople');
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 min
   });
+
+  const { data: salespeople } = useQuery<string[]>(consultaVendedores(selectedPeriod, filterType));
+
+  // La del cajón del celular va contra el período que se está eligiendo ahí adentro, que
+  // todavía no se aplicó. Cuando coincide con el de arriba comparten la misma entrada de
+  // caché, así que no es una llamada extra.
+  const { data: salespeopleDrawer } = useQuery<string[]>({
+    ...consultaVendedores(periodoDeSeleccion(localSelection), tipoDeSeleccion(localSelection)),
+    enabled: isDrawerOpen,
+  });
+  const vendedoresDelCajon = salespeopleDrawer ?? salespeople;
 
   // Fetch clients for the filter dropdown (top 100 clients by sales)
   const { data: clients } = useQuery<{ items: Array<{ clientName: string; totalSales: number }> }>({
@@ -1371,7 +1391,7 @@ export default function Dashboard() {
                                     </SelectItem>
                                   ))
                                 ) : (
-                                  salespeople?.map((salesperson) => (
+                                  vendedoresDelCajon?.map((salesperson) => (
                                     <SelectItem key={salesperson.trim()} value={salesperson.trim()}>
                                       {salesperson.trim()}
                                     </SelectItem>
