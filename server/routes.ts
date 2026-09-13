@@ -27,6 +27,7 @@ import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { LocalImageStorage } from "./localImageStorage";
 import { COMUNAS_CHILE, REGIONES_CHILE, normalizarGeoCrm, ubicacionCanonicaDe } from "@shared/chile-geo";
+import { geocodificar } from "./geocoding";
 import {
   parseFichaOverrides,
   effectivePriceList,
@@ -7345,10 +7346,15 @@ export function registerRoutes(app: Express): Server {
     res.json(rows);
   }));
 
+  // El front sólo muestra `message`, así que ahí va el primer error concreto
+  // ("Latitud inválida: ..."). "Datos inválidos" a secas no dice qué corregir.
+  const errorDeValidacion = (error: z.ZodError) =>
+    error.errors[0]?.message ? `${error.errors[0].message}` : 'Datos inválidos';
+
   app.post('/api/admin/retail-locations', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const validation = insertRetailLocationSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
+      return res.status(400).json({ message: errorDeValidacion(validation.error), errors: validation.error.errors });
     }
     // Comuna/región canónicas: es el mismo catálogo que usa el buscador público.
     const [created] = await db.insert(retailLocations)
@@ -7361,7 +7367,7 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const validation = insertRetailLocationSchema.partial().safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({ message: 'Datos inválidos', errors: validation.error.errors });
+      return res.status(400).json({ message: errorDeValidacion(validation.error), errors: validation.error.errors });
     }
     // Sólo si el patch toca comuna o región: se recalculan juntas y sobre los
     // valores actuales, para que un patch que trae sólo una no borre la otra.
@@ -7495,21 +7501,6 @@ export function registerRoutes(app: Express): Server {
       inserted: 0, skipped: 0, withCoords: 0, failed: 0, details: [],
     };
 
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-    async function tryGeocode(queries: string[]) {
-      for (const q of queries) {
-        try {
-          const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`;
-          const r = await fetch(url, { headers: { 'User-Agent': 'Panoramica-Intranet/1.0' } });
-          const data = await r.json() as any[];
-          await sleep(1100);
-          if (Array.isArray(data) && data[0]) return { lat: data[0].lat, lon: data[0].lon };
-        } catch { /* try next */ }
-      }
-      return null;
-    }
-
     for (const c of candidates as any[]) {
       try {
         const dup = await db.select({ id: retailLocations.id })
@@ -7528,13 +7519,14 @@ export function registerRoutes(app: Express): Server {
         let lat: string | null = null;
         let lon: string | null = null;
         if (geocode) {
-          const queries = [
-            `${c.address}${c.comuna ? ', ' + c.comuna : ''}${c.region ? ', ' + c.region : ''}, Chile`,
-            `${c.address}, Chile`,
-            `${c.comuna || ''}, ${c.region || ''}, Chile`,
-          ].filter(q => q.trim() !== ', , Chile' && q.trim() !== ', Chile');
-          const geo = await tryGeocode(queries);
-          if (geo) { lat = geo.lat; lon = geo.lon; result.withCoords++; }
+          const geo = await geocodificar({ address: c.address, comuna: c.comuna, region: c.region });
+          if (geo.ok) {
+            lat = geo.resultado.lat;
+            lon = geo.resultado.lon;
+            result.withCoords++;
+          } else {
+            console.warn('[import-candidates] sin coordenadas para', c.name, '—', geo.motivo);
+          }
         }
 
         const geoCandidato = normalizarGeoCrm({ comuna: c.comuna, region: c.region });
@@ -7566,33 +7558,58 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Buscar coordenadas de una dirección suelta, sin guardar nada: lo usa el
+  // botón "Obtener desde dirección" de la ficha, para que el formulario y la
+  // lista usen exactamente la misma cascada de búsqueda.
+  app.post('/api/admin/retail-locations/geocode-preview', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const schema = z.object({
+      address: z.string().trim().optional().nullable(),
+      comuna: z.string().trim().optional().nullable(),
+      region: z.string().trim().optional().nullable(),
+    });
+    const parsed = schema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
+    }
+    const geo = await geocodificar(parsed.data);
+    if (!geo.ok) {
+      return res.status(404).json({ success: false, message: geo.motivo, intentos: geo.intentos });
+    }
+    res.json({
+      success: true,
+      latitude: geo.resultado.lat,
+      longitude: geo.resultado.lon,
+      precision: geo.resultado.precision,
+      etiqueta: geo.resultado.etiqueta,
+    });
+  }));
+
   // Geocodificar una ubicación existente (para las importadas sin coords)
   app.post('/api/admin/retail-locations/:id/geocode', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const [loc] = await db.select().from(retailLocations).where(eq(retailLocations.id, id)).limit(1);
     if (!loc) return res.status(404).json({ message: 'No encontrada' });
 
-    const queries = [
-      `${loc.address}${loc.comuna ? ', ' + loc.comuna : ''}${loc.region ? ', ' + loc.region : ''}, Chile`,
-      `${loc.address}, Chile`,
-      `${loc.comuna || ''}, ${loc.region || ''}, Chile`,
-    ].filter(q => q.trim() !== ', , Chile' && q.trim() !== ', Chile');
-
-    for (const q of queries) {
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`;
-        const r = await fetch(url, { headers: { 'User-Agent': 'Panoramica-Intranet/1.0' } });
-        const data = await r.json() as any[];
-        if (Array.isArray(data) && data[0]) {
-          const [updated] = await db.update(retailLocations)
-            .set({ latitude: data[0].lat, longitude: data[0].lon, updatedAt: new Date() })
-            .where(eq(retailLocations.id, id))
-            .returning();
-          return res.json({ success: true, location: updated });
-        }
-      } catch { /* try next */ }
+    const geo = await geocodificar({ address: loc.address, comuna: loc.comuna, region: loc.region });
+    if (!geo.ok) {
+      // El motivo distingue "no existe esa dirección" de "el buscador se cayó":
+      // antes las dos cosas se veían igual y no había cómo saber cuál era.
+      console.warn('[retail-locations/geocode]', loc.name, '—', geo.motivo);
+      return res.status(404).json({ success: false, message: geo.motivo, intentos: geo.intentos });
     }
-    res.status(404).json({ success: false, message: 'No se pudo geocodificar' });
+
+    const [updated] = await db.update(retailLocations)
+      .set({ latitude: geo.resultado.lat, longitude: geo.resultado.lon, updatedAt: new Date() })
+      .where(eq(retailLocations.id, id))
+      .returning();
+    res.json({
+      success: true,
+      location: updated,
+      latitude: geo.resultado.lat,
+      longitude: geo.resultado.lon,
+      precision: geo.resultado.precision,
+      etiqueta: geo.resultado.etiqueta,
+    });
   }));
 
   // ==================================================================================
