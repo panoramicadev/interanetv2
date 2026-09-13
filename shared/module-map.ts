@@ -1199,6 +1199,67 @@ export const MODULE_MAP: ModuleDef[] = [
       },
     ],
   },
+  {
+    id: "finanzas.balance",
+    label: "Balance",
+    href: "/balance",
+    permission: "finanzas.balance",
+    group: "Finanzas",
+    nav: { label: "Balance" },
+    purpose:
+      "El estado de resultados mes a mes a partir del plan de cuentas de Softland, con el presupuesto de ventas y el gasto en gente contrastado contra lo que pagó Talana.",
+    whoUses: "Solo admin. Muestra el resultado completo de la empresa, así que el permiso existe para el panel pero el cerrojo es el rol.",
+    sections: [
+      { label: "Resultado", tab: "resultado", what: "Ingresos, costo de ventas, margen bruto, gastos y resultado del mes, contra el mes anterior y el acumulado del año. El detalle se abre por gran cuenta y mayor." },
+      { label: "Presupuesto", tab: "presupuesto", what: "Meta contra real, solo en la línea de ingresos: el presupuesto que existe es de ventas por vendedor, sin gastos." },
+      { label: "Personal", tab: "personal", what: "Por área: lo que la contabilidad cargó en las cuentas de sueldos contra el costo empresa que informó Talana." },
+      { label: "Cuentas", tab: "cuentas", what: "El plan de cuentas, con el nombre legible editable y los posibles duplicados marcados." },
+    ],
+    keyTerms: [
+      { term: "Estado de resultados", meaning: "Ingresos menos egresos del mes. NO es un balance general: el plan que entregó el cliente no trae activo, pasivo ni patrimonio." },
+      { term: "Período", meaning: "Un mes cargado, en formato YYYY-MM. En borrador se puede volver a cargar; cerrado no se toca más." },
+      { term: "Área", meaning: "El grupo con el que se cruza Talana: administración, ventas, operación, Panorámica Store Concepción y socios. Agrupa cuentas contables de un lado y centros de costo de Talana del otro." },
+    ],
+    gotchas: [
+      "Softland entrega mal el código de 20 cuentas —el mayor sin rellenar, como \"5120 106\" en vez de 51020106—. Se corrigen al importar y se guarda también la forma cruda, porque es la que llega en el archivo de saldos.",
+      "Los nombres del ERP están truncados a 25 caracteres. Por eso cada cuenta tiene un nombre largo editable desde la pestaña Cuentas.",
+      "El cruce con Talana solo existe para los períodos que su API sigue exponiendo: acá no se guarda historia de Talana.",
+      "Un área sin centros de costo asignados NO cuadra: no se está comparando. Los centros pendientes salen listados abajo en la pestaña Personal.",
+      "Cargar un mes reemplaza sus saldos completos: una carga parcial dejaría cuentas del archivo anterior mezcladas.",
+    ],
+    guides: [
+      {
+        id: "cargar-mes",
+        title: "Cargar el resultado de un mes",
+        intent: ["cargar balance", "subir el balance del mes", "ver el resultado del mes", "estado de resultados"],
+        steps: [
+          {
+            title: "Si es la primera vez, importa el plan de cuentas",
+            detail: "El archivo de cuentas de Softland (CGRANCUE, NOGRANCUE, CMAYOR, NOMAYOR, CUENTA, NOCUENTA). Los códigos mal formados se corrigen solos.",
+            route: "/balance",
+          },
+          {
+            title: "Elige el mes y sube los saldos",
+            detail: 'Con "Cargar mes" arriba a la derecha. Las filas cuya cuenta no esté en el plan quedan fuera y se avisan.',
+            route: "/balance",
+            target: { text: "Cargar mes", as: "button" },
+          },
+          {
+            title: "Revisa el resultado",
+            detail: "La tabla de arriba es el estado de resultados; abajo se abre el detalle por gran cuenta y mayor.",
+            route: "/balance",
+            target: { text: "Resultado", as: "tab" },
+          },
+          {
+            title: "Cuadra el gasto en gente contra Talana",
+            detail: "En Personal, asigna cada centro de costo de Talana a un área. Mientras queden pendientes, esa área no se está comparando.",
+            route: "/balance",
+            target: { text: "Personal", as: "tab" },
+          },
+        ],
+      },
+    ],
+  },
 
   // ══════════════ POST-VENTA ══════════════
   {

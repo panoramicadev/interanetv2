@@ -9147,3 +9147,179 @@ export const guardarTalanaVinculoSchema = z.object({
   salespersonName: z.string().max(255).nullable().optional(),
   ignorado: z.boolean().optional(),
 });
+
+// ==================================================================================
+// BALANCE — plan de cuentas y resultado del período
+// ==================================================================================
+// Contabilidad vive en Softland y la intranet nunca la había tocado: el ETL sólo
+// trae ventas y maestros (MAEEDO, MAEDDO, MAEEN, MAEPR, TABFU, TABBO, TABRU,
+// TABSU), ninguna tabla contable. Estas tablas son el primer punto de apoyo.
+//
+// ⚠️ Es un ESTADO DE RESULTADOS, no un balance general. El plan que entregó el
+// cliente sólo trae las grandes cuentas 41 (ingresos), 51 (egresos de la
+// operación) y 52 (egresos no operacionales): no hay activo, pasivo ni
+// patrimonio. Mientras no lleguen las cuentas 1/2/3, la pantalla habla de
+// "resultado", no de "balance".
+
+/**
+ * El plan de cuentas, tal como lo exporta Softland.
+ *
+ * Dos códigos a propósito. Softland entrega el mayor sin rellenar a tres dígitos
+ * —`CMAYOR = "20"` en vez de `"020"`— y deja el hueco como un espacio dentro del
+ * código: las 20 cuentas de GASTOS DE OPERACION llegan como `"5120 106"` cuando
+ * la cuenta real es `51020106`. `codigo` es el normalizado, que es con el que se
+ * indexa y se compara; `codigoErp` guarda la forma cruda, porque es la que va a
+ * venir en el archivo de saldos y hay que poder reconocerla.
+ *
+ * `nombre` es el del ERP, truncado a 25 caracteres por el ancho del campo
+ * ("REMUNERACIONES ADMINISTRA", "DEPREC. ACTIVOS EN LEASIN"). `nombreLargo` es
+ * el nombre legible que se escribe desde la intranet; el ERP sigue mandando en
+ * el código, nosotros sólo mandamos en cómo se lee.
+ */
+export const cuentasContables = pgTable("cuentas_contables", {
+  /** Código normalizado: granCuenta + mayor a 3 dígitos + sufijo. Ej. `51020106`. */
+  codigo: varchar("codigo", { length: 20 }).primaryKey(),
+  /** El código tal como lo escribió Softland, con espacios y todo. Ej. `"5120 106"`. */
+  codigoErp: varchar("codigo_erp", { length: 20 }).notNull(),
+  /** `CGRANCUE`: 41 ingresos, 51 egresos de la operación, 52 no operacionales. */
+  granCuenta: varchar("gran_cuenta", { length: 4 }).notNull(),
+  granCuentaNombre: varchar("gran_cuenta_nombre", { length: 120 }).notNull(),
+  /** `CMAYOR` normalizado a 3 dígitos. */
+  mayor: varchar("mayor", { length: 4 }).notNull(),
+  mayorNombre: varchar("mayor_nombre", { length: 120 }).notNull(),
+  /** `NOCUENTA` del ERP. Truncado a 25 caracteres en origen. */
+  nombre: varchar("nombre", { length: 120 }).notNull(),
+  /** Nombre legible escrito desde la intranet. Si está vacío se muestra `nombre`. */
+  nombreLargo: varchar("nombre_largo", { length: 200 }),
+  /** Derivada de la gran cuenta: 41 suma, 51 y 52 restan. */
+  naturaleza: varchar("naturaleza", { length: 10 }).notNull(),
+  /** Una cuenta que el cliente dejó de usar se apaga, no se borra: tiene historia. */
+  activa: boolean("activa").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  erpUnico: uniqueIndex("UQ_cuentas_contables_codigo_erp").on(table.codigoErp),
+  granCuentaIdx: index("IDX_cuentas_contables_gran_cuenta").on(table.granCuenta),
+}));
+
+export type CuentaContable = typeof cuentasContables.$inferSelect;
+export type InsertCuentaContable = typeof cuentasContables.$inferInsert;
+
+/**
+ * Un mes cargado. `origen` distingue de dónde vinieron los saldos porque
+ * todavía no está decidido: hoy se suben por Excel, y si mañana se conectan las
+ * tablas contables de Softland los meses viejos tienen que seguir distinguiéndose
+ * de los nuevos.
+ */
+export const balancePeriodos = pgTable("balance_periodos", {
+  /** `YYYY-MM`. Es la llave: un período se carga una vez y se reemplaza entero. */
+  periodo: varchar("periodo", { length: 7 }).primaryKey(),
+  /** `borrador` = se puede volver a cargar; `cerrado` = no se toca más. */
+  estado: varchar("estado", { length: 20 }).notNull().default('borrador'),
+  /** `excel` | `erp` | `manual`. */
+  origen: varchar("origen", { length: 20 }).notNull().default('excel'),
+  archivoNombre: varchar("archivo_nombre", { length: 255 }),
+  cargadoPor: varchar("cargado_por"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type BalancePeriodo = typeof balancePeriodos.$inferSelect;
+
+/**
+ * El saldo de cada cuenta en cada mes. `saldo` se guarda calculado y no se
+ * deriva al leer: si el archivo del cliente trae un saldo que no cuadra con
+ * debe − haber, gana el que él mandó y la diferencia se ve, en vez de quedar
+ * tapada por nuestra aritmética.
+ */
+export const balanceSaldos = pgTable("balance_saldos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  periodo: varchar("periodo", { length: 7 }).notNull(),
+  cuentaCodigo: varchar("cuenta_codigo", { length: 20 }).notNull(),
+  debe: numeric("debe", { precision: 18, scale: 2 }).notNull().default('0'),
+  haber: numeric("haber", { precision: 18, scale: 2 }).notNull().default('0'),
+  saldo: numeric("saldo", { precision: 18, scale: 2 }).notNull().default('0'),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  unico: uniqueIndex("UQ_balance_saldos_periodo_cuenta").on(table.periodo, table.cuentaCodigo),
+  periodoIdx: index("IDX_balance_saldos_periodo").on(table.periodo),
+}));
+
+export type BalanceSaldo = typeof balanceSaldos.$inferSelect;
+
+/**
+ * Meta mensual por cuenta.
+ *
+ * Hoy sólo se llena la línea de ingresos: el presupuesto que existe
+ * (`info-extra/PRESUPUESTO 2026.csv`) es de ventas por vendedor y unidad de
+ * negocio, sin una sola línea de gastos y sin cuentas contables. La tabla igual
+ * es por cuenta para que un presupuesto de gastos entre sin rehacer el modelo.
+ */
+export const balancePresupuesto = pgTable("balance_presupuesto", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  periodo: varchar("periodo", { length: 7 }).notNull(),
+  cuentaCodigo: varchar("cuenta_codigo", { length: 20 }).notNull(),
+  monto: numeric("monto", { precision: 18, scale: 2 }).notNull().default('0'),
+  actualizadoPor: varchar("actualizado_por"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  unico: uniqueIndex("UQ_balance_presupuesto_periodo_cuenta").on(table.periodo, table.cuentaCodigo),
+}));
+
+export type BalancePresupuestoFila = typeof balancePresupuesto.$inferSelect;
+
+/**
+ * El puente entre la contabilidad y Talana.
+ *
+ * No se puede cruzar cuenta a cuenta: el `costoEmpresa` de Talana viene todo
+ * junto por persona, mientras que la contabilidad separa remuneración de
+ * indemnización y de leyes sociales. Lo que sí calza es el ÁREA — el plan tiene
+ * cuentas distintas para administración, ventas, operación, Panorámica Store y
+ * socios, y Talana trae el centro de costo de cada contrato.
+ *
+ * Un `concepto` es un área: agrupa N cuentas contables de un lado y N centros de
+ * costo de Talana del otro. Una sola tabla con `tipo` en vez de dos, porque los
+ * dos lados son lo mismo —la lista de qué pertenece al concepto— y así el mapeo
+ * se lee de una consulta.
+ *
+ * El mapeo de centros de costo NO viene precargado: nadie sabe todavía cómo se
+ * llaman en Talana. La pantalla lista los que aparecen en el período y quedan
+ * sin asignar hasta que alguien los mapee, a la vista y no en silencio.
+ */
+export const balancePuentePersonal = pgTable("balance_puente_personal", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  /** Slug del área: `administracion`, `ventas`, `operacion`, `store_concepcion`, `socios`. */
+  concepto: varchar("concepto", { length: 60 }).notNull(),
+  /** `cuenta` (código contable) o `centro_costo` (nombre del centro en Talana). */
+  tipo: varchar("tipo", { length: 20 }).notNull(),
+  valor: varchar("valor", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  unico: uniqueIndex("UQ_balance_puente_tipo_valor").on(table.tipo, table.valor),
+  conceptoIdx: index("IDX_balance_puente_concepto").on(table.concepto),
+}));
+
+export type BalancePuentePersonal = typeof balancePuentePersonal.$inferSelect;
+
+/** Período en formato `YYYY-MM`. */
+export const periodoBalanceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'El período va como YYYY-MM');
+
+/** Edición del nombre legible de una cuenta. */
+export const editarCuentaContableSchema = z.object({
+  nombreLargo: z.string().max(200).nullable().optional(),
+  activa: z.boolean().optional(),
+});
+
+/** Alta/edición de la meta de una cuenta en un mes. */
+export const guardarPresupuestoSchema = z.object({
+  periodo: periodoBalanceSchema,
+  cuentaCodigo: z.string().min(1).max(20),
+  monto: z.union([z.string(), z.number()]),
+});
+
+/** Qué cuentas y qué centros de costo forman cada concepto del cruce con Talana. */
+export const guardarPuentePersonalSchema = z.object({
+  concepto: z.string().min(1).max(60),
+  tipo: z.enum(['cuenta', 'centro_costo']),
+  valores: z.array(z.string().min(1).max(255)),
+});

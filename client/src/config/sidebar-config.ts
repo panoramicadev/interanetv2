@@ -40,7 +40,8 @@ import {
   CalendarClock,
   Inbox,
   Share2,
-  Wallet
+  Wallet,
+  Scale
 } from "lucide-react";
 
 export interface SidebarItem {
@@ -258,6 +259,14 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     href: "/remuneraciones",
     label: "Remuneraciones",
     icon: Wallet,
+  },
+  // Balance va justo debajo: es la otra mitad de la misma pregunta. Lo que
+  // Talana paga por sueldos tiene que calzar con lo que la contabilidad cargó,
+  // y ese cruce se mira desde acá.
+  {
+    href: "/balance",
+    label: "Balance",
+    icon: Scale,
   },
   // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito
   // (la misma pantalla vive además como pestaña del Panel de Trabajo) y quien
