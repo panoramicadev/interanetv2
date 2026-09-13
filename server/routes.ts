@@ -124,6 +124,7 @@ import { createSupabase } from "./supabase-client";
 import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser, canEditPricing } from "./permissions";
 import { registerCommissionRoutes } from "./commissions";
 import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
+import { registerBalanceRoutes } from "./routes-balance";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -598,6 +599,9 @@ export function registerRoutes(app: Express): Server {
 
   // Módulo de Recursos Humanos: remuneraciones (Talana cruzado con la intranet)
   registerRemuneracionesRoutes(app);
+
+  // Finanzas: balance (estado de resultados, presupuesto y cruce con Talana)
+  registerBalanceRoutes(app);
 
   // Panel de Trabajo: cambios recientes por sección (badges de pestañas + campana)
   registerPanelChangesRoutes(app);

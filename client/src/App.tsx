@@ -29,6 +29,7 @@ import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import Comisiones from "@/pages/comisiones";
 import Remuneraciones from "@/pages/remuneraciones";
+import Balance from "@/pages/balance";
 import TareasPage from "@/pages/tareas";
 import RutasComerciales from "@/pages/rutas-comerciales";
 
@@ -311,6 +312,9 @@ function Router() {
                 permiso existe para el panel y el sidebar, pero el cerrojo real
                 es el rol, acá y en server/routes-remuneraciones.ts. */}
             <Route path="/remuneraciones" component={guarded("rrhh.remuneraciones", Remuneraciones, ["admin"])} />
+            {/* Idem: Balance muestra el resultado completo de la empresa y el
+                cruce del gasto en sueldos contra Talana. */}
+            <Route path="/balance" component={guarded("finanzas.balance", Balance, ["admin"])} />
             <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra

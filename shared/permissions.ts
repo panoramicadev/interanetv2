@@ -239,6 +239,19 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/remuneraciones",
   },
+  // Balance va justo debajo de Remuneraciones: es la otra mitad de la misma
+  // pregunta —lo que Talana pagó por sueldos contra lo que la contabilidad
+  // cargó— y muestra el resultado completo de la empresa. Mismo cerrojo: ningún
+  // rol lo trae por defecto y la ruta exige además `admin`
+  // (server/routes-balance.ts, client/src/App.tsx), así que un grant suelto
+  // termina en 403.
+  {
+    key: "finanzas.balance",
+    label: "Balance",
+    description: "Estado de resultados mes a mes, presupuesto y cruce de las cuentas de personal con Talana. SOLO ADMINISTRADOR: marcarlo para otro rol no da acceso, el servidor lo rechaza igual.",
+    group: "finanzas",
+    href: "/balance",
+  },
   {
     key: "gastos",
     label: "Rendición de Gastos",
