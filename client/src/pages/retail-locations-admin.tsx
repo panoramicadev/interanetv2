@@ -194,26 +194,45 @@ export default function RetailLocationsAdmin() {
     setOpen(true);
   };
 
+  // La búsqueda la hace el servidor (no el navegador contra Nominatim): así la
+  // ficha y el botón de la lista prueban exactamente las mismas variantes de
+  // dirección, y una sola mejora arregla los dos caminos.
   const geocode = async () => {
     if (!editing?.address) return;
     setGeocoding(true);
     try {
-      const q = encodeURIComponent(
-        `${editing.address}${editing.comuna ? ", " + editing.comuna : ""}${editing.region ? ", " + editing.region : ""}, Chile`
-      );
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-      const data = await res.json();
-      if (data && data[0]) {
-        setEditing((prev) => prev ? { ...prev, latitude: data[0].lat, longitude: data[0].lon } : prev);
-        toast({ title: "Coordenadas encontradas", description: `${data[0].lat}, ${data[0].lon}` });
-      } else {
-        toast({ title: "No se encontró la dirección", variant: "destructive" });
-      }
+      const res = await apiRequest("/api/admin/retail-locations/geocode-preview", {
+        method: "POST",
+        data: { address: editing.address, comuna: editing.comuna, region: editing.region },
+      });
+      const json = await res.json();
+      setEditing((prev) => prev ? { ...prev, latitude: json.latitude, longitude: json.longitude } : prev);
+      toast({
+        title: json.precision === "aproximada" ? "Coordenadas aproximadas" : "Coordenadas encontradas",
+        description: json.precision === "aproximada"
+          ? `Cayó al centro de la comuna (${json.latitude}, ${json.longitude}). Ajustalas a mano si querés el punto exacto.`
+          : `${json.latitude}, ${json.longitude}${json.etiqueta ? ` — ${json.etiqueta}` : ""}`,
+      });
     } catch (err: any) {
-      toast({ title: "Error al geocodificar", description: err.message, variant: "destructive" });
+      toast({ title: "No se encontró la dirección", description: err.message, variant: "destructive" });
     } finally {
       setGeocoding(false);
     }
+  };
+
+  // Copiar de Google Maps deja "-38.735891, -72.590538" en el portapapeles y se
+  // pega entero en un solo campo. En vez de rechazarlo, lo repartimos.
+  //
+  // El segundo número tiene que venir con signo para contarlo como par: en Chile
+  // las dos coordenadas son negativas, y sin esa condición un "-38,735891"
+  // escrito con coma decimal se partiría en dos campos equivocados.
+  const escribirCoordenada = (campo: "latitude" | "longitude", valor: string) => {
+    const par = valor.trim().match(/^(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-\d+(?:[.,]\d+)?)$/);
+    if (par) {
+      setEditing((prev) => prev ? { ...prev, latitude: par[1].replace(",", "."), longitude: par[2].replace(",", ".") } : prev);
+      return;
+    }
+    setEditing((prev) => prev ? { ...prev, [campo]: valor } : prev);
   };
 
   const handleSave = () => {
@@ -323,14 +342,18 @@ export default function RetailLocationsAdmin() {
                           try {
                             const res = await apiRequest(`/api/admin/retail-locations/${loc.id}/geocode`, { method: "POST" });
                             const json = await res.json();
-                            if (json.success) {
-                              queryClient.invalidateQueries({ queryKey: ["/api/admin/retail-locations"] });
-                              toast({ title: "Geocodificada", description: `${json.latitude}, ${json.longitude}` });
-                            } else {
-                              toast({ title: "No se encontró", description: json.message || "Sin resultados", variant: "destructive" });
-                            }
+                            queryClient.invalidateQueries({ queryKey: ["/api/admin/retail-locations"] });
+                            toast({
+                              title: json.precision === "aproximada" ? "Ubicada en el centro de la comuna" : "Geocodificada",
+                              description: json.precision === "aproximada"
+                                ? `${json.latitude}, ${json.longitude} — revisá la dirección si necesitás el punto exacto.`
+                                : `${json.latitude}, ${json.longitude}`,
+                            });
                           } catch (err: any) {
-                            toast({ title: "Error", description: err.message, variant: "destructive" });
+                            // El servidor manda el motivo real: si no existe la
+                            // dirección dice con qué buscó, y si el buscador se
+                            // cayó lo dice también.
+                            toast({ title: "Sin coordenadas", description: err.message, variant: "destructive" });
                           } finally {
                             setGeocodingRowId(null);
                           }
@@ -436,7 +459,7 @@ export default function RetailLocationsAdmin() {
                     <Label className="text-xs">Latitud</Label>
                     <Input
                       value={editing.latitude || ""}
-                      onChange={(e) => setEditing({ ...editing, latitude: e.target.value })}
+                      onChange={(e) => escribirCoordenada("latitude", e.target.value)}
                       placeholder="-33.4489"
                     />
                   </div>
@@ -444,7 +467,7 @@ export default function RetailLocationsAdmin() {
                     <Label className="text-xs">Longitud</Label>
                     <Input
                       value={editing.longitude || ""}
-                      onChange={(e) => setEditing({ ...editing, longitude: e.target.value })}
+                      onChange={(e) => escribirCoordenada("longitude", e.target.value)}
                       placeholder="-70.6693"
                     />
                   </div>

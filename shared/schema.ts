@@ -8897,9 +8897,36 @@ export const retailLocations = pgTable("retail_locations", {
   typeIdx: index("IDX_retail_locations_type").on(table.type),
 }));
 
+/**
+ * Coordenada que llega como texto del formulario (o como número de una
+ * integración) y termina en una columna `numeric`. El texto se valida acá y no
+ * en Postgres: un campo vacío o un "-38,73" pegado desde otra herramienta
+ * reventaba el INSERT con un 500 sin explicación, y el usuario sólo veía que no
+ * se podía guardar. Vacío = sin coordenada (null); basura = error entendible.
+ */
+const coordenadaDecimal = (etiqueta: string, minimo: number, maximo: number) =>
+  z.union([z.string(), z.number()]).nullable().optional().transform((valor, ctx) => {
+    if (valor === null || valor === undefined) return null;
+    const texto = String(valor).trim();
+    if (texto === '') return null;
+    // Coma decimal ("-38,7358908") sí; par pegado completo ("-38.7, -72.5") no,
+    // porque no hay forma de saber cuál de los dos números es este campo.
+    const normalizado = /^-?\d+,\d+$/.test(texto) ? texto.replace(',', '.') : texto;
+    const numero = Number(normalizado);
+    if (!/^-?\d+(\.\d+)?$/.test(normalizado) || !Number.isFinite(numero)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${etiqueta} inválida: "${texto}". Usá sólo el número, por ejemplo -38.7358908` });
+      return z.NEVER;
+    }
+    if (numero < minimo || numero > maximo) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${etiqueta} fuera de rango (${minimo} a ${maximo}): ${numero}` });
+      return z.NEVER;
+    }
+    return numero.toFixed(7);
+  });
+
 export const insertRetailLocationSchema = createInsertSchema(retailLocations, {
-  latitude: z.union([z.string(), z.number()]).nullable().optional().transform(v => v == null ? null : (typeof v === 'string' ? v : v.toString())),
-  longitude: z.union([z.string(), z.number()]).nullable().optional().transform(v => v == null ? null : (typeof v === 'string' ? v : v.toString())),
+  latitude: coordenadaDecimal('Latitud', -90, 90),
+  longitude: coordenadaDecimal('Longitud', -180, 180),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type RetailLocation = typeof retailLocations.$inferSelect;
