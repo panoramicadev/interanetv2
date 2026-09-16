@@ -497,10 +497,34 @@ export function registerBalanceRoutes(app: Express) {
       await ensureTables();
       const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(cuentasContables);
       const periodos = await db.select().from(balancePeriodos).orderBy(asc(balancePeriodos.periodo));
+
+      // El período que abre la pantalla es el más reciente **con movimiento**,
+      // no simplemente el último cargado.
+      //
+      // Un mes existe en `balance_periodos` aunque todas sus cuentas estén en
+      // cero, y entonces la pantalla abría ahí mostrando $0 en todo — con los
+      // datos de otro mes ahí al lado, a un clic. Pasó en producción: un archivo
+      // subido por error dejó 2026-09 con 77 ceros y tapó a julio, que sí tenía
+      // los $729 millones. El import ya rechaza ese archivo, pero un mes
+      // legítimamente vacío (o a medio cargar) provocaría lo mismo.
+      const conMovimiento = await db.execute(sql`
+        SELECT periodo
+        FROM balance_saldos
+        GROUP BY periodo
+        HAVING sum(abs(debe) + abs(haber) + abs(saldo)) > 0
+        ORDER BY periodo DESC
+      `);
+      const conDatos = new Set((conMovimiento.rows as any[]).map((r) => String(r.periodo)));
+      const ultimoConDatos = (conMovimiento.rows as any[])[0]?.periodo as string | undefined;
+
       res.json({
         cuentas: total,
         periodos: periodos.map((p) => p.periodo),
-        ultimoPeriodo: periodos.length ? periodos[periodos.length - 1].periodo : null,
+        // Si ninguno tiene movimiento se cae al último cargado: es preferible
+        // abrir en un mes vacío que no abrir en ninguno.
+        ultimoPeriodo: ultimoConDatos ?? (periodos.length ? periodos[periodos.length - 1].periodo : null),
+        /** Meses cargados que no tienen ni un peso. La pantalla los marca. */
+        periodosVacios: periodos.map((p) => p.periodo).filter((p) => !conDatos.has(p)),
         talanaConfigurado: talanaConfigurado(),
         // Sin cuentas 1/2/3 no hay estado de situación, y conviene decirlo arriba.
         soloResultado: true,
