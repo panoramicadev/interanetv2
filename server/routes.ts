@@ -125,6 +125,7 @@ import { registerPermissionRoutes, requirePermission, getEffectivePermissionsFor
 import { registerCommissionRoutes } from "./commissions";
 import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
 import { registerBalanceRoutes } from "./routes-balance";
+import { registerContabilidadDescubrirRoutes } from "./routes-contabilidad-descubrir";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -600,8 +601,12 @@ export function registerRoutes(app: Express): Server {
   // Módulo de Recursos Humanos: remuneraciones (Talana cruzado con la intranet)
   registerRemuneracionesRoutes(app);
 
-  // Finanzas: balance (estado de resultados, presupuesto y cruce con Talana)
+  // Finanzas: estado de resultados, presupuesto y cruce con Talana
+  // (el archivo sigue llamándose routes-balance.ts: las tablas son balance_*)
   registerBalanceRoutes(app);
+
+  // Finanzas: ¿está la contabilidad de Softland en el SQL Server? (solo lectura)
+  registerContabilidadDescubrirRoutes(app);
 
   // Panel de Trabajo: cambios recientes por sección (badges de pestañas + campana)
   registerPanelChangesRoutes(app);

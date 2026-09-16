@@ -1,12 +1,17 @@
 /**
- * Balance — estado de resultados, presupuesto y cruce con Talana
+ * Estado de Resultados — el resultado del mes, presupuesto y cruce con Talana
  * ---------------------------------------------------------------
- * ⚠️ Es un estado de RESULTADOS, no un balance general: el plan de cuentas que
- * entregó el cliente sólo trae ingresos (41) y egresos (51, 52). Sin cuentas de
- * activo, pasivo ni patrimonio no hay estado de situación, y la pantalla lo dice
- * arriba en vez de dejar que alguien lo suponga.
+ * Esto arma un ESTADO DE RESULTADOS: ingresos menos egresos del mes. No es un
+ * balance general —el estado de situación, con activo, pasivo y patrimonio— y
+ * por eso dejó de llamarse "Balance": el nombre viejo prometía otra cosa y la
+ * pantalla se pasaba media tarjeta aclarando que no era eso.
  *
- * Backend: server/routes-balance.ts (permiso `finanzas.balance`, solo admin).
+ * Las cuentas de activo y pasivo existen en Softland; no se importan porque
+ * `armarResultado()` las pintaría como gasto. Ver ESTADO-RESULTADOS.md.
+ *
+ * Backend: server/routes-balance.ts (los identificadores internos siguen siendo
+ * `balance*` a propósito: el permiso `finanzas.balance` tiene grants otorgados y
+ * las tablas `balance_*` tienen datos cargados).
  */
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -28,6 +33,7 @@ import {
 import {
   Scale, CalendarDays, TrendingUp, TrendingDown, Users, Upload, Download,
   AlertTriangle, ChevronRight, ChevronDown, Target, ListTree, Info,
+  DatabaseZap, RefreshCw, PlugZap, FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,12 +48,25 @@ interface GrupoResultado extends Montos { granCuenta: string; nombre: string; ma
 interface LineaResultado extends Montos { clave: string; etiqueta: string; tipo: string }
 interface Resultado {
   periodo: string; periodoAnterior: string;
+  /** `false` ⇒ la columna del mes anterior es un hueco, no un cero. */
+  periodoAnteriorCargado: boolean;
+  mesesAcumulados: number; mesesDelAcumulado: number;
   cargado: { periodo: string; estado: string; origen: string; archivoNombre: string | null } | null;
   grupos: GrupoResultado[]; lineas: LineaResultado[];
 }
 interface Estado {
   cuentas: number; periodos: string[]; ultimoPeriodo: string | null;
   talanaConfigurado: boolean; soloResultado: boolean;
+}
+/** Lo que hay del otro lado, en Softland. Ver server/etl-contabilidad.ts. */
+interface EstadoErp {
+  disponible: boolean; error?: string;
+  servidor: string; base: string; empresa: string;
+  anios: string[];
+  /** Ya filtrados por la compuerta de prueba: no se ofrece lo que se va a rechazar. */
+  periodos: { periodo: string; comprobantes: number; lineas: number }[];
+  limitadoA: string[] | null;
+  mesesFueraDelLimite: number;
 }
 interface Cuenta {
   codigo: string; codigoErp: string; granCuenta: string; granCuentaNombre: string;
@@ -64,6 +83,7 @@ interface Personal {
   periodo: string; talana: { ok: boolean; error: string | null };
   conceptos: ConceptoPersonal[];
   centrosSinMapear: { centroCosto: string; costoEmpresa: number; personas: number }[];
+  cuentasSinMapear: { codigo: string; nombre: string; monto: number }[];
   umbralDescuadre: number;
 }
 
@@ -91,6 +111,16 @@ function etiquetaPeriodo(periodo: string): string {
   return `${nombre.charAt(0).toUpperCase()}${nombre.slice(1)} ${ano}`;
 }
 
+/**
+ * "Acumulado año" miente si sólo hay un mes cargado. Mientras falten meses lo
+ * dice: es la diferencia entre "la empresa lleva esto en el año" y "esto es lo
+ * único que trajimos".
+ */
+function etiquetaAcumulado(r?: Resultado): string {
+  if (!r || r.mesesAcumulados >= r.mesesDelAcumulado) return "Acumulado año";
+  return `Acumulado ${r.mesesAcumulados} de ${r.mesesDelAcumulado} meses`;
+}
+
 /** Variación contra el mes anterior. Sin base no hay porcentaje, y se dice. */
 function variacion(actual: number, anterior: number): string | null {
   if (!anterior) return null;
@@ -98,7 +128,7 @@ function variacion(actual: number, anterior: number): string | null {
   return `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
 }
 
-export default function BalancePage() {
+export default function EstadoResultadosPage() {
   const { toast } = useToast();
   const [periodo, setPeriodo] = useState<string>("");
   const [tab, setTab] = useState<TabId>("resultado");
@@ -137,9 +167,9 @@ export default function BalancePage() {
             <Scale className="w-6 h-6" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Balance</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Estado de Resultados</h1>
             <p className="text-sm text-muted-foreground hidden md:block">
-              Estado de resultados mes a mes, con el presupuesto de ventas y el gasto en gente contrastado contra Talana.
+              Ingresos menos egresos, mes a mes, leídos de la contabilidad de Softland.
             </p>
           </div>
         </div>
@@ -151,19 +181,25 @@ export default function BalancePage() {
         </Button>
       </div>
 
-      {/* Lo que el módulo NO es. Va arriba: el nombre "Balance" promete otra cosa. */}
+      {/* Lo que el módulo NO es. Sigue arriba porque "estado de resultados" y
+          "balance" se usan como sinónimos en la conversación diaria. */}
       {estado?.soloResultado && (
         <Card className="rounded-2xl border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
           <CardContent className="py-3 flex items-start gap-3 text-sm">
             <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
             <p className="text-slate-600 dark:text-slate-300">
-              Esto es el <strong>estado de resultados</strong>: el plan de cuentas que entregó el cliente sólo
-              trae ingresos y egresos. Para el estado de situación (activo, pasivo y patrimonio) faltan las
-              cuentas 1, 2 y 3.
+              Esto <strong>no es un balance general</strong>. El estado de situación —activo, pasivo y
+              patrimonio— es otra cosa: sus cuentas existen en Softland, pero esta pantalla todavía no sabe
+              mostrarlas, así que no se traen para no pintarlas como gasto.
             </p>
           </CardContent>
         </Card>
       )}
+
+      {/* Primera corrida: se está validando el ETL contra el ERP mes a mes, así
+          que sólo hay un mes habilitado. Se dice acá y no al apretar el botón:
+          si no, parece que faltan datos. */}
+      <NotaPrimeraCorrida />
 
       {sinPlan && <ImportarPlan onListo={() => setTab("cuentas")} />}
 
@@ -198,8 +234,17 @@ export default function BalancePage() {
                     {resultado.cargado.estado === "cerrado" ? "Mes cerrado" : "Borrador: se puede volver a cargar"}
                   </Badge>
                 )}
-                <div className="ml-auto">
-                  <SubirSaldos periodoSugerido={periodoActual} />
+                {/* De dónde salió el mes que se está mirando. Un número traído
+                    del ERP y uno tecleado desde un Excel no valen lo mismo. */}
+                {resultado?.cargado && (
+                  <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600 font-normal dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                    {resultado.cargado.origen === "erp"
+                      ? <><DatabaseZap className="w-3 h-3 mr-1.5" /> Traído de Softland</>
+                      : <><Upload className="w-3 h-3 mr-1.5" /> Cargado por archivo</>}
+                  </Badge>
+                )}
+                <div className="w-full sm:w-auto sm:ml-auto">
+                  <CargarMes periodoSugerido={periodoActual} />
                 </div>
               </div>
             </CardContent>
@@ -211,7 +256,7 @@ export default function BalancePage() {
                 <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <p className="text-amber-800 dark:text-amber-300">
                   El plan de cuentas está cargado pero todavía no hay ningún mes con saldos.
-                  Subí el balance del mes con <strong>Cargar mes</strong> para ver el resultado.
+                  Elegí un mes y apretá <strong>Traer del ERP</strong> para ver el resultado.
                 </p>
               </CardContent>
             </Card>
@@ -221,18 +266,18 @@ export default function BalancePage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Kpi icon={TrendingUp} label="Ingresos operacionales" loading={cargandoResultado}
               value={formatCLP(ingresos?.mes ?? 0)}
-              sub={ingresos ? `Acumulado año ${formatCLP(ingresos.acumulado)}` : undefined}
-              variacion={ingresos ? variacion(ingresos.mes, ingresos.anterior) : null} />
+              sub={ingresos ? `${etiquetaAcumulado(resultado)} ${formatCLP(ingresos.acumulado)}` : undefined}
+              variacion={ingresos && resultado?.periodoAnteriorCargado ? variacion(ingresos.mes, ingresos.anterior) : null} />
             <Kpi icon={TrendingDown} label="Gastos del mes" loading={cargandoResultado}
               value={formatCLP(gastos?.mes ?? 0)}
-              variacion={gastos ? variacion(gastos.mes, gastos.anterior) : null} />
+              variacion={gastos && resultado?.periodoAnteriorCargado ? variacion(gastos.mes, gastos.anterior) : null} />
             <Kpi icon={Scale} label="Margen bruto" loading={cargandoResultado}
               value={montoConSigno(margen?.mes ?? 0)}
               sub={ingresos?.mes ? `${((margen?.mes ?? 0) / ingresos.mes * 100).toFixed(1)}% sobre ingresos` : undefined} />
             <Kpi icon={Target} label="Resultado del período" loading={cargandoResultado}
               value={montoConSigno(total?.mes ?? 0)}
               accent={(total?.mes ?? 0) < 0 ? "alerta" : "destacada"}
-              sub={total ? `Acumulado año ${montoConSigno(total.acumulado)}` : undefined} />
+              sub={total ? `${etiquetaAcumulado(resultado)} ${montoConSigno(total.acumulado)}` : undefined} />
           </div>
 
           {/* Riel de pestañas (escritorio) */}
@@ -313,10 +358,97 @@ function Kpi({ icon: Icon, label, value, sub, loading, accent = "neutro", variac
  * Sólo aparece cuando no hay ninguna cuenta cargada: es lo primero que hay que
  * hacer y sin eso el resto del módulo no tiene con qué trabajar.
  */
+/**
+ * El aviso de la compuerta de prueba. Sale del propio ERP —`limitadoA`— así que
+ * el día que se levante el límite, la nota desaparece sola.
+ */
+function NotaPrimeraCorrida() {
+  const erp = useErpEstado();
+  const limite = erp.data?.limitadoA;
+  if (!erp.data?.disponible || !limite?.length) return null;
+  return (
+    <Card className="rounded-2xl border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20">
+      <CardContent className="py-3 flex items-start gap-3 text-sm">
+        <FlaskConical className="w-4 h-4 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
+        <p className="text-sky-800 dark:text-sky-300">
+          <strong>Primera corrida del ETL.</strong> Por ahora sólo se puede traer{" "}
+          {limite.map((p) => etiquetaPeriodo(p).toLowerCase()).join(", ")}, mientras se valida contra el ERP que los números
+          calcen. Los otros {erp.data.mesesFueraDelLimite} meses con movimiento están ahí y se habilitan
+          después.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Softland en vivo ───
+
+/**
+ * Qué hay del otro lado: años con plan y meses con movimiento.
+ *
+ * Se pide una vez y no se repite al volver a la pestaña. La consulta agrupa las
+ * 350 mil líneas de detalle contable del ERP, que además está en red privada:
+ * no es algo que deba dispararse cada vez que alguien cambia de ventana.
+ */
+function useErpEstado() {
+  return useQuery<EstadoErp>({
+    queryKey: ["/api/finanzas/balance/erp/estado"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Por qué no se puede traer del ERP. Se muestra como dato, no como error: el
+ * módulo sigue funcionando con la carga por archivo, que es justo lo que hay que
+ * decirle a quien lo está mirando.
+ */
+function ErpCaido({ error }: { error?: string }) {
+  return (
+    <div className="flex items-start gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+      <PlugZap className="w-4 h-4 mt-px flex-shrink-0 text-amber-600 dark:text-amber-500" />
+      <p>
+        Softland no responde, así que hay que cargar el mes por archivo.
+        {error ? <span className="block font-mono text-[11px] opacity-70 mt-0.5">{error}</span> : null}
+      </p>
+    </div>
+  );
+}
+
+// ─── Plan de cuentas: primera carga ───
+
+/**
+ * El estado vacío. Ofrece las dos vías en el orden correcto: traerlo del ERP es
+ * lo normal, subir un archivo es el respaldo para cuando el servidor no está.
+ */
 function ImportarPlan({ onListo }: { onListo: () => void }) {
   const { toast } = useToast();
+  const erp = useErpEstado();
   const input = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [anio, setAnio] = useState("");
+
+  // El plan se versiona por año: el más nuevo es el que casi siempre se quiere.
+  const anioActual = anio || erp.data?.anios[0] || "";
+
+  const traer = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/finanzas/balance/erp/plan", { method: "POST", data: { anio: anioActual } });
+      return res.json();
+    },
+    onSuccess: (json: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/cuentas"] });
+      toast({
+        title: `${json.guardadas} cuentas traídas del plan ${json.anio}`,
+        description: json.normalizadas?.length
+          ? `Se corrigió el código de ${json.normalizadas.length} cuentas que el ERP guarda mal formadas (ej. "${json.normalizadas[0].codigoErp}" → ${json.normalizadas[0].codigo}).`
+          : undefined,
+      });
+      onListo();
+    },
+    onError: (err: any) => toast({ title: "No se pudo traer el plan", description: err.message, variant: "destructive" }),
+  });
 
   const subir = async (archivo: File) => {
     setSubiendo(true);
@@ -342,25 +474,50 @@ function ImportarPlan({ onListo }: { onListo: () => void }) {
     }
   };
 
+  const hayErp = erp.data?.disponible && (erp.data.anios.length > 0);
+
   return (
     <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
-      <CardContent className="py-10 flex flex-col items-center text-center gap-3">
-        <span className="w-12 h-12 rounded-xl bg-[#fd6301] text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
+      <CardContent className="py-10 px-5 sm:px-6 flex flex-col items-center text-center gap-4">
+        <span className="w-12 h-12 rounded-2xl bg-[#fd6301] text-white flex items-center justify-center shadow-md shadow-[#fd6301]/25">
           <ListTree className="w-6 h-6" />
         </span>
-        <div>
+        <div className="max-w-md">
           <p className="font-semibold text-slate-900 dark:text-white">Todavía no hay plan de cuentas</p>
-          <p className="text-sm text-slate-500 max-w-md mt-1">
-            Subí el archivo de cuentas que exporta Softland (CGRANCUE, NOGRANCUE, CMAYOR, NOMAYOR,
-            CUENTA, NOCUENTA). Los códigos que vienen con el mayor sin rellenar —como <code className="font-mono">5120 106</code>—
-            se corrigen solos al importar.
+          <p className="text-sm text-slate-500 mt-1">
+            El plan vive en Softland, repartido en tres niveles (gran cuenta, mayor y cuenta). Se trae de ahí:
+            los códigos que el ERP guarda con el mayor sin rellenar —como <code className="font-mono">5120 106</code>,
+            que es <code className="font-mono">51020106</code>— se corrigen al traerlos.
           </p>
         </div>
+
+        {erp.isLoading ? (
+          <Skeleton className="h-11 w-56 rounded-2xl" />
+        ) : hayErp ? (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Select value={anioActual} onValueChange={setAnio}>
+              <SelectTrigger className="h-11 sm:h-10 w-full sm:w-[8.5rem] rounded-2xl bg-slate-50/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-base sm:text-sm font-semibold">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent>
+                {erp.data!.anios.map((a) => <SelectItem key={a} value={a}>Plan {a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => traer.mutate()} disabled={traer.isPending || !anioActual}
+              className="h-11 sm:h-10 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25">
+              <DatabaseZap className={`w-4 h-4 mr-2 ${traer.isPending ? "animate-pulse" : ""}`} />
+              {traer.isPending ? "Trayendo…" : "Traer de Softland"}
+            </Button>
+          </div>
+        ) : (
+          <ErpCaido error={erp.data?.error} />
+        )}
+
         <input ref={input} type="file" accept=".xlsx,.xls,.csv" className="hidden"
           onChange={(e) => e.target.files?.[0] && subir(e.target.files[0])} />
-        <Button onClick={() => input.current?.click()} disabled={subiendo}
-          className="rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25">
-          <Upload className="w-4 h-4 mr-2" /> {subiendo ? "Importando…" : "Importar plan de cuentas"}
+        <Button variant="ghost" onClick={() => input.current?.click()} disabled={subiendo}
+          className="h-11 sm:h-9 rounded-2xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+          <Upload className="w-4 h-4 mr-2" /> {subiendo ? "Importando…" : "o subir un archivo"}
         </Button>
       </CardContent>
     </Card>
@@ -369,24 +526,67 @@ function ImportarPlan({ onListo }: { onListo: () => void }) {
 
 // ─── Cargar los saldos de un mes ───
 
-function SubirSaldos({ periodoSugerido }: { periodoSugerido: string }) {
+/**
+ * Traer el mes. El ERP manda y el archivo es el respaldo, así que el selector
+ * ofrece sólo meses que de verdad tienen movimiento: no se puede pedir un mes
+ * que no existe y descubrirlo por un 404.
+ *
+ * Cuando el ERP no está, cae al mismo input de archivo de siempre, con un
+ * `type="month"` libre — ahí sí hay que poder escribir cualquier mes.
+ */
+function CargarMes({ periodoSugerido }: { periodoSugerido: string }) {
   const { toast } = useToast();
+  const erp = useErpEstado();
   const input = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
-  const [mes, setMes] = useState(() => periodoSugerido || new Date().toISOString().slice(0, 7));
+  const [mes, setMes] = useState("");
+
+  const disponibles = erp.data?.periodos ?? [];
+  const hayErp = !!erp.data?.disponible && disponibles.length > 0;
+  const mesActual = mes
+    || (disponibles.some((p) => p.periodo === periodoSugerido) ? periodoSugerido : "")
+    || disponibles[0]?.periodo
+    || periodoSugerido
+    || new Date().toISOString().slice(0, 7);
+
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/resultado"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/personal"] });
+  };
+
+  const traer = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/finanzas/balance/erp/periodo", { method: "POST", data: { periodo: mesActual } });
+      return res.json();
+    },
+    onSuccess: (json: any) => {
+      refrescar();
+      // Una cuenta con movimiento que no está en el plan deja el mes incompleto
+      // y en silencio. Es lo primero que hay que ver, no un detalle.
+      const huerfanas = json.sinCuentaEnElPlan ?? [];
+      toast({
+        title: `${json.cuentas} cuentas traídas de ${etiquetaPeriodo(json.periodo)}`,
+        description: huerfanas.length
+          ? `${huerfanas.length} cuenta(s) con movimiento no están en el plan (ej. ${huerfanas[0].codigo}). Traé el plan de ese año.`
+          : `${json.lineas.toLocaleString("es-CL")} líneas de comprobante agregadas.`,
+        variant: huerfanas.length ? "destructive" : undefined,
+      });
+    },
+    onError: (err: any) => toast({ title: "No se pudo traer el mes", description: err.message, variant: "destructive" }),
+  });
 
   const subir = async (archivo: File) => {
     setSubiendo(true);
     try {
       const form = new FormData();
       form.append("file", archivo);
-      form.append("periodo", mes);
+      form.append("periodo", mesActual);
       const res = await apiRequest("/api/finanzas/balance/saldos/importar", { method: "POST", data: form });
       const json = await res.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/resultado"] });
+      refrescar();
       toast({
-        title: `${json.guardadas} cuentas cargadas en ${etiquetaPeriodo(mes)}`,
+        title: `${json.guardadas} cuentas cargadas en ${etiquetaPeriodo(mesActual)}`,
         // Las filas que no calzaron no se tapan: son las que hay que revisar.
         description: json.errores?.length
           ? `${json.errores.length} fila(s) quedaron fuera. La primera: ${json.errores[0].motivo} (${json.errores[0].detalle ?? `fila ${json.errores[0].fila}`}).`
@@ -402,15 +602,47 @@ function SubirSaldos({ periodoSugerido }: { periodoSugerido: string }) {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
-        className="h-9 w-[10rem] rounded-xl bg-slate-50/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 focus-visible:border-[#fd6301]" />
+    // En celular son dos filas limpias —el mes arriba, las acciones abajo— en vez
+    // de dejar que el botón de respaldo se descuelgue solo por el flex-wrap.
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+      {hayErp ? (
+        <Select value={mesActual} onValueChange={setMes}>
+          <SelectTrigger className="h-11 sm:h-9 w-full sm:w-[11rem] rounded-2xl bg-slate-50/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-base sm:text-sm font-semibold">
+            <SelectValue placeholder="Mes" />
+          </SelectTrigger>
+          <SelectContent>
+            {disponibles.map((p) => (
+              <SelectItem key={p.periodo} value={p.periodo}>{etiquetaPeriodo(p.periodo)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input type="month" value={mesActual} onChange={(e) => setMes(e.target.value)}
+          className="h-11 sm:h-9 w-full sm:w-[10rem] rounded-2xl bg-slate-50/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-base sm:text-sm focus-visible:border-[#fd6301]" />
+      )}
+
       <input ref={input} type="file" accept=".xlsx,.xls,.csv" className="hidden"
         onChange={(e) => e.target.files?.[0] && subir(e.target.files[0])} />
-      <Button size="sm" onClick={() => input.current?.click()} disabled={subiendo || !mes}
-        className="rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25">
-        <Upload className="w-4 h-4 mr-2" /> {subiendo ? "Cargando…" : "Cargar mes"}
-      </Button>
+
+      {hayErp ? (
+        <div className="flex items-center gap-2">
+          <Button onClick={() => traer.mutate()} disabled={traer.isPending || !mesActual}
+            className="h-11 sm:h-9 flex-1 sm:flex-none rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25">
+            <RefreshCw className={`w-4 h-4 mr-2 ${traer.isPending ? "animate-spin" : ""}`} />
+            {traer.isPending ? "Trayendo…" : "Traer del ERP"}
+          </Button>
+          <Button variant="ghost" size="icon" title="Cargar el mes desde un archivo"
+            onClick={() => input.current?.click()} disabled={subiendo}
+            className="h-11 w-11 sm:h-9 sm:w-9 flex-shrink-0 rounded-2xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+            <Upload className="w-4 h-4" />
+          </Button>
+        </div>
+      ) : (
+        <Button onClick={() => input.current?.click()} disabled={subiendo || !mesActual}
+          className="h-11 sm:h-9 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25">
+          <Upload className="w-4 h-4 mr-2" /> {subiendo ? "Cargando…" : "Cargar mes"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -436,14 +668,28 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                 <TableRow>
                   <TableHead>Línea</TableHead>
                   <TableHead className="text-right">{etiquetaPeriodo(datos.periodo)}</TableHead>
-                  <TableHead className="text-right">{etiquetaPeriodo(datos.periodoAnterior)}</TableHead>
+                  <TableHead className="text-right">
+                    {etiquetaPeriodo(datos.periodoAnterior)}
+                    {!datos.periodoAnteriorCargado && (
+                      <span className="block text-[10px] font-normal normal-case text-amber-600">sin cargar</span>
+                    )}
+                  </TableHead>
                   <TableHead className="text-right">Variación</TableHead>
-                  <TableHead className="text-right">Acumulado año</TableHead>
+                  <TableHead className="text-right">
+                    Acumulado año
+                    {datos.mesesAcumulados < datos.mesesDelAcumulado && (
+                      <span className="block text-[10px] font-normal normal-case text-amber-600">
+                        {datos.mesesAcumulados} de {datos.mesesDelAcumulado} meses
+                      </span>
+                    )}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {datos.lineas.map((l) => {
-                  const v = variacion(l.mes, l.anterior);
+                  // Sin el mes anterior cargado no hay contra qué comparar: la
+                  // variación sería contra cero y daría siempre ±100%.
+                  const v = datos.periodoAnteriorCargado ? variacion(l.mes, l.anterior) : null;
                   const fuerte = l.tipo !== "grupo";
                   return (
                     <TableRow key={l.clave} className={l.tipo === "total" ? "bg-orange-50/70 dark:bg-orange-950/20" : undefined}>
@@ -453,7 +699,9 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                       <TableCell className={`text-right tabular-nums ${fuerte ? "font-semibold" : ""} ${l.clave === "resultado" && l.mes < 0 ? "text-red-600" : ""}`}>
                         {montoConSigno(l.mes)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-slate-500">{montoConSigno(l.anterior)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-slate-500">
+                        {datos.periodoAnteriorCargado ? montoConSigno(l.anterior) : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </TableCell>
                       <TableCell className={`text-right tabular-nums text-sm ${v?.startsWith("−") ? "text-red-600" : "text-[#fd6301]"}`}>
                         {v ?? "—"}
                       </TableCell>
@@ -470,14 +718,17 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                 <p className={l.tipo !== "grupo" ? "font-semibold text-slate-900 dark:text-white text-sm" : "text-sm text-slate-600 dark:text-slate-300"}>
                   {l.etiqueta}
                 </p>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className={`tabular-nums font-semibold ${l.clave === "resultado" && l.mes < 0 ? "text-red-600" : "text-slate-900 dark:text-white"}`}>
-                    {montoConSigno(l.mes)}
-                  </span>
-                  <span className="text-xs text-slate-400 tabular-nums">
-                    acumulado {montoConSigno(l.acumulado)}
-                  </span>
-                </div>
+                {/* Apilado y no en dos columnas: el acumulado creció al tener que
+                    decir cuántos meses cubre, y al lado del monto se pisaban. */}
+                <p className={`tabular-nums font-semibold mt-1 ${l.clave === "resultado" && l.mes < 0 ? "text-red-600" : "text-slate-900 dark:text-white"}`}>
+                  {montoConSigno(l.mes)}
+                </p>
+                <p className="text-xs text-slate-400 tabular-nums">
+                  acumulado {montoConSigno(l.acumulado)}
+                  {datos.mesesAcumulados < datos.mesesDelAcumulado && (
+                    <span className="text-amber-600"> · {datos.mesesAcumulados}/{datos.mesesDelAcumulado} meses</span>
+                  )}
+                </p>
               </div>
             ))}
           </div>
@@ -686,16 +937,18 @@ function PersonalVsTalana({ periodo }: { periodo: string }) {
     enabled: !!periodo,
   });
 
+  // El PUT reemplaza la lista completa de (concepto, tipo), así que los dos
+  // lados del puente —centros de costo y cuentas— se asignan igual.
   const mapear = useMutation({
-    mutationFn: async ({ concepto, valores }: { concepto: string; valores: string[] }) => {
+    mutationFn: async ({ concepto, tipo, valores }: { concepto: string; tipo: "cuenta" | "centro_costo"; valores: string[] }) => {
       const res = await apiRequest("/api/finanzas/balance/puente-personal", {
-        method: "PUT", data: { concepto, tipo: "centro_costo", valores },
+        method: "PUT", data: { concepto, tipo, valores },
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/personal"] });
-      toast({ title: "Centro de costo asignado" });
+      toast({ title: v.tipo === "cuenta" ? "Cuenta asignada al área" : "Centro de costo asignado" });
     },
     onError: (err: any) => toast({ title: "No se pudo asignar", description: err.message, variant: "destructive" }),
   });
@@ -706,7 +959,12 @@ function PersonalVsTalana({ periodo }: { periodo: string }) {
 
   const asignar = (centro: string, concepto: string) => {
     const actual = data.conceptos.find((c) => c.concepto === concepto)?.centrosCosto ?? [];
-    mapear.mutate({ concepto, valores: [...actual, centro] });
+    mapear.mutate({ concepto, tipo: "centro_costo", valores: [...actual, centro] });
+  };
+
+  const asignarCuenta = (codigo: string, concepto: string) => {
+    const actual = data.conceptos.find((c) => c.concepto === concepto)?.cuentas.map((x) => x.codigo) ?? [];
+    mapear.mutate({ concepto, tipo: "cuenta", valores: [...actual, codigo] });
   };
 
   return (
@@ -812,7 +1070,53 @@ function PersonalVsTalana({ periodo }: { periodo: string }) {
                       setAsignando((a) => ({ ...a, [c.centroCosto]: v }));
                       asignar(c.centroCosto, v);
                     }}>
-                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-xl border-slate-200 dark:border-slate-700">
+                    <SelectTrigger className="h-11 sm:h-9 w-full sm:w-56 rounded-xl border-slate-200 dark:border-slate-700">
+                      <SelectValue placeholder="Asignar a un área" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {data.conceptos.map((x) => (
+                        <SelectItem key={x.concepto} value={x.concepto}>{x.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* El mismo agujero por el otro lado: gasto contable en gente que no entra
+          al cruce. El puente se armó con las 77 cuentas del export viejo; el plan
+          del ERP trae 30 de personal, y las que nadie asignó restarían del
+          contable sin que se note. */}
+      {data.cuentasSinMapear.length > 0 && (
+        <Card className="rounded-2xl border-amber-200 dark:border-amber-900/60 shadow-sm overflow-hidden">
+          <CardContent className="p-0">
+            <div className="px-4 py-3 bg-amber-50/70 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900/40">
+              <p className="font-semibold text-amber-800 dark:text-amber-300 text-sm">
+                {data.cuentasSinMapear.length} cuenta(s) de personal fuera del cruce
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-300/70">
+                Tienen movimiento este mes y no están en ningún área, así que su gasto no se compara contra Talana.
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {data.cuentasSinMapear.map((c) => (
+                <div key={c.codigo} className="px-4 py-3 flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{c.nombre}</p>
+                    <p className="text-xs text-slate-400 tabular-nums font-mono">
+                      {c.codigo} · {formatCLP(c.monto)}
+                    </p>
+                  </div>
+                  <Select
+                    value={asignando[c.codigo] ?? ""}
+                    onValueChange={(v) => {
+                      setAsignando((a) => ({ ...a, [c.codigo]: v }));
+                      asignarCuenta(c.codigo, v);
+                    }}>
+                    <SelectTrigger className="h-11 sm:h-9 w-full sm:w-56 rounded-xl border-slate-200 dark:border-slate-700">
                       <SelectValue placeholder="Asignar a un área" />
                     </SelectTrigger>
                     <SelectContent>

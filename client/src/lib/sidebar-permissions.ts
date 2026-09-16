@@ -67,11 +67,11 @@ function filterMarketingByRole(items: SidebarItem[], role: string | undefined): 
 /**
  * Rutas que ningún rol salvo `admin` puede ver, tenga el permiso o no.
  * Remuneraciones muestra el líquido, el cargo y el costo empresa de toda la
- * empresa, y Balance el resultado completo: el permiso existe para el panel,
+ * empresa, y el Estado de Resultados el resultado completo: el permiso existe para el panel,
  * pero el cerrojo es el rol, acá, en la ruta (App.tsx) y en la API
  * (server/routes-remuneraciones.ts, server/routes-balance.ts).
  */
-const HREFS_SOLO_ADMIN = new Set(["/remuneraciones", "/balance"]);
+const HREFS_SOLO_ADMIN = new Set(["/remuneraciones", "/estado-resultados"]);
 
 function permissionKeyForItem(item: SidebarItem): string | null {
   if (item.isExternalCatalog) return "mi_catalogo";
@@ -188,7 +188,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "rrhh.remuneraciones", item: { href: "/remuneraciones", label: "Remuneraciones", icon: Wallet } },
-  { key: "finanzas.balance", item: { href: "/balance", label: "Balance", icon: Scale } },
+  { key: "finanzas.balance", item: { href: "/estado-resultados", label: "Estado de Resultados", icon: Scale } },
   // Solicitud de Crédito va pegada a Comisiones: las dos son Finanzas, y así el
   // orden del menú es el mismo para el rol que la recibe como extra y para el
   // que ya la trae en su sidebar base.
