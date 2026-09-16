@@ -34850,6 +34850,17 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/etl/execute', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { etlName = 'ventas_incremental' } = req.query;
+
+      // El Estado de Resultados es solo del admin, igual que /api/finanzas/balance/*:
+      // este endpoint lo comparten supervisor y encargado_area, y sin este corte
+      // podrían disparar (y por lo tanto reemplazar) el mes cargado del módulo.
+      if (etlName === 'estado_resultados' && req.user?.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo un administrador puede sincronizar el Estado de Resultados',
+        });
+      }
+
       console.log('\n╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  🚀 ETL MANUAL EXECUTION INICIADO                            ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝');
