@@ -39,8 +39,9 @@ de migraciones no es confiable en producción.
 
 ## Pantallas
 
-1. **Planilla del período** — una fila por persona con días, sueldo base,
-   haberes, descuentos, líquido, las dos comisiones, la diferencia y los
+1. **Planilla del período** — una fila por persona. Las columnas las elige cada
+   usuario (ver más abajo); el set por defecto trae días, sueldo base, haberes,
+   descuentos, costo empresa, las dos comisiones, la diferencia y los
    reembolsos. En celular es una lista de tarjetas: la tabla no entra.
 2. **Descuadres** — solo lo que no calza, agrupado por tipo, con acceso directo a
    arreglar el vínculo cuando esa es la causa.
@@ -48,9 +49,71 @@ de migraciones no es confiable en producción.
    ERP. Lista a **todas** las personas que Talana liquida, no solo las que
    devuelve `/contracts`: son 56 contratos contra 64 liquidaciones, y los 8 de
    diferencia incluían vendedores con comisión que no se podían vincular.
+   Abre filtrada en **Pendientes de confirmar** (lo que no cruzó más lo que el
+   sistema propuso y nadie revisó): con 64 personas liquidadas, las tres que hay
+   que tocar se perdían en la lista completa.
 
 Además: selector de período (los meses que informa Talana, con su estado
-abierto/cerrado), botón **Actualizar** (vacía el caché de la API) y **Exportar CSV**.
+abierto/cerrado), filtro **por vendedor** del ERP, botón **Actualizar** (vacía el
+caché de la API) y **Exportar CSV**.
+
+## El costo empresa manda sobre el líquido
+
+Acordado con Paolo el **16-sep-2026**: la cifra del mes es lo que la gente le
+cuesta a la empresa, no lo que se transfiere. Por eso el indicador de arriba
+dice *Costo empresa* con el líquido como línea de apoyo, y en la planilla las
+dos van en **una sola celda**: costo empresa en negrita y `Líquido $…` debajo.
+
+El líquido no se sacó —se sigue cuadrando contra el banco—: existe además como
+columna propia, apagada por defecto, para cuando se quiere mirar solo eso.
+
+Ojo con el caso del finiquito: Talana **no** emite `CostoEmpresa` en la
+liquidación de finiquito, así que en un mes con finiquito la indemnización no
+está sumada en esa columna (sí en el líquido). Es la misma advertencia que ya
+estaba en el tooltip, y ahora pesa más porque el costo empresa es el número
+principal.
+
+## Columnas: cada usuario elige las suyas
+
+La planilla mostraba trece columnas fijas. Una liquidación de Talana trae del
+orden de **200 ítems** (gratificación, movilización, colación, AFP, salud,
+seguro de cesantía, cada haber y cada descuento con su glosa) y ninguno estaba
+disponible sin tocar código.
+
+Ahora el cruce devuelve, por persona, **todos** los ítems de la liquidación
+(`FilaCruce.itemsTalana`, `tipoItem → monto`) y, aparte, el catálogo de lo que
+ese mes informó Talana (`columnasTalana`): id, glosa, en cuántas personas viene
+con valor, y si es plata o días. Ese último dato no es cosmético:
+`diasTrabajadosItem` es 21, no $21.
+
+El botón **Columnas** de la planilla abre las dos listas —las propias del módulo
+y los ítems de Talana, con buscador— y lo elegido se guarda **por usuario** en
+`remuneraciones_columnas`. Es por usuario y no por rol a propósito: la misma
+planilla la mira RR.HH. para cuadrar sueldos y gerencia para mirar costo
+empresa, y no necesitan las mismas columnas.
+
+- `columnas: null` (sin fila) = *nunca eligió* → abre con el set por defecto.
+- `columnas: []` = eligió dejar solo la persona. Por eso el botón "volver a las
+  columnas por defecto" **borra la fila** en vez de guardar un arreglo vacío.
+- El catálogo depende del período: un mes sin liquidaciones cargadas no ofrece
+  ítems, y la pantalla lo dice en vez de mostrar una lista vacía.
+- El CSV sigue trayendo siempre las columnas del cierre de mes; los ítems de
+  Talana que la persona sumó a la planilla se agregan al final
+  (`export.csv?items=Gratificacion,Colacion`).
+
+La tabla se crea en `ensureRemuneracionesTables()` como las otras dos: el runner
+de migraciones no es confiable en producción.
+
+## Filtrar por vendedor
+
+El selector al lado del buscador deja la planilla en un solo vendedor del ERP,
+más dos opciones que no son un vendedor: *Todos* y *Sin vendedor asignado* —esta
+última es la lista de quién no tiene puente hacia la comisión, que es justo lo
+que se va a arreglar a Vínculos—. La lista sale de los vendedores **presentes en
+el período**, no del catálogo completo: elegir a alguien que no tiene a nadie
+liquidado ese mes daría una tabla vacía sin explicar por qué.
+
+El filtro es de la vista: el CSV exporta el período completo.
 
 ## Alertas
 
@@ -178,8 +241,9 @@ Auth: `Authorization: Token <token>`. Base `https://talana.com/es/api`.
 |---|---|
 | `server/services/talana.ts` | Único lugar que habla HTTP con Talana. Tipos, paginación y caché (10 min). |
 | `server/routes-remuneraciones.ts` | El cruce, las alertas y los endpoints `/api/rrhh/remuneraciones/*`. |
-| `client/src/pages/remuneraciones.tsx` | La pantalla (planilla, descuadres, vínculos). |
+| `client/src/pages/remuneraciones.tsx` | La pantalla (planilla, descuadres, vínculos) y el selector de columnas. |
 | `shared/schema.ts` | Tablas `talana_vinculos` y `talana_vendedores_ignorados`. |
+| `remuneraciones_columnas` | Qué columnas eligió ver cada usuario. Se crea en runtime, no tiene modelo en `shared/schema.ts`. |
 | `shared/permissions.ts` | Permiso `rrhh.remuneraciones`. |
 
 ## Pendiente / a decidir con RR.HH.
