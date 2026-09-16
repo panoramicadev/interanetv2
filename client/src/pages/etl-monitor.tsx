@@ -290,6 +290,13 @@ export default function ETLMonitor() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedETL, setSelectedETL] = useState(ETL_CONFIGS[0].id);
+  // El Estado de Resultados es solo del admin (mismo cerrojo que el sidebar, la
+  // ruta /estado-resultados y /api/finanzas/balance/*). Sin esto, supervisor y
+  // encargado_area —que sí tienen etl_monitor— ven la pestaña y sus llamadas
+  // vuelven en 403.
+  const etlConfigs = ETL_CONFIGS.filter(
+    (etl) => etl.id !== 'estado_resultados' || user?.role === 'admin',
+  );
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState<any>(null);
@@ -448,8 +455,8 @@ export default function ETLMonitor() {
 
       {/* ETL Selector Tabs */}
       <Tabs value={selectedETL} onValueChange={setSelectedETL} className="w-full">
-        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${ETL_CONFIGS.length}, 1fr)` }}>
-          {ETL_CONFIGS.map((etl) => {
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${etlConfigs.length}, 1fr)` }}>
+          {etlConfigs.map((etl) => {
             const Icon = etl.icon;
             return (
               <TabsTrigger
@@ -466,7 +473,7 @@ export default function ETLMonitor() {
           })}
         </TabsList>
 
-        {ETL_CONFIGS.map((etl) => (
+        {etlConfigs.map((etl) => (
           <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
             {etl.id === 'gdv' ? (
               <GDVTabContent autoRefresh={autoRefresh} />
