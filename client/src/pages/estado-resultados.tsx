@@ -28,7 +28,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Scale, CalendarDays, TrendingUp, TrendingDown, Users, Upload, Download,
@@ -121,6 +121,23 @@ function etiquetaPeriodo(periodo: string): string {
 function etiquetaAcumulado(r?: Resultado): string {
   if (!r || r.mesesAcumulados >= r.mesesDelAcumulado) return "Acumulado año";
   return `Acumulado ${r.mesesAcumulados} de ${r.mesesDelAcumulado} meses`;
+}
+
+/**
+ * Los meses del ERP agrupados por año, del más nuevo al más viejo.
+ *
+ * Con la compuerta de prueba eran uno o dos. Abierta son **154**, y una lista
+ * plana de 154 meses no se recorre: hay que poder saltar al año.
+ */
+function porAnio<T extends { periodo: string }>(meses: T[]): { anio: string; meses: T[] }[] {
+  const grupos = new Map<string, T[]>();
+  for (const m of meses) {
+    const anio = m.periodo.slice(0, 4);
+    grupos.set(anio, [...(grupos.get(anio) ?? []), m]);
+  }
+  return Array.from(grupos.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([anio, meses]) => ({ anio, meses }));
 }
 
 /** Variación contra el mes anterior. Sin base no hay porcentaje, y se dice. */
@@ -584,11 +601,17 @@ function CargarMes({ periodoSugerido }: { periodoSugerido: string }) {
       // Una cuenta con movimiento que no está en el plan deja el mes incompleto
       // y en silencio. Es lo primero que hay que ver, no un detalle.
       const huerfanas = json.sinCuentaEnElPlan ?? [];
+      const detalle = [
+        `${json.lineas.toLocaleString("es-CL")} líneas de comprobante`,
+        // Si faltaban cuentas, el ETL trajo el plan de ese año solo. Se dice:
+        // el usuario pidió un mes y se cargaron dos cosas.
+        json.planTraidoAutomaticamente ? `se trajo además el plan ${json.planTraidoAutomaticamente}` : null,
+      ].filter(Boolean).join(" · ");
       toast({
         title: `${json.cuentas} cuentas traídas de ${etiquetaPeriodo(json.periodo)}`,
         description: huerfanas.length
-          ? `${huerfanas.length} cuenta(s) con movimiento no están en el plan (ej. ${huerfanas[0].codigo}). Traé el plan de ese año.`
-          : `${json.lineas.toLocaleString("es-CL")} líneas de comprobante agregadas.`,
+          ? `${huerfanas.length} cuenta(s) con movimiento siguen sin estar en el plan del ERP (ej. ${huerfanas[0].codigo}). El mes quedó incompleto.`
+          : detalle,
         variant: huerfanas.length ? "destructive" : undefined,
       });
     },
@@ -630,8 +653,13 @@ function CargarMes({ periodoSugerido }: { periodoSugerido: string }) {
             <SelectValue placeholder="Mes" />
           </SelectTrigger>
           <SelectContent>
-            {disponibles.map((p) => (
-              <SelectItem key={p.periodo} value={p.periodo}>{etiquetaPeriodo(p.periodo)}</SelectItem>
+            {porAnio(disponibles).map(({ anio, meses }) => (
+              <SelectGroup key={anio}>
+                <SelectLabel className="text-[11px] uppercase tracking-wider text-slate-400">{anio}</SelectLabel>
+                {meses.map((p) => (
+                  <SelectItem key={p.periodo} value={p.periodo}>{etiquetaPeriodo(p.periodo)}</SelectItem>
+                ))}
+              </SelectGroup>
             ))}
           </SelectContent>
         </Select>

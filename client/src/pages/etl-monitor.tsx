@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -2297,11 +2297,19 @@ function EstadoResultadosTabContent({ autoRefresh }: { autoRefresh: boolean }) {
                     <Select value={mesActual} onValueChange={setMes}>
                       <SelectTrigger className="h-10 w-full sm:w-44"><SelectValue placeholder="Mes" /></SelectTrigger>
                       <SelectContent>
-                        {disponibles.map((p) => (
-                          <SelectItem key={p.periodo} value={p.periodo}>
-                            {mesLegible(p.periodo)}{cargados.has(p.periodo) ? " · cargado" : ""}
-                          </SelectItem>
-                        ))}
+                        {/* Agrupado por año: con la compuerta abierta son 154 meses. */}
+                        {Array.from(new Set(disponibles.map((p) => p.periodo.slice(0, 4))))
+                          .sort((a, b) => b.localeCompare(a))
+                          .map((anio) => (
+                            <SelectGroup key={anio}>
+                              <SelectLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">{anio}</SelectLabel>
+                              {disponibles.filter((p) => p.periodo.startsWith(anio)).map((p) => (
+                                <SelectItem key={p.periodo} value={p.periodo}>
+                                  {mesLegible(p.periodo)}{cargados.has(p.periodo) ? " · cargado" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
                       </SelectContent>
                     </Select>
                     <Button className="h-10" disabled={traerMes.isPending || !mesActual}
