@@ -3281,9 +3281,19 @@ export default function TareasPage() {
                     {/* Task Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className={`text-[13px] sm:text-sm font-medium leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                          {task.title}
-                        </span>
+                        {/* En seguimiento el título ES el cliente: se repetía arriba en
+                            texto plano y abajo como chip. Queda solo el chip, en el lugar
+                            del título (pedido del usuario, sep-2026). */}
+                        {isSeguimientoCard && (task as any).clienteNombre ? (
+                          <span className="inline-flex items-center gap-1 text-[13px] sm:text-sm font-semibold leading-snug text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                            <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                            {(task as any).clienteNombre}
+                          </span>
+                        ) : (
+                          <span className={`text-[13px] sm:text-sm font-medium leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                            {task.title}
+                          </span>
+                        )}
                         {task.priority === 'high' && !isCompleted && (
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Alta prioridad" />
                         )}
@@ -3325,7 +3335,8 @@ export default function TareasPage() {
                             {isSeguimientoCard ? `Revisión ${format(new Date(task.dueDate), "dd MMM", { locale: es })}` : format(new Date(task.dueDate), "dd MMM", { locale: es })}
                           </span>
                         )}
-                        {(task as any).clienteNombre && (
+                        {/* En seguimiento este chip subió al lugar del título. */}
+                        {!isSeguimientoCard && (task as any).clienteNombre && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                             <Building2 className="h-3 w-3" />
                             {(task as any).clienteNombre}
@@ -3351,16 +3362,20 @@ export default function TareasPage() {
                             </span>
                           );
                         })()}
-                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-                          <User className="h-3 w-3" />
-                          {task.assignments.length > 0
-                            ? task.assignments.map(a =>
-                              availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName ||
-                              availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
-                              a.assigneeId
-                            ).join(', ')
-                            : 'Sin asignar'}
-                        </span>
+                        {/* Los responsables no se muestran en seguimiento: la lista ya
+                            viene agrupada por persona. */}
+                        {!isSeguimientoCard && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                            <User className="h-3 w-3" />
+                            {task.assignments.length > 0
+                              ? task.assignments.map(a =>
+                                availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                                availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                                a.assigneeId
+                              ).join(', ')
+                              : 'Sin asignar'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -6186,11 +6201,7 @@ function TaskDetailDialog({
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
-              {esEspacioTrabajo ? (
-                <Badge className="text-xs font-semibold border-0 bg-orange-100 text-orange-700 flex items-center gap-1.5 px-3 py-1.5">
-                  <CheckSquare className="h-3.5 w-3.5" /> {actividadesCompletadas}/{actividadesTotal} tareas
-                </Badge>
-              ) : canUpdateStatus ? (
+              {esEspacioTrabajo ? null : canUpdateStatus ? (
                 <Button
                   size="sm"
                   onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status: isCompleted ? 'pendiente' : 'completada' })}
@@ -6205,30 +6216,6 @@ function TaskDetailDialog({
                       : <><CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Marcar completada</>}
                 </Button>
               ) : null}
-              <Badge className={`text-xs font-semibold border-0 ${
-                task.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
-                task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
-                'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-              }`}>
-                {task.priority === 'high' ? 'Alta' : task.priority === 'low' ? 'Baja' : 'Media'}
-              </Badge>
-              <Badge className={`text-xs font-semibold flex items-center gap-1 border-0 ${
-                task.status === 'completada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
-                task.status === 'en_progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-              }`}>
-                {task.status === 'completada' ? <CheckSquare className="h-3.5 w-3.5" /> :
-                 task.status === 'en_progreso' ? <AlertCircle className="h-3.5 w-3.5" /> :
-                 <Clock className="h-3.5 w-3.5" />}
-                {task.status === 'completada' ? 'Completada' : task.status === 'en_progreso' ? 'En Progreso' : 'Pendiente'}
-              </Badge>
-              <button
-                onClick={onClose}
-                className="ml-2 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
-                title="Cerrar"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
           </div>
           <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} esProyecto={esProyecto} />

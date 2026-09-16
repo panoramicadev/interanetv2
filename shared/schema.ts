@@ -4441,7 +4441,7 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   carpetaTributariaNombre: text("carpeta_tributaria_nombre"),
 
   // Flujo: la crea el vendedor y la resuelve Finanzas
-  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | aprobada | rechazada
+  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | analizando | aprobada | rechazada
   observaciones: text("observaciones"),
   solicitanteId: varchar("solicitante_id"),
   solicitanteNombre: text("solicitante_nombre"),
@@ -4502,9 +4502,14 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
       .refine((v) => (DIAS_SOLICITUD_CREDITO as readonly number[]).includes(v), "Elegí un plazo de pago válido"),
   });
 
-/** Resolución de Finanzas: aprobar (con monto) o rechazar (con motivo). */
+/**
+ * Resolución de Finanzas: aprobar (con monto), rechazar (con motivo) o dejarla
+ * "analizando" —un paso intermedio: la solicitud sigue pendiente y se resuelve
+ * más adelante, pero el vendedor ve que ya la están mirando (pedido del
+ * usuario, sep-2026)—.
+ */
 export const resolverSolicitudCreditoSchema = z.object({
-  estado: z.enum(["aprobada", "rechazada"]),
+  estado: z.enum(["analizando", "aprobada", "rechazada"]),
   creditoAprobado: z.coerce.number().min(0).optional().nullable(),
   observaciones: z.string().trim().max(2000).optional().nullable(),
 });
