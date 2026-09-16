@@ -33,7 +33,7 @@ import {
 import {
   Scale, CalendarDays, TrendingUp, TrendingDown, Users, Upload, Download,
   AlertTriangle, ChevronRight, ChevronDown, Target, ListTree, Info,
-  DatabaseZap, RefreshCw, PlugZap, FlaskConical,
+  DatabaseZap, RefreshCw, PlugZap, FlaskConical, Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -174,6 +174,23 @@ export default function EstadoResultadosPage() {
     return { mes: a.mes + b.mes, anterior: a.anterior + b.anterior };
   }, [resultado]);
 
+  /** Sacar un mes que quedó vacío. El servidor rechaza cualquier otro. */
+  const eliminar = useMutation({
+    mutationFn: async (p: string) => {
+      const res = await apiRequest(`/api/finanzas/balance/periodos/${p}`, { method: "DELETE" });
+      return res.json();
+    },
+    onSuccess: (json: any) => {
+      // Se suelta el período elegido: el que quede lo decide el servidor, que
+      // ahora abre en el más reciente CON datos.
+      setPeriodo("");
+      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/resultado"] });
+      toast({ title: `${etiquetaPeriodo(json.periodo)} eliminado`, description: `${json.saldosEliminados} cuentas en cero sacadas.` });
+    },
+    onError: (err: any) => toast({ title: "No se pudo eliminar", description: err.message, variant: "destructive" }),
+  });
+
   const sinPlan = !cargandoEstado && estado?.cuentas === 0;
   const sinPeriodos = !cargandoEstado && (estado?.periodos.length ?? 0) === 0;
 
@@ -275,16 +292,25 @@ export default function EstadoResultadosPage() {
           </Card>
 
           {!sinPeriodos && periodoActual && estado?.periodosVacios?.includes(periodoActual) && (
-        <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
-          <CardContent className="py-4 flex items-start gap-3 text-sm">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <p className="text-amber-800 dark:text-amber-300">
-              <strong>{etiquetaPeriodo(periodoActual)} está cargado pero no tiene ni un peso.</strong>{" "}
-              Los $0 de abajo son eso, no un mes sin movimiento. Traelo del ERP o elegí otro mes.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+            <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <p className="text-amber-800 dark:text-amber-300 flex-1">
+                  <strong>{etiquetaPeriodo(periodoActual)} está cargado pero no tiene ni un peso.</strong>{" "}
+                  Los $0 de abajo son eso, no un mes sin movimiento. Traelo del ERP, elegí otro mes,
+                  o sacalo de la lista.
+                </p>
+                {/* Sólo sale acá, o sea sólo sobre un mes vacío. Y el cerrojo de
+                    verdad está en el servidor, que recuenta antes de borrar. */}
+                <Button variant="outline" size="sm" disabled={eliminar.isPending}
+                  onClick={() => eliminar.mutate(periodoActual)}
+                  className="h-11 sm:h-9 w-full sm:w-auto flex-shrink-0 rounded-2xl border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/60">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {eliminar.isPending ? "Eliminando…" : "Eliminar este mes vacío"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
       {sinPeriodos && (
             <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">

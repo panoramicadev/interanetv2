@@ -706,6 +706,55 @@ export function registerBalanceRoutes(app: Express) {
   });
 
   /**
+   * Eliminar un mes cargado. **Sólo si no tiene ni un peso.**
+   *
+   * Existe por un caso real: alguien subió el archivo del plan de cuentas por el
+   * botón de los saldos y quedó un 2026-09 con 77 cuentas en cero, que la
+   * pantalla mostraba como un mes sin movimiento. El import ya rechaza ese
+   * archivo, pero el período que quedó había que sacarlo a mano por SQL.
+   *
+   * El cerrojo es el servidor, no la pantalla: se recuenta acá antes de borrar.
+   * Un mes con movimiento se rechaza con 409 aunque alguien llame al endpoint
+   * directo — borrar contabilidad cargada no es una operación de un clic, y si
+   * algún día hace falta, va a ser con su propia confirmación y su propio
+   * motivo, no colándose por esta puerta.
+   */
+  app.delete('/api/finanzas/balance/periodos/:periodo', requireAuth, guard, async (req: any, res: any) => {
+    try {
+      await ensureTables();
+      const periodo = periodoBalanceSchema.safeParse(req.params.periodo);
+      if (!periodo.success) return res.status(400).json({ message: periodo.error.errors[0].message });
+
+      const [cargado] = await db.select().from(balancePeriodos)
+        .where(eq(balancePeriodos.periodo, periodo.data)).limit(1);
+      if (!cargado) return res.status(404).json({ message: 'Ese período no está cargado' });
+      if (cargado.estado === 'cerrado') {
+        return res.status(409).json({ message: `El período ${periodo.data} está cerrado. Reabrilo antes de eliminarlo.` });
+      }
+
+      const [{ conMonto }] = await db.select({
+        conMonto: sql<number>`count(*) FILTER (WHERE debe <> 0 OR haber <> 0 OR saldo <> 0)::int`,
+      }).from(balanceSaldos).where(eq(balanceSaldos.periodo, periodo.data));
+
+      if (conMonto > 0) {
+        return res.status(409).json({
+          message: `${periodo.data} tiene ${conMonto} cuenta(s) con movimiento: no se elimina desde acá. `
+            + 'Este botón sólo saca meses que quedaron vacíos.',
+        });
+      }
+
+      const borrados = await db.delete(balanceSaldos)
+        .where(eq(balanceSaldos.periodo, periodo.data)).returning({ id: balanceSaldos.id });
+      await db.delete(balancePeriodos).where(eq(balancePeriodos.periodo, periodo.data));
+      // El presupuesto de ese mes se va con él: sin período no hay contra qué
+      // compararlo, y dejarlo suelto haría que reaparezca si el mes se recarga.
+      await db.delete(balancePresupuesto).where(eq(balancePresupuesto.periodo, periodo.data));
+
+      res.json({ periodo: periodo.data, saldosEliminados: borrados.length });
+    } catch (error: any) { fallo(res, error, 'eliminar período'); }
+  });
+
+  /**
    * Presupuesto del mes.
    *
    * Hoy sólo tiene sentido para la línea de ingresos: el presupuesto que existe
