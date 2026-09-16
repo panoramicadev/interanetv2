@@ -56,6 +56,8 @@ interface Resultado {
 }
 interface Estado {
   cuentas: number; periodos: string[]; ultimoPeriodo: string | null;
+  /** Meses cargados que no tienen ni un peso. Se marcan en el selector. */
+  periodosVacios: string[];
   talanaConfigurado: boolean; soloResultado: boolean;
 }
 /** Lo que hay del otro lado, en Softland. Ver server/etl-contabilidad.ts. */
@@ -221,7 +223,12 @@ export default function EstadoResultadosPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {(estado?.periodos ?? []).slice().reverse().map((p) => (
-                          <SelectItem key={p} value={p}>{etiquetaPeriodo(p)}</SelectItem>
+                          <SelectItem key={p} value={p}>
+                            {etiquetaPeriodo(p)}
+                            {/* Un mes sin un peso se dice. Si no, el que lo elige
+                                lee "$0 en todo" como "no hubo movimiento". */}
+                            {estado?.periodosVacios?.includes(p) ? " · sin datos" : ""}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -250,7 +257,19 @@ export default function EstadoResultadosPage() {
             </CardContent>
           </Card>
 
-          {sinPeriodos && (
+          {!sinPeriodos && periodoActual && estado?.periodosVacios?.includes(periodoActual) && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
+          <CardContent className="py-4 flex items-start gap-3 text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-amber-800 dark:text-amber-300">
+              <strong>{etiquetaPeriodo(periodoActual)} está cargado pero no tiene ni un peso.</strong>{" "}
+              Los $0 de abajo son eso, no un mes sin movimiento. Traelo del ERP o elegí otro mes.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {sinPeriodos && (
             <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
               <CardContent className="py-4 flex items-start gap-3 text-sm">
                 <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
