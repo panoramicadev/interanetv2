@@ -54,6 +54,14 @@ import mssql from 'mssql';
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 import { naturalezaDe } from './balance-plan';
+import { etlExecutionLog } from '../shared/schema';
+
+/**
+ * El nombre con el que este ETL aparece en Monitor ETL. Tiene que ser el mismo
+ * en `ventas.etl_execution_log`, en el router de `/api/etl/execute` y en la
+ * pestaña del panel: de ahí sale el estado, el historial y las estadísticas.
+ */
+export const ETL_NAME = 'estado_resultados';
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -86,6 +94,17 @@ const GRANDES_CUENTAS = ['41', '51', '52'];
  * (`periodoHabilitado`) y tanto la pantalla como los endpoints la respetan.
  */
 export const PERIODOS_HABILITADOS: readonly string[] | null = ['2026-07'];
+
+/**
+ * Qué mes trae el botón genérico "Ejecutar ETL" de Monitor ETL, que no sabe de
+ * períodos. Mientras haya compuerta es el mes habilitado; cuando se levante, el
+ * mes anterior al corriente — el actual todavía se está cargando en el ERP.
+ */
+export function periodoPorDefecto(hoy: Date = new Date()): string {
+  if (PERIODOS_HABILITADOS?.length) return PERIODOS_HABILITADOS[0];
+  const anterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  return `${anterior.getFullYear()}-${String(anterior.getMonth() + 1).padStart(2, '0')}`;
+}
 
 /** ¿Se puede traer este mes hoy? Único lugar que decide. */
 export function periodoHabilitado(periodo: string): boolean {
@@ -345,6 +364,7 @@ export type ResumenPeriodo = {
  * cuadraría.
  */
 export async function sincronizarPeriodo(periodo: string, usuarioId?: string | null): Promise<ResumenPeriodo> {
+  const empezo = Date.now();
   // El cerrojo va acá y no sólo en el endpoint: el día que esto lo llame el
   // scheduler, la compuerta tiene que seguir puesta.
   if (!periodoHabilitado(periodo)) {
@@ -352,6 +372,18 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
   }
   const { desde, hasta } = rangoDelMes(periodo);
   let pool: mssql.ConnectionPool | null = null;
+
+  // Se registra en el mismo log que los demás ETLs para que Monitor ETL lo vea
+  // sin saber nada de contabilidad: estado, historial y estadísticas salen de acá.
+  const [corrida] = await db.insert(etlExecutionLog).values({
+    etlName: ETL_NAME,
+    startTime: new Date(),
+    status: 'running',
+    period: periodo,
+    documentTypes: 'CCOMPRD/CCOMPRE',
+    branches: EMPRESA,
+  }).returning();
+
   try {
     pool = await conectar();
     const enLista = GRANDES_CUENTAS.map((g) => `'${g}'`).join(',');
@@ -397,6 +429,11 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
     // Si no, pedir un mes vacío borraría los saldos que ya estaban cargados —por
     // ejemplo los que entraron por Excel— y el 404 llegaría con el daño hecho.
     if (movimientos.recordset.length === 0) {
+      await db.update(etlExecutionLog).set({
+        status: 'success', endTime: new Date(), recordsProcessed: 0,
+        executionTimeMs: Date.now() - empezo,
+        statistics: JSON.stringify({ sinMovimiento: true }),
+      }).where(sql`id = ${corrida.id}`);
       return {
         periodo, cuentas: 0, lineas: 0, debe: 0, haber: 0,
         sinCuentaEnElPlan: [],
@@ -435,7 +472,7 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
         cargado_por = ${usuarioId ?? null}, updated_at = now()
     `);
 
-    return {
+    const resumen = {
       periodo,
       cuentas: saldos.length,
       lineas: saldos.reduce((a, s) => a + s.lineas, 0),
@@ -444,6 +481,27 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
       sinCuentaEnElPlan,
       comprobantesDescuadrados: descuadre.recordset[0]?.n ?? 0,
     };
+
+    await db.update(etlExecutionLog).set({
+      status: 'success', endTime: new Date(),
+      recordsProcessed: resumen.cuentas,
+      executionTimeMs: Date.now() - empezo,
+      statistics: JSON.stringify({
+        cuentas: resumen.cuentas, lineas: resumen.lineas,
+        debe: resumen.debe, haber: resumen.haber,
+        sinCuentaEnElPlan: sinCuentaEnElPlan.length,
+        comprobantesDescuadrados: resumen.comprobantesDescuadrados,
+      }),
+    }).where(sql`id = ${corrida.id}`);
+
+    return resumen;
+  } catch (error: any) {
+    await db.update(etlExecutionLog).set({
+      status: 'error', endTime: new Date(),
+      executionTimeMs: Date.now() - empezo,
+      errorMessage: error?.message || String(error),
+    }).where(sql`id = ${corrida.id}`).catch(() => { /* el log no puede tapar el error real */ });
+    throw error;
   } finally {
     try { await pool?.close(); } catch { /* ya venía muerto */ }
   }
