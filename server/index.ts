@@ -311,7 +311,7 @@ async function initializeBackgroundServices() {
 
       // Ventas Incremental
       try {
-        log('📊 [ETL-SCHEDULER] (1/4) Starting Ventas Incremental...');
+        log('📊 [ETL-SCHEDULER] (1/5) Starting Ventas Incremental...');
         const ventasResult = await executeIncrementalETL();
         if (ventasResult.success) {
           log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
@@ -325,7 +325,7 @@ async function initializeBackgroundServices() {
       // GDV
       try {
         const { executeGDVETL } = await import('./etl-gdv');
-        log('📊 [ETL-SCHEDULER] (2/4) Starting GDV...');
+        log('📊 [ETL-SCHEDULER] (2/5) Starting GDV...');
         const gdvResult = await executeGDVETL();
         if (gdvResult.success) {
           log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
@@ -338,7 +338,7 @@ async function initializeBackgroundServices() {
 
       // NVV
       try {
-        log('📊 [ETL-SCHEDULER] (3/4) Starting NVV...');
+        log('📊 [ETL-SCHEDULER] (3/5) Starting NVV...');
         const nvvResult = await executeNVVETL();
         if (nvvResult.success) {
           log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
@@ -354,7 +354,7 @@ async function initializeBackgroundServices() {
       // Monitor ETL → pestaña Clientes.
       try {
         const { executeClientETL } = await import('./etl-clients');
-        log('📊 [ETL-SCHEDULER] (4/4) Starting Clientes...');
+        log('📊 [ETL-SCHEDULER] (4/5) Starting Clientes...');
         const clientesResult = await executeClientETL();
         if (clientesResult.success) {
           log(`✅ [ETL-SCHEDULER] Clientes: ${clientesResult.recordsProcessed} registros en ${clientesResult.executionTimeMs}ms`);
@@ -363,6 +363,24 @@ async function initializeBackgroundServices() {
         }
       } catch (error: any) {
         console.error('[ETL-SCHEDULER] Clientes ETL failed:', error.message);
+      }
+
+      // Costos (precios GRI por SKU). Nunca estuvo acá: sólo corría cuando
+      // alguien apretaba el botón en Monitor ETL, y entre corrida y corrida
+      // pasaban semanas. Si el ETL no pasa, el historial de costos depende de
+      // que alguien abra Margen o Lista de Precios — que es justo lo que hacía
+      // que el diff llegara siempre vacío (ver persistirPreciosGri).
+      try {
+        const { executeCostosETL } = await import('./etl-costos');
+        log('📊 [ETL-SCHEDULER] (5/5) Starting Costos...');
+        const costosResult = await executeCostosETL();
+        if (costosResult.success) {
+          log(`✅ [ETL-SCHEDULER] Costos: ${costosResult.recordsProcessed} SKUs, ${costosResult.newSnapshots} snapshots nuevos en ${costosResult.executionTimeMs}ms`);
+        } else {
+          console.error(`❌ [ETL-SCHEDULER] Costos falló: ${costosResult.error}`);
+        }
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] Costos ETL failed:', error.message);
       }
 
       log('✅ [ETL-SCHEDULER] All ETLs completed');

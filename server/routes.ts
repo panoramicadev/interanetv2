@@ -102,7 +102,8 @@ import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitte
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import { executeClientETL, clientEtlProgressEmitter } from "./etl-clients";
-import { executeCostosETL, costosEtlProgressEmitter } from "./etl-costos";
+import { executeCostosETL, costosEtlProgressEmitter, CONSULTA_PRECIOS_GRI, persistirPreciosGri } from "./etl-costos";
+import { sincronizarPeriodo as sincronizarPeriodoContable, periodoPorDefecto as periodoContablePorDefecto } from "./etl-contabilidad";
 import { LINE_COST_GRI_EXPR } from "./costo-linea";
 import * as NotifyHelper from "./notifications-helper";
 import { logPanelChange, panelSectionForTask, panelTaskTitle, normalizePanelSegmento, registerPanelChangesRoutes } from "./panel-changes";
@@ -30834,25 +30835,8 @@ export function registerRoutes(app: Express): Server {
 
       const pool = await mssql.connect(sqlConfig);
 
-      // Get the latest GRI unit price per SKU from Bodega 006
-      const result = await pool.request().query(`
-        WITH RankedGRI AS (
-          SELECT 
-            LTRIM(RTRIM(d.KOPRCT)) AS sku,
-            d.PPPRNE AS precio_unitario,
-            e.FEEMDO AS fecha,
-            ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(d.KOPRCT)) ORDER BY e.FEEMDO DESC, d.IDMAEDDO DESC) AS rn
-          FROM dbo.MAEDDO d
-          INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
-          WHERE e.TIDO = 'GRI'
-            AND d.BOSULIDO = '006'
-            AND d.KOPRCT IS NOT NULL
-            AND d.PPPRNE > 0
-        )
-        SELECT sku, precio_unitario, fecha
-        FROM RankedGRI
-        WHERE rn = 1
-      `);
+      // La misma consulta que usa el ETL, con el filtro de conceptos ZZ incluido.
+      const result = await pool.request().query(CONSULTA_PRECIOS_GRI);
 
       await pool.close();
 
@@ -30868,37 +30852,20 @@ export function registerRoutes(app: Express): Server {
       // Cache the result in memory
       griPriceCache = { data: priceMap, timestamp: Date.now() };
 
-      // Persist to PostgreSQL so margen analysis can JOIN it. Idempotent: creates the
-      // table on first run, then upserts the latest snapshot. Errors here must not
-      // break the API (the in-memory cache is the source of truth for the response).
+      // Persistir por el MISMO camino que el ETL.
+      //
+      // Antes esto hacía su propio upsert sobre gri_prices_cache sin tocar
+      // gri_price_history. Como estas cinco pantallas (Lista de Precios, Mix,
+      // Ofertas, Inventario y Margen) lo pegan cada 10 minutos, la caché quedaba
+      // siempre al día con el ERP y el ETL de Costos encontraba el diff vacío:
+      // 17 corridas seguidas con newSnapshots 0 y el historial en cero.
+      //
+      // Los errores no rompen la respuesta: la caché en memoria ya tiene el dato.
       try {
-        await db.execute(sql`
-          CREATE TABLE IF NOT EXISTS gri_prices_cache (
-            sku VARCHAR(100) PRIMARY KEY,
-            price NUMERIC(18, 6) NOT NULL,
-            fecha DATE,
-            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-          )
-        `);
-        const entries = Object.entries(priceMap);
-        if (entries.length > 0) {
-          // Upsert in batches of 1000 to avoid huge query payloads
-          const batchSize = 1000;
-          for (let i = 0; i < entries.length; i += batchSize) {
-            const batch = entries.slice(i, i + batchSize);
-            const values = batch.map(([sku, v]) =>
-              sql`(${sku}, ${v.price}, ${v.date}, NOW())`
-            );
-            await db.execute(sql`
-              INSERT INTO gri_prices_cache (sku, price, fecha, updated_at)
-              VALUES ${sql.join(values, sql`, `)}
-              ON CONFLICT (sku) DO UPDATE SET
-                price = EXCLUDED.price,
-                fecha = EXCLUDED.fecha,
-                updated_at = EXCLUDED.updated_at
-            `);
-          }
-        }
+        const { cambios } = await persistirPreciosGri(
+          Object.entries(priceMap).map(([sku, v]) => ({ sku, price: v.price, fecha: v.date })),
+        );
+        if (cambios > 0) console.log(`📈 [GRI Prices] ${cambios} cambio(s) de costo registrados en el historial`);
       } catch (persistErr) {
         console.warn('⚠️ [GRI Prices] Failed to persist to PostgreSQL cache:', persistErr);
       }
@@ -34900,7 +34867,11 @@ export function registerRoutes(app: Express): Server {
             ? executeClientETL()
             : etlName === 'costos'
               ? executeCostosETL()
-              : executeIncrementalETL(etlName as string);
+              // El Estado de Resultados trae un MES, y este botón no sabe de
+              // períodos: usa el que corresponde (hoy, el único habilitado).
+              : etlName === 'estado_resultados'
+                ? sincronizarPeriodoContable(periodoContablePorDefecto(), req.user?.id ?? null)
+                : executeIncrementalETL(etlName as string);
 
       etlPromise
         .then((result: any) => {
@@ -35001,7 +34972,7 @@ export function registerRoutes(app: Express): Server {
         if (!alive()) return; // corrida vieja: ignorar
         console.error('[SYNC-ALL] Watchdog: timeout alcanzado — liberando candado colgado');
         if (syncAllStatus) {
-          for (const k of ['ventas', 'gdv', 'nvv', 'clientes'] as const) {
+          for (const k of ['ventas', 'gdv', 'nvv', 'clientes', 'costos'] as const) {
             if (syncAllStatus[k] && syncAllStatus[k].status === 'running') {
               syncAllStatus[k] = { ...syncAllStatus[k], status: 'error', error: 'Tiempo de espera agotado (timeout)', progress: 0, progressMessage: '' };
             }
@@ -35018,6 +34989,7 @@ export function registerRoutes(app: Express): Server {
         gdv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         nvv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         clientes: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
+        costos: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
         totalRecords: 0,
         totalTimeMs: 0,
         completedAt: null,
@@ -35152,9 +35124,29 @@ export function registerRoutes(app: Express): Server {
           console.error('[SYNC-ALL] Clientes failed:', error.message);
         }
 
+        // ── Costos (precios GRI por SKU) ──────────────────────────────────
+        // Faltaba: "Sincronizar Todo" sincronizaba todo menos esto.
+        try {
+          if (alive()) syncAllStatus.costos = { status: 'running', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: 'Extrayendo precios GRI...' };
+          const costosResult = await executeCostosETL();
+          if (alive()) {
+            syncAllStatus.costos = {
+              status: costosResult.success ? 'success' : 'error',
+              recordsProcessed: costosResult.recordsProcessed || 0,
+              executionTimeMs: costosResult.executionTimeMs || 0,
+              error: costosResult.error || null,
+              progress: 100,
+              progressMessage: costosResult.success ? `${costosResult.newSnapshots} snapshots nuevos` : '',
+            };
+          }
+        } catch (error: any) {
+          if (alive()) syncAllStatus.costos = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          console.error('[SYNC-ALL] Costos failed:', error.message);
+        }
+
         // Si la corrida fue cancelada, no tocar estado ni candado (ya lo hizo el cancel)
         if (!alive()) { console.log('🛑 [SYNC-ALL] Corrida cancelada — resultado descartado'); return; }
-        syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0) + (syncAllStatus.clientes.recordsProcessed || 0);
+        syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0) + (syncAllStatus.clientes.recordsProcessed || 0) + (syncAllStatus.costos.recordsProcessed || 0);
         syncAllStatus.totalTimeMs = Date.now() - startTime;
         syncAllStatus.completedAt = new Date().toISOString();
         releaseSyncAll();
@@ -35167,7 +35159,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json({
         success: true,
-        message: 'Sincronización completa iniciada (Ventas → GDV → NVV → Clientes)',
+        message: 'Sincronización completa iniciada (Ventas → GDV → NVV → Clientes → Costos)',
         isRunning: true,
       });
     } catch (error: any) {

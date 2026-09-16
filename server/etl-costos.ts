@@ -38,6 +38,111 @@ function emitProgress(step: number, totalSteps: number, message: string, details
 }
 
 /**
+ * El filtro que define qué es un costo de mercadería, en un solo lugar.
+ *
+ * Los `ZZ*` son códigos de concepto —fletes, servicios, descuentos—: no son
+ * mercadería y su "precio" contamina el costo. ZZSERVICIOS llegó a arrastrar
+ * $1.547.550 por unidad desde una recepción de 2022.
+ *
+ * Estaba escrito sólo en el ETL. El endpoint `/api/inventory/gri-prices` corría
+ * la misma consulta SIN el filtro y volvía a meter los conceptos en la caché,
+ * que es la que leen Margen, Lista de Precios e Inventario.
+ */
+export const CONSULTA_PRECIOS_GRI = `
+  WITH RankedGRI AS (
+    SELECT
+      LTRIM(RTRIM(d.KOPRCT)) AS sku,
+      d.PPPRNE AS precio_unitario,
+      e.FEEMDO AS fecha,
+      ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(d.KOPRCT)) ORDER BY e.FEEMDO DESC, d.IDMAEDDO DESC) AS rn
+    FROM dbo.MAEDDO d
+    INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
+    WHERE e.TIDO = 'GRI'
+      AND d.BOSULIDO = '006'
+      AND d.KOPRCT IS NOT NULL
+      AND d.KOPRCT NOT LIKE 'ZZ%'
+      AND d.PPPRNE > 0
+  )
+  SELECT sku, precio_unitario, fecha
+  FROM RankedGRI
+  WHERE rn = 1
+`;
+
+export type PrecioGri = { sku: string; price: number; fecha: string | null };
+
+/** Diferencias menores a un centavo se consideran el mismo precio. */
+const PRICE_EPSILON = 0.01;
+
+/**
+ * Guardar los precios: historial primero, caché después.
+ *
+ * ── Por qué esto existe ──────────────────────────────────────────────────────
+ * `gri_prices_cache` tenía DOS escritores: este ETL, que además anota en
+ * `gri_price_history` cuando el precio cambió, y el endpoint
+ * `/api/inventory/gri-prices`, que la refrescaba sin anotar nada. Ese endpoint
+ * lo pegan cinco pantallas con un TTL de 10 minutos, así que la caché estaba
+ * siempre al día con el ERP **antes** de que el ETL corriera.
+ *
+ * Resultado: el ETL comparaba contra una caché ya idéntica al ERP, el diff daba
+ * vacío, y reportaba éxito sin guardar nada. En producción fueron 17 corridas
+ * seguidas desde mayo con `newSnapshots: 0` y `gri_price_history` en 0 filas.
+ *
+ * La solución no es dejar un solo escritor —eso costaría frescura en Margen y
+ * Lista de Precios—: es que los dos caminos pasen por acá. Así un cambio de
+ * precio queda registrado lo detecte quien lo detecte, y el historial no depende
+ * de que el ETL gane la carrera.
+ */
+export async function persistirPreciosGri(
+  precios: PrecioGri[],
+  executionId: string | null = null,
+): Promise<{ cambios: number; sinCambio: number }> {
+  if (precios.length === 0) return { cambios: 0, sinCambio: 0 };
+
+  const anterior = await db.execute(sql`SELECT sku, price::TEXT AS price FROM gri_prices_cache`);
+  const ultimoPorSku = new Map<string, number>();
+  for (const row of (anterior as any).rows) {
+    ultimoPorSku.set(String(row.sku).toUpperCase(), Number(row.price));
+  }
+
+  const cambiados: PrecioGri[] = [];
+  let sinCambio = 0;
+  for (const p of precios) {
+    const ultimo = ultimoPorSku.get(p.sku);
+    if (ultimo === undefined || Math.abs(ultimo - p.price) > PRICE_EPSILON) cambiados.push(p);
+    else sinCambio++;
+  }
+
+  const BATCH = 1000;
+
+  // El historial va PRIMERO. Si algo falla entre los dos pasos, se pierde
+  // frescura en la caché —que se rehace sola en la próxima pasada— y no un
+  // cambio de precio, que no se puede reconstruir.
+  for (let i = 0; i < cambiados.length; i += BATCH) {
+    const lote = cambiados.slice(i, i + BATCH);
+    const values = lote.map((p) => sql`(${p.sku}, NOW(), ${p.price}, ${p.fecha}, ${executionId})`);
+    await db.execute(sql`
+      INSERT INTO gri_price_history (sku, snapshot_at, price, fecha, execution_id)
+      VALUES ${sql.join(values, sql`, `)}
+    `);
+  }
+
+  for (let i = 0; i < precios.length; i += BATCH) {
+    const lote = precios.slice(i, i + BATCH);
+    const values = lote.map((p) => sql`(${p.sku}, ${p.price}, ${p.fecha}, NOW())`);
+    await db.execute(sql`
+      INSERT INTO gri_prices_cache (sku, price, fecha, updated_at)
+      VALUES ${sql.join(values, sql`, `)}
+      ON CONFLICT (sku) DO UPDATE SET
+        price = EXCLUDED.price,
+        fecha = EXCLUDED.fecha,
+        updated_at = EXCLUDED.updated_at
+    `);
+  }
+
+  return { cambios: cambiados.length, sinCambio };
+}
+
+/**
  * ETL de Costos: extrae el último precio unitario de GRI (Bodega 006) por SKU.
  * Excluye los códigos de concepto (ZZ*: fletes, servicios, descuentos): no son
  * mercadería y su "precio" contamina el costo — ZZSERVICIOS llegó a arrastrar
@@ -118,27 +223,9 @@ export async function executeCostosETL(): Promise<CostosETLResult> {
     // ── PASO 2: Extraer último precio GRI por SKU ────────────────────────
     emitProgress(2, TOTAL_STEPS, 'Extrayendo precios GRI', 'Bodega 006...');
 
-    const result = await pool.request().query(`
-      WITH RankedGRI AS (
-        SELECT
-          LTRIM(RTRIM(d.KOPRCT)) AS sku,
-          d.PPPRNE AS precio_unitario,
-          e.FEEMDO AS fecha,
-          ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(d.KOPRCT)) ORDER BY e.FEEMDO DESC, d.IDMAEDDO DESC) AS rn
-        FROM dbo.MAEDDO d
-        INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
-        WHERE e.TIDO = 'GRI'
-          AND d.BOSULIDO = '006'
-          AND d.KOPRCT IS NOT NULL
-          AND d.KOPRCT NOT LIKE 'ZZ%'
-          AND d.PPPRNE > 0
-      )
-      SELECT sku, precio_unitario, fecha
-      FROM RankedGRI
-      WHERE rn = 1
-    `);
+    const result = await pool.request().query(CONSULTA_PRECIOS_GRI);
 
-    const erpPrices: Array<{ sku: string; price: number; fecha: string | null }> = [];
+    const erpPrices: PrecioGri[] = [];
     for (const row of result.recordset) {
       if (row.sku && row.precio_unitario) {
         const fecha = row.fecha ? new Date(row.fecha).toISOString().split('T')[0] : null;
@@ -170,67 +257,18 @@ export async function executeCostosETL(): Promise<CostosETLResult> {
       };
     }
 
-    // ── PASO 3: Comparar contra último snapshot ──────────────────────────
+    // ── PASOS 3 y 4: comparar y persistir ────────────────────────────────
+    // La comparación y la escritura viven en `persistirPreciosGri` porque el
+    // endpoint /api/inventory/gri-prices hace exactamente lo mismo. Cuando eran
+    // dos copias, la del endpoint no anotaba historial y dejaba este diff en
+    // cero para siempre.
     emitProgress(3, TOTAL_STEPS, 'Comparando con último snapshot', `${erpPrices.length} SKUs`);
-
-    const lastSnapshotResult = await db.execute(sql`
-      SELECT sku, price::TEXT AS price
-      FROM gri_prices_cache
-    `);
-    const lastPriceBySku = new Map<string, number>();
-    for (const row of (lastSnapshotResult as any).rows) {
-      lastPriceBySku.set(String(row.sku).toUpperCase(), Number(row.price));
-    }
-
-    const changed: Array<{ sku: string; price: number; fecha: string | null }> = [];
-    let unchanged = 0;
-    const PRICE_EPSILON = 0.01; // diferencias <1 centavo se consideran iguales
-    for (const p of erpPrices) {
-      const last = lastPriceBySku.get(p.sku);
-      if (last === undefined || Math.abs(last - p.price) > PRICE_EPSILON) {
-        changed.push(p);
-      } else {
-        unchanged++;
-      }
-    }
-
-    console.log(`   📊 Cambios detectados: ${changed.length} | Sin cambio: ${unchanged}`);
-
-    // ── PASO 4: Persistir cache (latest) e historial (sólo cambios) ──────
-    emitProgress(4, TOTAL_STEPS, 'Persistiendo snapshots', `${changed.length} nuevos`);
-
-    const BATCH_SIZE = 1000;
-
-    // 4a. Upsert en gri_prices_cache (siempre, mantiene "último valor")
-    for (let i = 0; i < erpPrices.length; i += BATCH_SIZE) {
-      const batch = erpPrices.slice(i, i + BATCH_SIZE);
-      const values = batch.map(p => sql`(${p.sku}, ${p.price}, ${p.fecha}, NOW())`);
-      await db.execute(sql`
-        INSERT INTO gri_prices_cache (sku, price, fecha, updated_at)
-        VALUES ${sql.join(values, sql`, `)}
-        ON CONFLICT (sku) DO UPDATE SET
-          price = EXCLUDED.price,
-          fecha = EXCLUDED.fecha,
-          updated_at = EXCLUDED.updated_at
-      `);
-    }
-
-    // 4b. Append en gri_price_history (sólo cambios — un snapshot por cambio)
-    if (changed.length > 0) {
-      for (let i = 0; i < changed.length; i += BATCH_SIZE) {
-        const batch = changed.slice(i, i + BATCH_SIZE);
-        const values = batch.map(p =>
-          sql`(${p.sku}, NOW(), ${p.price}, ${p.fecha}, ${executionLog.id})`
-        );
-        await db.execute(sql`
-          INSERT INTO gri_price_history (sku, snapshot_at, price, fecha, execution_id)
-          VALUES ${sql.join(values, sql`, `)}
-        `);
-      }
-    }
+    const { cambios: changedCount, sinCambio: unchanged } = await persistirPreciosGri(erpPrices, executionLog.id);
+    console.log(`   📊 Cambios detectados: ${changedCount} | Sin cambio: ${unchanged}`);
+    emitProgress(4, TOTAL_STEPS, 'Snapshots persistidos', `${changedCount} nuevos`);
 
     // ── PASO 5: Cerrar ejecución exitosa ────────────────────────────────
-    emitProgress(5, TOTAL_STEPS, 'ETL Costos completado', `${changed.length} cambios, ${unchanged} sin cambio`);
+    emitProgress(5, TOTAL_STEPS, 'ETL Costos completado', `${changedCount} cambios, ${unchanged} sin cambio`);
 
     await db.update(etlExecutionLog)
       .set({
@@ -240,19 +278,19 @@ export async function executeCostosETL(): Promise<CostosETLResult> {
         executionTimeMs: Date.now() - startTime,
         statistics: JSON.stringify({
           totalErp: erpPrices.length,
-          newSnapshots: changed.length,
+          newSnapshots: changedCount,
           unchanged,
         }),
       })
       .where(sql`id = ${executionLog.id}`);
 
-    console.log(`\n✅ ETL Costos: ${changed.length} nuevos snapshots, ${unchanged} sin cambio`);
+    console.log(`\n✅ ETL Costos: ${changedCount} nuevos snapshots, ${unchanged} sin cambio`);
     console.log(`⏱️  Tiempo: ${((Date.now() - startTime) / 1000).toFixed(2)}s\n`);
 
     return {
       success: true,
       recordsProcessed: erpPrices.length,
-      newSnapshots: changed.length,
+      newSnapshots: changedCount,
       unchanged,
       executionTimeMs: Date.now() - startTime,
     };

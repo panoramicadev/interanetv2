@@ -192,6 +192,22 @@ export function parsearSaldos(
   }
 
   const filas = leerHoja(buffer);
+
+  /**
+   * ¿El archivo trae siquiera una columna de monto?
+   *
+   * Sin esto, subir el archivo del PLAN DE CUENTAS por el botón de saldos
+   * "funcionaba": ninguna columna calzaba, `aNumero` devolvía 0 para todo, y el
+   * mes quedaba cargado con una fila por cuenta en cero. Pasó en producción —el
+   * período 2026-09 con 77 ceros— y desde la pantalla se lee como "ese mes no
+   * tuvo movimiento", que es una afirmación bastante más fuerte que "subiste el
+   * archivo equivocado".
+   */
+  const encabezados = Object.keys(filas[0] ?? {});
+  const hayColumnaDeMonto = encabezados.some((h) =>
+    ['DEBE', 'HABER', 'SALDO', 'MONTO', 'TOTAL', 'DEBITOS', 'CREDITOS']
+      .includes(h.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')));
+
   const saldos: { cuentaCodigo: string; debe: number; haber: number; saldo: number; monto: number }[] = [];
   const errores: ErrorFila[] = [];
   const vistos = new Set<string>();
@@ -220,5 +236,5 @@ export function parsearSaldos(
     });
   });
 
-  return { saldos, errores };
+  return { saldos, errores, hayColumnaDeMonto, encabezados };
 }

@@ -620,7 +620,18 @@ export function registerBalanceRoutes(app: Express) {
         return res.status(400).json({ message: 'Primero hay que importar el plan de cuentas' });
       }
 
-      const { saldos, errores } = parsearSaldos(req.file.buffer, plan);
+      const { saldos, errores, hayColumnaDeMonto, encabezados } = parsearSaldos(req.file.buffer, plan);
+
+      // Un archivo sin columna de monto no es un mes vacío: es el archivo
+      // equivocado. Se rechaza antes de escribir, porque guardarlo deja un
+      // período que la pantalla muestra como "no hubo movimiento".
+      if (!hayColumnaDeMonto) {
+        return res.status(400).json({
+          message: 'El archivo no tiene ninguna columna de monto (DEBE, HABER o SALDO). '
+            + `¿Subiste el plan de cuentas en vez de los saldos? Las columnas que trae son: ${encabezados.join(', ') || '(ninguna)'}.`,
+        });
+      }
+
       const resumen = { periodo: periodo.data, leidas: saldos.length, errores };
       if (req.query.modo === 'preview') return res.json({ preview: true, ...resumen, muestra: saldos.slice(0, 20) });
       if (saldos.length === 0) {

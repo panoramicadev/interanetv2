@@ -16,6 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Collapsible,
@@ -51,6 +55,9 @@ import {
   AlertCircle,
   Package,
   DollarSign,
+  Scale,
+  FlaskConical,
+  AlertTriangle,
   Building2,
   Zap,
   Users
@@ -268,6 +275,15 @@ const ETL_CONFIGS = [
     icon: DollarSign,
     color: 'amber',
   },
+  {
+    // Mismo id que `ETL_NAME` en server/etl-contabilidad.ts y que la rama del
+    // router en /api/etl/execute: de ahí salen estado, historial y estadísticas.
+    id: 'estado_resultados',
+    name: 'Estado de Resultados',
+    description: 'Contabilidad de Softland (CCOMPRD/CCOMPRE). Trae un mes completo y lo reemplaza.',
+    icon: Scale,
+    color: 'orange',
+  },
 ];
 
 export default function ETLMonitor() {
@@ -458,6 +474,8 @@ export default function ETLMonitor() {
               <NVVTabContent autoRefresh={autoRefresh} />
             ) : etl.id === 'costos' ? (
               <CostosTabContent autoRefresh={autoRefresh} />
+            ) : etl.id === 'estado_resultados' ? (
+              <EstadoResultadosTabContent autoRefresh={autoRefresh} />
             ) : (
               <>
                 <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
@@ -486,6 +504,7 @@ export default function ETLMonitor() {
             {renderETLRow('Guías de Despacho (GDV)', syncStatus?.gdv)}
             {renderETLRow('Notas de Venta (NVV)', syncStatus?.nvv)}
             {renderETLRow('Clientes (maestro ERP)', syncStatus?.clientes)}
+            {renderETLRow('Costos (precios GRI)', syncStatus?.costos)}
           </div>
 
           {!isSyncAllRunning && syncStatus?.completedAt && (
@@ -1023,10 +1042,19 @@ function ETLStatusSection({
                   {formatChileTime(lastExecution.startTime)}
                 </p>
               </div>
+              {/* `totalFactVentasRecords` cuenta ventas.fact_ventas, que no tiene
+                  nada que ver con Costos ni con el Estado de Resultados: ahí
+                  mostraba 111.681 como si fuera lo que ese ETL había traído.
+                  Para los demás se muestra lo que la corrida procesó de verdad. */}
               <div>
-                <p className="text-sm text-muted-foreground">Total Registros fact_ventas</p>
+                <p className="text-sm text-muted-foreground">
+                  {etlName === 'ventas_incremental' ? 'Total Registros fact_ventas' : 'Registros Procesados'}
+                </p>
                 <p className="font-semibold text-2xl" data-testid="text-records-processed">
-                  {(lastExecution as any).totalFactVentasRecords?.toLocaleString('es-CL') || '0'}
+                  {(etlName === 'ventas_incremental'
+                    ? (lastExecution as any).totalFactVentasRecords
+                    : lastExecution.recordsProcessed
+                  )?.toLocaleString('es-CL') ?? '0'}
                 </p>
               </div>
               <div>
@@ -2101,6 +2129,207 @@ function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// ────────────────────────────────────────────────────────────────────────────
+// Estado de Resultados — la contabilidad de Softland, mes a mes
+//
+// A diferencia de los demás, este ETL trae UN MES, no "lo nuevo desde la última
+// vez". Por eso la pestaña muestra qué meses se pueden traer y cuáles ya están
+// cargados, en vez de sólo un botón: el botón genérico de arriba trae el mes por
+// defecto (hoy, el único habilitado por la compuerta de prueba).
+// ────────────────────────────────────────────────────────────────────────────
+
+interface ErpContabilidadEstado {
+  disponible: boolean;
+  error?: string;
+  servidor: string;
+  base: string;
+  empresa: string;
+  anios: string[];
+  periodos: { periodo: string; comprobantes: number; lineas: number }[];
+  limitadoA: string[] | null;
+  mesesFueraDelLimite: number;
+}
+
+interface BalanceEstado {
+  cuentas: number;
+  periodos: string[];
+  ultimoPeriodo: string | null;
+}
+
+function mesLegible(periodo: string): string {
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+    "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const [ano, mes] = periodo.split("-").map(Number);
+  const n = meses[mes - 1] ?? periodo;
+  return `${n.charAt(0).toUpperCase()}${n.slice(1)} ${ano}`;
+}
+
+function EstadoResultadosTabContent({ autoRefresh }: { autoRefresh: boolean }) {
+  const { toast } = useToast();
+  const [mes, setMes] = useState("");
+  const [anio, setAnio] = useState("");
+
+  const { data: erp, isLoading: cargandoErp } = useQuery<ErpContabilidadEstado>({
+    queryKey: ["/api/finanzas/balance/erp/estado"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const { data: estado } = useQuery<BalanceEstado>({
+    queryKey: ["/api/finanzas/balance/estado"],
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const disponibles = erp?.periodos ?? [];
+  const mesActual = mes || disponibles[0]?.periodo || "";
+  const anioActual = anio || erp?.anios[0] || "";
+  const cargados = new Set(estado?.periodos ?? []);
+
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
+    queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=estado_resultados`] });
+  };
+
+  const traerPlan = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/finanzas/balance/erp/plan", { method: "POST", data: { anio: anioActual } });
+      return res.json();
+    },
+    onSuccess: (j: any) => {
+      refrescar();
+      toast({ title: `${j.guardadas} cuentas traídas del plan ${j.anio}` });
+    },
+    onError: (e: any) => toast({ title: "No se pudo traer el plan", description: e.message, variant: "destructive" }),
+  });
+
+  const traerMes = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/finanzas/balance/erp/periodo", { method: "POST", data: { periodo: mesActual } });
+      return res.json();
+    },
+    onSuccess: (j: any) => {
+      refrescar();
+      const huerfanas = j.sinCuentaEnElPlan ?? [];
+      toast({
+        title: `${j.cuentas} cuentas traídas de ${mesLegible(j.periodo)}`,
+        description: huerfanas.length
+          ? `${huerfanas.length} cuenta(s) con movimiento no están en el plan (ej. ${huerfanas[0].codigo}).`
+          : `${(j.lineas ?? 0).toLocaleString("es-CL")} líneas de comprobante agregadas.`,
+        variant: huerfanas.length ? "destructive" : undefined,
+      });
+    },
+    onError: (e: any) => toast({ title: "No se pudo traer el mes", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <>
+      <ETLStatusSection etlName="estado_resultados" autoRefresh={autoRefresh} showDocumentTypes={false} showBranches={false} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5 text-orange-600" />
+            Contabilidad de Softland
+          </CardTitle>
+          <CardDescription>
+            Este ETL trae <strong>un mes completo</strong> y lo reemplaza, no un incremental. El plan de cuentas
+            se versiona por año y hay que traerlo antes que los meses de ese año.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {cargandoErp ? (
+            <Skeleton className="h-24 w-full rounded-xl" />
+          ) : !erp?.disponible ? (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
+              <div>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">El ERP no responde</p>
+                <p className="text-amber-700/90 dark:text-amber-300/80">{erp?.error ?? "Sin detalle."}</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {erp.limitadoA?.length ? (
+                <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm dark:border-sky-900/60 dark:bg-sky-950/20">
+                  <FlaskConical className="h-5 w-5 flex-shrink-0 text-sky-600" />
+                  <p className="text-sky-800 dark:text-sky-300">
+                    <strong>Primera corrida.</strong> Sólo está habilitado{" "}
+                    {erp.limitadoA.map((p) => mesLegible(p).toLowerCase()).join(", ")}, mientras se valida contra el
+                    ERP que los números calcen. Los otros {erp.mesesFueraDelLimite} meses con movimiento se habilitan
+                    después (<code className="font-mono text-xs">PERIODOS_HABILITADOS</code>).
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Servidor</p>
+                  <p className="font-medium">{erp.servidor}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Base · empresa</p>
+                  <p className="font-medium">{erp.base} · {erp.empresa}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Plan de cuentas cargado</p>
+                  <p className="font-medium">{estado?.cuentas ?? 0} cuentas</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">1 · Plan de cuentas (por año)</p>
+                  <div className="flex gap-2">
+                    <Select value={anioActual} onValueChange={setAnio}>
+                      <SelectTrigger className="h-10 w-full sm:w-32"><SelectValue placeholder="Año" /></SelectTrigger>
+                      <SelectContent>
+                        {erp.anios.map((a) => <SelectItem key={a} value={a}>Plan {a}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" className="h-10" disabled={traerPlan.isPending || !anioActual}
+                      onClick={() => traerPlan.mutate()} data-testid="button-traer-plan-contable">
+                      {traerPlan.isPending ? "Trayendo…" : "Traer plan"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">2 · Saldos del mes</p>
+                  <div className="flex gap-2">
+                    <Select value={mesActual} onValueChange={setMes}>
+                      <SelectTrigger className="h-10 w-full sm:w-44"><SelectValue placeholder="Mes" /></SelectTrigger>
+                      <SelectContent>
+                        {disponibles.map((p) => (
+                          <SelectItem key={p.periodo} value={p.periodo}>
+                            {mesLegible(p.periodo)}{cargados.has(p.periodo) ? " · cargado" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button className="h-10" disabled={traerMes.isPending || !mesActual}
+                      onClick={() => traerMes.mutate()} data-testid="button-traer-mes-contable">
+                      {traerMes.isPending ? "Trayendo…" : "Traer mes"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {estado?.periodos?.length ? (
+                <div className="border-t pt-4">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Meses cargados</p>
+                  <div className="flex flex-wrap gap-2">
+                    {estado.periodos.map((p) => (
+                      <Badge key={p} variant="outline" className="rounded-full">{mesLegible(p)}</Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 // Costos Tab — historial pivotado SKU × snapshot + comparación con FCV
 // ═══════════════════════════════════════════════════════════════
 
