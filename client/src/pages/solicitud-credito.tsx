@@ -304,11 +304,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
   return (
     <FormularioCreditoCtx.Provider value={{ form, campo }}>
     <div className={embedded ? "space-y-4 max-w-5xl" : "p-3 sm:p-5 space-y-4 max-w-5xl mx-auto"}>
-      {embedded ? (
-        <p className="text-sm text-muted-foreground">
-          Se envía a Finanzas con copia a tu supervisor y a ti. Adjuntá la carpeta tributaria para que puedan evaluarla.
-        </p>
-      ) : (
+      {embedded ? null : (
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center">
@@ -316,9 +312,6 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
             </span>
             Solicitud de Crédito
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Se envía a Finanzas con copia a tu supervisor y a ti. Adjuntá la carpeta tributaria para que puedan evaluarla.
-          </p>
         </div>
       )}
 
