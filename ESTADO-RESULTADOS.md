@@ -281,8 +281,6 @@ El número que importa: el resultado de agosto 2026 que arma la intranet
      hay que mapearlas al área que corresponde antes de que aparezcan?
   3. ¿Quieren el estado de situación (activo, pasivo, patrimonio)? Los datos
      están; falta la pantalla.
-- **Abrir los demás meses.** Julio 2026 es la prueba. Cuando cuadre contra lo
-  que dice contabilidad, `PERIODOS_HABILITADOS = null`.
 - **Automatizar la traída.** Hoy alguien aprieta un botón. El scheduler del ETL
   de ventas (`server/index.ts`, 10:00 / 14:00 / 18:00) es el lugar natural, pero
   un mes `cerrado` no se puede pisar solo: primero hay que decidir qué pasa

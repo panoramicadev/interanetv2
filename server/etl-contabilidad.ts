@@ -82,18 +82,20 @@ const sqlServerConfig: mssql.config = {
 const GRANDES_CUENTAS = ['41', '51', '52'];
 
 /**
- * ⚠️ COMPUERTA DE PRUEBA — el primer ETL va sólo con julio 2026.
+ * Meses que se pueden traer. `null` = todos.
  *
- * La contabilidad se lee en vivo y cada traída **reemplaza el mes completo**, así
- * que antes de dejarla suelta sobre catorce años de historia hay que validar un
- * mes contra lo que dice el ERP. Julio 2026 es ese mes: está cerrado, tiene 434
- * líneas y ya se verificó que cuadra.
+ * Estuvo en `['2026-07']` durante la primera corrida: la contabilidad se lee en
+ * vivo y cada traída **reemplaza el mes completo**, así que antes de soltarla
+ * sobre catorce años había que validar un mes contra lo que dice el ERP. Julio
+ * 2026 cuadró exacto —$4.363.255 de pérdida, idéntico a sumar CCOMPRD—, así que
+ * la compuerta se levanta y se elige el mes que se quiera: agosto, enero de
+ * 2019, el que sea.
  *
- * `null` levanta el límite y habilita cualquier mes. Es lo único que hay que
- * cambiar para abrirlo — la compuerta se aplica en un solo lugar
- * (`periodoHabilitado`) y tanto la pantalla como los endpoints la respetan.
+ * Se deja el mecanismo, no el límite. Volver a acotar es cambiar esta línea: la
+ * compuerta se aplica en un solo lugar (`periodoHabilitado`) y tanto la pantalla
+ * como los endpoints la respetan.
  */
-export const PERIODOS_HABILITADOS: readonly string[] | null = ['2026-07'];
+export const PERIODOS_HABILITADOS: readonly string[] | null = null;
 
 /**
  * Qué mes trae el botón genérico "Ejecutar ETL" de Monitor ETL, que no sabe de
@@ -265,54 +267,74 @@ export type ResumenPlan = {
  * como en el import por Excel, `nombre_largo` y `activa` no se pisan: el ERP
  * manda en el código, nosotros en cómo se lee.
  */
+type CuentaDelPlan = {
+  codigo: string; codigoErp: string;
+  granCuenta: string; granCuentaNombre: string;
+  mayor: string; mayorNombre: string;
+  nombre: string; naturaleza: 'ingreso' | 'egreso';
+};
+
+/**
+ * Leer el plan de un año, **reusando un pool ya abierto**.
+ *
+ * Separado de `sincronizarPlanDeCuentas` porque `sincronizarPeriodo` necesita
+ * traer un plan sin cerrar su propia conexión: `mssql.connect()` devuelve el
+ * pool global, así que el `close()` de una función mata la conexión de la otra.
+ */
+async function leerPlanDelErp(pool: mssql.ConnectionPool, anio: string): Promise<CuentaDelPlan[]> {
+  const enLista = GRANDES_CUENTAS.map((g) => `'${g}'`).join(',');
+  const filas = await pool.request()
+    .input('periodo', mssql.Char(4), anio)
+    .query<any>(`
+      SELECT c.GRANCUE, g.NOGRANCUE, c.MAYOR, m.NOMAYOR, c.CUENTA, c.NOCUENTA
+      FROM CCUENTAS c
+      JOIN CGRANCUE g ON g.PERIODO = c.PERIODO AND g.GRANCUE = c.GRANCUE
+      JOIN CMAYOR   m ON m.PERIODO = c.PERIODO AND m.GRANCUE = c.GRANCUE AND m.MAYOR = c.MAYOR
+      WHERE c.PERIODO = @periodo AND c.GRANCUE IN (${enLista})
+      ORDER BY c.GRANCUE, c.MAYOR, c.CUENTA
+    `);
+  return filas.recordset.map((f) => {
+    const granCuenta = limpio(f.GRANCUE);
+    return {
+      codigo: codigoDesdeErp(f.GRANCUE, f.MAYOR, f.CUENTA),
+      codigoErp: codigoErpCrudo(f.GRANCUE, f.MAYOR, f.CUENTA),
+      granCuenta,
+      granCuentaNombre: limpio(f.NOGRANCUE) || granCuenta,
+      mayor: limpio(f.MAYOR).padStart(3, '0'),
+      mayorNombre: limpio(f.NOMAYOR) || limpio(f.MAYOR),
+      nombre: limpio(f.NOCUENTA) || codigoDesdeErp(f.GRANCUE, f.MAYOR, f.CUENTA),
+      naturaleza: naturalezaDe(granCuenta),
+    };
+  });
+}
+
+/** Upsert del plan. No pisa `nombre_largo` ni `activa`: esos son nuestros. */
+async function guardarPlan(cuentas: CuentaDelPlan[]): Promise<void> {
+  for (const c of cuentas) {
+    await db.execute(sql`
+      INSERT INTO cuentas_contables
+        (codigo, codigo_erp, gran_cuenta, gran_cuenta_nombre, mayor, mayor_nombre, nombre, naturaleza)
+      VALUES (${c.codigo}, ${c.codigoErp}, ${c.granCuenta}, ${c.granCuentaNombre},
+              ${c.mayor}, ${c.mayorNombre}, ${c.nombre}, ${c.naturaleza})
+      ON CONFLICT (codigo) DO UPDATE SET
+        codigo_erp = EXCLUDED.codigo_erp,
+        gran_cuenta = EXCLUDED.gran_cuenta,
+        gran_cuenta_nombre = EXCLUDED.gran_cuenta_nombre,
+        mayor = EXCLUDED.mayor,
+        mayor_nombre = EXCLUDED.mayor_nombre,
+        nombre = EXCLUDED.nombre,
+        naturaleza = EXCLUDED.naturaleza,
+        updated_at = now()
+    `);
+  }
+}
+
 export async function sincronizarPlanDeCuentas(anio: string): Promise<ResumenPlan> {
   let pool: mssql.ConnectionPool | null = null;
   try {
     pool = await conectar();
-    const enLista = GRANDES_CUENTAS.map((g) => `'${g}'`).join(',');
-    const filas = await pool.request()
-      .input('periodo', mssql.Char(4), anio)
-      .query<any>(`
-        SELECT c.GRANCUE, g.NOGRANCUE, c.MAYOR, m.NOMAYOR, c.CUENTA, c.NOCUENTA
-        FROM CCUENTAS c
-        JOIN CGRANCUE g ON g.PERIODO = c.PERIODO AND g.GRANCUE = c.GRANCUE
-        JOIN CMAYOR   m ON m.PERIODO = c.PERIODO AND m.GRANCUE = c.GRANCUE AND m.MAYOR = c.MAYOR
-        WHERE c.PERIODO = @periodo AND c.GRANCUE IN (${enLista})
-        ORDER BY c.GRANCUE, c.MAYOR, c.CUENTA
-      `);
-
-    const cuentas = filas.recordset.map((f) => {
-      const granCuenta = limpio(f.GRANCUE);
-      return {
-        codigo: codigoDesdeErp(f.GRANCUE, f.MAYOR, f.CUENTA),
-        codigoErp: codigoErpCrudo(f.GRANCUE, f.MAYOR, f.CUENTA),
-        granCuenta,
-        granCuentaNombre: limpio(f.NOGRANCUE) || granCuenta,
-        mayor: limpio(f.MAYOR).padStart(3, '0'),
-        mayorNombre: limpio(f.NOMAYOR) || limpio(f.MAYOR),
-        nombre: limpio(f.NOCUENTA) || codigoDesdeErp(f.GRANCUE, f.MAYOR, f.CUENTA),
-        naturaleza: naturalezaDe(granCuenta),
-      };
-    });
-
-    for (const c of cuentas) {
-      await db.execute(sql`
-        INSERT INTO cuentas_contables
-          (codigo, codigo_erp, gran_cuenta, gran_cuenta_nombre, mayor, mayor_nombre, nombre, naturaleza)
-        VALUES (${c.codigo}, ${c.codigoErp}, ${c.granCuenta}, ${c.granCuentaNombre},
-                ${c.mayor}, ${c.mayorNombre}, ${c.nombre}, ${c.naturaleza})
-        ON CONFLICT (codigo) DO UPDATE SET
-          codigo_erp = EXCLUDED.codigo_erp,
-          gran_cuenta = EXCLUDED.gran_cuenta,
-          gran_cuenta_nombre = EXCLUDED.gran_cuenta_nombre,
-          mayor = EXCLUDED.mayor,
-          mayor_nombre = EXCLUDED.mayor_nombre,
-          nombre = EXCLUDED.nombre,
-          naturaleza = EXCLUDED.naturaleza,
-          updated_at = now()
-      `);
-    }
-
+    const cuentas = await leerPlanDelErp(pool, anio);
+    await guardarPlan(cuentas);
     const porNombre = new Map<string, string[]>();
     for (const c of cuentas) {
       porNombre.set(c.nombre, [...(porNombre.get(c.nombre) ?? []), c.codigo]);
@@ -349,6 +371,8 @@ export type ResumenPeriodo = {
   sinCuentaEnElPlan: { codigo: string; lineas: number; debe: number; haber: number }[];
   /** Comprobantes donde debe ≠ haber. En el ERP deberían ser siempre 0. */
   comprobantesDescuadrados: number;
+  /** Año cuyo plan hubo que traer al vuelo porque faltaban cuentas, o `null`. */
+  planTraidoAutomaticamente: string | null;
 };
 
 /**
@@ -438,19 +462,59 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
         periodo, cuentas: 0, lineas: 0, debe: 0, haber: 0,
         sinCuentaEnElPlan: [],
         comprobantesDescuadrados: descuadre.recordset[0]?.n ?? 0,
+        planTraidoAutomaticamente: null,
       };
     }
 
-    const plan = await db.execute(sql`SELECT codigo FROM cuentas_contables`);
-    const conocidas = new Set((plan.rows as any[]).map((r) => String(r.codigo)));
+    const leerPlanGuardado = async () => {
+      const plan = await db.execute(sql`SELECT codigo FROM cuentas_contables`);
+      return new Set((plan.rows as any[]).map((r) => String(r.codigo)));
+    };
 
-    const saldos: { codigo: string; debe: number; haber: number; lineas: number }[] = [];
-    const sinCuentaEnElPlan: ResumenPeriodo['sinCuentaEnElPlan'] = [];
-    for (const m of movimientos.recordset) {
-      const codigo = codigoDesdeErp(m.GRANCUE, m.MAYOR, m.CUENTA);
-      const fila = { codigo, debe: Number(m.debe) || 0, haber: Number(m.haber) || 0, lineas: m.lineas };
-      if (conocidas.has(codigo)) saldos.push(fila);
-      else sinCuentaEnElPlan.push({ codigo, lineas: fila.lineas, debe: fila.debe, haber: fila.haber });
+    const repartir = (conocidas: Set<string>) => {
+      const saldos: { codigo: string; debe: number; haber: number; lineas: number }[] = [];
+      const huerfanas: ResumenPeriodo['sinCuentaEnElPlan'] = [];
+      for (const m of movimientos.recordset) {
+        const codigo = codigoDesdeErp(m.GRANCUE, m.MAYOR, m.CUENTA);
+        const fila = { codigo, debe: Number(m.debe) || 0, haber: Number(m.haber) || 0, lineas: m.lineas };
+        if (conocidas.has(codigo)) saldos.push(fila);
+        else huerfanas.push({ codigo, lineas: fila.lineas, debe: fila.debe, haber: fila.haber });
+      }
+      return { saldos, huerfanas };
+    };
+
+    let { saldos, huerfanas: sinCuentaEnElPlan } = repartir(await leerPlanGuardado());
+
+    /**
+     * Si sobran cuentas, traer el plan del año del mes y reintentar. Una sola vez.
+     *
+     * `cuentas_contables` no guarda el año —los códigos son estables y la tabla
+     * los acumula—, así que no hay forma de preguntar "¿está cargado el plan de
+     * 2019?". Lo que sí se puede es mirar el resultado: una cuenta con
+     * movimiento que no está en el plan ES la señal de que falta.
+     *
+     * Con la compuerta puesta en un solo mes esto no podía pasar. Abierta a los
+     * catorce años sí: traer enero de 2019 con el plan de 2026 cargado dejaría
+     * fuera las cuentas que existían entonces y ya no existen, y el mes quedaría
+     * incompleto **en silencio** —los huérfanos se informan, pero el mes se
+     * guarda igual y el total no cuadra contra el ERP—.
+     *
+     * Se reusa el pool a propósito: `sincronizarPlanDeCuentas()` abre y cierra
+     * el suyo, y como `mssql.connect()` devuelve el pool global, su `close()`
+     * mataría la conexión que esta función está usando.
+     */
+    let planTraidoAutomaticamente: string | null = null;
+    if (sinCuentaEnElPlan.length > 0) {
+      const anioDelMes = periodo.slice(0, 4);
+      planTraidoAutomaticamente = anioDelMes;
+      console.log(`[contabilidad] ${sinCuentaEnElPlan.length} cuenta(s) fuera del plan en ${periodo}: trayendo el plan ${anioDelMes}...`);
+      await guardarPlan(await leerPlanDelErp(pool, anioDelMes));
+      ({ saldos, huerfanas: sinCuentaEnElPlan } = repartir(await leerPlanGuardado()));
+      if (sinCuentaEnElPlan.length > 0) {
+        // Quedan huérfanas con el plan de su propio año: eso ya no es un plan
+        // desactualizado, es una cuenta imputada que el plan no declara.
+        console.warn(`[contabilidad] ${periodo}: quedan ${sinCuentaEnElPlan.length} cuenta(s) sin plan incluso con el plan ${anioDelMes}`);
+      }
     }
 
     await db.execute(sql`DELETE FROM balance_saldos WHERE periodo = ${periodo}`);
@@ -480,6 +544,7 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
       haber: saldos.reduce((a, s) => a + s.haber, 0),
       sinCuentaEnElPlan,
       comprobantesDescuadrados: descuadre.recordset[0]?.n ?? 0,
+      planTraidoAutomaticamente,
     };
 
     await db.update(etlExecutionLog).set({
@@ -491,6 +556,7 @@ export async function sincronizarPeriodo(periodo: string, usuarioId?: string | n
         debe: resumen.debe, haber: resumen.haber,
         sinCuentaEnElPlan: sinCuentaEnElPlan.length,
         comprobantesDescuadrados: resumen.comprobantesDescuadrados,
+        planTraidoAutomaticamente,
       }),
     }).where(sql`id = ${corrida.id}`);
 
