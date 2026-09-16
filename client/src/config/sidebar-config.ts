@@ -260,12 +260,12 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     label: "Remuneraciones",
     icon: Wallet,
   },
-  // Balance va justo debajo: es la otra mitad de la misma pregunta. Lo que
-  // Talana paga por sueldos tiene que calzar con lo que la contabilidad cargó,
-  // y ese cruce se mira desde acá.
+  // El estado de resultados va justo debajo: es la otra mitad de la misma
+  // pregunta. Lo que Talana paga por sueldos tiene que calzar con lo que la
+  // contabilidad cargó, y ese cruce se mira desde acá.
   {
-    href: "/balance",
-    label: "Balance",
+    href: "/estado-resultados",
+    label: "Estado de Resultados",
     icon: Scale,
   },
   // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito

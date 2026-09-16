@@ -90,7 +90,7 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error al verificar las tablas de Remuneraciones:', error.message);
     }
-    // Idem para Balance: el plan de cuentas se lee en cada carga del módulo.
+    // Idem para el Estado de Resultados: el plan de cuentas se lee en cada carga del módulo.
     // Si la tabla no está, la pantalla abre sin ninguna cuenta y parece que el
     // cliente nunca mandó el plan.
     try {

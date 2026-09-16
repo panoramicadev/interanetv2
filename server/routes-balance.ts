@@ -48,6 +48,10 @@ import {
   parsearPlanDeCuentas, parsearSaldos,
 } from './balance-plan';
 import { construirCruce } from './routes-remuneraciones';
+import {
+  estadoErpContabilidad, sincronizarPlanDeCuentas, sincronizarPeriodo,
+  periodoHabilitado, PERIODOS_HABILITADOS,
+} from './etl-contabilidad';
 import { getPeriodos, talanaConfigurado } from './services/talana';
 
 const upload = multer({
@@ -140,6 +144,14 @@ export async function ensureBalanceTables(): Promise<void> {
 }
 
 // ─── El estado de resultados ────────────────────────────────────────────────
+
+/** `2026-07` → `julio 2026`, para los mensajes que lee una persona. */
+function etiquetaMes(periodo: string): string {
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const [ano, mes] = periodo.split('-').map(Number);
+  return `${meses[mes - 1] ?? periodo} ${ano}`;
+}
 
 /** `2026-09` → `2026-08`. */
 function periodoAnterior(periodo: string): string {
@@ -269,10 +281,21 @@ async function armarResultado(periodo: string) {
 
   const [cargado] = await db.select().from(balancePeriodos).where(eq(balancePeriodos.periodo, periodo)).limit(1);
 
+  // Qué meses hay de verdad. Sin esto, un mes que nunca se cargó se muestra
+  // como $0 y se lee como "ese mes no vendió nada" — que es una afirmación
+  // bastante más fuerte que "no lo hemos traído". Importa especialmente ahora,
+  // con el ETL limitado a un solo mes: es el estado normal, no la excepción.
+  const cargados = new Set(filasSaldo.map((f) => f.periodo));
+
   return {
     periodo,
     periodoAnterior: anterior,
     cargado: cargado ?? null,
+    /** `false` ⇒ la columna del mes anterior no es un cero, es un hueco. */
+    periodoAnteriorCargado: cargados.has(anterior),
+    /** Cuántos de los meses del año hasta acá están cargados, y cuántos son. */
+    mesesAcumulados: meses.filter((m) => cargados.has(m)).length,
+    mesesDelAcumulado: meses.length,
     // Lo que el módulo NO es: sin cuentas 1/2/3 no hay estado de situación.
     esEstadoDeResultados: true,
     grupos,
@@ -304,6 +327,23 @@ const CONCEPTOS_PERSONAL: { concepto: string; nombre: string; cuentas: string[] 
 ];
 
 const NOMBRE_CONCEPTO = new Map(CONCEPTOS_PERSONAL.map((c) => [c.concepto, c.nombre]));
+
+/**
+ * Qué cuenta *parece* ser de gasto en gente.
+ *
+ * `CONCEPTOS_PERSONAL` se armó con las 77 cuentas del export que trajo el
+ * cliente. El plan completo del ERP tiene 177 de resultado, y entre ellas hay 30
+ * de personal: las cuatro de LEYES SOCIALES, las sucursales viejas (Puerto
+ * Montt, Valdivia, Santiago, Los Ángeles) y un segundo `REMUNERACIONES
+ * ADMINISTRA` (`51030105`, además del `51030106` que sí está mapeado).
+ *
+ * Hoy todas esas están en cero, así que el cruce cuadra. Pero si mañana alguien
+ * imputa a una, el costo contable se compararía contra Talana **de menos** y no
+ * habría forma de notarlo. Por eso no se adivina el mapeo —cuál área es cada
+ * una es una decisión del cliente— y en cambio se listan aparte, igual que los
+ * centros de costo que Talana informa y nadie asignó.
+ */
+const PARECE_DE_PERSONAL = /REMUNERAC|INDEMNIZ|LEYES SOC|SUELDO|FINIQUIT/i;
 
 /** El mismo umbral con el que Remuneraciones decide si una comisión descuadra. */
 const UMBRAL_DESCUADRE = 1000;
@@ -365,6 +405,17 @@ async function armarPersonal(periodo: string) {
     }
   }
 
+  // Cuentas que parecen de personal, tienen movimiento y nadie asignó a un área.
+  // Es el espejo exacto de `centrosSinMapear`: lo que no se está comparando se
+  // ve, en vez de desaparecer del total.
+  const cuentasMapeadas = new Set(Array.from(cuentasPorConcepto.values()).flat());
+  const cuentasSinMapear = cuentas
+    .filter((c) => !cuentasMapeadas.has(c.codigo))
+    .filter((c) => PARECE_DE_PERSONAL.test(`${c.nombre} ${c.nombreLargo ?? ''}`))
+    .map((c) => ({ codigo: c.codigo, nombre: c.nombreLargo || c.nombre, monto: contablePorCuenta.get(c.codigo) ?? 0 }))
+    .filter((c) => c.monto !== 0)
+    .sort((a, b) => Math.abs(b.monto) - Math.abs(a.monto));
+
   const centrosMapeados = new Set(Array.from(centrosPorConcepto.values()).flat());
   const conceptos = Array.from(new Set([
     ...CONCEPTOS_PERSONAL.map((c) => c.concepto),
@@ -401,6 +452,8 @@ async function armarPersonal(periodo: string) {
       .filter(([centro]) => !centrosMapeados.has(centro))
       .map(([centro, v]) => ({ centroCosto: centro, costoEmpresa: v.costo, personas: v.personas }))
       .sort((a, b) => b.costoEmpresa - a.costoEmpresa),
+    /** El otro lado del mismo agujero: gasto en gente que no entra en el cruce. */
+    cuentasSinMapear,
     umbralDescuadre: UMBRAL_DESCUADRE,
   };
 }
@@ -625,6 +678,90 @@ export function registerBalanceRoutes(app: Express) {
    * contables. Se informa en la respuesta para que la pantalla lo diga en vez
    * de mostrar una columna vacía sin explicación.
    */
+  // ─── Softland, en vivo ────────────────────────────────────────────────────
+  //
+  // La contabilidad no se sube: se trae. Estos tres endpoints reemplazan la
+  // carga por Excel, que queda como respaldo para cuando el ERP no esté (ver
+  // `server/etl-contabilidad.ts` para el mapa de tablas y las trampas del
+  // modelo de Softland).
+
+  /** Qué hay del otro lado: años de plan y meses con movimiento. Nunca lanza. */
+  app.get('/api/finanzas/balance/erp/estado', requireAuth, guard, async (_req: any, res: any) => {
+    try {
+      await ensureTables();
+      res.json(await estadoErpContabilidad());
+    } catch (error: any) { fallo(res, error, 'estado del ERP'); }
+  });
+
+  /** Traer el plan de cuentas de un año desde Softland. */
+  app.post('/api/finanzas/balance/erp/plan', requireAuth, guard, async (req: any, res: any) => {
+    try {
+      await ensureTables();
+      const anio = z.string().regex(/^\d{4}$/, 'El año va como YYYY').safeParse(String(req.body?.anio ?? ''));
+      if (!anio.success) return res.status(400).json({ message: anio.error.errors[0].message });
+
+      const resumen = await sincronizarPlanDeCuentas(anio.data);
+      if (resumen.leidas === 0) {
+        return res.status(404).json({ message: `El ERP no tiene plan de cuentas para ${anio.data}.` });
+      }
+
+      // Igual que el import por Excel: el puente con Talana se siembra una sola
+      // vez, y sólo con las cuentas que de verdad existen en el plan traído.
+      const [{ total: yaHayPuente }] = await db.select({ total: sql<number>`count(*)::int` }).from(balancePuentePersonal);
+      let conceptosSembrados = 0;
+      if (!yaHayPuente) {
+        const existentes = new Set(
+          (await db.select({ codigo: cuentasContables.codigo }).from(cuentasContables)).map((c) => c.codigo),
+        );
+        for (const grupo of CONCEPTOS_PERSONAL) {
+          for (const codigo of grupo.cuentas.filter((c) => existentes.has(c))) {
+            await db.insert(balancePuentePersonal)
+              .values({ concepto: grupo.concepto, tipo: 'cuenta', valor: codigo })
+              .onConflictDoNothing();
+            conceptosSembrados++;
+          }
+        }
+      }
+
+      res.json({ ...resumen, conceptosSembrados });
+    } catch (error: any) { fallo(res, error, 'traer el plan del ERP'); }
+  });
+
+  /** Traer los saldos de un mes desde Softland. Reemplaza el período entero. */
+  app.post('/api/finanzas/balance/erp/periodo', requireAuth, guard, async (req: any, res: any) => {
+    try {
+      await ensureTables();
+      const periodo = periodoBalanceSchema.safeParse(req.body?.periodo);
+      if (!periodo.success) return res.status(400).json({ message: periodo.error.errors[0].message });
+
+      // Compuerta de prueba: el primer ETL va sólo con los meses habilitados.
+      // Se responde con el motivo, no con un 500 desde el throw de la función.
+      if (!periodoHabilitado(periodo.data)) {
+        return res.status(409).json({
+          message: `Por ahora sólo se puede traer ${(PERIODOS_HABILITADOS ?? []).map(etiquetaMes).join(', ')}. `
+            + 'Es la primera corrida del ETL y se está validando contra el ERP mes a mes.',
+        });
+      }
+
+      const [{ total: cuentasEnPlan }] = await db.select({ total: sql<number>`count(*)::int` }).from(cuentasContables);
+      if (cuentasEnPlan === 0) {
+        return res.status(400).json({ message: 'Primero hay que traer el plan de cuentas.' });
+      }
+
+      // Mismo cerrojo que la carga por Excel: un mes cerrado no se pisa solo.
+      const [cargado] = await db.select().from(balancePeriodos).where(eq(balancePeriodos.periodo, periodo.data)).limit(1);
+      if (cargado?.estado === 'cerrado') {
+        return res.status(409).json({ message: `El período ${periodo.data} está cerrado. Reabrilo antes de volver a traerlo.` });
+      }
+
+      const resumen = await sincronizarPeriodo(periodo.data, req.user?.id ?? null);
+      if (resumen.cuentas === 0 && resumen.sinCuentaEnElPlan.length === 0) {
+        return res.status(404).json({ message: `El ERP no tiene movimiento contable en ${periodo.data}.` });
+      }
+      res.json(resumen);
+    } catch (error: any) { fallo(res, error, 'traer el período del ERP'); }
+  });
+
   app.get('/api/finanzas/balance/presupuesto', requireAuth, guard, async (req: any, res: any) => {
     try {
       await ensureTables();

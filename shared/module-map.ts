@@ -1201,13 +1201,15 @@ export const MODULE_MAP: ModuleDef[] = [
   },
   {
     id: "finanzas.balance",
-    label: "Balance",
-    href: "/balance",
+    label: "Estado de Resultados",
+    href: "/estado-resultados",
+    // La clave del permiso NO cambió con el renombre: los grants otorgados
+    // cuelgan de `finanzas.balance`.
     permission: "finanzas.balance",
     group: "Finanzas",
-    nav: { label: "Balance" },
+    nav: { label: "Estado de Resultados" },
     purpose:
-      "El estado de resultados mes a mes a partir del plan de cuentas de Softland, con el presupuesto de ventas y el gasto en gente contrastado contra lo que pagó Talana.",
+      "El estado de resultados mes a mes —ingresos menos egresos— leído en vivo de la contabilidad de Softland, con el presupuesto de ventas y el gasto en gente contrastado contra lo que pagó Talana.",
     whoUses: "Solo admin. Muestra el resultado completo de la empresa, así que el permiso existe para el panel pero el cerrojo es el rol.",
     sections: [
       { label: "Resultado", tab: "resultado", what: "Ingresos, costo de ventas, margen bruto, gastos y resultado del mes, contra el mes anterior y el acumulado del año. El detalle se abre por gran cuenta y mayor." },
@@ -1216,44 +1218,47 @@ export const MODULE_MAP: ModuleDef[] = [
       { label: "Cuentas", tab: "cuentas", what: "El plan de cuentas, con el nombre legible editable y los posibles duplicados marcados." },
     ],
     keyTerms: [
-      { term: "Estado de resultados", meaning: "Ingresos menos egresos del mes. NO es un balance general: el plan que entregó el cliente no trae activo, pasivo ni patrimonio." },
+      { term: "Estado de resultados", meaning: "Ingresos menos egresos del mes. Es lo que este módulo arma, y por eso se llama así: antes se llamaba \"Balance\", que es otra cosa." },
+      { term: "Balance general", meaning: "El estado de situación: activo, pasivo y patrimonio. NO es lo que muestra este módulo. Las cuentas existen en Softland, pero no se importan porque la pantalla las pintaría como gasto." },
       { term: "Período", meaning: "Un mes cargado, en formato YYYY-MM. En borrador se puede volver a cargar; cerrado no se toca más." },
       { term: "Área", meaning: "El grupo con el que se cruza Talana: administración, ventas, operación, Panorámica Store Concepción y socios. Agrupa cuentas contables de un lado y centros de costo de Talana del otro." },
     ],
     gotchas: [
-      "Softland entrega mal el código de 20 cuentas —el mayor sin rellenar, como \"5120 106\" en vez de 51020106—. Se corrigen al importar y se guarda también la forma cruda, porque es la que llega en el archivo de saldos.",
+      "El módulo se llamaba \"Balance\" y era un error de concepto: lo que arma es un estado de resultados. La ruta /balance redirige a /estado-resultados, y la clave del permiso sigue siendo finanzas.balance a propósito.",
+      "PRIMERA CORRIDA: el ETL está limitado a julio 2026 mientras se valida contra el ERP. Cualquier otro mes se rechaza con 409. El límite es PERIODOS_HABILITADOS en server/etl-contabilidad.ts.",
+      "Softland guarda mal el código de 42 cuentas —el nivel sin rellenar, como \"5120 106\" en vez de 51020106—. No es culpa del Excel: está así en la base. Se corrige al traer y se guarda también la forma cruda.",
       "Los nombres del ERP están truncados a 25 caracteres. Por eso cada cuenta tiene un nombre largo editable desde la pestaña Cuentas.",
       "El cruce con Talana solo existe para los períodos que su API sigue exponiendo: acá no se guarda historia de Talana.",
       "Un área sin centros de costo asignados NO cuadra: no se está comparando. Los centros pendientes salen listados abajo en la pestaña Personal.",
-      "Cargar un mes reemplaza sus saldos completos: una carga parcial dejaría cuentas del archivo anterior mezcladas.",
+      "Traer un mes reemplaza sus saldos completos: una carga parcial dejaría cuentas de la corrida anterior mezcladas.",
     ],
     guides: [
       {
         id: "cargar-mes",
-        title: "Cargar el resultado de un mes",
-        intent: ["cargar balance", "subir el balance del mes", "ver el resultado del mes", "estado de resultados"],
+        title: "Traer el resultado de un mes",
+        intent: ["cargar el estado de resultados", "traer el mes del ERP", "ver el resultado del mes", "estado de resultados", "balance"],
         steps: [
           {
-            title: "Si es la primera vez, importa el plan de cuentas",
-            detail: "El archivo de cuentas de Softland (CGRANCUE, NOGRANCUE, CMAYOR, NOMAYOR, CUENTA, NOCUENTA). Los códigos mal formados se corrigen solos.",
-            route: "/balance",
+            title: "Si es la primera vez, trae el plan de cuentas",
+            detail: 'Con "Traer de Softland": el plan se lee en vivo del ERP y se elige el año. Los códigos mal formados se corrigen solos. Subir un archivo sigue siendo el respaldo.',
+            route: "/estado-resultados",
           },
           {
-            title: "Elige el mes y sube los saldos",
-            detail: 'Con "Cargar mes" arriba a la derecha. Las filas cuya cuenta no esté en el plan quedan fuera y se avisan.',
-            route: "/balance",
-            target: { text: "Cargar mes", as: "button" },
+            title: "Elige el mes y tráelo del ERP",
+            detail: 'Con "Traer del ERP" arriba a la derecha. Mientras dure la primera corrida sólo aparece julio 2026. Las cuentas con movimiento que no estén en el plan se avisan.',
+            route: "/estado-resultados",
+            target: { text: "Traer del ERP", as: "button" },
           },
           {
             title: "Revisa el resultado",
             detail: "La tabla de arriba es el estado de resultados; abajo se abre el detalle por gran cuenta y mayor.",
-            route: "/balance",
+            route: "/estado-resultados",
             target: { text: "Resultado", as: "tab" },
           },
           {
             title: "Cuadra el gasto en gente contra Talana",
-            detail: "En Personal, asigna cada centro de costo de Talana a un área. Mientras queden pendientes, esa área no se está comparando.",
-            route: "/balance",
+            detail: "En Personal, asigna cada centro de costo de Talana a un área. Mientras queden pendientes, esa área no se está comparando. Ahí mismo salen las cuentas de personal con movimiento que nadie asignó.",
+            route: "/estado-resultados",
             target: { text: "Personal", as: "tab" },
           },
         ],
