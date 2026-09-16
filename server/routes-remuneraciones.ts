@@ -117,6 +117,17 @@ function ensureTables(): Promise<void> {
           created_at timestamp DEFAULT now()
         )
       `);
+      // Qué columnas eligió ver cada persona en la planilla. Va por usuario y
+      // no por rol: la misma planilla la mira RR.HH. para cuadrar sueldos y
+      // gerencia para mirar costo empresa, y no necesitan las mismas columnas.
+      // Sin fila, manda el set por defecto del cliente.
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS remuneraciones_columnas (
+          user_id varchar PRIMARY KEY,
+          columnas jsonb NOT NULL DEFAULT '[]'::jsonb,
+          updated_at timestamp DEFAULT now()
+        )
+      `);
     })().catch((error) => {
       ensureTablesPromise = null; // permite reintentar
       throw error;
@@ -228,6 +239,70 @@ function sumaItem(liqs: TalanaLiquidacion[], tipo: string): number {
 /** Ídem para un conjunto de ítems (ej: Comision1 + Comision2). */
 function sumaItems(liqs: TalanaLiquidacion[], tipos: string[]): number {
   return liqs.reduce((acc, l) => acc + items(l, tipos), 0);
+}
+
+/**
+ * TODOS los ítems de la liquidación, sumados entre sueldo y finiquito igual
+ * que el resto de los montos de la fila.
+ *
+ * El módulo tiene columna propia para once ítems (líquido, haberes, descuentos,
+ * costo empresa…), pero un sueldo de Talana trae del orden de 200: gratificación,
+ * movilización, colación, AFP, salud, seguro de cesantía, cada haber y cada
+ * descuento con su glosa. Guardarlos todos acá es lo que permite que la
+ * planilla ofrezca cualquiera de ellos como columna sin tocar código.
+ */
+function todosLosItems(liqs: TalanaLiquidacion[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const l of liqs) {
+    for (const it of l.items || []) {
+      if (!it?.tipoItem) continue;
+      out[it.tipoItem] = (out[it.tipoItem] || 0) + (Number(it.valor) || 0);
+    }
+  }
+  return out;
+}
+
+/**
+ * Los ítems que Talana informó en el período, para que la pantalla los ofrezca
+ * como columnas. `personas` es cuántas liquidaciones lo traen con valor: un
+ * ítem que aparece en una sola persona se ordena al final, porque como columna
+ * de la planilla sería una fila con dato y 60 guiones.
+ *
+ * `tipo` separa los ítems de días de los de plata: `diasTrabajadosItem` es 21,
+ * no $21. Sin esto la columna diría "$21" y nadie volvería a confiar en la
+ * planilla.
+ */
+export interface ColumnaTalana {
+  id: string;
+  label: string;
+  personas: number;
+  tipo: 'monto' | 'dias';
+}
+
+function catalogoDeItems(liqs: TalanaLiquidacion[]): ColumnaTalana[] {
+  const glosas = new Map<string, string>();
+  const personas = new Map<string, Set<number>>();
+  for (const l of liqs) {
+    for (const it of l.items || []) {
+      if (!it?.tipoItem) continue;
+      if (it.glosa && !glosas.has(it.tipoItem)) glosas.set(it.tipoItem, it.glosa);
+      if (!Number(it.valor)) continue;
+      const set = personas.get(it.tipoItem) ?? new Set<number>();
+      set.add(l.empleado);
+      personas.set(it.tipoItem, set);
+    }
+  }
+  // Array.from y no spread del iterador: el tsconfig del repo compila a ES5 y
+  // ahí `[...map.keys()]` no es iterable (mismo criterio que el resto del archivo).
+  const ids = new Set<string>([...Array.from(glosas.keys()), ...Array.from(personas.keys())]);
+  return Array.from(ids)
+    .map((id) => ({
+      id,
+      label: glosas.get(id) || id,
+      personas: personas.get(id)?.size ?? 0,
+      tipo: /^dias/i.test(id) ? ('dias' as const) : ('monto' as const),
+    }))
+    .sort((a, b) => b.personas - a.personas || a.label.localeCompare(b.label, 'es'));
 }
 
 // ─── Datos de la intranet ───────────────────────────────────────────────────
@@ -405,6 +480,14 @@ export interface FilaCruce {
   reembolsosAprobados: number;
   reembolsosCantidad: number;
   estadoVinculo: EstadoVinculo;
+  /**
+   * Todos los ítems de la liquidación del período (tipoItem → monto), para las
+   * columnas que el usuario elige en la planilla. Las columnas con nombre
+   * propio de arriba salen de acá igual, pero se dejan explícitas porque
+   * varias no son un ítem suelto (el líquido cae de vuelta a `montoTransfer`,
+   * el sueldo base sale del contrato cuando no hay liquidación).
+   */
+  itemsTalana: Record<string, number>;
 }
 
 export type TipoAlerta =
@@ -639,6 +722,7 @@ export async function construirCruce(periodo: TalanaPeriodo) {
       reembolsosAprobados: reembolso.monto,
       reembolsosCantidad: reembolso.cantidad,
       estadoVinculo,
+      itemsTalana: todosLosItems(pagos),
     });
   }
 
@@ -752,6 +836,15 @@ export async function construirCruce(periodo: TalanaPeriodo) {
     filas,
     totales,
     alertas,
+    /**
+     * Ítems que Talana informó este mes, ofrecibles como columna. Se arma con
+     * las MISMAS liquidaciones que alimentan las filas (sueldo y finiquito, no
+     * los anticipos): si no, el catálogo ofrecería ítems que la columna leería
+     * siempre en cero.
+     */
+    columnasTalana: catalogoDeItems(
+      Array.from(pagosPorEmpleado.values()).flatMap((porTipo) => Array.from(porTipo.values())),
+    ),
     vendedoresSinLiquidacion,
     vendedoresIgnorados: Array.from(ignorados),
     comisionesError,
@@ -1031,6 +1124,61 @@ export function registerRemuneracionesRoutes(app: Express) {
     res.json({ ok: true });
   });
 
+  /**
+   * Las columnas que esta persona eligió ver en la planilla.
+   *
+   * `columnas: null` no es lo mismo que `columnas: []`: null es "nunca eligió"
+   * y la pantalla arma el set por defecto, mientras que el arreglo vacío es una
+   * elección (dejó solo la persona). Por eso el reset borra la fila en vez de
+   * guardar un arreglo vacío.
+   */
+  app.get('/api/rrhh/remuneraciones/columnas', requireAuth, guard, async (req: any, res) => {
+    try {
+      await ensureTables();
+      const fila: any = await db.execute(sql`
+        SELECT columnas FROM remuneraciones_columnas WHERE user_id = ${String(req.user.id)}
+      `);
+      const guardadas = fila?.rows?.[0]?.columnas ?? null;
+      res.json({ columnas: Array.isArray(guardadas) ? guardadas : null });
+    } catch (error: any) {
+      console.error('[remuneraciones] columnas:', error?.message || error);
+      // Preferencia de vista: si no se puede leer, la planilla abre con el set
+      // por defecto. No es motivo para no mostrar el módulo.
+      res.json({ columnas: null });
+    }
+  });
+
+  app.put('/api/rrhh/remuneraciones/columnas', requireAuth, guard, async (req: any, res) => {
+    try {
+      await ensureTables();
+      const { columnas } = req.body ?? {};
+      const userId = String(req.user.id);
+
+      if (columnas === null) {
+        await db.execute(sql`DELETE FROM remuneraciones_columnas WHERE user_id = ${userId}`);
+        return res.json({ ok: true, columnas: null });
+      }
+
+      if (!Array.isArray(columnas) || columnas.some((c: any) => typeof c !== 'string')) {
+        return res.status(400).json({ message: 'columnas tiene que ser un arreglo de ids, o null para volver al set por defecto.' });
+      }
+      // Tope defensivo: los ids los define el cliente (columnas propias + ítems
+      // de Talana), así que se limita el largo en vez de validarlos contra una
+      // lista que quedaría desactualizada cada vez que Talana agregue un ítem.
+      const limpias = Array.from(new Set(columnas.map((c: string) => c.trim()).filter(Boolean))).slice(0, 120);
+
+      await db.execute(sql`
+        INSERT INTO remuneraciones_columnas (user_id, columnas, updated_at)
+        VALUES (${userId}, ${JSON.stringify(limpias)}::jsonb, now())
+        ON CONFLICT (user_id) DO UPDATE SET columnas = EXCLUDED.columnas, updated_at = now()
+      `);
+      res.json({ ok: true, columnas: limpias });
+    } catch (error: any) {
+      console.error('[remuneraciones] guardar columnas:', error?.message || error);
+      res.status(500).json({ message: 'No se pudieron guardar las columnas.' });
+    }
+  });
+
   /** El cruce en CSV, para pegarlo en la planilla del cierre de mes. */
   app.get('/api/rrhh/remuneraciones/export.csv', requireAuth, guard, async (req: any, res) => {
     try {
@@ -1038,11 +1186,22 @@ export function registerRemuneracionesRoutes(app: Express) {
       const periodo = await resolverPeriodo(req.query.periodo);
       const { filas } = await construirCruce(periodo);
 
+      // Ítems de Talana que el usuario sumó como columna en la planilla. El
+      // CSV siempre trae las columnas propias del módulo (son las del cierre de
+      // mes); estos van al final para que lo que se ve en pantalla se pueda
+      // exportar sin volcar los ~200 ítems que emite una liquidación.
+      const itemsExtra = String(req.query.items || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 60);
+
       const cabeceras = [
         'RUT', 'Nombre', 'Cargo', 'Centro de costo', 'Sucursal', 'Días trabajados',
         'Sueldo base', 'Haberes', 'Descuentos', 'Líquido', 'Costo empresa',
         'Comisión Talana', 'Comisión intranet', 'Diferencia',
         'Reembolsos aprobados', 'Vendedor ERP', 'Estado del vínculo',
+        ...itemsExtra,
       ];
       const lineas = [cabeceras.join(';')];
       for (const f of filas) {
@@ -1052,6 +1211,7 @@ export function registerRemuneracionesRoutes(app: Express) {
           f.costoEmpresa, f.comisionTalana, f.comisionIntranet ?? '',
           f.diferenciaComision ?? '', f.reembolsosAprobados, f.salespersonName ?? '',
           f.estadoVinculo,
+          ...itemsExtra.map((id) => f.itemsTalana?.[id] ?? ''),
         ].map(csvCampo).join(';'));
       }
 

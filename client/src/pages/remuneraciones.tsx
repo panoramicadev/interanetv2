@@ -9,7 +9,7 @@
  *
  * Backend: server/routes-remuneraciones.ts (permiso `rrhh.remuneraciones`).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,8 +30,12 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Wallet, CalendarDays, Users, AlertTriangle, Link2, Download, RefreshCw, DollarSign,
   Banknote, CalendarCheck, Building2, Search, X, Check, EyeOff, RotateCcw,
+  Columns3, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 
@@ -75,6 +79,17 @@ interface FilaCruce {
   reembolsosAprobados: number;
   reembolsosCantidad: number;
   estadoVinculo: EstadoVinculo;
+  /** Todos los ítems de la liquidación (tipoItem → monto), para las columnas elegibles. */
+  itemsTalana?: Record<string, number>;
+}
+
+/** Un ítem de liquidación que Talana informó este mes y se puede pedir como columna. */
+interface ColumnaTalana {
+  id: string;
+  label: string;
+  /** En cuántas personas viene con valor: ordena el catálogo y avisa lo que es anecdótico. */
+  personas: number;
+  tipo: "monto" | "dias";
 }
 
 interface Alerta {
@@ -96,6 +111,7 @@ interface Cruce {
   vendedoresSinLiquidacion: { salesperson: string; commissionAmount: number }[];
   /** Vendedores del ERP marcados como "no es una persona" (mostradores, canales). */
   vendedoresIgnorados?: string[];
+  columnasTalana?: ColumnaTalana[];
   comisionesError?: string | null;
   umbralDescuadre?: number;
 }
@@ -172,29 +188,208 @@ const TITULO_ALERTA: Record<string, string> = {
   sin_liquidacion: "Contrato vigente sin liquidación",
 };
 
-/** Explicación de cada columna: son cifras de sueldo, nadie debería adivinar de dónde salen. */
-const COL_HELP: Record<string, string> = {
-  "Días": "Días trabajados del período. En un mes ya liquidado sale de la liquidación; en el mes en curso, de los días vigentes que informa Talana.",
-  "Sueldo base": "Sueldo base del contrato aplicado en la liquidación del período.",
-  "Haberes": "Suma de haberes de la liquidación (imponibles y no imponibles).",
-  "Descuentos": "Descuentos legales y adicionales de la liquidación.",
-  "Líquido": "Lo que Talana transfiere: sueldo líquido de la liquidación.",
-  "Comisión Talana": "Comisión pagada en la liquidación (ítems Comision1 + Comision2).",
-  "Comisión intranet": "Comisión que calcula el módulo de Comisiones sobre el margen facturado del mismo período.",
-  "Diferencia": "Comisión intranet − comisión Talana. En rojo cuando la intranet calculó más de lo que Talana paga.",
-  "Reembolsos": "Gastos ya aprobados en Rendición de Gastos que se pagan junto con este sueldo (por fecha de aprobación).",
-  "Costo empresa": "Lo que la persona le cuesta a la empresa en el período: líquido más leyes sociales y aportes del empleador (ítem CostoEmpresa de la liquidación). OJO: el finiquito de Talana no trae este ítem, así que en un mes con finiquito la indemnización NO está incluida acá.",
-};
+// ─── Columnas de la planilla ───
+//
+// Las columnas se declaran como datos y no como JSX suelto porque cada persona
+// elige cuáles ve (se guardan en `remuneraciones_columnas`, por usuario) y
+// porque a las propias del módulo se les suman los ítems que Talana informó
+// ese mes: una liquidación trae del orden de 200 y ninguno estaba disponible.
 
-function ColHead({ children, className }: { children: string; className?: string }) {
-  const help = COL_HELP[children];
+interface ColumnaDef {
+  id: string;
+  /** Cabecera de la tabla y etiqueta en la tarjeta de celular. */
+  label: string;
+  /** De dónde sale la cifra: son sueldos, nadie debería adivinarlo. */
+  help?: string;
+  /** Las de plata van a la derecha; las de texto, a la izquierda. */
+  derecha?: boolean;
+  /** Entra en el set con el que abre quien nunca eligió columnas. */
+  porDefecto?: boolean;
+  /** No se puede sacar: sin ella la fila no se sabe de quién es. */
+  fija?: boolean;
+  celda: (f: FilaCruce, ctx: { umbral: number }) => ReactNode;
+  /** Variante para la tarjeta de celular, donde todo se lee alineado a la izquierda. */
+  celdaTarjeta?: (f: FilaCruce, ctx: { umbral: number }) => ReactNode;
+}
+
+const GUION = <span className="text-slate-300">—</span>;
+
+const COLUMNAS_BASE: ColumnaDef[] = [
+  {
+    id: "persona", label: "Persona", fija: true, porDefecto: true,
+    celda: (f) => (
+      <div className="flex flex-col leading-tight">
+        <span className="whitespace-nowrap flex items-center gap-1.5 font-medium">
+          {f.nombre}
+          <ChipFiniquito fila={f} />
+        </span>
+        <span className="text-xs text-slate-400 tabular-nums">{f.rut}</span>
+      </div>
+    ),
+  },
+  {
+    id: "cargo", label: "Cargo", porDefecto: true,
+    celda: (f) => (
+      <div className="flex flex-col leading-tight text-sm text-slate-500">
+        <span>{f.cargo ?? "—"}</span>
+        {f.centroCosto && (
+          <span className="text-xs text-slate-400 flex items-center gap-1">
+            <Building2 className="w-3 h-3" />{f.centroCosto}
+          </span>
+        )}
+      </div>
+    ),
+  },
+  {
+    id: "sucursal", label: "Sucursal",
+    help: "Sucursal del contrato vigente en Talana.",
+    celda: (f) => <span className="text-sm text-slate-500">{f.sucursal ?? "—"}</span>,
+  },
+  {
+    id: "dias", label: "Días", derecha: true, porDefecto: true,
+    help: "Días trabajados del período. En un mes ya liquidado sale de la liquidación; en el mes en curso, de los días vigentes que informa Talana.",
+    celda: (f) => (
+      <>
+        {f.diasTrabajados ?? "—"}
+        {f.fuenteDias === "workedDays" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="ml-1 text-[10px] text-amber-600 cursor-help">·hoy</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              Días que van corriendo en el mes abierto (aún no hay liquidación).
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </>
+    ),
+  },
+  {
+    id: "diasAusencia", label: "Días de ausencia", derecha: true,
+    help: "Días de ausencia informados en la liquidación (ítem diasAusenciaItem).",
+    celda: (f) => (f.diasAusencia ? f.diasAusencia : GUION),
+  },
+  {
+    id: "diasLicencia", label: "Días de licencia", derecha: true,
+    help: "Días de licencia médica informados en la liquidación (ítem diasLicenciaItem).",
+    celda: (f) => (f.diasLicencia ? f.diasLicencia : GUION),
+  },
+  {
+    id: "sueldoBase", label: "Sueldo base", derecha: true, porDefecto: true,
+    help: "Sueldo base del contrato aplicado en la liquidación del período.",
+    celda: (f) => <span className="text-slate-500">{formatCLP(f.sueldoBase)}</span>,
+  },
+  {
+    id: "haberes", label: "Haberes", derecha: true, porDefecto: true,
+    help: "Suma de haberes de la liquidación (imponibles y no imponibles).",
+    celda: (f) => formatCLP(f.haberes),
+  },
+  {
+    id: "descuentos", label: "Descuentos", derecha: true, porDefecto: true,
+    help: "Descuentos legales y adicionales de la liquidación.",
+    celda: (f) => <span className="text-slate-500">{formatCLP(f.descuentos)}</span>,
+  },
+  {
+    // Acordado con Paolo el 16-sep-2026: el número que se mira primero es lo
+    // que la persona le cuesta a la empresa, no lo que se le transfiere. El
+    // líquido no se saca —se sigue cuadrando contra el banco—, baja a segunda
+    // línea dentro de la misma celda.
+    id: "costoEmpresa", label: "Costo empresa", derecha: true, porDefecto: true,
+    help: "Lo que la persona le cuesta a la empresa en el período: líquido más leyes sociales y aportes del empleador (ítem CostoEmpresa de la liquidación). Debajo va el líquido a pagar. OJO: el finiquito de Talana no trae CostoEmpresa, así que en un mes con finiquito la indemnización NO está incluida acá.",
+    celda: (f) => (
+      <div className="flex flex-col items-end leading-tight">
+        <span className="font-semibold">{f.costoEmpresa ? formatCLP(f.costoEmpresa) : GUION}</span>
+        <span className="text-xs text-slate-400">Líquido {formatCLP(f.liquido)}</span>
+      </div>
+    ),
+    celdaTarjeta: (f) => (
+      <div className="flex flex-col leading-tight">
+        <span className="font-semibold tabular-nums">{f.costoEmpresa ? formatCLP(f.costoEmpresa) : "—"}</span>
+        <span className="text-[11px] text-slate-400 tabular-nums">Líquido {formatCLP(f.liquido)}</span>
+      </div>
+    ),
+  },
+  {
+    id: "liquido", label: "Líquido", derecha: true,
+    help: "Lo que Talana transfiere: sueldo líquido de la liquidación. Ya aparece bajo el costo empresa; esta columna existe para cuando se quiere mirarlo solo.",
+    celda: (f) => <span className="font-semibold">{formatCLP(f.liquido)}</span>,
+  },
+  {
+    id: "anticipo", label: "Anticipo", derecha: true,
+    help: "Anticipos del período (liquidaciones de tipo anticipo).",
+    celda: (f) => (f.anticipo ? formatCLP(f.anticipo) : GUION),
+  },
+  {
+    id: "atrasos", label: "Atrasos", derecha: true,
+    help: "Descuento por atrasos de la liquidación (ítem Atraso).",
+    celda: (f) => (f.atrasos ? formatCLP(f.atrasos) : GUION),
+  },
+  {
+    id: "comisionTalana", label: "Comisión Talana", derecha: true, porDefecto: true,
+    help: "Comisión pagada en la liquidación (ítems Comision1 + Comision2).",
+    celda: (f) => (f.comisionTalana ? formatCLP(f.comisionTalana) : GUION),
+  },
+  {
+    id: "comisionIntranet", label: "Comisión intranet", derecha: true, porDefecto: true,
+    help: "Comisión que calcula el módulo de Comisiones sobre el margen facturado del mismo período.",
+    celda: (f) => (f.comisionIntranet === null ? <SinComision fila={f} /> : formatCLP(f.comisionIntranet)),
+  },
+  {
+    id: "diferencia", label: "Diferencia", derecha: true, porDefecto: true,
+    help: "Comisión intranet − comisión Talana. En rojo cuando la intranet calculó más de lo que Talana paga.",
+    celda: (f, { umbral }) => <Diferencia valor={f.diferenciaComision} umbral={umbral} />,
+  },
+  {
+    id: "reembolsos", label: "Reembolsos", derecha: true, porDefecto: true,
+    help: "Gastos ya aprobados en Rendición de Gastos que se pagan junto con este sueldo (por fecha de aprobación).",
+    celda: (f) => (f.reembolsosAprobados
+      ? <span className="text-slate-500">{formatCLP(f.reembolsosAprobados)}</span>
+      : GUION),
+  },
+  {
+    id: "vendedor", label: "Vendedor ERP",
+    help: "Nombre con el que el ERP registra sus ventas. Es el puente hacia la comisión calculada por la intranet.",
+    celda: (f) => <span className="text-sm text-slate-500 whitespace-nowrap">{f.salespersonName ?? "—"}</span>,
+  },
+  {
+    id: "vinculo", label: "Vínculo", porDefecto: true,
+    celda: (f) => <ChipVinculo fila={f} />,
+  },
+];
+
+/** Prefijo de las columnas que son un ítem de Talana, para no chocar con las propias. */
+const PREFIJO_TALANA = "talana:";
+
+// Radix no acepta "" como valor de un SelectItem: los dos filtros que no son
+// un vendedor concreto necesitan valor propio.
+const VENDEDOR_TODOS = "__todos__";
+const VENDEDOR_SIN_ASIGNAR = "__sin_vendedor__";
+
+const COLUMNAS_POR_DEFECTO = COLUMNAS_BASE.filter((c) => c.porDefecto).map((c) => c.id);
+
+/** La definición de un ítem de Talana como columna de la planilla. */
+function columnaDeItem(item: ColumnaTalana): ColumnaDef {
+  return {
+    id: PREFIJO_TALANA + item.id,
+    label: item.label,
+    derecha: true,
+    help: `Ítem ${item.id} de la liquidación de Talana. Viene con valor en ${item.personas} ${item.personas === 1 ? "persona" : "personas"} de este período.`,
+    celda: (f) => {
+      const valor = f.itemsTalana?.[item.id];
+      if (!valor) return GUION;
+      return item.tipo === "dias" ? String(valor) : formatCLP(valor);
+    },
+  };
+}
+
+function ColHead({ label, help, className }: { label: string; help?: string; className?: string }) {
   const base = `whitespace-nowrap align-bottom ${className ?? ""}`;
-  if (!help) return <TableHead className={base}>{children}</TableHead>;
+  if (!help) return <TableHead className={base}>{label}</TableHead>;
   return (
     <TableHead className={base}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">{children}</span>
+          <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">{label}</span>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs leading-relaxed">{help}</TooltipContent>
       </Tooltip>
@@ -245,6 +440,14 @@ export default function RemuneracionesPage() {
   const [periodoId, setPeriodoId] = useState<string>("");
   const [tab, setTab] = useState<TabId>("cruce");
   const [busqueda, setBusqueda] = useState("");
+  const [vendedor, setVendedor] = useState<string>(VENDEDOR_TODOS);
+  /**
+   * Columnas elegidas. `null` mientras no se sabe qué eligió esta persona:
+   * recién ahí manda lo guardado en el servidor, y si nunca eligió, el set por
+   * defecto. Se guarda local además de en el servidor para que marcar una
+   * casilla se vea al instante y no espere el ida y vuelta.
+   */
+  const [columnasLocal, setColumnasLocal] = useState<string[] | null>(null);
 
   const { data: periodosResp, isLoading: cargandoPeriodos } = useQuery<{ ok: boolean; periodos: Periodo[]; error?: string }>({
     queryKey: ["/api/rrhh/remuneraciones/periodos"],
@@ -266,6 +469,35 @@ export default function RemuneracionesPage() {
       if (!res.ok) throw new Error("No se pudo cargar el cruce del período");
       return res.json();
     },
+  });
+
+  const { data: prefColumnas } = useQuery<{ columnas: string[] | null }>({
+    queryKey: ["/api/rrhh/remuneraciones/columnas"],
+    queryFn: async () => {
+      const res = await fetch("/api/rrhh/remuneraciones/columnas", { credentials: "include" });
+      if (!res.ok) throw new Error("No se pudieron cargar las columnas");
+      return res.json();
+    },
+    staleTime: Infinity,
+  });
+
+  // Lo guardado manda hasta que esta sesión toque una casilla.
+  useEffect(() => {
+    if (prefColumnas && columnasLocal === null) {
+      setColumnasLocal(prefColumnas.columnas ?? COLUMNAS_POR_DEFECTO);
+    }
+  }, [prefColumnas]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const guardarColumnas = useMutation({
+    mutationFn: async (columnas: string[] | null) => {
+      const res = await apiRequest("PUT", "/api/rrhh/remuneraciones/columnas", { columnas });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "No se pudo guardar");
+      return res.json();
+    },
+    onSuccess: (_d, columnas) => {
+      queryClient.setQueryData(["/api/rrhh/remuneraciones/columnas"], { columnas });
+    },
+    onError: (e: any) => toast({ title: "No se pudieron guardar las columnas", description: e?.message, variant: "destructive" }),
   });
 
   const refrescar = useMutation({
@@ -313,22 +545,69 @@ export default function RemuneracionesPage() {
   const alertas = cruce?.alertas ?? [];
   const periodo = periodos.find((p) => String(p.id) === periodoActual) ?? cruce?.periodo ?? null;
 
+  /**
+   * Los vendedores del ERP que aparecen en el período, para el filtro. Sale de
+   * las propias filas y no del catálogo de vendedores: lo que se quiere es
+   * "mostrame la planilla de este vendedor", y un vendedor sin nadie liquidado
+   * en el mes daría una lista vacía sin explicar por qué.
+   */
+  const vendedoresDelPeriodo = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of filas) if (f.salespersonName) set.add(f.salespersonName);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+  }, [filas]);
+
   const filasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return filas;
-    return filas.filter((f) =>
-      f.nombre.toLowerCase().includes(q) ||
-      f.rut.toLowerCase().includes(q) ||
-      (f.cargo ?? "").toLowerCase().includes(q) ||
-      (f.centroCosto ?? "").toLowerCase().includes(q));
-  }, [filas, busqueda]);
+    return filas.filter((f) => {
+      if (vendedor === VENDEDOR_SIN_ASIGNAR && f.salespersonName) return false;
+      if (vendedor !== VENDEDOR_TODOS && vendedor !== VENDEDOR_SIN_ASIGNAR && f.salespersonName !== vendedor) return false;
+      if (!q) return true;
+      return f.nombre.toLowerCase().includes(q) ||
+        f.rut.toLowerCase().includes(q) ||
+        (f.cargo ?? "").toLowerCase().includes(q) ||
+        (f.salespersonName ?? "").toLowerCase().includes(q) ||
+        (f.centroCosto ?? "").toLowerCase().includes(q);
+    });
+  }, [filas, busqueda, vendedor]);
+
+  // El catálogo de columnas del período: las propias del módulo más los ítems
+  // que Talana informó este mes.
+  const columnasTalana = cruce?.columnasTalana ?? [];
+  const seleccion = columnasLocal ?? COLUMNAS_POR_DEFECTO;
+  const columnasVisibles = useMemo(() => {
+    const elegidas = new Set(seleccion);
+    const base = COLUMNAS_BASE.filter((c) => c.fija || elegidas.has(c.id));
+    const items = columnasTalana.filter((i) => elegidas.has(PREFIJO_TALANA + i.id)).map(columnaDeItem);
+    return [...base, ...items];
+  }, [seleccion, columnasTalana]);
+
+  const cambiarColumna = (id: string, visible: boolean) => {
+    const siguiente = visible
+      ? Array.from(new Set([...seleccion, id]))
+      : seleccion.filter((c) => c !== id);
+    setColumnasLocal(siguiente);
+    guardarColumnas.mutate(siguiente);
+  };
+
+  const resetearColumnas = () => {
+    setColumnasLocal(COLUMNAS_POR_DEFECTO);
+    guardarColumnas.mutate(null);
+  };
 
   const diferenciaComisiones = (totales?.comisionIntranet ?? 0) - (totales?.comisionTalana ?? 0);
   const talanaCaido = cruce && cruce.talana && cruce.talana.ok === false;
 
   const descargarCsv = () => {
     if (!periodoActual) return;
-    window.open(`/api/rrhh/remuneraciones/export.csv?periodo=${periodoActual}`, "_blank");
+    // El CSV trae siempre las columnas del cierre de mes; los ítems de Talana
+    // que la persona sumó a la planilla se agregan al final, para que lo que
+    // se ve en pantalla se pueda exportar.
+    const items = seleccion
+      .filter((c) => c.startsWith(PREFIJO_TALANA))
+      .map((c) => c.slice(PREFIJO_TALANA.length));
+    const extra = items.length ? `&items=${encodeURIComponent(items.join(","))}` : "";
+    window.open(`/api/rrhh/remuneraciones/export.csv?periodo=${periodoActual}${extra}`, "_blank");
   };
 
   return (
@@ -440,9 +719,11 @@ export default function RemuneracionesPage() {
             sub={totales ? `${totales.conLiquidacion} con liquidación` : undefined} />
           <KpiCard icon={CalendarCheck} label="Días trabajados (promedio)" loading={cargandoCruce}
             value={totales && totales.personas ? (totales.diasTrabajados / totales.personas).toFixed(1) : "—"} />
-          <KpiCard icon={Banknote} label="Líquido a pagar" loading={cargandoCruce}
-            value={formatCLP(totales?.liquido)}
-            sub={totales ? `Costo empresa ${formatCLP(totales.costoEmpresa)}` : undefined} />
+          {/* Acordado con Paolo (16-sep-2026): el número del mes es lo que cuesta
+              la gente, no lo que se transfiere. El líquido queda debajo. */}
+          <KpiCard icon={Banknote} label="Costo empresa" loading={cargandoCruce}
+            value={formatCLP(totales?.costoEmpresa)}
+            sub={totales ? `Líquido a pagar ${formatCLP(totales.liquido)}` : undefined} />
           <KpiCard icon={Wallet} label="Comisiones en Talana" loading={cargandoCruce}
             value={formatCLP(totales?.comisionTalana)}
             sub={totales ? `Intranet calculó ${formatCLP(totales.comisionIntranet)}` : undefined} />
@@ -504,6 +785,14 @@ export default function RemuneracionesPage() {
             busqueda={busqueda}
             setBusqueda={setBusqueda}
             umbral={cruce?.umbralDescuadre ?? 1000}
+            columnas={columnasVisibles}
+            catalogoTalana={columnasTalana}
+            seleccion={seleccion}
+            onCambiarColumna={cambiarColumna}
+            onResetearColumnas={resetearColumnas}
+            vendedores={vendedoresDelPeriodo}
+            vendedor={vendedor}
+            setVendedor={setVendedor}
           />
         )}
 
@@ -527,10 +816,24 @@ export default function RemuneracionesPage() {
 
 // ─── Planilla del período ───
 
-function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, umbral }: {
+function PlanillaPeriodo({
+  filas, totalFilas, loading, busqueda, setBusqueda, umbral,
+  columnas, catalogoTalana, seleccion, onCambiarColumna, onResetearColumnas,
+  vendedores, vendedor, setVendedor,
+}: {
   filas: FilaCruce[]; totalFilas: number; loading: boolean;
   busqueda: string; setBusqueda: (v: string) => void; umbral: number;
+  columnas: ColumnaDef[]; catalogoTalana: ColumnaTalana[]; seleccion: string[];
+  onCambiarColumna: (id: string, visible: boolean) => void;
+  onResetearColumnas: () => void;
+  vendedores: string[]; vendedor: string; setVendedor: (v: string) => void;
 }) {
+  const ctx = { umbral };
+  const filtrando = !!busqueda || vendedor !== VENDEDOR_TODOS;
+  // En la tarjeta de celular el nombre, el cargo y el vínculo ya van en la
+  // cabecera: repetirlos en la grilla sería leerlos dos veces.
+  const enTarjeta = columnas.filter((c) => !["persona", "cargo", "vinculo"].includes(c.id));
+
   return (
     <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
       <CardHeader className="pb-2">
@@ -539,22 +842,56 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
             <Users className="w-4 h-4 text-[#fd6301]" />
             Planilla del período
             <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/60 tabular-nums">
-              {filas.length}{busqueda ? ` de ${totalFilas}` : ""}
+              {filas.length}{filtrando ? ` de ${totalFilas}` : ""}
             </span>
           </CardTitle>
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre, RUT, cargo o centro de costo…"
-              className="h-9 pl-8 pr-8 rounded-xl" />
-            {busqueda && (
-              <button type="button" onClick={() => setBusqueda("")} title="Limpiar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            )}
+
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto items-stretch sm:items-center gap-2">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre, RUT, cargo o vendedor…"
+                className="h-11 sm:h-9 pl-8 pr-8 rounded-xl text-base sm:text-sm" />
+              {busqueda && (
+                <button type="button" onClick={() => setBusqueda("")} title="Limpiar búsqueda"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Filtro por vendedor: pedido en la reunión del 16-sep-2026 para
+                poder mirar la planilla de uno solo cuando se revisa su comisión. */}
+            <Select value={vendedor} onValueChange={setVendedor}>
+              <SelectTrigger className="h-11 sm:h-9 w-full sm:w-56 rounded-xl text-base sm:text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
+                  <SelectValue placeholder="Todos los vendedores" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={VENDEDOR_TODOS}>Todos los vendedores</SelectItem>
+                <SelectItem value={VENDEDOR_SIN_ASIGNAR}>Sin vendedor asignado</SelectItem>
+                {vendedores.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <SelectorColumnas catalogoTalana={catalogoTalana} seleccion={seleccion}
+              onCambiar={onCambiarColumna} onResetear={onResetearColumnas} />
           </div>
         </div>
+
+        {/* Lo aplicado, a la vista y con cómo sacarlo */}
+        {filtrando && (
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            {vendedor !== VENDEDOR_TODOS && (
+              <ChipFiltro
+                texto={vendedor === VENDEDOR_SIN_ASIGNAR ? "Sin vendedor asignado" : vendedor}
+                onQuitar={() => setVendedor(VENDEDOR_TODOS)} />
+            )}
+            {busqueda && <ChipFiltro texto={`"${busqueda}"`} onQuitar={() => setBusqueda("")} />}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="px-0 sm:px-2">
@@ -566,86 +903,38 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap align-bottom">Persona</TableHead>
-                  <TableHead className="whitespace-nowrap align-bottom">Cargo</TableHead>
-                  <ColHead className="text-right">Días</ColHead>
-                  <ColHead className="text-right">Sueldo base</ColHead>
-                  <ColHead className="text-right">Haberes</ColHead>
-                  <ColHead className="text-right">Descuentos</ColHead>
-                  <ColHead className="text-right">Líquido</ColHead>
-                  <ColHead className="text-right">Comisión Talana</ColHead>
-                  <ColHead className="text-right">Comisión intranet</ColHead>
-                  <ColHead className="text-right">Diferencia</ColHead>
-                  <ColHead className="text-right">Reembolsos</ColHead>
-                  <TableHead className="whitespace-nowrap align-bottom">Vínculo</TableHead>
-                  <ColHead className="text-right">Costo empresa</ColHead>
+                  {columnas.map((c) => (
+                    <ColHead key={c.id} label={c.label} help={c.help}
+                      className={[
+                        c.derecha ? "text-right" : "",
+                        // Con los ítems de Talana sumados la tabla se va a la
+                        // derecha: sin fijar la persona, la fila deja de saberse
+                        // de quién es a la tercera columna.
+                        c.fija ? "sticky left-0 z-20 bg-white dark:bg-slate-900" : "",
+                      ].filter(Boolean).join(" ") || undefined} />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filas.map((f) => (
-                  <TableRow key={f.talanaEmpleadoId} className="hover:bg-orange-50/50 dark:hover:bg-orange-950/15">
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col leading-tight">
-                        <span className="whitespace-nowrap flex items-center gap-1.5">
-                          {f.nombre}
-                          <ChipFiniquito fila={f} />
-                        </span>
-                        <span className="text-xs text-slate-400 tabular-nums">{f.rut}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-500">
-                      <div className="flex flex-col leading-tight">
-                        <span>{f.cargo ?? "—"}</span>
-                        {f.centroCosto && (
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <Building2 className="w-3 h-3" />{f.centroCosto}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {f.diasTrabajados ?? "—"}
-                      {f.fuenteDias === "workedDays" && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="ml-1 text-[10px] text-amber-600 cursor-help">·hoy</span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs text-xs">
-                            Días que van corriendo en el mes abierto (aún no hay liquidación).
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(f.sueldoBase)}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(f.haberes)}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(f.descuentos)}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">{formatCLP(f.liquido)}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{f.comisionTalana ? formatCLP(f.comisionTalana) : <span className="text-slate-300">—</span>}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">
-                      {f.comisionIntranet === null
-                        ? <SinComision fila={f} />
-                        : formatCLP(f.comisionIntranet)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">
-                      <Diferencia valor={f.diferenciaComision} umbral={umbral} />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">
-                      {f.reembolsosAprobados ? formatCLP(f.reembolsosAprobados) : <span className="text-slate-300">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <ChipVinculo fila={f} />
-                    </TableCell>
-                    {/* Va al final y en semibold: es la cifra con la que se
-                        mira el mes completo, no una más de la fila. */}
-                    <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">
-                      {f.costoEmpresa ? formatCLP(f.costoEmpresa) : <span className="text-slate-300">—</span>}
-                    </TableCell>
+                  <TableRow key={f.talanaEmpleadoId} className="group hover:bg-orange-50/50 dark:hover:bg-orange-950/15">
+                    {columnas.map((c) => (
+                      <TableCell key={c.id}
+                        className={[
+                          c.derecha ? "text-right tabular-nums whitespace-nowrap" : "",
+                          c.fija
+                            ? "sticky left-0 z-10 bg-white group-hover:bg-orange-50/50 dark:bg-slate-900 dark:group-hover:bg-orange-950/15 shadow-[6px_0_10px_-8px_rgba(0,0,0,.25)]"
+                            : "",
+                        ].filter(Boolean).join(" ") || undefined}>
+                        {c.celda(f, ctx)}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
                 {!filas.length && (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-slate-500 py-10">
-                      {busqueda ? `Nadie coincide con "${busqueda}"` : "No hay personas en este período."}
+                    <TableCell colSpan={columnas.length} className="text-center text-slate-500 py-10">
+                      {filtrando ? "Nadie coincide con el filtro aplicado." : "No hay personas en este período."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -670,22 +959,14 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
                   <ChipVinculo fila={f} />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                  <div>
-                    <p className="text-slate-400">Días</p>
-                    <p className="font-semibold tabular-nums">{f.diasTrabajados ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Líquido</p>
-                    <p className="font-semibold tabular-nums">{formatCLP(f.liquido)}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Comisión</p>
-                    <p className="font-semibold tabular-nums">{formatCLP(f.comisionTalana)}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Costo empresa</p>
-                    <p className="font-semibold tabular-nums">{f.costoEmpresa ? formatCLP(f.costoEmpresa) : "—"}</p>
-                  </div>
+                  {enTarjeta.map((c) => (
+                    <div key={c.id} className="min-w-0">
+                      <p className="text-slate-400 truncate">{c.label}</p>
+                      <div className="font-semibold tabular-nums">
+                        {(c.celdaTarjeta ?? c.celda)(f, ctx)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 {f.diferenciaComision !== null && Math.abs(f.diferenciaComision) >= umbral && (
                   <p className="mt-2 text-xs text-red-600">
@@ -696,13 +977,120 @@ function PlanillaPeriodo({ filas, totalFilas, loading, busqueda, setBusqueda, um
             ))}
             {!filas.length && (
               <p className="text-center text-slate-500 py-8 text-sm">
-                {busqueda ? `Nadie coincide con "${busqueda}"` : "No hay personas en este período."}
+                {filtrando ? "Nadie coincide con el filtro aplicado." : "No hay personas en este período."}
               </p>
             )}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ChipFiltro({ texto, onQuitar }: { texto: string; onQuitar: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 pl-3 pr-1.5 py-1 text-xs font-medium text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-300">
+      <span className="truncate max-w-[12rem]">{texto}</span>
+      <button type="button" onClick={onQuitar} title="Quitar filtro"
+        className="p-1 rounded-full hover:bg-orange-100 dark:hover:bg-orange-900/40">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Qué columnas ve esta persona. Dos listas: las del módulo (siempre las mismas)
+ * y los ítems que Talana informó en el período, que cambian mes a mes y son
+ * ~200 — por eso el buscador y el contador de en cuántas personas viene cada
+ * uno: un ítem que trae una sola persona, como columna, es una fila con dato y
+ * sesenta guiones.
+ */
+function SelectorColumnas({ catalogoTalana, seleccion, onCambiar, onResetear }: {
+  catalogoTalana: ColumnaTalana[]; seleccion: string[];
+  onCambiar: (id: string, visible: boolean) => void; onResetear: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const elegidas = new Set(seleccion);
+  const q = busqueda.trim().toLowerCase();
+
+  const base = COLUMNAS_BASE.filter((c) => !c.fija && (!q || c.label.toLowerCase().includes(q)));
+  const items = catalogoTalana.filter((i) =>
+    !q || i.label.toLowerCase().includes(q) || i.id.toLowerCase().includes(q));
+
+  const cuantas = seleccion.length;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm"
+          className="h-11 sm:h-9 rounded-xl border-slate-200 hover:border-orange-200 hover:text-[#fd6301] justify-start sm:justify-center">
+          <Columns3 className="w-4 h-4 mr-2" />
+          Columnas
+          <span className="ml-2 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 text-[11px] tabular-nums">{cuantas}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-0 rounded-2xl">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar columna…" className="h-11 sm:h-9 pl-8 rounded-xl text-base sm:text-sm" />
+          </div>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto py-2">
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Columnas del módulo
+          </p>
+          {base.map((c) => (
+            <FilaColumna key={c.id} label={c.label} detalle={c.help}
+              marcada={elegidas.has(c.id)} onCambiar={(v) => onCambiar(c.id, v)} />
+          ))}
+          {!base.length && <p className="px-3 py-2 text-xs text-slate-400">Ninguna coincide.</p>}
+
+          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Ítems de Talana {catalogoTalana.length ? `(${catalogoTalana.length})` : ""}
+          </p>
+          {!catalogoTalana.length && (
+            <p className="px-3 py-2 text-xs text-slate-400">
+              Este período todavía no tiene liquidaciones cargadas en Talana.
+            </p>
+          )}
+          {items.map((i) => (
+            <FilaColumna key={i.id} label={i.label}
+              detalle={`${i.id} · ${i.personas} ${i.personas === 1 ? "persona" : "personas"}`}
+              marcada={elegidas.has(PREFIJO_TALANA + i.id)}
+              onCambiar={(v) => onCambiar(PREFIJO_TALANA + i.id, v)} />
+          ))}
+          {catalogoTalana.length > 0 && !items.length && (
+            <p className="px-3 py-2 text-xs text-slate-400">Ningún ítem coincide.</p>
+          )}
+        </div>
+
+        <div className="p-2 border-t border-slate-100 dark:border-slate-800">
+          <Button variant="ghost" size="sm" onClick={onResetear}
+            className="w-full h-10 rounded-xl text-slate-500 hover:text-[#fd6301]">
+            <RotateCcw className="w-4 h-4 mr-2" /> Volver a las columnas por defecto
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FilaColumna({ label, detalle, marcada, onCambiar }: {
+  label: string; detalle?: string; marcada: boolean; onCambiar: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-3 px-3 py-2.5 min-h-[44px] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60">
+      <input type="checkbox" checked={marcada} onChange={(e) => onCambiar(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#fd6301] focus:ring-[#fd6301]" />
+      <span className="min-w-0">
+        <span className="block text-sm text-slate-700 dark:text-slate-200 truncate">{label}</span>
+        {detalle && <span className="block text-[11px] text-slate-400 line-clamp-2">{detalle}</span>}
+      </span>
+    </label>
   );
 }
 
@@ -946,9 +1334,26 @@ function GrupoAlertas({ tipo, lista, onIrAVinculos, onIgnorarVendedor, ignorando
 
 const SIN_VALOR = "__ninguno__";
 
+/** Qué se muestra en la pestaña de Vínculos. */
+type FiltroVinculo = "todos" | "pendientes" | "sin_vinculo";
+
+const FILTROS_VINCULO: { value: FiltroVinculo; label: string }[] = [
+  { value: "pendientes", label: "Pendientes de confirmar" },
+  { value: "sin_vinculo", label: "Sin vincular" },
+  { value: "todos", label: "Todas las personas" },
+];
+
 function Vinculos() {
   const { toast } = useToast();
   const [busqueda, setBusqueda] = useState("");
+  /**
+   * Abre en "pendientes" a propósito: a esta pestaña se entra a arreglar lo que
+   * no cruzó, y con 64 personas liquidadas las tres que hay que tocar quedaban
+   * perdidas en la lista completa. "Pendientes" son las que nadie confirmó
+   * todavía: las que no calzaron con nadie y las que el sistema propuso por
+   * nombre y siguen sin revisar.
+   */
+  const [filtro, setFiltro] = useState<FiltroVinculo>("pendientes");
 
   const { data, isLoading } = useQuery<VinculosData>({
     queryKey: ["/api/rrhh/remuneraciones/vinculos"],
@@ -992,11 +1397,36 @@ function Vinculos() {
     [data],
   );
 
+  /**
+   * Cada persona de Talana con el vínculo que le corresponde hoy. El estado se
+   * calcula acá (y no dentro del render) porque es lo que filtra la pestaña.
+   * Sin fila guardada mandan las sugerencias del servidor: son las mismas que
+   * usa la planilla, así las dos pantallas dicen lo mismo de la misma persona.
+   */
+  const filasVinculo = useMemo(() => empleados.map((e) => {
+    const v = vinculoPorEmpleado.get(e.id) ?? null;
+    const userId = v?.userId ?? (v ? null : e.sugerencia?.userId ?? null);
+    const vendedor = v?.salespersonName ?? (v ? null : e.sugerencia?.salespersonName ?? null);
+    const estado: EstadoVinculo = v?.ignorado
+      ? "ignorado"
+      : v?.confirmado
+        ? "confirmado"
+        : (userId || vendedor) ? "automatico" : "sin_vinculo";
+    return { e, v, userId, vendedor, estado };
+  }), [empleados, vinculoPorEmpleado]);
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return empleados;
-    return empleados.filter((e) => e.nombre.toLowerCase().includes(q) || e.rut.includes(q));
-  }, [empleados, busqueda]);
+    return filasVinculo.filter(({ e, estado }) => {
+      if (filtro === "sin_vinculo" && estado !== "sin_vinculo") return false;
+      if (filtro === "pendientes" && estado !== "sin_vinculo" && estado !== "automatico") return false;
+      if (!q) return true;
+      return e.nombre.toLowerCase().includes(q) || e.rut.includes(q);
+    });
+  }, [filasVinculo, busqueda, filtro]);
+
+  const sinVincular = filasVinculo.filter((f) => f.estado === "sin_vinculo").length;
+  const porConfirmar = filasVinculo.filter((f) => f.estado === "automatico").length;
 
   return (
     <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -1012,10 +1442,26 @@ function Vinculos() {
               el calce por nombre; guardarlo lo deja confirmado.
             </p>
           </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar persona…" className="h-9 pl-8 rounded-xl" />
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto items-stretch sm:items-center gap-2">
+            <Select value={filtro} onValueChange={(v) => setFiltro(v as FiltroVinculo)}>
+              <SelectTrigger className="h-11 sm:h-9 w-full sm:w-56 rounded-xl text-base sm:text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FILTROS_VINCULO.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>
+                    {f.label}
+                    {f.value === "sin_vinculo" && sinVincular ? ` (${sinVincular})` : ""}
+                    {f.value === "pendientes" && (sinVincular + porConfirmar) ? ` (${sinVincular + porConfirmar})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar persona…" className="h-11 sm:h-9 pl-8 rounded-xl text-base sm:text-sm" />
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -1040,18 +1486,7 @@ function Vinculos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtrados.map((e) => {
-                  const v = vinculoPorEmpleado.get(e.id);
-                  // Sin fila guardada mandan las sugerencias del servidor: son
-                  // las mismas que usa la planilla, así las dos pantallas dicen
-                  // lo mismo de la misma persona.
-                  const userId = v?.userId ?? (v ? null : e.sugerencia?.userId ?? null);
-                  const vendedor = v?.salespersonName ?? (v ? null : e.sugerencia?.salespersonName ?? null);
-                  const estado: EstadoVinculo = v?.ignorado
-                    ? "ignorado"
-                    : v?.confirmado
-                      ? "confirmado"
-                      : (userId || vendedor) ? "automatico" : "sin_vinculo";
+                {filtrados.map(({ e, v, userId, vendedor, estado }) => {
                   return (
                     <TableRow key={e.id} className={v?.ignorado ? "opacity-60" : ""}>
                       <TableCell>
@@ -1136,7 +1571,13 @@ function Vinculos() {
                 {!filtrados.length && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-slate-500 py-10">
-                      {busqueda ? `Nadie coincide con "${busqueda}"` : "Talana no devolvió personas."}
+                      {busqueda
+                        ? `Nadie coincide con "${busqueda}"`
+                        : filtro === "sin_vinculo"
+                          ? "Todas las personas de Talana están vinculadas."
+                          : filtro === "pendientes"
+                            ? "No queda nada por confirmar: todos los vínculos están revisados."
+                            : "Talana no devolvió personas."}
                     </TableCell>
                   </TableRow>
                 )}
