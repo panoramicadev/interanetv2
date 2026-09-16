@@ -229,6 +229,13 @@ cuadraría. Un período `cerrado` se rechaza con 409 hasta que se reabra.
    acumulado dice cuántos cubre ("1 de 7 meses") en vez de prometer un año
    entero. Con el ETL limitado a julio ése es el estado normal, no la excepción,
    y un cero ahí se leería como "junio no vendió nada".
+   Y si el mes elegido está vacío, ahí mismo sale **Eliminar este mes vacío**.
+   El botón sólo aparece sobre un mes sin un peso, pero el cerrojo de verdad es
+   el servidor: `DELETE /api/finanzas/balance/periodos/:periodo` recuenta antes
+   de borrar y rechaza con 409 cualquier mes con movimiento, aunque lo llamen
+   directo. Borrar contabilidad cargada no es una operación de un clic; si algún
+   día hace falta, va a ser con su propia confirmación y su propio motivo, no
+   colándose por esta puerta.
 2. **Presupuesto** — solo ingresos, y la pantalla dice por qué.
 3. **Personal** — el cruce por área, los centros de costo sin asignar y las
    cuentas de personal con movimiento que nadie asignó.
