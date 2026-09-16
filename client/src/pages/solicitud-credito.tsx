@@ -24,6 +24,7 @@ import {
   Banknote,
   Building2,
   Check,
+  Clock,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -94,6 +95,8 @@ const fmtFecha = (valor: string | Date | null | undefined) => {
 
 const BADGE_ESTADO: Record<string, string> = {
   enviada: "bg-amber-100 text-amber-700 border-amber-200",
+  // "analizando" es un paso intermedio, no un cierre: sigue en la bandeja.
+  analizando: "bg-yellow-100 text-yellow-800 border-yellow-300",
   aprobada: "bg-emerald-100 text-emerald-700 border-emerald-200",
   rechazada: "bg-red-100 text-red-700 border-red-200",
 };
@@ -204,8 +207,9 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
    */
   // Solo lo pendiente lleva número: es lo que le queda a alguien por hacer.
   // Los cierres no se cuentan — nadie tiene que actuar sobre ellos.
-  const pendientes = solicitudes.filter((s) => s.estado === "enviada");
-  const resueltas = solicitudes.filter((s) => s.estado !== "enviada");
+  const ESTADOS_PENDIENTES = ["enviada", "analizando"];
+  const pendientes = solicitudes.filter((s) => ESTADOS_PENDIENTES.includes(s.estado));
+  const resueltas = solicitudes.filter((s) => !ESTADOS_PENDIENTES.includes(s.estado));
 
   const enviar = useMutation({
     mutationFn: async (datos: Record<string, unknown>) => {
@@ -231,9 +235,14 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
       const res = await apiRequest(`/api/solicitudes-credito/${id}`, { method: "PATCH", data: datos });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (actualizada: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-credito"] });
-      toast({ title: "Solicitud resuelta" });
+      toast({
+        title:
+          actualizada?.estado === "analizando"
+            ? "Solicitud marcada en análisis"
+            : "Solicitud resuelta",
+      });
     },
     onError: (error: any) => {
       toast({ title: "No se pudo resolver", description: error?.message, variant: "destructive" });
@@ -807,6 +816,21 @@ function FilaSolicitud({
             />
           </div>
           <div className="flex justify-end gap-2">
+            {/* Analizando: avisa al vendedor que la están mirando sin cerrarla.
+                No pide monto ni motivo —todavía no hay decisión— y la solicitud
+                queda en la bandeja para aprobarla o rechazarla después. */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resolviendo || solicitud.estado === "analizando"}
+              className="h-8 rounded-lg text-xs border-yellow-300 text-yellow-800 hover:bg-yellow-50"
+              onClick={() =>
+                onResolver({ estado: "analizando", observaciones: motivo.trim() || null })
+              }
+              data-testid={`button-credito-analizando-${solicitud.id}`}
+            >
+              <Clock className="h-3.5 w-3.5 mr-1" /> Analizando
+            </Button>
             <Button
               variant="outline"
               size="sm"

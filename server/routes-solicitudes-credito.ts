@@ -30,6 +30,13 @@ import {
 
 /** Resuelven solicitudes (aprobar / rechazar). */
 const ROLES_FINANZAS = ['admin', 'supervisor', 'encargado_area', 'recursos_humanos'];
+
+/**
+ * Quien actualiza la ficha del cliente en cuanto hay resolución. Va como
+ * destinatario del aviso de aprobación/rechazo junto al vendedor. Si mañana lo
+ * hace otra persona, se cambia acá y listo.
+ */
+const CORREO_FICHA_CLIENTE = 'fparra@pinturaspanoramica.cl';
 /** Ven todas las solicitudes, resuelvan o no. */
 const ROLES_VEN_TODO = ['admin', 'supervisor', 'encargado_area', 'recursos_humanos', 'reception'];
 
@@ -161,6 +168,81 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
   });
 }
 
+/**
+ * Cuerpo del aviso de resolución. Lleva lo justo para actualizar la ficha del
+ * cliente sin tener que entrar al sistema: cliente, RUT, plazo y monto aprobado.
+ */
+function cuerpoDeLaResolucion(s: SolicitudCredito): string {
+  const aprobada = s.estado === 'aprobada';
+  const fila = (label: string, valor: unknown) =>
+    valor === null || valor === undefined || valor === ''
+      ? ''
+      : `<tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:13px">${label}</td>
+           <td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600">${valor}</td></tr>`;
+
+  return `
+    <p style="font-size:15px;color:#0f172a">
+      La solicitud de crédito de <strong>${s.razonSocial}</strong> fue
+      <strong style="color:${aprobada ? '#047857' : '#b91c1c'}">${aprobada ? 'APROBADA' : 'RECHAZADA'}</strong>${
+        s.resueltaPorNombre ? ` por ${s.resueltaPorNombre}` : ''
+      }.
+    </p>
+    <table style="border-collapse:collapse;margin:12px 0">
+      ${fila('Cliente', s.razonSocial)}
+      ${fila('RUT', s.rut)}
+      ${fila('Días de crédito', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}
+      ${fila('Crédito solicitado', money(s.creditoSolicitado))}
+      ${aprobada ? fila('Monto aprobado', money(s.creditoAprobado)) : ''}
+      ${fila('Vendedor', s.solicitanteNombre)}
+      ${fila('Observaciones', s.observaciones)}
+    </table>
+    ${
+      aprobada
+        ? `<p style="font-size:13px;color:#475569">Con esto ya se puede actualizar la ficha del cliente.</p>`
+        : ''
+    }
+  `;
+}
+
+/**
+ * Aviso de resolución: sale solo cuando la solicitud se aprueba o se rechaza
+ * (no cuando queda "analizando", porque ahí todavía no hay nada que cargar en la
+ * ficha del cliente).
+ *
+ * Para: el vendedor que la pidió —es quien sigue al cliente— y quien actualiza
+ * la ficha. Copia: su supervisor y los correos configurados en Configuración →
+ * Correos.
+ */
+async function avisarResolucionPorCorreo(s: SolicitudCredito): Promise<void> {
+  const { vendedor, supervisor } = await correosDelFlujo(s.solicitanteId, s.supervisorId);
+  const config = await destinatariosConfigurados();
+
+  const unicos = (lista: (string | null)[]) =>
+    Array.from(new Set(lista.filter((e): e is string => !!e)));
+
+  let to = unicos([vendedor, CORREO_FICHA_CLIENTE]);
+  let cc = unicos([supervisor, ...config.to, ...config.cc]).filter((email) => !to.includes(email));
+
+  if (to.length === 0) {
+    to = cc;
+    cc = [];
+  }
+  if (to.length === 0) {
+    console.warn('[solicitud-credito] resolución sin destinatarios: no hay correos del vendedor ni configurados');
+    return;
+  }
+
+  const aprobada = s.estado === 'aprobada';
+  await emailService.sendEmail({
+    to: to.join(', '),
+    cc: cc.length ? cc.join(', ') : undefined,
+    subject: `Crédito ${aprobada ? 'APROBADO' : 'RECHAZADO'} · ${s.razonSocial}${
+      aprobada ? ` · ${money(s.creditoAprobado)}` : ''
+    }${s.diasSolicitados ? ` a ${s.diasSolicitados} días` : ''}`,
+    html: cuerpoDeLaResolucion(s),
+  });
+}
+
 export function registerSolicitudesCreditoRoutes(app: Express): void {
   // Listado. El alcance lo decide el rol, no un parámetro.
   app.get('/api/solicitudes-credito', requireAuth, async (req: any, res) => {
@@ -238,7 +320,10 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
     }
   });
 
-  // Resolver: aprobar (con monto) o rechazar (con motivo).
+  // Resolver: aprobar (con monto), rechazar (con motivo) o marcarla "analizando".
+  // "analizando" NO es una resolución: la solicitud sigue pendiente (se puede
+  // aprobar o rechazar después) y por eso no se le estampa quién ni cuándo la
+  // resolvió, ni se toca el monto aprobado.
   app.patch('/api/solicitudes-credito/:id', requireAuth, async (req: any, res) => {
     try {
       const usuario = req.user;
@@ -251,25 +336,46 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
         return res.status(400).json({ message: 'Resolución inválida', errors: parsed.error.errors });
       }
 
+      const enAnalisis = parsed.data.estado === 'analizando';
+
       const [actualizada] = await db
         .update(solicitudesCredito)
         .set({
           estado: parsed.data.estado,
-          creditoAprobado:
-            parsed.data.estado === 'aprobada' && parsed.data.creditoAprobado != null
-              ? String(parsed.data.creditoAprobado)
-              : null,
+          ...(enAnalisis
+            ? {}
+            : {
+                creditoAprobado:
+                  parsed.data.estado === 'aprobada' && parsed.data.creditoAprobado != null
+                    ? String(parsed.data.creditoAprobado)
+                    : null,
+                resueltaPorId: usuario.id,
+                resueltaPorNombre: nombreDe(usuario),
+                resueltaAt: new Date(),
+              }),
           observaciones: parsed.data.observaciones ?? null,
-          resueltaPorId: usuario.id,
-          resueltaPorNombre: nombreDe(usuario),
-          resueltaAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(and(eq(solicitudesCredito.id, req.params.id), eq(solicitudesCredito.estado, 'enviada')))
+        // Desde 'analizando' también se puede resolver: si no, una solicitud
+        // puesta en análisis quedaba trabada para siempre.
+        .where(
+          and(
+            eq(solicitudesCredito.id, req.params.id),
+            inArray(solicitudesCredito.estado, ['enviada', 'analizando']),
+          ),
+        )
         .returning();
 
       if (!actualizada) {
         return res.status(409).json({ message: 'La solicitud no existe o ya estaba resuelta' });
+      }
+
+      // Igual que al crearla: el correo nunca hace fallar la operación. La
+      // solicitud ya quedó resuelta; si el correo se cae, se registra el error.
+      if (!enAnalisis) {
+        avisarResolucionPorCorreo(actualizada).catch((error) =>
+          console.error('[solicitud-credito] no se pudo avisar la resolución:', error?.message ?? error),
+        );
       }
 
       res.json(actualizada);
