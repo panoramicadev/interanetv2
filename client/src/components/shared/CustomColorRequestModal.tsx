@@ -36,6 +36,26 @@ import { SEGMENTOS_COTIZACION_WEB } from '@shared/segmentos-cotizacion-web';
 interface Props {
   open: boolean;
   onClose: () => void;
+  /**
+   * Modo interno: lo abre un vendedor o supervisor desde el Tomador de Pedidos,
+   * a nombre de un cliente.
+   *
+   * Cambia el último paso: en vez de pedir los datos como a un visitante de la
+   * tienda —que es quien escribe su nombre y su correo—, se busca el cliente en
+   * la base y el resto se llena solo. Quien pide queda registrado en la
+   * solicitud, para que no llegue al CRM como si la hubiera hecho el cliente.
+   */
+  vendedor?: { nombre: string; email: string };
+}
+
+/** Lo que se usa de un cliente del ERP. Los nombres crípticos son los de `clients`. */
+interface ClienteBuscado {
+  id: string;
+  nokoen: string;          // razón social
+  rten?: string | null;    // RUT
+  email?: string | null;
+  foen?: string | null;    // teléfono
+  cmen?: string | null;    // ciudad
 }
 
 interface CatalogVariant {
@@ -85,7 +105,7 @@ const QUICK_SWATCHES = [
 
 type Step = 'intro' | 'product' | 'color' | 'contact' | 'success';
 
-export default function CustomColorRequestModal({ open, onClose }: Props) {
+export default function CustomColorRequestModal({ open, onClose, vendedor }: Props) {
   const [step, setStep] = useState<Step>('intro');
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null);
@@ -113,6 +133,42 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ─── Modo interno: el cliente a nombre de quien cotiza el vendedor ───
+  const [buscaCliente, setBuscaCliente] = useState('');
+  const [buscaClienteDebounced, setBuscaClienteDebounced] = useState('');
+  const [cliente, setCliente] = useState<ClienteBuscado | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaClienteDebounced(buscaCliente.trim()), 300);
+    return () => clearTimeout(t);
+  }, [buscaCliente]);
+
+  const { data: clientesData, isFetching: buscandoClientes } = useQuery({
+    queryKey: ['/api/clients', { search: buscaClienteDebounced, context: 'color-personalizado' }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: buscaClienteDebounced, limit: '8', offset: '0' });
+      const res = await fetch(`/api/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('No se pudo buscar');
+      return res.json() as Promise<{ clients: ClienteBuscado[] }>;
+    },
+    enabled: !!vendedor && buscaClienteDebounced.length >= 2 && !cliente,
+  });
+
+  /** Elegir un cliente llena los datos de contacto: el vendedor no los retipea. */
+  const elegirCliente = (c: ClienteBuscado) => {
+    setCliente(c);
+    setBuscaCliente('');
+    setForm(p => ({
+      ...p,
+      visitorName: c.nokoen,
+      visitorEmail: c.email || '',
+      visitorPhone: c.foen || '',
+      visitorCompany: c.nokoen,
+      visitorCity: c.cmen || '',
+    }));
+    setErrors({});
+  };
+
   // Reset when closed
   useEffect(() => {
     if (!open) {
@@ -135,6 +191,8 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
           quantity: String(MIN_TINETAS),
           message: '',
         });
+        setCliente(null);
+        setBuscaCliente('');
         setErrors({});
       }, 350);
       return () => clearTimeout(t);
@@ -258,6 +316,11 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
         segmento: form.segmento || undefined,
         message: [
           `COTIZACIÓN COLOR PERSONALIZADO`,
+          // Quién la pidió. Sin esto la solicitud llega al CRM como si la
+          // hubiera hecho el cliente desde la tienda, y nadie sabe a quién
+          // devolverle la respuesta.
+          vendedor ? `Solicitada por: ${vendedor.nombre} (${vendedor.email})` : null,
+          cliente ? `Cliente: ${cliente.nokoen}${cliente.rten ? ` · RUT ${cliente.rten}` : ''}` : null,
           `Producto: ${selectedProduct.genericName}`,
           `Formato: ${selectedFormat}`,
           `Marca de color: ${brandLabel}`,
@@ -772,12 +835,90 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                   >
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-slate-800 mb-1">
-                        Tus datos
+                        {vendedor ? 'Datos del cliente' : 'Tus datos'}
                       </h3>
                       <p className="text-xs text-slate-500">
-                        Recibirás la cotización detallada en tu email.
+                        {vendedor
+                          ? 'La cotización se envía al correo que quede acá abajo.'
+                          : 'Recibirás la cotización detallada en tu email.'}
                       </p>
                     </div>
+
+                    {/* Modo interno: quién cotiza y a nombre de quién. Va antes
+                        del formulario porque elegir el cliente llena el resto. */}
+                    {vendedor && (
+                      <div className="mb-4 p-3 rounded-xl border border-orange-100 bg-orange-50/60">
+                        <p className="text-[11px] font-semibold text-orange-700 uppercase tracking-wider mb-2 flex items-center gap-1">
+                          <User className="w-3 h-3" /> Cotiza {vendedor.nombre}
+                        </p>
+
+                        {cliente ? (
+                          <div className="flex items-center justify-between gap-3 bg-white rounded-lg border border-slate-200 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{cliente.nokoen}</p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {cliente.rten || 'sin RUT'}
+                                {cliente.cmen ? ` · ${cliente.cmen}` : ''}
+                                {cliente.email ? ` · ${cliente.email}` : ' · sin correo en la ficha'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCliente(null)}
+                              className="text-xs font-semibold text-orange-700 hover:text-orange-800 shrink-0 min-h-[44px] px-2"
+                            >
+                              Cambiar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={buscaCliente}
+                              onChange={e => setBuscaCliente(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                              placeholder="Buscar cliente por nombre o RUT…"
+                              data-testid="input-buscar-cliente-color"
+                            />
+                            {buscaClienteDebounced.length >= 2 && (
+                              <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                                {buscandoClientes && (
+                                  <p className="px-3 py-2.5 text-xs text-slate-400">Buscando…</p>
+                                )}
+                                {!buscandoClientes && (clientesData?.clients?.length ?? 0) === 0 && (
+                                  <p className="px-3 py-2.5 text-xs text-slate-500">
+                                    Ningún cliente con eso. Se puede escribir los datos a mano acá abajo.
+                                  </p>
+                                )}
+                                {clientesData?.clients?.map(c => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => elegirCliente(c)}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-orange-50 transition-colors"
+                                  >
+                                    <p className="text-sm font-medium text-slate-800 truncate">{c.nokoen}</p>
+                                    <p className="text-xs text-slate-500 truncate">
+                                      {c.rten || 'sin RUT'}{c.cmen ? ` · ${c.cmen}` : ''}
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* La ficha del ERP muchas veces no trae correo, y el
+                            envío lo necesita: se dice acá, no al apretar Enviar. */}
+                        {cliente && !cliente.email && (
+                          <p className="text-xs text-amber-700 mt-2 flex items-start gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            Este cliente no tiene correo en su ficha: escribí uno abajo, o el tuyo.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Recap card */}
                     {selectedProduct && (
@@ -835,7 +976,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                               ? 'border-red-300 bg-red-50'
                               : 'border-slate-200'
                           }`}
-                          placeholder="Tu nombre completo"
+                          placeholder={vendedor ? 'Nombre de contacto del cliente' : 'Tu nombre completo'}
                         />
                         {errors.visitorName && (
                           <p className="text-xs text-red-500 mt-1">
@@ -906,7 +1047,7 @@ export default function CustomColorRequestModal({ open, onClose }: Props) {
                       {/* Segmento — rutea la solicitud al CRM del área */}
                       <div>
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <Layers className="w-3 h-3" /> Segmento *
+                          <Layers className="w-3 h-3" /> {vendedor ? 'Segmento del cliente *' : 'Segmento *'}
                         </label>
                         <select
                           value={form.segmento}

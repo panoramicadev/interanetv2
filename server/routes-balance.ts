@@ -165,40 +165,81 @@ function mesesDelAnoHasta(periodo: string): string[] {
   return Array.from({ length: mes }, (_, i) => `${ano}-${String(i + 1).padStart(2, '0')}`);
 }
 
+/** El mismo tramo de meses un año antes: `2026-01…2026-09` → `2025-01…2025-09`. */
+function mismosMesesDelAnoAnterior(meses: string[]): string[] {
+  return meses.map((m) => {
+    const [ano, mes] = m.split('-');
+    return `${Number(ano) - 1}-${mes}`;
+  });
+}
+
+/**
+ * Cómo se nombra el período elegido cuando no es un solo mes: "enero–septiembre
+ * 2026", "2026 (año completo)", o los años juntos si el tramo los cruza.
+ */
+function etiquetaDeTramo(meses: string[]): string {
+  if (meses.length === 1) return etiquetaMes(meses[0]);
+  const anios = Array.from(new Set(meses.map((m) => m.slice(0, 4))));
+  const primero = etiquetaMes(meses[0]);
+  const ultimo = etiquetaMes(meses[meses.length - 1]);
+  if (anios.length > 1) return `${primero} – ${ultimo}`;
+  if (meses.length === 12) return `${anios[0]} (año completo)`;
+  // Mismo año: el año se dice una sola vez, al final.
+  return `${primero.replace(` ${anios[0]}`, '')} – ${ultimo}`;
+}
+
 type MontosCuenta = { mes: number; anterior: number; acumulado: number; presupuesto: number };
 
 /**
  * Arma el resultado del período: la jerarquía gran cuenta → mayor → cuenta con
- * los montos del mes, del mes anterior y del acumulado del año, más las líneas
- * del estado de resultados.
+ * los montos del período, de su comparación y del acumulado del año, más las
+ * líneas del estado de resultados.
+ *
+ * El período es una lista de meses, no uno solo: se puede pedir septiembre, el
+ * tramo enero–septiembre o el año completo. De eso depende contra qué se
+ * compara, que es la única regla que cambia según el largo del tramo:
+ *
+ *  · un mes    → el mes anterior (septiembre 2026 contra agosto 2026).
+ *  · un tramo  → el mismo tramo del año anterior (ene–sep 2026 contra
+ *                ene–sep 2025). Contra "el mes anterior" no significaría nada.
  *
  * El corte administración / ventas NO se puede hacer por mayor: el mayor `030`
  * se llama "GASTOS DE ADMIN. Y VENTAS" y mezcla las dos cosas. Separar eso
  * necesita agrupar cuentas a mano, que es justamente lo que hace el puente de
  * personal para su propio cruce.
  */
-async function armarResultado(periodo: string) {
+async function armarResultado(periodos: string[]) {
+  // Ordenados y sin repetidos: el más nuevo es el que manda para el acumulado
+  // del año y para saber de dónde salió la carga.
+  const elegidos = Array.from(new Set(periodos)).sort();
+  const periodo = elegidos[elegidos.length - 1];
+  const unSoloMes = elegidos.length === 1;
+
   const cuentas = await db.select().from(cuentasContables).orderBy(asc(cuentasContables.codigo));
-  const anterior = periodoAnterior(periodo);
+  const comparados = unSoloMes ? [periodoAnterior(periodo)] : mismosMesesDelAnoAnterior(elegidos);
   const meses = mesesDelAnoHasta(periodo);
 
   const filasSaldo = await db.select().from(balanceSaldos)
-    .where(inArray(balanceSaldos.periodo, Array.from(new Set([...meses, anterior]))));
+    .where(inArray(balanceSaldos.periodo, Array.from(new Set([...elegidos, ...comparados, ...meses]))));
   const filasPresupuesto = await db.select().from(balancePresupuesto)
-    .where(eq(balancePresupuesto.periodo, periodo));
+    .where(inArray(balancePresupuesto.periodo, elegidos));
 
   const naturalezaPorCodigo = new Map(cuentas.map((c) => [c.codigo, c.naturaleza]));
   const montos = new Map<string, MontosCuenta>();
   const vacio = (): MontosCuenta => ({ mes: 0, anterior: 0, acumulado: 0, presupuesto: 0 });
+
+  const enElPeriodo = new Set(elegidos);
+  const enLaComparacion = new Set(comparados);
+  const enElAcumulado = new Set(meses);
 
   for (const f of filasSaldo) {
     const naturaleza = naturalezaPorCodigo.get(f.cuentaCodigo);
     if (!naturaleza) continue; // saldo de una cuenta que ya no está en el plan
     const monto = montoDeFila(naturaleza, Number(f.debe), Number(f.haber), Number(f.saldo));
     const m = montos.get(f.cuentaCodigo) ?? vacio();
-    if (f.periodo === periodo) m.mes += monto;
-    if (f.periodo === anterior) m.anterior += monto;
-    if (meses.includes(f.periodo)) m.acumulado += monto;
+    if (enElPeriodo.has(f.periodo)) m.mes += monto;
+    if (enLaComparacion.has(f.periodo)) m.anterior += monto;
+    if (enElAcumulado.has(f.periodo)) m.acumulado += monto;
     montos.set(f.cuentaCodigo, m);
   }
   for (const p of filasPresupuesto) {
@@ -287,20 +328,64 @@ async function armarResultado(periodo: string) {
   // con el ETL limitado a un solo mes: es el estado normal, no la excepción.
   const cargados = new Set(filasSaldo.map((f) => f.periodo));
 
+  // El acumulado del año sólo agrega algo cuando el período elegido es más
+  // corto que el año corrido. Pedido enero–septiembre, la columna repetiría la
+  // del período; y si el tramo cruza años, no hay un año que acumular.
+  const unSoloAnio = new Set(elegidos.map((m) => m.slice(0, 4))).size === 1;
+  const acumuladoAporta = unSoloAnio && elegidos.length < meses.length;
+
   return {
     periodo,
-    periodoAnterior: anterior,
-    cargado: cargado ?? null,
+    /** Los meses que forman el período elegido, de más viejo a más nuevo. */
+    periodos: elegidos,
+    etiqueta: etiquetaDeTramo(elegidos),
+    /** Contra qué se está comparando, ya resuelto acá: la pantalla lo muestra tal cual. */
+    comparacion: {
+      periodos: comparados,
+      etiqueta: etiquetaDeTramo(comparados),
+      /** `false` ⇒ la columna de comparación no es un cero, es un hueco. */
+      cargado: comparados.some((p) => cargados.has(p)),
+    },
+    periodoAnterior: comparados[comparados.length - 1],
+    /** Con varios meses no hay "un" archivo del que salió: eso se mira mes a mes. */
+    cargado: unSoloMes ? (cargado ?? null) : null,
+    /** De los meses pedidos, cuántos tienen saldos cargados. */
+    periodosCargados: elegidos.filter((p) => cargados.has(p)).length,
     /** `false` ⇒ la columna del mes anterior no es un cero, es un hueco. */
-    periodoAnteriorCargado: cargados.has(anterior),
+    periodoAnteriorCargado: comparados.some((p) => cargados.has(p)),
     /** Cuántos de los meses del año hasta acá están cargados, y cuántos son. */
     mesesAcumulados: meses.filter((m) => cargados.has(m)).length,
     mesesDelAcumulado: meses.length,
+    mostrarAcumulado: acumuladoAporta,
     // Lo que el módulo NO es: sin cuentas 1/2/3 no hay estado de situación.
     esEstadoDeResultados: true,
     grupos,
     lineas,
   };
+}
+
+/**
+ * El período que viene por la URL: `?periodo=2026-09` (un mes) o
+ * `?periodos=2026-01,2026-02,…` (un tramo). Se acepta cualquiera de los dos
+ * para no romper lo que ya linkea a un mes suelto, como el export.
+ */
+function periodosDeLaConsulta(query: any): { ok: true; meses: string[] } | { ok: false; error: string } {
+  const crudo = typeof query?.periodos === 'string' && query.periodos.trim()
+    ? query.periodos.split(',').map((p: string) => p.trim()).filter(Boolean)
+    : [query?.periodo];
+
+  if (crudo.length === 0) return { ok: false, error: 'Falta el período' };
+  // Un tramo no puede ser cualquier cosa: 10 años de meses es el techo, y de
+  // ahí para arriba es un parámetro armado a mano, no una pantalla.
+  if (crudo.length > 120) return { ok: false, error: 'Son demasiados meses para un solo período' };
+
+  const meses: string[] = [];
+  for (const p of crudo) {
+    const parsed = periodoBalanceSchema.safeParse(p);
+    if (!parsed.success) return { ok: false, error: parsed.error.errors[0].message };
+    meses.push(parsed.data);
+  }
+  return { ok: true, meses };
 }
 
 // ─── El cruce con Talana ────────────────────────────────────────────────────
@@ -622,9 +707,9 @@ export function registerBalanceRoutes(app: Express) {
   app.get('/api/finanzas/balance/resultado', requireAuth, guard, async (req: any, res: any) => {
     try {
       await ensureTables();
-      const periodo = periodoBalanceSchema.safeParse(req.query.periodo);
-      if (!periodo.success) return res.status(400).json({ message: periodo.error.errors[0].message });
-      res.json(await armarResultado(periodo.data));
+      const periodos = periodosDeLaConsulta(req.query);
+      if (!periodos.ok) return res.status(400).json({ message: periodos.error });
+      res.json(await armarResultado(periodos.meses));
     } catch (error: any) { fallo(res, error, 'resultado'); }
   });
 
@@ -959,12 +1044,14 @@ export function registerBalanceRoutes(app: Express) {
   app.get('/api/finanzas/balance/export.csv', requireAuth, guard, async (req: any, res: any) => {
     try {
       await ensureTables();
-      const periodo = periodoBalanceSchema.safeParse(req.query.periodo);
-      if (!periodo.success) return res.status(400).json({ message: periodo.error.errors[0].message });
-      const { grupos, lineas } = await armarResultado(periodo.data);
+      const periodos = periodosDeLaConsulta(req.query);
+      if (!periodos.ok) return res.status(400).json({ message: periodos.error });
+      const { grupos, lineas, etiqueta, comparacion } = await armarResultado(periodos.meses);
 
       const filas: string[] = [];
-      filas.push(['Código', 'Código ERP', 'Gran cuenta', 'Mayor', 'Cuenta', 'Mes', 'Mes anterior', 'Acumulado año', 'Presupuesto'].map(csvCampo).join(';'));
+      // Los encabezados dicen qué período es cada columna: con un tramo elegido,
+      // "Mes" y "Mes anterior" serían mentira.
+      filas.push(['Código', 'Código ERP', 'Gran cuenta', 'Mayor', 'Cuenta', etiqueta, comparacion.etiqueta, 'Acumulado año', 'Presupuesto'].map(csvCampo).join(';'));
       for (const g of grupos) {
         for (const m of g.mayores) {
           for (const c of m.cuentas) {
@@ -978,7 +1065,10 @@ export function registerBalanceRoutes(app: Express) {
       }
 
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="resultado-${periodo.data}.csv"`);
+      const nombre = periodos.meses.length === 1
+        ? periodos.meses[0]
+        : `${periodos.meses[0]}_a_${periodos.meses[periodos.meses.length - 1]}`;
+      res.setHeader('Content-Disposition', `attachment; filename="resultado-${nombre}.csv"`);
       res.send('﻿' + filas.join('\n')); // BOM: sin él Excel en Windows rompe las tildes
     } catch (error: any) { fallo(res, error, 'export csv'); }
   });

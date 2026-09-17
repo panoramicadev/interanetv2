@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import CustomColorButton from "@/components/shared/CustomColorButton";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
@@ -1113,6 +1114,15 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
   // Salesperson assignment for admin/supervisor
   const [selectedCreatorId, setSelectedCreatorId] = useState<string>("");
   const isAdminOrSupervisor = user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area');
+
+  // Quién está cotizando, para el color personalizado: la solicitud sale a
+  // nombre del cliente pero tiene que decir quién la pidió (ver CustomColorButton).
+  const vendedorQueCotiza = user
+    ? {
+        nombre: [(user as any).firstName, (user as any).lastName].filter(Boolean).join(' ') || (user as any).email,
+        email: (user as any).email as string,
+      }
+    : undefined;
 
   // Fetch users list for salesperson assignment dropdown (admin/supervisor only)
   const { data: allUsers } = useQuery<any[]>({
@@ -3987,6 +3997,9 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
           isV2 ? (
             // V2: un solo CTA primario + menú de opciones (menos botones)
             <div className="flex items-center gap-2 w-full md:w-auto">
+              {/* Color a medida: el vendedor lo cotiza acá mismo, sin mandar al
+                  cliente a la tienda. Hasta ahora sólo existía en el Market. */}
+              <CustomColorButton variant="compact" className="h-11 flex-shrink-0" vendedor={vendedorQueCotiza} />
               <Button
                 variant="outline"
                 onClick={() => setShowVoiceOrder(true)}
@@ -4055,6 +4068,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                   {isMobile ? "Nuevo" : "Probar nuevo tomador"}
                 </Button>
               </Link>
+              <CustomColorButton variant="compact" className="h-10 flex-shrink-0" vendedor={vendedorQueCotiza} />
               <Button
                 onClick={() => setShowVoiceOrder(true)}
                 variant="outline"

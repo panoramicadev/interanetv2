@@ -13,7 +13,7 @@
  * `balance*` a propósito: el permiso `finanzas.balance` tiene grants otorgados y
  * las tablas `balance_*` tienen datos cargados).
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ import {
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { YearMonthSelector, type YearMonthSelection } from "@/components/dashboard/year-month-selector";
 import {
   Scale, CalendarDays, TrendingUp, TrendingDown, Users, Upload, Download,
   AlertTriangle, ChevronRight, ChevronDown, Target, ListTree, Info,
@@ -48,9 +49,19 @@ interface GrupoResultado extends Montos { granCuenta: string; nombre: string; ma
 interface LineaResultado extends Montos { clave: string; etiqueta: string; tipo: string }
 interface Resultado {
   periodo: string; periodoAnterior: string;
+  /** Los meses que forman el período elegido. Uno solo, un tramo o el año entero. */
+  periodos: string[];
+  /** Cómo se llama el período: "septiembre 2026", "enero – septiembre 2026", "2026 (año completo)". */
+  etiqueta: string;
+  /** Contra qué se compara: el mes anterior, o el mismo tramo del año pasado. */
+  comparacion: { periodos: string[]; etiqueta: string; cargado: boolean };
   /** `false` ⇒ la columna del mes anterior es un hueco, no un cero. */
   periodoAnteriorCargado: boolean;
+  /** De los meses pedidos, cuántos tienen saldos. */
+  periodosCargados: number;
   mesesAcumulados: number; mesesDelAcumulado: number;
+  /** `false` ⇒ el acumulado del año repetiría la columna del período. */
+  mostrarAcumulado: boolean;
   cargado: { periodo: string; estado: string; origen: string; archivoNombre: string | null } | null;
   grupos: GrupoResultado[]; lineas: LineaResultado[];
 }
@@ -115,6 +126,11 @@ function montoConSigno(n: number): string {
   return n < 0 ? `− ${formatCLP(Math.abs(n))}` : formatCLP(n);
 }
 
+/** La etiqueta del servidor viene en minúscula: en un encabezado se ve mal. */
+function capitalizar(texto: string): string {
+  return texto ? `${texto.charAt(0).toUpperCase()}${texto.slice(1)}` : texto;
+}
+
 function etiquetaPeriodo(periodo: string): string {
   const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
     "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -150,27 +166,72 @@ function porAnio<T extends { periodo: string }>(meses: T[]): { anio: string; mes
     .map(([anio, meses]) => ({ anio, meses }));
 }
 
-/** Variación contra el mes anterior. Sin base no hay porcentaje, y se dice. */
+/** Variación contra el período de comparación. Sin base no hay porcentaje, y se dice. */
 function variacion(actual: number, anterior: number): string | null {
   if (!anterior) return null;
   const pct = ((actual - anterior) / Math.abs(anterior)) * 100;
   return `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
 }
 
+/**
+ * La selección del calendario (años + meses) convertida en los meses que se le
+ * piden al servidor.
+ *
+ * Se filtra contra los meses que existen: un mes sin cargar sumaría un cero que
+ * se lee como "ese mes no vendió nada", que es justo lo que este módulo no
+ * puede afirmar. Por eso el selector además los muestra apagados.
+ */
+function mesesDeLaSeleccion(sel: YearMonthSelection | null, disponibles: string[]): string[] {
+  if (!sel || sel.years.length === 0) return [];
+  const meses = sel.months?.length
+    ? sel.months
+    : Array.from({ length: 12 }, (_, i) => i + 1); // sin meses elegidos: el año completo
+  const pedidos = sel.years.flatMap((a) => meses.map((m) => `${a}-${String(m).padStart(2, "0")}`));
+  return pedidos.filter((p) => disponibles.includes(p)).sort();
+}
+
 export default function EstadoResultadosPage() {
   const { toast } = useToast();
-  const [periodo, setPeriodo] = useState<string>("");
+  const [seleccion, setSeleccion] = useState<YearMonthSelection | null>(null);
   const [tab, setTab] = useState<TabId>("resultado");
 
   const { data: estado, isLoading: cargandoEstado } = useQuery<Estado>({
     queryKey: ["/api/finanzas/balance/estado"],
   });
 
-  const periodoActual = periodo || estado?.ultimoPeriodo || "";
+  const disponibles = estado?.periodos ?? [];
+
+  /**
+   * Los meses que se están mirando. Sin elegir nada se abre en el último mes
+   * cargado, que es como venía funcionando la pantalla.
+   */
+  const periodosElegidos = useMemo(() => {
+    const elegidos = mesesDeLaSeleccion(seleccion, disponibles);
+    if (elegidos.length > 0) return elegidos;
+    return estado?.ultimoPeriodo ? [estado.ultimoPeriodo] : [];
+  }, [seleccion, estado?.ultimoPeriodo, disponibles.join(",")]);
+
+  /** El mes más nuevo del período: el que mandan las pestañas que sí van mes a mes. */
+  const periodoActual = periodosElegidos[periodosElegidos.length - 1] ?? "";
+  const variosMeses = periodosElegidos.length > 1;
+  /** Se pidió un período que no tiene ni un mes cargado. */
+  const seleccionVacia = !!seleccion && seleccion.years.length > 0
+    && mesesDeLaSeleccion(seleccion, disponibles).length === 0;
+
+  // El calendario abre en lo que se está mirando, no en el mes de hoy: si el
+  // último cargado es julio, abrirlo en septiembre ofrecería un mes vacío.
+  useEffect(() => {
+    if (seleccion || !estado?.ultimoPeriodo) return;
+    const [ano, mes] = estado.ultimoPeriodo.split("-").map(Number);
+    setSeleccion({
+      years: [ano], period: "months", months: [mes],
+      display: etiquetaPeriodo(estado.ultimoPeriodo),
+    });
+  }, [estado?.ultimoPeriodo, seleccion]);
 
   const { data: resultado, isLoading: cargandoResultado } = useQuery<Resultado>({
-    queryKey: ["/api/finanzas/balance/resultado", { periodo: periodoActual }],
-    enabled: !!periodoActual,
+    queryKey: ["/api/finanzas/balance/resultado", { periodos: periodosElegidos.join(",") }],
+    enabled: periodosElegidos.length > 0,
   });
 
   const linea = (clave: string) => resultado?.lineas.find((l) => l.clave === clave);
@@ -193,7 +254,7 @@ export default function EstadoResultadosPage() {
     onSuccess: (json: any) => {
       // Se suelta el período elegido: el que quede lo decide el servidor, que
       // ahora abre en el más reciente CON datos.
-      setPeriodo("");
+      setSeleccion(null);
       queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/estado"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finanzas/balance/resultado"] });
       toast({ title: `${etiquetaPeriodo(json.periodo)} eliminado`, description: `${json.saldosEliminados} cuentas en cero sacadas.` });
@@ -218,7 +279,7 @@ export default function EstadoResultadosPage() {
         </div>
         <Button
           variant="outline" size="sm" disabled={!periodoActual}
-          onClick={() => window.open(`/api/finanzas/balance/export.csv?periodo=${periodoActual}`, "_blank")}
+          onClick={() => window.open(`/api/finanzas/balance/export.csv?periodos=${periodosElegidos.join(",")}`, "_blank")}
           className="rounded-2xl border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/40">
           <Download className="w-4 h-4 mr-2" /> Exportar CSV
         </Button>
@@ -237,27 +298,26 @@ export default function EstadoResultadosPage() {
           <Card className="rounded-2xl border-0 bg-transparent shadow-none">
             <CardContent className="p-0">
               <div className="flex flex-wrap items-center gap-3">
+                {/* El período se elige por año y mes, igual que en el Dashboard:
+                    un mes, un tramo o el año completo. Sin días: acá el dato más
+                    chico que existe es el mes contable. */}
                 <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2 shadow-sm hover:border-orange-200 hover:shadow transition-all">
                   <div className="flex items-center justify-center w-9 h-9 text-[#fd6301] dark:text-orange-400 flex-shrink-0">
                     <CalendarDays className="h-5 w-5" />
                   </div>
-                  <div className="flex flex-col leading-none">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Período</span>
-                    <Select value={periodoActual} onValueChange={setPeriodo} disabled={sinPeriodos}>
-                      <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto min-w-[9rem] bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60">
-                        <SelectValue placeholder={cargandoEstado ? "Cargando…" : "Sin meses cargados"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(estado?.periodos ?? []).slice().reverse().map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {etiquetaPeriodo(p)}
-                            {/* Un mes sin un peso se dice. Si no, el que lo elige
-                                lee "$0 en todo" como "no hubo movimiento". */}
-                            {estado?.periodosVacios?.includes(p) ? " · sin datos" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col leading-none gap-1">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Período</span>
+                    {sinPeriodos
+                      ? <span className="font-semibold text-sm text-slate-400">
+                          {cargandoEstado ? "Cargando…" : "Sin meses cargados"}
+                        </span>
+                      : <YearMonthSelector
+                          value={seleccion}
+                          onChange={setSeleccion}
+                          hideDays
+                          availablePeriods={disponibles}
+                          placeholder={resultado ? capitalizar(resultado.etiqueta) : (periodoActual ? etiquetaPeriodo(periodoActual) : "Elegir período")}
+                        />}
                   </div>
                 </div>
                 {/* De dónde salió el mes que se está mirando. Un número traído
@@ -269,6 +329,13 @@ export default function EstadoResultadosPage() {
                       : <><Upload className="w-3 h-3 mr-1.5" /> Cargado por archivo</>}
                   </Badge>
                 )}
+                {/* Con un tramo elegido no hay "un" archivo del que salió: se
+                    dice cuántos meses lo forman, que es lo que cambia la lectura. */}
+                {variosMeses && resultado && (
+                  <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600 font-normal dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                    {resultado.periodos.length} meses sumados
+                  </Badge>
+                )}
                 {/* En celular no se carga el mes: es una tarea de escritorio y ocupaba media pantalla. */}
                 <div className="hidden sm:block sm:w-auto sm:ml-auto">
                   <CargarMes periodoSugerido={periodoActual} />
@@ -277,7 +344,22 @@ export default function EstadoResultadosPage() {
             </CardContent>
           </Card>
 
-          {!sinPeriodos && periodoActual && estado?.periodosVacios?.includes(periodoActual) && (
+          {/* Se pidieron meses que no existen: no es un período en cero, es un
+              período que no se cargó. */}
+          {seleccionVacia && (
+            <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <CardContent className="py-4 flex items-start gap-3 text-sm">
+                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-amber-800 dark:text-amber-300">
+                  Ninguno de los meses que elegiste está cargado, así que se sigue mostrando{" "}
+                  <strong>{resultado ? capitalizar(resultado.etiqueta) : etiquetaPeriodo(periodoActual)}</strong>. Los meses sin datos
+                  salen apagados en el calendario.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!sinPeriodos && !variosMeses && periodoActual && estado?.periodosVacios?.includes(periodoActual) && (
             <Card className="rounded-2xl border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
               <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
                 <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
@@ -314,9 +396,11 @@ export default function EstadoResultadosPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Kpi icon={TrendingUp} label="Ingresos operacionales" loading={cargandoResultado}
               value={formatCLP(ingresos?.mes ?? 0)}
+              comparadoCon={resultado?.comparacion.etiqueta}
               variacion={ingresos && resultado?.periodoAnteriorCargado ? variacion(ingresos.mes, ingresos.anterior) : null} />
-            <Kpi icon={TrendingDown} label="Gastos del mes" loading={cargandoResultado}
+            <Kpi icon={TrendingDown} label={variosMeses ? "Gastos del período" : "Gastos del mes"} loading={cargandoResultado}
               value={formatCLP(gastos?.mes ?? 0)}
+              comparadoCon={resultado?.comparacion.etiqueta}
               variacion={gastos && resultado?.periodoAnteriorCargado ? variacion(gastos.mes, gastos.anterior) : null} />
             <Kpi icon={Scale} label="Margen bruto" loading={cargandoResultado}
               value={montoConSigno(margen?.mes ?? 0)}
@@ -324,7 +408,7 @@ export default function EstadoResultadosPage() {
             <Kpi icon={Target} label="Resultado del período" loading={cargandoResultado}
               value={montoConSigno(total?.mes ?? 0)}
               accent={(total?.mes ?? 0) < 0 ? "alerta" : "destacada"}
-              sub={total ? `${etiquetaAcumulado(resultado)} ${montoConSigno(total.acumulado)}` : undefined} />
+              sub={total && resultado?.mostrarAcumulado ? `${etiquetaAcumulado(resultado)} ${montoConSigno(total.acumulado)}` : undefined} />
           </div>
 
           {/* Riel de pestañas (escritorio) */}
@@ -362,8 +446,15 @@ export default function EstadoResultadosPage() {
           </div>
 
           {tab === "resultado" && <EstadoDeResultados datos={resultado} loading={cargandoResultado} />}
-          {tab === "presupuesto" && <Presupuesto periodo={periodoActual} resultado={resultado} />}
-          {tab === "personal" && <PersonalVsTalana periodo={periodoActual} />}
+          {tab === "presupuesto" && (
+            <Presupuesto
+              periodo={periodoActual}
+              resultado={variosMeses ? undefined : resultado}
+              tramo={variosMeses ? resultado?.etiqueta : undefined} />
+          )}
+          {tab === "personal" && (
+            <PersonalVsTalana periodo={periodoActual} tramo={variosMeses ? resultado?.etiqueta : undefined} />
+          )}
           {tab === "cuentas" && <Cuentas />}
         </>
       )}
@@ -371,9 +462,11 @@ export default function EstadoResultadosPage() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, sub, loading, accent = "neutro", variacion: v }: {
+function Kpi({ icon: Icon, label, value, sub, loading, accent = "neutro", variacion: v, comparadoCon }: {
   icon: LucideIcon; label: string; value: string; sub?: string;
   loading?: boolean; accent?: "neutro" | "destacada" | "alerta"; variacion?: string | null;
+  /** Contra qué se mide la variación. Con un tramo elegido no es "el mes anterior". */
+  comparadoCon?: string;
 }) {
   const color = accent === "destacada" ? "text-[#fd6301]"
     : accent === "alerta" ? "text-red-600"
@@ -390,7 +483,7 @@ function Kpi({ icon: Icon, label, value, sub, loading, accent = "neutro", variac
           : <p className={`text-base min-[400px]:text-lg sm:text-xl 2xl:text-2xl font-bold tabular-nums truncate ${color}`} title={value}>{value}</p>}
         {!loading && (sub || v) && (
           <p className="text-[11px] text-slate-400 mt-1 leading-tight">
-            {v && <span className="tabular-nums">{v} vs mes anterior</span>}
+            {v && <span className="tabular-nums">{v} vs {comparadoCon ?? "mes anterior"}</span>}
             {v && sub ? " · " : ""}{sub}
           </p>
         )}
@@ -726,22 +819,26 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                 <TableRow>
                   {/* La primera columna va sin título: las líneas se nombran solas. */}
                   <TableHead />
-                  <TableHead className={CABECERA_TABLA}>{etiquetaPeriodo(datos.periodo)}</TableHead>
+                  <TableHead className={CABECERA_TABLA}>{capitalizar(datos.etiqueta)}</TableHead>
                   <TableHead className={CABECERA_TABLA}>
-                    {etiquetaPeriodo(datos.periodoAnterior)}
+                    {capitalizar(datos.comparacion.etiqueta)}
                     {!datos.periodoAnteriorCargado && (
                       <span className="block text-[10px] font-normal normal-case text-amber-600">sin cargar</span>
                     )}
                   </TableHead>
                   <TableHead className={CABECERA_TABLA}>Variación</TableHead>
-                  <TableHead className={CABECERA_TABLA}>
-                    Acumulado año
-                    {datos.mesesAcumulados < datos.mesesDelAcumulado && (
-                      <span className="block text-[10px] font-normal normal-case text-amber-600">
-                        {datos.mesesAcumulados} de {datos.mesesDelAcumulado} meses
-                      </span>
-                    )}
-                  </TableHead>
+                  {/* Con un tramo elegido el acumulado del año repetiría la primera
+                      columna: en ese caso no se muestra en vez de duplicar el dato. */}
+                  {datos.mostrarAcumulado && (
+                    <TableHead className={CABECERA_TABLA}>
+                      Acumulado año
+                      {datos.mesesAcumulados < datos.mesesDelAcumulado && (
+                        <span className="block text-[10px] font-normal normal-case text-amber-600">
+                          {datos.mesesAcumulados} de {datos.mesesDelAcumulado} meses
+                        </span>
+                      )}
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -764,7 +861,9 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                       <TableCell className={`text-right tabular-nums text-sm ${v?.startsWith("−") ? "text-red-600" : "text-[#fd6301]"}`}>
                         {v ?? "—"}
                       </TableCell>
-                      <TableCell className={`text-right tabular-nums ${fuerte ? "font-semibold" : ""}`}>{montoConSigno(l.acumulado)}</TableCell>
+                      {datos.mostrarAcumulado && (
+                        <TableCell className={`text-right tabular-nums ${fuerte ? "font-semibold" : ""}`}>{montoConSigno(l.acumulado)}</TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -782,12 +881,20 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
                 <p className={`tabular-nums font-semibold mt-1 ${l.clave === "resultado" && l.mes < 0 ? "text-red-600" : "text-slate-900 dark:text-white"}`}>
                   {montoConSigno(l.mes)}
                 </p>
-                <p className="text-xs text-slate-400 tabular-nums">
-                  acumulado {montoConSigno(l.acumulado)}
-                  {datos.mesesAcumulados < datos.mesesDelAcumulado && (
-                    <span className="text-amber-600"> · {datos.mesesAcumulados}/{datos.mesesDelAcumulado} meses</span>
-                  )}
-                </p>
+                {datos.mostrarAcumulado ? (
+                  <p className="text-xs text-slate-400 tabular-nums">
+                    acumulado {montoConSigno(l.acumulado)}
+                    {datos.mesesAcumulados < datos.mesesDelAcumulado && (
+                      <span className="text-amber-600"> · {datos.mesesAcumulados}/{datos.mesesDelAcumulado} meses</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400 tabular-nums">
+                    {datos.periodoAnteriorCargado
+                      ? <>{capitalizar(datos.comparacion.etiqueta)}: {montoConSigno(l.anterior)}</>
+                      : <>{capitalizar(datos.comparacion.etiqueta)}: sin cargar</>}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -861,9 +968,23 @@ function Vacio({ texto }: { texto: string }) {
  * expresado en cuentas contables. Mostrar una columna de meta vacía para los
  * gastos se leería como "no cumplimos", que es distinto de "no hay meta".
  */
-function Presupuesto({ periodo, resultado }: { periodo: string; resultado?: Resultado }) {
+function Presupuesto({ periodo, resultado, tramo }: {
+  periodo: string;
+  /** El resultado del mes. Llega vacío cuando arriba hay un tramo elegido: las metas son mensuales. */
+  resultado?: Resultado;
+  /** El período elegido arriba, cuando abarca más de un mes. */
+  tramo?: string;
+}) {
   const { toast } = useToast();
   const [borrador, setBorrador] = useState<Record<string, string>>({});
+
+  // Con un tramo elegido arriba, el real de esta pestaña se pide aparte: la meta
+  // se carga mes a mes, y compararla contra nueve meses de ventas no diría nada.
+  const { data: resultadoDelMes } = useQuery<Resultado>({
+    queryKey: ["/api/finanzas/balance/resultado", { periodos: periodo }],
+    enabled: !!periodo && !resultado,
+  });
+  const delMes = resultado ?? resultadoDelMes;
 
   const { data, isLoading } = useQuery<{
     periodo: string;
@@ -894,13 +1015,24 @@ function Presupuesto({ periodo, resultado }: { periodo: string; resultado?: Resu
   if (isLoading) return <Skeleton className="h-48 w-full rounded-2xl" />;
 
   const real = new Map<string, number>();
-  for (const g of resultado?.grupos ?? []) {
+  for (const g of delMes?.grupos ?? []) {
     for (const m of g.mayores) for (const c of m.cuentas) real.set(c.codigo, c.mes);
   }
   const guardado = new Map((data?.filas ?? []).map((f) => [f.cuentaCodigo, Number(f.monto)]));
 
   return (
     <div className="space-y-4">
+      {tramo && (
+        <Card className="rounded-2xl border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
+          <CardContent className="py-3 flex items-start gap-3 text-sm">
+            <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+            <p className="text-slate-600 dark:text-slate-300">
+              Arriba está elegido <strong>{tramo}</strong>, pero las metas se cargan mes a mes:
+              acá estás viendo <strong>{etiquetaPeriodo(periodo)}</strong>.
+            </p>
+          </CardContent>
+        </Card>
+      )}
       <Card className="rounded-2xl border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
         <CardContent className="py-3 flex items-start gap-3 text-sm">
           <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
@@ -998,7 +1130,7 @@ function Presupuesto({ periodo, resultado }: { periodo: string; resultado?: Resu
  * todo junto por persona y la contabilidad separa remuneración de indemnización—
  * así que se compara por ÁREA, que es el corte que los dos lados comparten.
  */
-function PersonalVsTalana({ periodo }: { periodo: string }) {
+function PersonalVsTalana({ periodo, tramo }: { periodo: string; tramo?: string }) {
   const { toast } = useToast();
   const [asignando, setAsignando] = useState<Record<string, string>>({});
 
@@ -1039,6 +1171,17 @@ function PersonalVsTalana({ periodo }: { periodo: string }) {
 
   return (
     <div className="space-y-4">
+      {tramo && (
+        <Card className="rounded-2xl border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
+          <CardContent className="py-3 flex items-start gap-3 text-sm">
+            <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+            <p className="text-slate-600 dark:text-slate-300">
+              Arriba está elegido <strong>{tramo}</strong>, pero el cruce con Talana se hace mes a mes:
+              acá estás viendo <strong>{etiquetaPeriodo(periodo)}</strong>.
+            </p>
+          </CardContent>
+        </Card>
+      )}
       {!data.talana.ok && (
         <Card className="rounded-2xl border-rose-200 bg-rose-50/60 dark:border-rose-900/60 dark:bg-rose-950/20">
           <CardContent className="py-4 flex items-start gap-3">
