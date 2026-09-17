@@ -5,7 +5,7 @@ import { Calendar, Check, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { buildPeriodDisplay } from "@/contexts/FilterContext";
 
-interface YearMonthSelection {
+export interface YearMonthSelection {
   years: number[];
   period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
   month?: number; // 1-12
@@ -21,6 +21,20 @@ interface YearMonthSelectorProps {
   onChange: (selection: YearMonthSelection | null) => void;
   /** Renderiza el panel abierto y en el flujo, sin popover. Ver el comentario del render. */
   inline?: boolean;
+  /**
+   * Esconde el calendario de días: el período queda por año y mes.
+   * Lo usa el Estado de Resultados, que se arma con meses contables cerrados —
+   * un día suelto ahí no existe.
+   */
+  hideDays?: boolean;
+  /**
+   * Los meses (`YYYY-MM`) que tienen datos. Cuando viene, los años salen de esta
+   * lista y los meses sin dato quedan apagados: es la diferencia entre "ese mes
+   * no vendió nada" y "ese mes no está cargado".
+   */
+  availablePeriods?: string[];
+  /** Qué dice el botón cuando no hay nada elegido. */
+  placeholder?: string;
 }
 
 const MONTHS = [
@@ -28,9 +42,16 @@ const MONTHS = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
 
-const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+const DEFAULT_YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
-export function YearMonthSelector({ value, onChange, inline = false }: YearMonthSelectorProps) {
+export function YearMonthSelector({
+  value,
+  onChange,
+  inline = false,
+  hideDays = false,
+  availablePeriods,
+  placeholder = "Seleccionar período",
+}: YearMonthSelectorProps) {
   // En modo inline el panel está siempre "abierto": no hay popover que abrir ni cerrar,
   // así que el estado queda fijo en true y los cierres se ignoran.
   const [openState, setOpenState] = useState(inline);
@@ -42,6 +63,17 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
   // Default to current year and month if no value provided
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth(); // 0-11
+
+  // Los años que se ofrecen: los que traen datos, o los últimos diez cuando
+  // nadie dijo qué hay cargado (el dashboard, que consulta el ERP en vivo).
+  const YEARS = availablePeriods?.length
+    ? Array.from(new Set(availablePeriods.map((p) => Number(p.slice(0, 4))))).sort((a, b) => b - a)
+    : DEFAULT_YEARS;
+
+  /** `2026-03` sin datos ⇒ marzo se apaga cuando 2026 es el único año elegido. */
+  const mesDisponible = (year: number, monthIndex: number) =>
+    !availablePeriods?.length
+      || availablePeriods.includes(`${year}-${String(monthIndex + 1).padStart(2, '0')}`);
   
   const [selectedYears, setSelectedYears] = useState<number[]>(
     value?.years || [currentYear]
@@ -266,7 +298,7 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
 
   // Aplica lo que esté elegido en pantalla, eligiendo el modo según la selección.
   const aplicarSeleccionActual = () => {
-    if (selectedMonths.length === 1 && selectedDays.length > 0) {
+    if (!hideDays && selectedMonths.length === 1 && selectedDays.length > 0) {
       handleApplyDays();
     } else if (selectedMonths.length > 0) {
       handleApplyMonths();
@@ -299,7 +331,7 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
   };
 
   const getDisplayText = () => {
-    if (!value) return "Seleccionar período";
+    if (!value) return placeholder;
     // El texto siempre se arma en español desde la selección (ver FilterContext)
     return buildPeriodDisplay(value as any) || value.display;
   };
@@ -315,12 +347,12 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
         <div className={`px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 ${inline ? "hidden" : ""}`}>
           <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-100">Selecciona período</h4>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
-            {selectedMonths.length === 0 
+            {selectedMonths.length === 0
               ? "📅 Modo: Año completo"
-              : selectedMonths.length === 1 && selectedDays.length > 0
+              : !hideDays && selectedMonths.length === 1 && selectedDays.length > 0
               ? "📆 Modo: Días específicos"
               : selectedMonths.length === 1
-              ? "📅 Modo: Mes específico (click en días para detallar)"
+              ? hideDays ? "📅 Modo: Mes específico" : "📅 Modo: Mes específico (click en días para detallar)"
               : "📅 Modo: Múltiples meses"}
           </p>
         </div>
@@ -384,15 +416,20 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
                 {MONTHS.map((month, index) => {
                   const isSelected = selectedMonths.includes(index);
+                  // Un mes sin datos en ninguno de los años elegidos no se puede
+                  // pedir: sumaría un cero que se lee como "no hubo movimiento".
+                  const disponible = selectedYears.some((y) => mesDisponible(y, index));
                   return (
                     <Button
                       key={month}
                       variant={isSelected ? "default" : "outline"}
+                      disabled={!disponible}
+                      title={disponible ? undefined : `${month}: sin datos cargados`}
                       className={`h-9 rounded-xl text-xs font-medium px-1 ${
                         isSelected
                           ? 'bg-[#fd6301] hover:bg-[#e35400] text-white border-[#fd6301]'
                           : 'hover:border-orange-300 hover:text-[#fd6301]'
-                      }`}
+                      } ${disponible ? '' : 'opacity-40'}`}
                       onClick={() => handleMonthToggle(index)}
                       data-testid={`month-${index}`}
                     >
@@ -403,8 +440,9 @@ export function YearMonthSelector({ value, onChange, inline = false }: YearMonth
               </div>
             </div>
 
-            {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado */}
-            {selectedMonths.length === 1 && (
+            {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado
+                y el período admite días (`hideDays` lo apaga entero) */}
+            {!hideDays && selectedMonths.length === 1 && (
               <div className="px-3 sm:px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Días</label>
