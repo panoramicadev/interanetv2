@@ -127,6 +127,7 @@ import { registerCommissionRoutes } from "./commissions";
 import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
 import { registerBalanceRoutes } from "./routes-balance";
 import { registerContabilidadDescubrirRoutes } from "./routes-contabilidad-descubrir";
+import { registerWoobAsistenteRoutes } from "./woob-asistente";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -608,6 +609,9 @@ export function registerRoutes(app: Express): Server {
 
   // Finanzas: ¿está la contabilidad de Softland en el SQL Server? (solo lectura)
   registerContabilidadDescubrirRoutes(app);
+
+  // Asistente de Woob: firma el token del widget (solo admin)
+  registerWoobAsistenteRoutes(app);
 
   // Panel de Trabajo: cambios recientes por sección (badges de pestañas + campana)
   registerPanelChangesRoutes(app);

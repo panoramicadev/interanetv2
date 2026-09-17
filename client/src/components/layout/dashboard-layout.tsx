@@ -17,6 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { buildSidebarItems } from "@/lib/sidebar-permissions";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
+import { WoobAsistente } from "@/components/WoobAsistente";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -781,6 +782,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         )
       }
       <ChangelogDialog open={showChangelogDialog} onOpenChange={setShowChangelogDialog} />
+
+      {/* Asistente de Woob: solo para admin, y solo si el servidor lo tiene configurado. */}
+      <WoobAsistente />
     </div >
     </BotonMenuArribaContext.Provider>
   );
