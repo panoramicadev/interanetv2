@@ -250,7 +250,7 @@ export const PERMISSIONS: PermissionDef[] = [
   // los dejaría huérfanos sin que nadie se diera cuenta hasta el primer 403.
   {
     key: "finanzas.balance",
-    label: "Estado de Resultados",
+    label: "Estado de Resultado",
     description: "El resultado del mes —ingresos menos egresos— a partir de la contabilidad de Softland, con el presupuesto y el cruce de las cuentas de personal con Talana. SOLO ADMINISTRADOR: marcarlo para otro rol no da acceso, el servidor lo rechaza igual.",
     group: "finanzas",
     href: "/estado-resultados",
