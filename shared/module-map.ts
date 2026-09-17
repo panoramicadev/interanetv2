@@ -1201,13 +1201,13 @@ export const MODULE_MAP: ModuleDef[] = [
   },
   {
     id: "finanzas.balance",
-    label: "Estado de Resultados",
+    label: "Estado de Resultado",
     href: "/estado-resultados",
     // La clave del permiso NO cambió con el renombre: los grants otorgados
     // cuelgan de `finanzas.balance`.
     permission: "finanzas.balance",
     group: "Finanzas",
-    nav: { label: "Estado de Resultados" },
+    nav: { label: "Estado de Resultado" },
     purpose:
       "El estado de resultados mes a mes —ingresos menos egresos— leído en vivo de la contabilidad de Softland, con el presupuesto de ventas y el gasto en gente contrastado contra lo que pagó Talana.",
     whoUses: "Solo admin. Muestra el resultado completo de la empresa, así que el permiso existe para el panel pero el cerrojo es el rol.",

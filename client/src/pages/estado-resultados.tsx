@@ -111,6 +111,16 @@ const TABS: { value: TabId; label: string; Icon: LucideIcon }[] = [
   { value: "cuentas", label: "Cuentas", Icon: ListTree },
 ];
 
+// ─── Detalle plegable ───
+// En pantallas anchas la tarjeta mide casi mil pixeles y el monto se iba al
+// borde, lejos del nombre de la cuenta. La fila se corta antes y el monto vive
+// en una columna de ancho fijo: queda cerca del texto y alineado entre niveles.
+/** Los títulos de columna van en negro, no en el gris de la tabla base. */
+const CABECERA_TABLA = "text-right text-slate-900 dark:text-white";
+
+const FILA_DETALLE = "w-full max-w-3xl";
+const COLUMNA_MONTO = "w-40 text-right flex-shrink-0";
+
 /** "$-3.931.002" se lee mal: el signo va afuera, delante del monto. */
 function montoConSigno(n: number): string {
   return n < 0 ? `− ${formatCLP(Math.abs(n))}` : formatCLP(n);
@@ -264,10 +274,7 @@ export default function EstadoResultadosPage() {
             <Scale className="w-6 h-6" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Estado de Resultados</h1>
-            <p className="text-sm text-muted-foreground hidden md:block">
-              Ingresos menos egresos, mes a mes, leídos de la contabilidad de Softland.
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Estado de Resultado</h1>
           </div>
         </div>
         <Button
@@ -278,21 +285,6 @@ export default function EstadoResultadosPage() {
         </Button>
       </div>
 
-      {/* Lo que el módulo NO es. Sigue arriba porque "estado de resultados" y
-          "balance" se usan como sinónimos en la conversación diaria. */}
-      {estado?.soloResultado && (
-        <Card className="rounded-2xl border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
-          <CardContent className="py-3 flex items-start gap-3 text-sm">
-            <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
-            <p className="text-slate-600 dark:text-slate-300">
-              Esto <strong>no es un balance general</strong>. El estado de situación —activo, pasivo y
-              patrimonio— es otra cosa: sus cuentas existen en Softland, pero esta pantalla todavía no sabe
-              mostrarlas, así que no se traen para no pintarlas como gasto.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Primera corrida: se está validando el ETL contra el ERP mes a mes, así
           que sólo hay un mes habilitado. Se dice acá y no al apretar el botón:
           si no, parece que faltan datos. */}
@@ -302,9 +294,9 @@ export default function EstadoResultadosPage() {
 
       {!sinPlan && (
         <>
-          {/* Período */}
-          <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
-            <CardContent className="py-4">
+          {/* Período. Sin marco: los controles van sueltos sobre el fondo. */}
+          <Card className="rounded-2xl border-0 bg-transparent shadow-none">
+            <CardContent className="p-0">
               <div className="flex flex-wrap items-center gap-3">
                 {/* El período se elige por año y mes, igual que en el Dashboard:
                     un mes, un tramo o el año completo. Sin días: acá el dato más
@@ -328,19 +320,12 @@ export default function EstadoResultadosPage() {
                         />}
                   </div>
                 </div>
-                {resultado?.cargado && (
-                  <Badge variant="outline" className={resultado.cargado.estado === "cerrado"
-                    ? "rounded-full border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "rounded-full border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"}>
-                    {resultado.cargado.estado === "cerrado" ? "Mes cerrado" : "Borrador: se puede volver a cargar"}
-                  </Badge>
-                )}
                 {/* De dónde salió el mes que se está mirando. Un número traído
                     del ERP y uno tecleado desde un Excel no valen lo mismo. */}
                 {resultado?.cargado && (
                   <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600 font-normal dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
                     {resultado.cargado.origen === "erp"
-                      ? <><DatabaseZap className="w-3 h-3 mr-1.5" /> Traído de Softland</>
+                      ? <><DatabaseZap className="w-3 h-3 mr-1.5" /> Traído de Random</>
                       : <><Upload className="w-3 h-3 mr-1.5" /> Cargado por archivo</>}
                   </Badge>
                 )}
@@ -351,7 +336,8 @@ export default function EstadoResultadosPage() {
                     {resultado.periodos.length} meses sumados
                   </Badge>
                 )}
-                <div className="w-full sm:w-auto sm:ml-auto">
+                {/* En celular no se carga el mes: es una tarea de escritorio y ocupaba media pantalla. */}
+                <div className="hidden sm:block sm:w-auto sm:ml-auto">
                   <CargarMes periodoSugerido={periodoActual} />
                 </div>
               </div>
@@ -410,7 +396,6 @@ export default function EstadoResultadosPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Kpi icon={TrendingUp} label="Ingresos operacionales" loading={cargandoResultado}
               value={formatCLP(ingresos?.mes ?? 0)}
-              sub={ingresos && resultado?.mostrarAcumulado ? `${etiquetaAcumulado(resultado)} ${formatCLP(ingresos.acumulado)}` : undefined}
               comparadoCon={resultado?.comparacion.etiqueta}
               variacion={ingresos && resultado?.periodoAnteriorCargado ? variacion(ingresos.mes, ingresos.anterior) : null} />
             <Kpi icon={TrendingDown} label={variosMeses ? "Gastos del período" : "Gastos del mes"} loading={cargandoResultado}
@@ -491,7 +476,7 @@ function Kpi({ icon: Icon, label, value, sub, loading, accent = "neutro", variac
       <CardContent className="px-4 py-4 sm:px-6">
         <div className="flex items-center gap-2 mb-2 min-w-0">
           <span className={ICONO_CHIP_SM}><Icon className={ICONO_CHIP_ICONO_SM} /></span>
-          <p className="text-xs font-medium text-slate-500 leading-tight min-w-0">{label}</p>
+          <p className="text-xs font-medium text-slate-900 dark:text-white leading-tight min-w-0">{label}</p>
         </div>
         {loading
           ? <Skeleton className="h-8 w-28" />
@@ -832,19 +817,20 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Línea</TableHead>
-                  <TableHead className="text-right">{capitalizar(datos.etiqueta)}</TableHead>
-                  <TableHead className="text-right">
+                  {/* La primera columna va sin título: las líneas se nombran solas. */}
+                  <TableHead />
+                  <TableHead className={CABECERA_TABLA}>{capitalizar(datos.etiqueta)}</TableHead>
+                  <TableHead className={CABECERA_TABLA}>
                     {capitalizar(datos.comparacion.etiqueta)}
                     {!datos.periodoAnteriorCargado && (
                       <span className="block text-[10px] font-normal normal-case text-amber-600">sin cargar</span>
                     )}
                   </TableHead>
-                  <TableHead className="text-right">Variación</TableHead>
+                  <TableHead className={CABECERA_TABLA}>Variación</TableHead>
                   {/* Con un tramo elegido el acumulado del año repetiría la primera
                       columna: en ese caso no se muestra en vez de duplicar el dato. */}
                   {datos.mostrarAcumulado && (
-                    <TableHead className="text-right">
+                    <TableHead className={CABECERA_TABLA}>
                       Acumulado año
                       {datos.mesesAcumulados < datos.mesesDelAcumulado && (
                         <span className="block text-[10px] font-normal normal-case text-amber-600">
@@ -918,29 +904,40 @@ function EstadoDeResultados({ datos, loading }: { datos?: Resultado; loading: bo
       {/* El detalle, plegado: gran cuenta → mayor → cuenta. */}
       {datos.grupos.map((g) => (
         <Card key={g.granCuenta} className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden">
+          {/* El monto no se va al borde de la tarjeta: la fila se corta en FILA_DETALLE
+              para que la cifra quede cerca del nombre y las tres secciones alineadas. */}
           <button type="button" onClick={() => alternar(g.granCuenta)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-            <span className="flex items-center gap-2 min-w-0">
-              {abiertos[g.granCuenta] ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-              <span className="font-semibold text-slate-900 dark:text-white truncate">{g.nombre}</span>
-              <Badge variant="outline" className="rounded-full text-[11px] font-mono">{g.granCuenta}</Badge>
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+            <span className={`flex items-center gap-3 ${FILA_DETALLE}`}>
+              <span className="flex items-center gap-2 flex-1 text-left">
+                {abiertos[g.granCuenta] ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                {/* Mismo cuerpo y peso que las etiquetas de la tabla de arriba. */}
+                <span className="text-sm font-semibold text-slate-900 dark:text-white break-words">{g.nombre}</span>
+                <Badge variant="outline" className="rounded-full text-[11px] font-mono flex-shrink-0">{g.granCuenta}</Badge>
+              </span>
+              {/* Mismo cuerpo que los montos de la tabla de arriba. */}
+              <span className={`tabular-nums text-sm font-semibold text-slate-900 dark:text-white ${COLUMNA_MONTO}`}>{montoConSigno(g.mes)}</span>
             </span>
-            <span className="tabular-nums font-semibold text-slate-900 dark:text-white flex-shrink-0">{montoConSigno(g.mes)}</span>
           </button>
           {abiertos[g.granCuenta] && (
             <div className="border-t border-slate-100 dark:border-slate-800">
               {g.mayores.map((m) => (
                 <div key={m.mayor}>
-                  <div className="flex items-center justify-between gap-3 px-4 py-2 bg-slate-50/70 dark:bg-slate-800/30">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{m.nombre}</span>
-                    <span className="tabular-nums text-sm font-medium flex-shrink-0">{montoConSigno(m.mes)}</span>
+                  <div className="px-4 py-2 bg-slate-50/70 dark:bg-slate-800/30">
+                    <div className={`flex items-center gap-3 ${FILA_DETALLE}`}>
+                      {/* Nivel mayor: se lee como "Resultado operacional" en la tabla. */}
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white flex-1 break-words">{m.nombre}</span>
+                      <span className={`tabular-nums text-sm font-semibold text-slate-900 dark:text-white ${COLUMNA_MONTO}`}>{montoConSigno(m.mes)}</span>
+                    </div>
                   </div>
                   {m.cuentas.map((c) => (
-                    <div key={c.codigo} className="flex items-center justify-between gap-3 px-4 py-2 pl-8 text-sm border-t border-slate-50 dark:border-slate-800/50">
-                      <span className="truncate text-slate-600 dark:text-slate-300">
-                        <span className="font-mono text-[11px] text-slate-400 mr-2">{c.codigo}</span>{c.nombre}
-                      </span>
-                      <span className="tabular-nums flex-shrink-0 text-slate-700 dark:text-slate-200">{montoConSigno(c.mes)}</span>
+                    <div key={c.codigo} className="px-4 py-2 text-sm border-t border-slate-50 dark:border-slate-800/50">
+                      <div className={`flex items-center gap-3 ${FILA_DETALLE}`}>
+                        <span className="flex-1 break-words pl-4 text-slate-600 dark:text-slate-300">
+                          <span className="font-mono text-[11px] text-slate-400 mr-2">{c.codigo}</span>{c.nombre}
+                        </span>
+                        <span className={`tabular-nums text-slate-700 dark:text-slate-200 ${COLUMNA_MONTO}`}>{montoConSigno(c.mes)}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
