@@ -13,9 +13,14 @@ interface Props {
   variant?: 'full' | 'compact' | 'icon';
   /** Extra className for outer button */
   className?: string;
+  /**
+   * Modo interno: quién cotiza. Va al modal, que en ese caso pide el cliente
+   * en vez de los datos de un visitante. Ver CustomColorRequestModal.
+   */
+  vendedor?: { nombre: string; email: string };
 }
 
-export default function CustomColorButton({ variant = 'compact', className = '' }: Props) {
+export default function CustomColorButton({ variant = 'compact', className = '', vendedor }: Props) {
   const [open, setOpen] = useState(false);
 
   const baseAnim = {
@@ -45,7 +50,7 @@ export default function CustomColorButton({ variant = 'compact', className = '' 
             <Sparkles className="w-2 h-2 text-white" />
           </motion.span>
         </motion.button>
-        <CustomColorRequestModal open={open} onClose={() => setOpen(false)} />
+        <CustomColorRequestModal open={open} onClose={() => setOpen(false)} vendedor={vendedor} />
       </>
     );
   }
@@ -86,7 +91,7 @@ export default function CustomColorButton({ variant = 'compact', className = '' 
             <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           </motion.span>
         </motion.button>
-        <CustomColorRequestModal open={open} onClose={() => setOpen(false)} />
+        <CustomColorRequestModal open={open} onClose={() => setOpen(false)} vendedor={vendedor} />
       </>
     );
   }
@@ -130,7 +135,7 @@ export default function CustomColorButton({ variant = 'compact', className = '' 
           <Sparkles className="w-5 h-5 text-amber-200" />
         </motion.div>
       </motion.button>
-      <CustomColorRequestModal open={open} onClose={() => setOpen(false)} />
+      <CustomColorRequestModal open={open} onClose={() => setOpen(false)} vendedor={vendedor} />
     </>
   );
 }
