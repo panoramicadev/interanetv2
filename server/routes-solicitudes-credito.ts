@@ -30,6 +30,12 @@ import {
 
 /** Resuelven solicitudes (aprobar / rechazar). */
 const ROLES_FINANZAS = ['admin', 'supervisor', 'encargado_area', 'recursos_humanos'];
+/**
+ * Marcan "analizando" y NADA más. Recepción recibe las carpetas y avisa que la
+ * solicitud está en revisión, pero el monto lo sigue decidiendo Finanzas: si
+ * desde acá llega una aprobación o un rechazo, se corta con 403.
+ */
+const ROLES_SOLO_ANALIZAN = ['reception'];
 
 /**
  * Quien actualiza la ficha del cliente en cuanto hay resolución. Va como
@@ -327,13 +333,21 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
   app.patch('/api/solicitudes-credito/:id', requireAuth, async (req: any, res) => {
     try {
       const usuario = req.user;
-      if (!ROLES_FINANZAS.includes(usuario.role)) {
+      const soloAnaliza = ROLES_SOLO_ANALIZAN.includes(usuario.role);
+      if (!ROLES_FINANZAS.includes(usuario.role) && !soloAnaliza) {
         return res.status(403).json({ message: 'Tu rol no resuelve solicitudes de crédito' });
       }
 
       const parsed = resolverSolicitudCreditoSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Resolución inválida', errors: parsed.error.errors });
+      }
+
+      // El rol que solo analiza no aprueba ni rechaza, aunque lo pida a mano.
+      if (soloAnaliza && parsed.data.estado !== 'analizando') {
+        return res
+          .status(403)
+          .json({ message: 'Tu rol solo puede marcar la solicitud como "analizando"' });
       }
 
       const enAnalisis = parsed.data.estado === 'analizando';

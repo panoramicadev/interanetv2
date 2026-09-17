@@ -43,6 +43,12 @@ import {
 import type { SolicitudCredito } from "@shared/schema";
 
 const ROLES_RESUELVEN = ["admin", "supervisor", "encargado_area", "recursos_humanos"];
+/**
+ * Recepción marca "analizando" y nada más: recibe las carpetas y avisa que la
+ * solicitud está en revisión, pero el monto lo decide Finanzas. Ve el panel de
+ * resolución sin los botones de aprobar y rechazar ni el campo del monto.
+ */
+const ROLES_SOLO_ANALIZAN = ["reception"];
 
 const FORM_VACIO = {
   razonSocial: "",
@@ -187,7 +193,8 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
   const [subiendo, setSubiendo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const puedeResolver = ROLES_RESUELVEN.includes(user?.role ?? "");
+  const soloAnaliza = ROLES_SOLO_ANALIZAN.includes(user?.role ?? "");
+  const puedeResolver = ROLES_RESUELVEN.includes(user?.role ?? "") || soloAnaliza;
 
   const { data: solicitudes = [], isLoading } = useQuery<SolicitudCredito[]>({
     queryKey: ["/api/solicitudes-credito"],
@@ -510,6 +517,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
                   key={s.id}
                   solicitud={s}
                   puedeResolver={puedeResolver}
+                  soloAnaliza={soloAnaliza}
                   resolviendo={resolver.isPending}
                   onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
                 />
@@ -534,6 +542,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
                   key={s.id}
                   solicitud={s}
                   puedeResolver={false}
+                  soloAnaliza={soloAnaliza}
                   resolviendo={resolver.isPending}
                   onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
                 />
@@ -590,11 +599,13 @@ function Descarga({
 function FilaSolicitud({
   solicitud,
   puedeResolver,
+  soloAnaliza,
   resolviendo,
   onResolver,
 }: {
   solicitud: SolicitudCredito;
   puedeResolver: boolean;
+  soloAnaliza: boolean;
   resolviendo: boolean;
   onResolver: (datos: Record<string, unknown>) => void;
 }) {
@@ -745,7 +756,7 @@ function FilaSolicitud({
             onClick={() => setAbierto((v) => !v)}
             data-testid={`button-resolver-${solicitud.id}`}
           >
-            Resolver
+            {soloAnaliza ? "Analizar" : "Resolver"}
           </Button>
         )}
       </div>
@@ -790,20 +801,25 @@ function FilaSolicitud({
 
       {abierto && puedeResolver && (
         <div className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Input
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              type="number"
-              placeholder="Monto aprobado"
-              className="h-9 rounded-xl text-sm"
-              data-testid={`input-credito-aprobado-${solicitud.id}`}
-            />
+          <div className={`grid grid-cols-1 gap-2 ${soloAnaliza ? "" : "sm:grid-cols-2"}`}>
+            {/* El monto lo decide Finanzas: quien solo analiza no lo ve. */}
+            {!soloAnaliza && (
+              <Input
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                type="number"
+                placeholder="Monto aprobado"
+                className="h-9 rounded-xl text-sm"
+                data-testid={`input-credito-aprobado-${solicitud.id}`}
+              />
+            )}
             <Textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               rows={1}
-              placeholder="Observaciones (obligatorias si se rechaza)"
+              placeholder={
+                soloAnaliza ? "Observaciones (opcional)" : "Observaciones (obligatorias si se rechaza)"
+              }
               className="min-h-[36px] resize-none rounded-xl text-sm"
               data-testid={`input-credito-observaciones-${solicitud.id}`}
             />
@@ -824,29 +840,33 @@ function FilaSolicitud({
             >
               <Clock className="h-3.5 w-3.5 mr-1" /> Analizando
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={resolviendo || !motivo.trim()}
-              className="h-8 rounded-lg text-xs border-red-200 text-red-700 hover:bg-red-50"
-              onClick={() => onResolver({ estado: "rechazada", observaciones: motivo.trim() })}
-            >
-              <X className="h-3.5 w-3.5 mr-1" /> Rechazar
-            </Button>
-            <Button
-              size="sm"
-              disabled={resolviendo || Number(monto) <= 0}
-              className="h-8 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() =>
-                onResolver({
-                  estado: "aprobada",
-                  creditoAprobado: Number(monto),
-                  observaciones: motivo.trim() || null,
-                })
-              }
-            >
-              <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
-            </Button>
+            {!soloAnaliza && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={resolviendo || !motivo.trim()}
+                  className="h-8 rounded-lg text-xs border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => onResolver({ estado: "rechazada", observaciones: motivo.trim() })}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" /> Rechazar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={resolviendo || Number(monto) <= 0}
+                  className="h-8 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() =>
+                    onResolver({
+                      estado: "aprobada",
+                      creditoAprobado: Number(monto),
+                      observaciones: motivo.trim() || null,
+                    })
+                  }
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
