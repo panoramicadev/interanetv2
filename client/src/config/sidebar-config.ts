@@ -265,7 +265,7 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
   // contabilidad cargó, y ese cruce se mira desde acá.
   {
     href: "/estado-resultados",
-    label: "Estado de Resultados",
+    label: "Estado de Resultado",
     icon: Scale,
   },
   // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito

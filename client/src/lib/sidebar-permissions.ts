@@ -188,7 +188,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "margen", item: { href: "/margen", label: "Margen", icon: TrendingUp } },
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "rrhh.remuneraciones", item: { href: "/remuneraciones", label: "Remuneraciones", icon: Wallet } },
-  { key: "finanzas.balance", item: { href: "/estado-resultados", label: "Estado de Resultados", icon: Scale } },
+  { key: "finanzas.balance", item: { href: "/estado-resultados", label: "Estado de Resultado", icon: Scale } },
   // Solicitud de Crédito va pegada a Comisiones: las dos son Finanzas, y así el
   // orden del menú es el mismo para el rol que la recibe como extra y para el
   // que ya la trae en su sidebar base.
