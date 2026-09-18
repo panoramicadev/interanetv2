@@ -325,7 +325,7 @@ export default function EstadoResultadosPage() {
                 {resultado?.cargado && (
                   <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600 font-normal dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
                     {resultado.cargado.origen === "erp"
-                      ? <><DatabaseZap className="w-3 h-3 mr-1.5" /> Traído de Softland</>
+                      ? <><DatabaseZap className="w-3 h-3 mr-1.5" /> Traído de RANDOM</>
                       : <><Upload className="w-3 h-3 mr-1.5" /> Cargado por archivo</>}
                   </Badge>
                 )}
