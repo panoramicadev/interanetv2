@@ -439,6 +439,7 @@ import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { registrarHistorial } from './routes-rendicion';
 import { sendPushForNotification } from './push';
+import { encodeScopeSucursal } from './utils/sucursal-scope';
 import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
@@ -10898,6 +10899,12 @@ export function registerRoutes(app: Express): Server {
   //       a través de ese nokofu (normalizando acentos con translate, sin extensión
   //       unaccent). NO se usa el koen de la matriz (parent_client_id): esa ficha no tiene
   //       ventas y, peor, agruparía todas las plazas del mismo RUT → mostraría de más.
+  //   (c) Sucursal de cadena que solo se distingue por el prefijo de su orden de compra
+  //       (caso REDMAT): koen NULL y oc_prefix en la ficha. Toda la cadena factura con el
+  //       koen de la casa matriz, así que acá SÍ se usa ese koen, pero acompañado del
+  //       prefijo para no arrastrar las ventas de las hermanas. Viaja codificada dentro
+  //       del mismo string[] (server/utils/sucursal-scope.ts) y la traduce a SQL
+  //       getClientScopeConditions.
   // Caveat de datos: si el branch_label no coincide con el nokofu (typo, p.ej.
   //   "VILLARRICA" vs "VILLARICA"), esa plaza no resuelve y cae al sentinel (ve nada),
   //   lo que evita fugas pero exige alinear el nombre con el vendedor del ERP.
@@ -10927,7 +10934,7 @@ export function registerRoutes(app: Express): Server {
       // cuyo vendedor (nokofu) coincide con el branch_label (acentos normalizados).
       const r = await db.execute(sql`
         WITH assigned AS (
-          SELECT c.koen, c.branch_label
+          SELECT c.koen, c.branch_label, c.oc_prefix, c.parent_client_id
           FROM user_branch_assignments uba
           JOIN clients c ON c.id = uba.client_id
           WHERE uba.user_id = ${user.id}
@@ -10935,18 +10942,34 @@ export function registerRoutes(app: Express): Server {
         labels AS (
           SELECT DISTINCT translate(upper(btrim(branch_label)), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') AS lbl
           FROM assigned
-          WHERE koen IS NULL AND branch_label IS NOT NULL AND btrim(branch_label) <> ''
+          WHERE koen IS NULL AND oc_prefix IS NULL
+            AND branch_label IS NOT NULL AND btrim(branch_label) <> ''
+        ),
+        prefijos AS (
+          SELECT m.koen AS koen, a.oc_prefix
+          FROM assigned a
+          JOIN clients m ON m.id = a.parent_client_id
+          WHERE a.koen IS NULL AND a.oc_prefix IS NOT NULL AND m.koen IS NOT NULL
         )
-        SELECT koen FROM assigned WHERE koen IS NOT NULL
+        SELECT koen, NULL::varchar AS oc_prefix FROM assigned WHERE koen IS NOT NULL
         UNION
-        SELECT DISTINCT fv.endo AS koen
+        SELECT DISTINCT fv.endo AS koen, NULL::varchar AS oc_prefix
         FROM ventas.fact_ventas fv
         JOIN labels ON translate(upper(btrim(fv.nokofu)), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') = labels.lbl
         WHERE fv.endo IS NOT NULL
+        UNION
+        SELECT koen, oc_prefix FROM prefijos
       `);
       const rows = Array.isArray(r) ? r : (r as any).rows || [];
       koens = Array.from(new Set(
-        rows.map((row: any) => (row.koen != null ? String(row.koen).trim() : '')).filter(Boolean)
+        rows
+          .map((row: any) => {
+            const koen = row.koen != null ? String(row.koen).trim() : '';
+            if (!koen) return '';
+            const prefijo = row.oc_prefix != null ? String(row.oc_prefix).trim() : '';
+            return prefijo ? encodeScopeSucursal(koen, prefijo) : koen;
+          })
+          .filter(Boolean)
       ));
       // Tiene ≥1 asignación pero ninguna resolvió a un koen real => ve NADA (no "ve todo").
       if (assignmentCount > 0 && koens.length === 0) koens = [ENCARGADO_NO_SCOPE];
