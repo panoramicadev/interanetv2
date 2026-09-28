@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -81,6 +81,13 @@ app.use((req, res, next) => {
       await ensureTaskCommentsAudioColumns();
     } catch (error: any) {
       console.error('❌ Error al verificar columnas de audio del chat:', error.message);
+    }
+    // Idem: las sucursales de una cadena con un solo RUT (REDMAT) se resuelven
+    // por esta columna. Sin ella, sus ventas vuelven a verse todas juntas.
+    try {
+      await ensureSucursalPrefijoColumns();
+    } catch (error: any) {
+      console.error('❌ Error al verificar la columna de prefijo de sucursal:', error.message);
     }
     // Idem: el módulo de Remuneraciones lee talana_vinculos en cada carga del
     // cruce. Si la tabla no está, la pantalla abre sin ningún vínculo guardado.

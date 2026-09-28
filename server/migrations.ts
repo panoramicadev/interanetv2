@@ -2059,6 +2059,29 @@ export async function ensureTaskCommentsAudioColumns(): Promise<void> {
   console.log('🎤 Columnas de audio del chat verificadas');
 }
 
+/**
+ * Columna del prefijo de orden de compra que identifica a cada sucursal de una
+ * cadena que factura con un solo RUT (caso REDMAT). Fuera del bucle de
+ * migraciones por lo mismo que las de OAuth y el Market: el listado de clientes
+ * y la imputación de ventas la seleccionan, así que si la 087 no llega a correr
+ * —porque una migración anterior corta el bucle— las sucursales desaparecen del
+ * listado y las ventas vuelven a agruparse todas bajo la matriz.
+ */
+export async function ensureSucursalPrefijoColumns(): Promise<void> {
+  await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS oc_prefix VARCHAR`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "IDX_clients_oc_prefix_parent"
+      ON clients (parent_client_id, oc_prefix)
+      WHERE oc_prefix IS NOT NULL
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "IDX_clients_oc_prefix"
+      ON clients (oc_prefix)
+      WHERE oc_prefix IS NOT NULL
+  `);
+  console.log('🏪 Columna de prefijo de sucursal verificada');
+}
+
 export async function ensureOAuthTables(): Promise<void> {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS oauth_clients (

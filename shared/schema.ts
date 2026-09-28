@@ -663,6 +663,11 @@ export const clients = pgTable("clients", {
   // Branch hierarchy (sucursales)
   parentClientId: varchar("parent_client_id"), // FK auto-ref → clients.id (empresa matriz)
   branchLabel: varchar("branch_label"), // Etiqueta de sucursal ("Santiago Centro", "Valparaíso", etc.)
+  // Prefijo con el que la sucursal numera sus órdenes de compra ("009" en
+  // "009-1129"). Es el único dato que separa a las ferreterías de una cadena
+  // que factura con un solo RUT y un solo código de cliente (caso REDMAT),
+  // donde ni el koen propio ni el vendedor alcanzan para distinguirlas.
+  ocPrefix: varchar("oc_prefix"),
   branchDiscountPercent: numeric("branch_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"), // Descuento global de sucursal (0-100%)
 
   // Beneficios comerciales
