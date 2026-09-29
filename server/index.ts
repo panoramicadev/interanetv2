@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
@@ -86,6 +86,9 @@ app.use((req, res, next) => {
     // por esta columna. Sin ella, sus ventas vuelven a verse todas juntas.
     try {
       await ensureSucursalPrefijoColumns();
+      // Y las fichas de las ferreterías, una por prefijo. Solo crea las que
+      // falten: una corrección hecha desde el panel no se pisa en el arranque.
+      await ensureSucursalesRedmat();
     } catch (error: any) {
       console.error('❌ Error al verificar la columna de prefijo de sucursal:', error.message);
     }
