@@ -36,6 +36,8 @@ import {
   DEFAULT_PRICE_LIST,
 } from "./price-list-resolver";
 import { resolverLineaCredito } from "@shared/credito";
+import { obtenerCreditoCliente } from "./services/credito-cliente";
+import { generarEstadoCuentaPdf, nombreArchivoEstadoCuenta, registerEstadoCuentaRoutes } from "./services/estado-cuenta";
 import { db } from "./db";
 import {
   clients,
@@ -2863,15 +2865,8 @@ export function registerRoutes(app: Express): Server {
   // panel de Cobranza del Panel de Trabajo consumen este mismo endpoint, así que
   // no pueden mostrar números distintos.
   //
-  // Todo sale de ventas.fact_ventas con el cálculo ya validado en la ficha:
-  // saldo del documento = vabrdo - vaabdo, dedup por idmaeedo, solo documentos
-  // pendientes (espgdo='P') de tipo FCV/FDV. La deuda NO se lee de las columnas
-  // CR* de la ficha: esas son los CUPOS autorizados por instrumento de pago, no
-  // lo que el cliente debe (ver shared/credito.ts). De clients solo se toma la
-  // línea de crédito y los días de crédito (dccr).
-  //
-  // Alcance: la empresa completa (casa matriz + sucursales que comparten nombre
-  // o RUT), igual que el resto de la ficha.
+  // El cálculo vive en services/credito-cliente.ts: el estado de cuenta en PDF y
+  // Excel, y el adjunto del correo de cobranza, leen de la misma función.
   app.get('/api/clients/credito', requireAuth, async (req, res) => {
     try {
       const name = ((req.query.name as string) || '').trim();
@@ -2879,153 +2874,17 @@ export function registerRoutes(app: Express): Server {
       if (!name && !rut) {
         return res.status(400).json({ message: 'name o rut es requerido' });
       }
-
-      const normalizeRut = (v?: string | null) => (v || '').replace(/[.\-\s]/g, '').trim().toUpperCase();
-      const upperName = name.toUpperCase();
-      const cleanRut = normalizeRut(rut);
-
-      // Filas de la empresa, casa matriz primero (misma regla que account-status).
-      const fichaResult: any = await db.execute(sql`
-        SELECT id, koen, nokoen, rten, cpen, crto, dccr, kofuen, parent_client_id, ficha_overrides
-        FROM clients
-        WHERE (${upperName} <> '' AND UPPER(TRIM(nokoen)) = ${upperName})
-           OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
-        ORDER BY parent_client_id NULLS FIRST
-      `);
-      const fichaRows = (Array.isArray(fichaResult) ? fichaResult : (fichaResult.rows || [])) as any[];
-      const principal = fichaRows[0] || null;
-      const koens = Array.from(new Set(fichaRows.map((f) => f.koen).filter(Boolean)));
-
-      // Línea de crédito: la de la casa matriz; si no tiene, la primera sucursal
-      // que sí la tenga. Sin línea asignada queda en null (≠ límite cero).
-      // El override manual de la ficha manda sobre el CRTO del ERP, y se informa
-      // aparte para que el panel pueda marcarlo como manual.
-      const linea = fichaRows.map(resolverLineaCredito).find((l) => l.limit != null)
-        ?? resolverLineaCredito(principal);
-      const limit = linea.limit;
-
-      const empty = {
-        client: principal
-          ? {
-              id: principal.id,
-              clientCode: principal.koen ?? null,
-              name: principal.nokoen ?? name,
-              rut: principal.rten ?? null,
-              paymentCondition: principal.cpen ?? null,
-              creditDays: principal.dccr != null ? Number(principal.dccr) : null,
-              salesRepCode: principal.kofuen ?? null,
-              branchCount: fichaRows.length,
-            }
-          : null,
-        credit: {
-          limit,
-          // De dónde sale la línea: 'manual' si alguien la fijó en la intranet,
-          // 'erp' si viene de Softland. limitErp deja ver el valor del ERP aunque
-          // haya override, para poder contrastarlos en la ficha.
-          limitSource: linea.origen,
-          limitErp: linea.erp,
-          used: 0, overdue: 0, upcoming: 0,
-          available: limit != null ? limit : null,
-          exceeded: false,
-          overdueSince: null as string | null,
-          nextDueDate: null as string | null,
-          documentCount: 0,
-          oldestOverdueDays: null as number | null,
-        },
-        aging: { porVencer: 0, d1a30: 0, d31a60: 0, d61a90: 0, d90mas: 0 },
-        docs: [] as any[],
-      };
-
-      if (koens.length === 0) return res.json(empty);
-
-      const docsResult: any = await db.execute(sql`
-        SELECT idmaeedo,
-               MAX(nudo) AS nudo,
-               MAX(tido) AS tido,
-               MAX(endo) AS endo,
-               MAX(feemdo) AS emision,
-               MAX(fe01vedo) AS vencimiento,
-               MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0)) AS saldo
-        FROM ventas.fact_ventas
-        WHERE endo IN (${sql.join(koens.map((k: string) => sql`${k}`), sql`, `)})
-          AND tido IN ('FCV', 'FDV')
-          AND espgdo = 'P'
-        GROUP BY idmaeedo
-        HAVING (MAX(COALESCE(vabrdo, 0)) - MAX(COALESCE(vaabdo, 0))) > 0
-        ORDER BY MAX(fe01vedo) ASC NULLS LAST
-      `);
-      const docRows = (Array.isArray(docsResult) ? docsResult : (docsResult.rows || [])) as any[];
-
-      const fmtDate = (v: any) => (v == null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const diasDesde = (fecha: string | null) => {
-        if (!fecha) return null;
-        const d = new Date(`${fecha}T00:00:00`);
-        if (isNaN(d.getTime())) return null;
-        return Math.floor((hoy.getTime() - d.getTime()) / 86_400_000);
-      };
-
-      const docs = docRows.map((d) => {
-        const vencimiento = fmtDate(d.vencimiento);
-        const dias = diasDesde(vencimiento);
-        // Sin fecha de vencimiento el documento cuenta como por vencer, no como
-        // vencido: no hay evidencia de que se haya pasado la fecha.
-        const vencida = dias != null && dias > 0;
-        return {
-          nudo: d.nudo != null ? String(d.nudo) : null,
-          tido: d.tido ? String(d.tido).trim() : null,
-          clientCode: d.endo ? String(d.endo).trim() : null,
-          emision: fmtDate(d.emision),
-          vencimiento,
-          saldo: Number(d.saldo) || 0,
-          diasVencido: vencida ? dias : 0,
-          vencida,
-        };
-      });
-
-      const suma = (f: (d: typeof docs[number]) => boolean) =>
-        docs.filter(f).reduce((t, d) => t + d.saldo, 0);
-
-      const used = suma(() => true);
-      const overdue = suma((d) => d.vencida);
-      const upcoming = suma((d) => !d.vencida);
-      const vencidos = docs.filter((d) => d.vencida);
-      const porVencerDocs = docs.filter((d) => !d.vencida && d.vencimiento);
-
-      res.json({
-        client: empty.client,
-        credit: {
-          limit,
-          limitSource: linea.origen,
-          limitErp: linea.erp,
-          used,
-          overdue,
-          upcoming,
-          // Sin línea asignada no hay disponible que calcular.
-          available: limit != null ? limit - used : null,
-          exceeded: limit != null && used > limit,
-          overdueSince: vencidos.length > 0 ? vencidos[0].vencimiento : null,
-          nextDueDate: porVencerDocs.length > 0 ? porVencerDocs[0].vencimiento : null,
-          documentCount: docs.length,
-          oldestOverdueDays: vencidos.length > 0 ? Math.max(...vencidos.map((d) => d.diasVencido)) : null,
-        },
-        // Antigüedad de la deuda vencida, en tramos: para saber si lo vencido es
-        // de la semana pasada o de hace tres meses.
-        aging: {
-          porVencer: upcoming,
-          d1a30: suma((d) => d.vencida && d.diasVencido <= 30),
-          d31a60: suma((d) => d.vencida && d.diasVencido > 30 && d.diasVencido <= 60),
-          d61a90: suma((d) => d.vencida && d.diasVencido > 60 && d.diasVencido <= 90),
-          d90mas: suma((d) => d.vencida && d.diasVencido > 90),
-        },
-        docs,
-      });
+      res.json(await obtenerCreditoCliente({ name, rut }));
     } catch (error) {
       console.error('[credito] error:', error);
       res.status(500).json({ message: 'Error al obtener el crédito del cliente' });
     }
   });
+
+  // Estado de cuenta en PDF y Excel (GET /api/clients/estado-cuenta). Va aquí y
+  // no en index.ts con los demás módulos: /api/clients/:koen, más abajo, se
+  // quedaría con "estado-cuenta" como si fuera un código de cliente.
+  registerEstadoCuentaRoutes(app);
 
   // Crédito vencido por cliente para la vista rápida del listado. Recibe la página
   // visible y devuelve, por cada cliente con código (koen), el monto vencido de su
@@ -24531,6 +24390,13 @@ export function registerRoutes(app: Express): Server {
     sendToClient: z.boolean().optional().default(true),
     ccInternal: z.boolean().optional().default(true),
     extraCc: z.string().optional(),
+    // Si viene, el correo lleva el estado de cuenta en PDF. Nombre y RUT son los
+    // mismos con los que el diálogo consultó /api/clients/credito: con otros, el
+    // alcance de fichas podría cambiar y el adjunto no cuadraría con lo que se ve.
+    estadoCuenta: z.object({
+      name: z.string().optional(),
+      rut: z.string().optional(),
+    }).strict().optional(),
   }).strict();
 
   app.post('/api/admin/mailing/send-cobranza', requireMailingAccess, asyncHandler(async (req: any, res: any) => {
@@ -24548,7 +24414,7 @@ export function registerRoutes(app: Express): Server {
         console.warn(`${TAG} ❌ validación falló`, parsed.error.errors);
         return res.status(400).json({ message: 'Datos inválidos', errors: parsed.error.errors });
       }
-      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, subjectOverride, sendToClient, ccInternal, extraCc } = parsed.data;
+      const { koen, clientEmailOverride, montoAdeudado, fechaVencimiento, numeroDocumento, mensajeAdicional, subjectOverride, sendToClient, ccInternal, extraCc, estadoCuenta } = parsed.data;
 
       const montoNum = Number(montoAdeudado);
       if (!isFinite(montoNum) || montoNum <= 0) {
@@ -24596,6 +24462,36 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'No hay destinatarios para enviar el correo' });
       }
 
+      // Estado de cuenta adjunto. Si se pidió y no se puede generar, el correo no
+      // sale: mandarlo sin el adjunto que quien envía marcó sería peor que avisar.
+      // Si el cliente ya no tiene documentos pendientes (se pagaron entre que se
+      // abrió el diálogo y se envió), sale sin adjunto y sin el aviso del cuerpo.
+      let adjunto: { filename: string; content: Buffer; contentType: string } | null = null;
+      let documentosAdjuntos = 0;
+      if (estadoCuenta) {
+        try {
+          const credito = await obtenerCreditoCliente({
+            name: estadoCuenta.name || client.nokoen,
+            rut: estadoCuenta.rut,
+          });
+          if (credito.docs.length > 0) {
+            const generadoEn = new Date();
+            adjunto = {
+              filename: nombreArchivoEstadoCuenta(credito, 'pdf', generadoEn),
+              content: await generarEstadoCuentaPdf(credito, generadoEn),
+              contentType: 'application/pdf',
+            };
+            documentosAdjuntos = credito.docs.length;
+            console.log(`${TAG} 📎 estado de cuenta`, { documentos: documentosAdjuntos, bytes: adjunto.content.length });
+          } else {
+            console.log(`${TAG} 📎 estado de cuenta omitido: sin documentos pendientes`);
+          }
+        } catch (e: any) {
+          console.error(`${TAG} ❌ error generando el estado de cuenta`, { message: e?.message, stack: e?.stack });
+          return res.status(500).json({ message: 'No se pudo generar el estado de cuenta para adjuntar. El correo no se envió.' });
+        }
+      }
+
       let subject = '';
       let html = '';
       try {
@@ -24606,6 +24502,7 @@ export function registerRoutes(app: Express): Server {
           fechaVencimiento: venc,
           numeroDocumento,
           mensajeAdicional,
+          estadoCuentaDocumentos: documentosAdjuntos || undefined,
         });
         subject = (subjectOverride && subjectOverride.trim()) || built.subject;
         html = built.html;
@@ -24636,12 +24533,17 @@ export function registerRoutes(app: Express): Server {
 
       try {
         console.log(`${TAG} 📤 enviando vía emailService.sendEmail...`);
-        await emailService.sendEmail({ to, subject, html, cc: ccStr });
+        await emailService.sendEmail({ to, subject, html, cc: ccStr, attachments: adjunto ? [adjunto] : undefined });
         console.log(`${TAG} ✅ enviado en ${Date.now() - t0}ms`);
         if (logId) {
           await db.update(emailLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(emailLogs.id, logId));
         }
-        res.json({ success: true, to, cc: ccStr });
+        res.json({
+          success: true,
+          to,
+          cc: ccStr,
+          estadoCuentaAdjunto: adjunto ? { archivo: adjunto.filename, documentos: documentosAdjuntos } : null,
+        });
       } catch (error: any) {
         console.error(`${TAG} ❌ Error enviando correo de cobranza:`, {
           message: error?.message,
@@ -24680,6 +24582,8 @@ export function registerRoutes(app: Express): Server {
       numeroDocumento: z.string().optional(),
       mensajeAdicional: z.string().optional(),
       subjectOverride: z.string().optional(),
+      // Cuántos documentos trae el estado de cuenta, si va adjunto: el cuerpo lo avisa.
+      estadoCuentaDocumentos: z.number().int().min(0).optional(),
     }).strict();
     const parsed = previewSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -24700,6 +24604,7 @@ export function registerRoutes(app: Express): Server {
       fechaVencimiento: venc,
       numeroDocumento: parsed.data.numeroDocumento,
       mensajeAdicional: parsed.data.mensajeAdicional,
+      estadoCuentaDocumentos: parsed.data.estadoCuentaDocumentos,
     });
     const subject = (parsed.data.subjectOverride && parsed.data.subjectOverride.trim()) || built.subject;
     res.json({ subject, html: built.html });

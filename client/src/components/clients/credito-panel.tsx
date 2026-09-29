@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import { EstadoCuentaMenu } from "@/components/clients/estado-cuenta-menu";
 
 export interface CreditoDoc {
   nudo: string | null;
@@ -28,6 +29,10 @@ export interface CreditoDoc {
   clientCode: string | null;
   emision: string | null;
   vencimiento: string | null;
+  /** Monto total del documento. */
+  facturado: number;
+  /** Lo que ya se abonó: con abonos, el saldo es menor que lo facturado. */
+  abonado: number;
   saldo: number;
   diasVencido: number;
   vencida: boolean;
@@ -43,6 +48,10 @@ export interface CreditoResponse {
     creditDays: number | null;
     salesRepCode: string | null;
     branchCount: number;
+    address?: string | null;
+    comuna?: string | null;
+    city?: string | null;
+    phone?: string | null;
   } | null;
   credit: {
     limit: number | null;
@@ -130,6 +139,11 @@ export function CreditoPanel({
   clientName: string | null | undefined;
   rut?: string | null;
   variant?: "full" | "compact";
+  /**
+   * Acciones de quien usa el panel (el botón de cobranza, por ejemplo). Van en
+   * la misma fila que "Estado de cuenta", así que se pasan sueltas, sin un
+   * contenedor con relleno propio que las desalinee.
+   */
   footer?: React.ReactNode;
 }) {
   const { data, isLoading, isError } = useCredito(clientName, rut);
@@ -158,6 +172,17 @@ export function CreditoPanel({
     { label: "+90 días", monto: aging.d90mas, color: "bg-red-600" },
   ];
   const totalTramos = tramos.reduce((t, x) => t + x.monto, 0);
+
+  // Acciones del panel: el estado de cuenta, y al lado lo que mande quien lo
+  // usa (el botón de cobranza). Sin documentos pendientes no hay estado de cuenta
+  // que bajar, igual que la ficha no ofrece cobrar.
+  const acciones =
+    docs.length > 0 || footer ? (
+      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
+        {docs.length > 0 && <EstadoCuentaMenu clientName={clientName} rut={rut} />}
+        {footer}
+      </div>
+    ) : null;
 
   const listaDocs = (
     <div className="space-y-1.5">
@@ -190,13 +215,18 @@ export function CreditoPanel({
               {d.emision && ` · emitida ${fecha(d.emision)}`}
             </p>
           </div>
-          <span
-            className={`shrink-0 text-sm font-semibold tabular-nums ${
-              d.vencida ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"
-            }`}
-          >
-            {clp(d.saldo)}
-          </span>
+          <div className="shrink-0 text-right">
+            <span
+              className={`text-sm font-semibold tabular-nums ${
+                d.vencida ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              {clp(d.saldo)}
+            </span>
+            {(d.abonado ?? 0) > 0 && (
+              <p className="text-[11px] tabular-nums text-muted-foreground">de {clp(d.facturado)}</p>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -222,7 +252,7 @@ export function CreditoPanel({
         ) : (
           listaDocs
         )}
-        {footer}
+        {acciones}
       </div>
     );
   }
@@ -315,7 +345,7 @@ export function CreditoPanel({
             {client && client.branchCount > 1 && ` Incluye las ${client.branchCount} fichas de la empresa.`}
           </p>
 
-          {footer}
+          {acciones}
         </CardContent>
       </Card>
 

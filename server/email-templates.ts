@@ -9,6 +9,21 @@ export function getEmailHeader(): string {
   `;
 }
 
+/**
+ * Datos para el pago. Los usan el bloque "Datos para el pago" de los correos y
+ * el PDF del estado de cuenta (services/estado-cuenta.ts): si cambia la cuenta,
+ * se cambia aquí y cambian los dos.
+ */
+export const DATOS_PAGO = {
+  razonSocial: 'Pintureria Panoramica Limitada',
+  rut: '78.652.260-9',
+  banco: 'Banco Santander',
+  tipoCuenta: 'Cuenta Corriente',
+  numeroCuenta: '2592916-0',
+  correo: 'contacto@pinturaspanoramica.cl',
+  pagoTarjetaUrl: 'https://micrositios.getnet.cl/pinturaspanoramica',
+} as const;
+
 export function getPaymentInfoBlock(): string {
   return `
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 24px 0 8px 0; border-collapse: separate;">
@@ -23,14 +38,14 @@ export function getPaymentInfoBlock(): string {
         <td style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 0; padding: 18px; border-radius: 0 0 6px 6px;">
           <p style="color: #1a1f2e; margin: 0 0 12px 0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
             <strong style="color: #fd6301;">Transferencia bancaria</strong><br>
-            <span style="color: #333;">Pintureria Panoramica Limitada</span><br>
-            <span style="color: #333;">RUT: <strong>78.652.260-9</strong></span><br>
-            <span style="color: #333;">Cuenta Corriente <strong>Banco Santander</strong>: <strong>2592916-0</strong></span><br>
-            <span style="color: #333;">Email: <a href="mailto:contacto@pinturaspanoramica.cl" style="color: #fd6301; text-decoration: none;">contacto@pinturaspanoramica.cl</a></span>
+            <span style="color: #333;">${DATOS_PAGO.razonSocial}</span><br>
+            <span style="color: #333;">RUT: <strong>${DATOS_PAGO.rut}</strong></span><br>
+            <span style="color: #333;">${DATOS_PAGO.tipoCuenta} <strong>${DATOS_PAGO.banco}</strong>: <strong>${DATOS_PAGO.numeroCuenta}</strong></span><br>
+            <span style="color: #333;">Email: <a href="mailto:${DATOS_PAGO.correo}" style="color: #fd6301; text-decoration: none;">${DATOS_PAGO.correo}</a></span>
           </p>
           <p style="color: #1a1f2e; margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #f0f0f0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
             <strong style="color: #fd6301;">Pago con tarjeta</strong><br>
-            <a href="https://micrositios.getnet.cl/pinturaspanoramica" style="color: #fd6301; text-decoration: none; word-break: break-all;">https://micrositios.getnet.cl/pinturaspanoramica</a>
+            <a href="${DATOS_PAGO.pagoTarjetaUrl}" style="color: #fd6301; text-decoration: none; word-break: break-all;">${DATOS_PAGO.pagoTarjetaUrl}</a>
           </p>
         </td>
       </tr>
@@ -128,6 +143,11 @@ interface CobranzaData {
   fechaVencimiento: Date | string;
   numeroDocumento?: string;
   mensajeAdicional?: string;
+  /**
+   * Documentos que trae el estado de cuenta adjunto. Solo se informa cuando el
+   * PDF de verdad va en el correo: con 0 o sin valor, el aviso no aparece.
+   */
+  estadoCuentaDocumentos?: number;
 }
 
 export function buildCobranzaEmail(data: CobranzaData): { subject: string; html: string } {
@@ -151,6 +171,16 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
     : `<div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
          <p style="color: #92400e; margin: 0; font-size: 14px;"><strong>Vence en ${diasDiff} día(s)</strong>.</p>
        </div>`;
+
+  // El monto de arriba es un total: el detalle por documento va en el PDF.
+  const documentosAdjuntos = data.estadoCuentaDocumentos ?? 0;
+  const adjuntoBox = documentosAdjuntos > 0
+    ? `<div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">
+         <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6;">
+           <strong>Adjuntamos su estado de cuenta en PDF</strong>, con el detalle de ${documentosAdjuntos === 1 ? 'el documento pendiente' : `los ${documentosAdjuntos} documentos pendientes`}: folio, fecha de emisión, fecha de vencimiento y montos.
+         </p>
+       </div>`
+    : '';
 
   const subject = vencido
     ? `Recordatorio de pago vencido${data.numeroDocumento ? ` - ${data.numeroDocumento}` : ''} - ${data.clientName}`
@@ -192,6 +222,8 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
     </table>
 
     ${estadoBox}
+
+    ${adjuntoBox}
 
     ${data.mensajeAdicional ? `
     <div style="background-color: #f8f9fa; padding: 14px 16px; border-radius: 4px; margin: 20px 0;">

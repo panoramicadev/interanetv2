@@ -7742,11 +7742,7 @@ function CobranzaPanel({ clienteNombre, variant = "full" }: { clienteNombre: str
     <CreditoPanel
       clientName={clienteNombre}
       variant={variant}
-      footer={
-        <div className="pt-1">
-          <EnviarCobranzaButton clientName={clienteNombre} testId="button-enviar-cobranza-tarea" />
-        </div>
-      }
+      footer={<EnviarCobranzaButton clientName={clienteNombre} testId="button-enviar-cobranza-tarea" />}
     />
   );
 }
