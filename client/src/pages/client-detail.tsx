@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
+import { CadenaSucursalesCard } from "@/components/clients/cadena-sucursales-card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SuggestedOrderModal from "@/components/panoramica-market/suggested-order-modal";
@@ -966,6 +967,17 @@ export default function ClientDetail() {
             selectedPeriod={selectedPeriod}
             filterType={filterType}
             client={decodedClientName}
+          />
+        )}
+
+        {/* Matriz de una cadena (REDMAT): el total consolidado y lo que aporta
+            cada ferretería. No se muestra para el resto de los clientes. */}
+        {decodedClientName && (
+          <CadenaSucursalesCard
+            clientName={decodedClientName}
+            period={selectedPeriod}
+            filterType={filterType}
+            comprasTotales={isLoadingDetails ? undefined : details?.totalPurchases}
           />
         )}
 

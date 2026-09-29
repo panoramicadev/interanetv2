@@ -112,3 +112,57 @@ export async function imputarSucursalesPorPrefijo(): Promise<ImputacionSucursale
 
   return resumen;
 }
+
+/**
+ * Nombre de la cadena para mostrar junto a una sucursal, sin la razón social:
+ * "REDMAT SPA" → "REDMAT". En un buscador se lee "FERRETERIA FLANDEZ - REDMAT".
+ */
+export function nombreCortoCadena(nombreMatriz: string): string {
+  const corto = nombreMatriz
+    .trim()
+    .replace(/[\s,.]+(SPA|S\.?P\.?A\.?|LTDA\.?|LIMITADA|S\.?A\.?|EIRL|E\.I\.R\.L\.?)$/i, '')
+    .trim();
+  return corto || nombreMatriz.trim();
+}
+
+/**
+ * Qué sucursales por prefijo hay y a qué cadena pertenecen, para marcarlas en
+ * el buscador de clientes: nombre de la sucursal en mayúsculas → nombre corto
+ * de su cadena. Son pocas filas y van por el índice parcial de oc_prefix.
+ */
+export async function cadenasPorSucursal(): Promise<Map<string, string>> {
+  const r = await db.execute(sql`
+    SELECT suc.nokoen AS sucursal, matriz.nokoen AS matriz
+    FROM clients suc
+    JOIN clients matriz ON matriz.id = suc.parent_client_id
+    WHERE suc.oc_prefix IS NOT NULL
+  `);
+  const mapa = new Map<string, string>();
+  for (const f of ((r as any).rows || []) as Array<{ sucursal: string; matriz: string }>) {
+    if (f.sucursal && f.matriz) mapa.set(f.sucursal.trim().toUpperCase(), nombreCortoCadena(f.matriz));
+  }
+  return mapa;
+}
+
+/**
+ * Agrega `cadena` ("REDMAT") a las filas cuyo nombre es el de una sucursal por
+ * prefijo, para que un listado de clientes muestre "FERRETERIA FLANDEZ - REDMAT".
+ * `campo` es la propiedad que trae el nombre en ese listado (`name`, `nokoen`,
+ * `clientName`...). El nombre no se toca: es lo que usan los enlaces a la ficha.
+ * Si la consulta falla, devuelve las filas como vinieron: una etiqueta no puede
+ * tumbar un listado.
+ */
+export async function marcarCadenas<T extends Record<string, any>>(filas: T[], campo: string): Promise<T[]> {
+  if (!Array.isArray(filas) || filas.length === 0) return filas;
+  try {
+    const cadenas = await cadenasPorSucursal();
+    if (cadenas.size === 0) return filas;
+    return filas.map((f) => {
+      const cadena = cadenas.get(String(f[campo] ?? '').trim().toUpperCase());
+      return cadena ? { ...f, cadena } : f;
+    });
+  } catch (e) {
+    console.warn('[cadenas] No se pudieron marcar las sucursales:', e);
+    return filas;
+  }
+}
