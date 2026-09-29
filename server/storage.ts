@@ -401,6 +401,7 @@ import { db } from "./db";
 import { LINE_COST_EXPR } from "./costo-linea";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
+import { parseScopeEntry, ocPrefixPattern } from "./utils/sucursal-scope";
 import { normalizeRut, rutMatchKey } from "@shared/rut";
 import { rutContainsCondition, rutColumnsMatchSql } from "./utils/rut-sql";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
@@ -2990,12 +2991,33 @@ export class DatabaseStorage implements IStorage {
    * el portal cliente). Array vacío/undefined => sin restricción (ve todo).
    * Se aplica de forma uniforme en TODAS las queries del dashboard para que los
    * totales de cada tarjeta sean coherentes entre sí.
+   *
+   * Las sucursales de una cadena que comparten el koen de la casa matriz y solo
+   * se distinguen por el prefijo de su orden de compra (caso REDMAT) llegan
+   * codificadas dentro del mismo array (ver server/utils/sucursal-scope.ts) y se
+   * resuelven por `endo` + `ocdo`. Las dos formas se combinan con OR: un
+   * encargado puede tener a la vez fichas con koen propio y ferreterías REDMAT.
    */
   static getClientScopeConditions(clientScope?: string[] | null): any[] {
-    if (Array.isArray(clientScope) && clientScope.length > 0) {
-      return [inArray(factVentas.endo, clientScope)];
+    if (!Array.isArray(clientScope) || clientScope.length === 0) return [];
+
+    const koens: string[] = [];
+    const sucursales: { koen: string; ocPrefix: string }[] = [];
+    for (const entry of clientScope) {
+      const { koen, ocPrefix } = parseScopeEntry(entry);
+      if (ocPrefix) sucursales.push({ koen, ocPrefix });
+      else koens.push(koen);
     }
-    return [];
+
+    const orParts: any[] = [];
+    if (koens.length > 0) orParts.push(inArray(factVentas.endo, koens));
+    for (const { koen, ocPrefix } of sucursales) {
+      orParts.push(sql`(${factVentas.endo} = ${koen} AND btrim(${factVentas.ocdo}) LIKE ${ocPrefixPattern(ocPrefix)})`);
+    }
+
+    if (orParts.length === 0) return [];
+    if (orParts.length === 1) return [orParts[0]];
+    return [sql`(${sql.join(orParts, sql` OR `)})`];
   }
 
   async getSalesMetrics(filters: {

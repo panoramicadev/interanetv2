@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { ObjectStorageService } from './objectStorage';
+import { REDMAT_RUT, REDMAT_SUCURSALES } from './data/redmat-sucursales';
 
 /**
  * Mapa aproximado nombre→hex para sembrar color_palette desde ep.color.
@@ -2057,6 +2058,68 @@ export async function ensureTaskCommentsAudioColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS audio_url VARCHAR`);
   await db.execute(sql`ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS audio_duration_ms INTEGER`);
   console.log('🎤 Columnas de audio del chat verificadas');
+}
+
+/**
+ * Columna del prefijo de orden de compra que identifica a cada sucursal de una
+ * cadena que factura con un solo RUT (caso REDMAT). Fuera del bucle de
+ * migraciones por lo mismo que las de OAuth y el Market: el listado de clientes
+ * y la imputación de ventas la seleccionan, así que si la 087 no llega a correr
+ * —porque una migración anterior corta el bucle— las sucursales desaparecen del
+ * listado y las ventas vuelven a agruparse todas bajo la matriz.
+ */
+export async function ensureSucursalPrefijoColumns(): Promise<void> {
+  await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS oc_prefix VARCHAR`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "IDX_clients_oc_prefix_parent"
+      ON clients (parent_client_id, oc_prefix)
+      WHERE oc_prefix IS NOT NULL
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "IDX_clients_oc_prefix"
+      ON clients (oc_prefix)
+      WHERE oc_prefix IS NOT NULL
+  `);
+  console.log('🏪 Columna de prefijo de sucursal verificada');
+}
+
+/**
+ * Deja creadas las fichas de las ferreterías de REDMAT, una por prefijo de orden
+ * de compra, colgando de la casa matriz.
+ *
+ * Solo CREA lo que falta: nunca actualiza una ficha existente. Así, si alguien
+ * corrige una dirección o un correo desde el panel, el próximo arranque no se lo
+ * pisa. Si la matriz no está en la base, no hace nada.
+ *
+ * Es el paso previo a la imputación por prefijo: sin estas fichas no hay contra
+ * qué calzar el prefijo de la venta.
+ */
+export async function ensureSucursalesRedmat(): Promise<void> {
+  const matrizR = await db.execute(sql`
+    SELECT id FROM clients
+    WHERE replace(replace(replace(rten, '.', ''), '-', ''), ' ', '') LIKE '77691044%'
+      AND parent_client_id IS NULL
+    ORDER BY (koen IS NULL), created_at
+    LIMIT 1
+  `);
+  const matriz = ((matrizR as any).rows || [])[0];
+  if (!matriz) return;
+
+  let creadas = 0;
+  for (const s of REDMAT_SUCURSALES) {
+    const r = await db.execute(sql`
+      INSERT INTO clients (nokoen, rten, oc_prefix, parent_client_id, branch_label, dien, comuna, email, kofuen)
+      SELECT ${s.nombre}, ${REDMAT_RUT}, ${s.prefijo}, ${matriz.id}, ${s.nombre},
+             ${s.direccion}, ${s.comuna}, ${s.email}, ${s.vendedor}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM clients
+        WHERE parent_client_id = ${matriz.id} AND oc_prefix = ${s.prefijo}
+      )
+    `);
+    creadas += (r as any).rowCount ?? 0;
+  }
+
+  if (creadas > 0) console.log(`🏪 ${creadas} sucursal(es) de REDMAT creadas`);
 }
 
 export async function ensureOAuthTables(): Promise<void> {

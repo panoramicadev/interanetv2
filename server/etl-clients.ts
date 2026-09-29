@@ -241,9 +241,14 @@ export async function executeClientETL(): Promise<ClientETLResult> {
     );
 
     const crossableByRut = new Map<string, string>(); // clave de RUT -> client.id
+    // Las sucursales de una cadena quedan fuera del cruce: llevan el RUT de su
+    // matriz y no tienen koen propio, así que calzarían por RUT y el ETL le
+    // volcaría encima el código y el nombre del ERP a una de ellas al azar
+    // —la más reciente— convirtiéndola en la matriz y perdiendo su ferretería.
     const crossableResult = await db.execute(sql`
       SELECT id, koen, rten FROM clients
       WHERE rten IS NOT NULL AND rten <> ''
+        AND parent_client_id IS NULL
       ORDER BY created_at DESC NULLS LAST, id
     `);
     for (const r of (crossableResult as any).rows) {

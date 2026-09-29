@@ -271,8 +271,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     const maeedo = await executeWithResilience(
       async () => pool!.request().query(`
-        SELECT *
-        FROM dbo.MAEEDO
+        SELECT ed.*, ob.OCDO
+        FROM dbo.MAEEDO ed
+        -- La orden de compra no está en el encabezado del documento: vive en su
+        -- ficha de observaciones, una fila por documento (471.520 filas para
+        -- 471.520 IDMAEEDO distintos), así que el join no multiplica ventas.
+        LEFT JOIN dbo.MAEEDOOB ob ON ob.IDMAEEDO = ed.IDMAEEDO
         WHERE TIDO = 'GDV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
           AND FEEMDO >= '${dateFilter}'
