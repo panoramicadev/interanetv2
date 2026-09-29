@@ -2120,6 +2120,21 @@ export async function ensureSucursalesRedmat(): Promise<void> {
   }
 
   if (creadas > 0) console.log(`🏪 ${creadas} sucursal(es) de REDMAT creadas`);
+
+  // El giro de la matriz, para las que no lo tengan: el informe de clientes por
+  // tipo de negocio lo lee de la ficha, y una ferretería sin giro se cae de ahí
+  // en cuanto sus ventas llevan su nombre. Solo llena vacíos: no pisa uno puesto
+  // a mano desde el panel.
+  await db.execute(sql`
+    UPDATE clients suc
+    SET gien = matriz.gien
+    FROM clients matriz
+    WHERE suc.parent_client_id = matriz.id
+      AND matriz.id = ${matriz.id}
+      AND suc.oc_prefix IS NOT NULL
+      AND (suc.gien IS NULL OR btrim(suc.gien) = '')
+      AND matriz.gien IS NOT NULL
+  `);
 }
 
 export async function ensureOAuthTables(): Promise<void> {

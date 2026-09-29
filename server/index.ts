@@ -9,6 +9,7 @@ import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
 import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
+import { imputarSucursalesPorPrefijo } from "./utils/sucursal-por-prefijo";
 
 // Evita que una promesa rechazada sin handler tumbe el proceso (Node 20 hace throw por defecto).
 // Se logea con stack para poder diagnosticar y se mantiene el server vivo.
@@ -91,6 +92,14 @@ app.use((req, res, next) => {
       await ensureSucursalesRedmat();
     } catch (error: any) {
       console.error('❌ Error al verificar la columna de prefijo de sucursal:', error.message);
+    }
+    // Con las fichas listas, cada venta toma el nombre de su ferretería por el
+    // prefijo de la orden de compra. Corre acá para que un despliegue lo aplique
+    // sin esperar al ETL; adentro replica primero las reglas de comisión.
+    try {
+      await imputarSucursalesPorPrefijo();
+    } catch (error: any) {
+      console.error('❌ Error al imputar ventas a sus sucursales:', error.message);
     }
     // Idem: el módulo de Remuneraciones lee talana_vinculos en cada carga del
     // cruce. Si la tabla no está, la pantalla abre sin ningún vínculo guardado.

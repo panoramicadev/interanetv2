@@ -22,8 +22,14 @@
  * "28-624" escritos a mano. Lo que no calce con una ficha cargada conserva el
  * nombre de la casa matriz: no se adivina nada.
  *
- * Es idempotente y se corre al final de cada ETL, así una recarga que vuelve a
- * traer "REDMAT SPA" desde el ERP queda corregida en la misma pasada.
+ * Es idempotente y corre en dos momentos: al arrancar el server (así un
+ * despliegue la aplica sin esperar al ETL) y al final de cada uno de los tres
+ * ETL, porque una recarga vuelve a traer "REDMAT SPA" desde el ERP y hay que
+ * corregirla en la misma pasada. El UPDATE recorre la tabla entera, no solo lo
+ * recién cargado.
+ *
+ * Antes de renombrar, replica las reglas de comisión de la matriz en cada
+ * sucursal (ver asegurarComisionesDeSucursales). Si eso falla, no renombra.
  */
 
 import { sql } from 'drizzle-orm';
@@ -37,8 +43,49 @@ export interface ImputacionSucursales {
   filas: number;
 }
 
+/**
+ * Replica en cada sucursal las reglas de comisión por cliente de su casa matriz.
+ *
+ * Las comisiones calzan al cliente POR NOMBRE (commissions.ts: `cli_ovr.value =
+ * fv.nokoen`). Al imputar, una venta deja de llamarse "REDMAT SPA" y pasa a
+ * llamarse como su ferretería, así que una regla escrita para "REDMAT SPA"
+ * dejaría de aplicarle y esa venta caería a la tasa por defecto sin aviso. Hoy
+ * existe una: PABLO SOTO VERA, 3%, sobre unas 2.000 líneas de venta.
+ *
+ * Solo inserta lo que falta. No toca la regla de la matriz —las ventas sin
+ * prefijo siguen llamándose "REDMAT SPA" y la necesitan— ni actualiza una copia
+ * existente: si alguien le cambia la tasa a una ferretería desde el panel, se
+ * respeta. La contracara: si después se cambia la tasa de la matriz, las copias
+ * de las ferreterías no la siguen solas.
+ */
+export async function asegurarComisionesDeSucursales(): Promise<number> {
+  const r = await db.execute(sql`
+    INSERT INTO commission_overrides (salesperson_name, override_type, value, commission_pct, updated_by)
+    SELECT DISTINCT o.salesperson_name, 'client', suc.nokoen, o.commission_pct, 'sucursal-por-prefijo'
+    FROM commission_overrides o
+    JOIN clients matriz ON matriz.nokoen = o.value AND matriz.parent_client_id IS NULL
+    JOIN clients suc ON suc.parent_client_id = matriz.id AND suc.oc_prefix IS NOT NULL
+    WHERE o.override_type = 'client'
+    ON CONFLICT (salesperson_name, override_type, value) DO NOTHING
+  `);
+  return (r as any).rowCount ?? 0;
+}
+
 export async function imputarSucursalesPorPrefijo(): Promise<ImputacionSucursales[]> {
   const resumen: ImputacionSucursales[] = [];
+
+  // Las comisiones van SIEMPRE antes que el nombre, y dentro de esta misma
+  // función: la llame el arranque o cualquiera de los tres ETL, cuando una venta
+  // cambia de nombre su regla de comisión ya está copiada.
+  try {
+    const copiadas = await asegurarComisionesDeSucursales();
+    if (copiadas > 0) console.log(`   💰 ${copiadas} regla(s) de comisión replicadas a sucursales`);
+  } catch (e: any) {
+    // Sin las reglas copiadas, renombrar cambiaría comisiones en silencio.
+    // Mejor no imputar nada y reintentar en la próxima corrida.
+    console.warn(`   ⚠️  No se pudieron replicar las comisiones, no se imputan sucursales: ${e?.message || e}`);
+    return resumen;
+  }
 
   for (const tabla of TABLAS) {
     try {

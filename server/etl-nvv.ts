@@ -17,6 +17,7 @@ import {
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
+import { imputarSucursalesPorPrefijo } from './utils/sucursal-por-prefijo';
 
 // Función para verificar si el ETL de NVV fue cancelado
 async function checkIfCancelled(executionId: string): Promise<boolean> {
@@ -523,6 +524,13 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const maeddo = { recordset: allMaeddo };
     console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
 
+    // La orden de compra es del documento, no de la línea: MAEDDO no tiene esa
+    // columna. Viene en el encabezado (MAEEDOOB, por el join de más arriba) y se
+    // repite en cada línea, que es donde la lee el insert a fact_nvv (dd.ocdo).
+    const ocdoPorDocumento = new Map<string, string | null>(
+      maeedo.recordset.map((r: any) => [String(r.IDMAEEDO), r.OCDO?.trim() || null])
+    );
+
     // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE, CAMPOS DE CANTIDAD Y ESLIDO
     const maeddo_records = maeddo.recordset.map(row => ({
       idmaeddo: cleanNumeric(row.IDMAEDDO),
@@ -556,7 +564,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       feemli: row.FEEMLI || null,
       kofulido: row.KOFULIDO?.trim() || null, // CAMPO CRÍTICO: Vendedor línea
       eslido: normalizeStatus(row.ESLIDO), // CAMPO CRÍTICO: Estado de línea ('C' = cerrado, '' = abierto)
-      ocdo: row.OCDO?.trim() || null,
+      ocdo: ocdoPorDocumento.get(String(row.IDMAEEDO)) ?? null,
     }));
     await batchInsert(stgMaeddoNvv, maeddo_records, 'stg_maeddo_nvv', logger);
     emitProgress(5, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros`);
@@ -872,6 +880,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log(`   Cambios de estado detectados: ${status_changes}`);
     console.log(`   Cambio neto: ${net_change >= 0 ? '+' : ''}${net_change}`);
     console.log(`   Total en fact_nvv: ${rowsAfterSync}\n`);
+
+    // La tabla se reemplazó entera con "REDMAT SPA": cada nota de venta retoma
+    // el nombre de su ferretería por el prefijo de su orden de compra.
+    await imputarSucursalesPorPrefijo();
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
