@@ -1992,7 +1992,7 @@ export default function SeguimientoClienteDetalle() {
                     // cobra sin tener que saltar a otro módulo. Va siempre que haya
                     // cliente, tenga o no facturas pendientes hoy.
                     creditoNombre ? (
-                      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+                      <>
                         <EnviarCobranzaButton
                           clientName={creditoNombre}
                           rut={client.rut}
@@ -2007,7 +2007,7 @@ export default function SeguimientoClienteDetalle() {
                         >
                           Ver ficha en Clientes
                         </Button>
-                      </div>
+                      </>
                     ) : null
                   }
                 />

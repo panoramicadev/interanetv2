@@ -11,9 +11,14 @@
 // panel de crédito (/api/clients/credito), así el correo dice lo mismo que la
 // pantalla. De la ficha (/api/clients/account-status) sólo se toma el correo
 // del cliente para precargarlo.
+//
+// El correo puede llevar adjunto el estado de cuenta en PDF (el mismo que se
+// descarga desde el panel): el monto del correo es un total, y el cliente
+// necesita saber qué documentos lo forman. Viene marcado siempre que haya
+// documentos pendientes.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock, Loader2, Send } from "lucide-react";
+import { AlertTriangle, Clock, Eye, Loader2, Paperclip, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -24,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useCredito } from "@/components/clients/credito-panel";
+import { verEstadoCuentaPdf } from "@/components/clients/estado-cuenta-menu";
 
 /** Roles que pueden mandar correos de cobranza (mismo filtro que el servidor). */
 const ROLES_COBRANZA = ["admin", "supervisor", "encargado_area", "reception"];
@@ -64,6 +70,7 @@ export function EnviarCobranzaButton({
   const [ccInternal, setCcInternal] = useState(true);
   const [extraCc, setExtraCc] = useState("");
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [adjuntarEstadoCuenta, setAdjuntarEstadoCuenta] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
   // El correo de la ficha se precarga una sola vez por apertura: si quien
   // envía lo corrigió a mano, no se lo pisamos cuando llega la consulta.
@@ -72,6 +79,10 @@ export function EnviarCobranzaButton({
   const { data: credito } = useCredito(clientName, rut);
   const cred = credito?.credit;
   const clientCode = credito?.client?.clientCode || null;
+  // Sin documentos pendientes no hay estado de cuenta que mandar: el interruptor
+  // ni aparece, aunque haya quedado marcado.
+  const documentosPendientes = credito?.docs?.length ?? 0;
+  const adjunta = adjuntarEstadoCuenta && documentosPendientes > 0;
 
   // La ficha sólo se consulta cuando el diálogo está abierto: en la ficha del
   // cliente ya está en caché y acá evita una consulta de más al entrar.
@@ -112,6 +123,7 @@ export function EnviarCobranzaButton({
     setSubject("");
     setCcInternal(true);
     setExtraCc("");
+    setAdjuntarEstadoCuenta(true);
     setPreview(null);
     setOpen(true);
   };
@@ -139,6 +151,7 @@ export function EnviarCobranzaButton({
         numeroDocumento: doc || undefined,
         mensajeAdicional: mensaje || undefined,
         subjectOverride: subject || undefined,
+        estadoCuentaDocumentos: adjunta ? documentosPendientes : undefined,
       });
       setPreview(await res.json());
     } catch {
@@ -146,7 +159,7 @@ export function EnviarCobranzaButton({
     } finally {
       setPreviewLoading(false);
     }
-  }, [monto, fecha, doc, mensaje, subject, credito?.client?.name, credito?.client?.rut, clientName, rut]);
+  }, [monto, fecha, doc, mensaje, subject, adjunta, documentosPendientes, credito?.client?.name, credito?.client?.rut, clientName, rut]);
 
   useEffect(() => {
     if (!open) return;
@@ -168,11 +181,17 @@ export function EnviarCobranzaButton({
         sendToClient: true,
         ccInternal,
         extraCc: extraCc || undefined,
+        // Con el mismo nombre y RUT de la consulta de arriba: el servidor arma
+        // el PDF con ellos y así cuadra con los montos de este diálogo.
+        estadoCuenta: adjunta ? { name: clientName, rut: rut || undefined } : undefined,
       });
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Cobranza enviada", description: `Para: ${data.to}${data.cc ? ` · CC: ${data.cc}` : ""}` });
+      const adjunto = data.estadoCuentaAdjunto
+        ? ` · Con el estado de cuenta adjunto (${data.estadoCuentaAdjunto.documentos} ${data.estadoCuentaAdjunto.documentos === 1 ? "documento" : "documentos"})`
+        : "";
+      toast({ title: "Cobranza enviada", description: `Para: ${data.to}${data.cc ? ` · CC: ${data.cc}` : ""}${adjunto}` });
       setOpen(false);
     },
     onError: (e: any) => {
@@ -188,7 +207,7 @@ export function EnviarCobranzaButton({
     if (!(Number(monto) > 0)) falta.push("el monto");
     if (!fecha) falta.push("la fecha");
     if (falta.length === 0) return "—";
-    return `Escribí ${falta.join(" y ")} arriba y la vista previa del correo aparece acá.`;
+    return `Escribe ${falta.join(" y ")} arriba y la vista previa del correo aparecerá aquí.`;
   }, [monto, fecha]);
 
   const puedeEnviar = useMemo(
@@ -256,7 +275,7 @@ export function EnviarCobranzaButton({
                   data-testid="input-cobranza-email"
                 />
                 {!fichaEmail && (
-                  <p className="text-[11px] text-amber-600 mt-1">La ficha no tiene correo registrado. Ingresá uno para poder enviar.</p>
+                  <p className="text-[11px] text-amber-600 mt-1">La ficha no tiene correo registrado. Ingresa uno para poder enviar.</p>
                 )}
               </div>
 
@@ -278,13 +297,43 @@ export function EnviarCobranzaButton({
 
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Asunto (opcional)</Label>
-                <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Se genera automáticamente si lo dejás vacío" />
+                <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Se genera automáticamente si lo dejas vacío" />
               </div>
 
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Mensaje</Label>
                 <Textarea className="mt-1.5" rows={4} value={mensaje} onChange={(e) => setMensaje(e.target.value)} data-testid="textarea-cobranza-mensaje" />
               </div>
+
+              {documentosPendientes > 0 && (
+                <div className="rounded-xl border border-slate-200/70 bg-slate-50/60 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="cob-estado-cuenta"
+                      checked={adjuntarEstadoCuenta}
+                      onCheckedChange={setAdjuntarEstadoCuenta}
+                      data-testid="switch-cobranza-estado-cuenta"
+                    />
+                    <Label htmlFor="cob-estado-cuenta" className="text-sm cursor-pointer">
+                      Adjuntar estado de cuenta (PDF)
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-7 rounded-lg px-2 text-xs"
+                      onClick={() => verEstadoCuentaPdf(clientName, rut)}
+                      data-testid="button-cobranza-ver-estado-cuenta"
+                    >
+                      <Eye className="h-3.5 w-3.5 mr-1" /> Ver
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    {documentosPendientes} {documentosPendientes === 1 ? "documento pendiente" : "documentos pendientes"} con
+                    folio, emisión, vencimiento y montos. Es el mismo archivo que se descarga desde la pestaña Crédito.
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <Switch id="cob-cc" checked={ccInternal} onCheckedChange={setCcInternal} />
@@ -306,6 +355,21 @@ export function EnviarCobranzaButton({
               </div>
               {preview?.subject && (
                 <p className="text-xs text-muted-foreground truncate"><span className="font-medium">Asunto:</span> {preview.subject}</p>
+              )}
+              {adjunta && (
+                <button
+                  type="button"
+                  onClick={() => verEstadoCuentaPdf(clientName, rut)}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 transition-colors hover:border-orange-200 hover:text-[#fd6301] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                  title="Ver el PDF que va adjunto"
+                  data-testid="chip-cobranza-adjunto"
+                >
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    Estado de cuenta en PDF · {documentosPendientes}{" "}
+                    {documentosPendientes === 1 ? "documento" : "documentos"}
+                  </span>
+                </button>
               )}
               <div className="rounded-lg border bg-muted/20 overflow-hidden h-[440px]">
                 {preview?.html ? (

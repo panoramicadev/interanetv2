@@ -1014,13 +1014,11 @@ export default function ClientDetail() {
               clientName={decodedClientName}
               footer={
                 canManage && (carteraDocs.length > 0 || (credito?.docs.length ?? 0) > 0) ? (
-                  <div className="pt-1">
-                    <EnviarCobranzaButton
-                      clientName={decodedClientName}
-                      rut={ficha?.rut}
-                      testId="button-enviar-cobranza-credito"
-                    />
-                  </div>
+                  <EnviarCobranzaButton
+                    clientName={decodedClientName}
+                    rut={ficha?.rut}
+                    testId="button-enviar-cobranza-credito"
+                  />
                 ) : null
               }
             />
