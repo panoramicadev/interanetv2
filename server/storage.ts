@@ -949,6 +949,11 @@ export interface IStorage {
     purchaseFrequency: number;
     lastPurchaseDate?: string;
   }>;
+  getClientChainBreakdown(clientName: string, period?: string, filterType?: string): Promise<{
+    cadena: string;
+    total: number;
+    sucursales: Array<{ nombre: string; total: number; documentos: number; esMatriz: boolean }>;
+  } | null>;
   getClientProducts(clientName: string, period?: string, filterType?: string): Promise<Array<{
     productName: string;
     totalPurchases: number;
@@ -7832,21 +7837,145 @@ export class DatabaseStorage implements IStorage {
     const nameCond = sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`;
 
     let codes: string[] = [];
+    let nombresSucursal: string[] = [];
     try {
       const fichaRows = await db
-        .select({ koen: clients.koen })
+        .select({ koen: clients.koen, nokoen: clients.nokoen, ocPrefix: clients.ocPrefix })
         .from(clients)
         .where(sql`UPPER(TRIM(REGEXP_REPLACE(REPLACE(${clients.nokoen}, '-', ' '), '[[:space:]]+', ' ', 'g'))) = UPPER(${normalizedForExactSearch})`)
         .limit(5);
       codes = fichaRows.map((r) => (r.koen || '').trim()).filter((c) => c !== '');
+      nombresSucursal = fichaRows.filter((r) => r.ocPrefix).map((r) => r.nokoen);
     } catch (e) {
       console.error('[buildClientSalesMatch] ficha code lookup failed:', e);
     }
+
+    // Sucursal de cadena identificada por el prefijo de su orden de compra
+    // (REDMAT): sus ventas llevan exactamente el nombre de su ficha, porque lo
+    // escribe la imputación. Se compara EXACTO: el calce parcial (%nombre%)
+    // cruzaba hermanas —"FERRETERIA LA ITALIANA" se sumaba "LA ITALIANA 2, 3 y
+    // 4"— y hasta a otro cliente que llevaba el mismo nombre dentro del suyo.
+    if (nombresSucursal.length > 0) return inArray(factVentas.nokoen, nombresSucursal);
 
     if (codes.length === 0) return nameCond;
 
     const codeList = sql.join(codes.map((c) => sql`${c}`), sql`, `);
     return sql`(${nameCond} OR TRIM(${factVentas.endo}) IN (${codeList}))`;
+  }
+
+  // Filtro de período de la ficha de cliente. Compartido por las tarjetas
+  // (getClientDetails) y el desglose de la cadena, para que las dos cifras
+  // salgan del mismo recorte y cuadren.
+  private buildClientPeriodConditions(period?: string, filterType: string = 'month'): any[] {
+    const conditions: any[] = [];
+    if (!period) return conditions;
+
+    switch (filterType) {
+      case 'day':
+        // Period format: YYYY-MM-DD
+        conditions.push(
+          sql`DATE(${factVentas.feemdo}) = ${period}`
+        );
+        break;
+      case 'month':
+        // Period format: YYYY-MM
+        if (period === 'current-month') {
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+          );
+        } else if (period === 'last-month') {
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+          );
+        } else {
+          const [year, month] = period.split('-');
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+          );
+        }
+        break;
+      case 'year':
+        // Period format: YYYY or YYYY-MM (extract year only)
+        const yearForFilter2 = period.split('-')[0];
+        conditions.push(
+          sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter2}`
+        );
+        break;
+      case 'range':
+        if (period.includes('_')) {
+          const [startDate, endDate] = period.split('_');
+          conditions.push(
+            sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+          );
+        } else if (period === 'last-30-days') {
+          conditions.push(
+            sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+          );
+        } else if (period === 'last-7-days') {
+          conditions.push(
+            sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+          );
+        }
+        break;
+    }
+    return conditions;
+  }
+
+  /**
+   * Desglose de una cadena por sucursal, para la ficha de su casa matriz (caso
+   * REDMAT): lo que aporta cada ferretería al total de la cadena.
+   *
+   * Usa EXACTAMENTE las condiciones de las tarjetas de la ficha (mismo calce de
+   * cliente, sin GDV, mismo período), así la suma del desglose es la misma cifra
+   * de "Compras Totales" y cada fila se puede cuadrar contra ella. Devuelve null
+   * si el cliente no es la matriz de una cadena con sucursales por prefijo.
+   */
+  async getClientChainBreakdown(clientName: string, period?: string, filterType: string = 'month'): Promise<{
+    cadena: string;
+    total: number;
+    sucursales: Array<{ nombre: string; total: number; documentos: number; esMatriz: boolean }>;
+  } | null> {
+    const normalized = decodeURIComponent(clientName).trim().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const [matriz] = await db
+      .select({ nokoen: clients.nokoen })
+      .from(clients)
+      .where(sql`UPPER(TRIM(REGEXP_REPLACE(REPLACE(${clients.nokoen}, '-', ' '), '[[:space:]]+', ' ', 'g'))) = UPPER(${normalized})
+        AND ${clients.parentClientId} IS NULL
+        AND EXISTS (SELECT 1 FROM clients suc WHERE suc.parent_client_id = ${clients.id} AND suc.oc_prefix IS NOT NULL)`)
+      .limit(1);
+    if (!matriz) return null;
+
+    const conditions = [
+      await this.buildClientSalesMatch(clientName),
+      sql`${factVentas.tido} != 'GDV'`,
+      ...this.buildClientPeriodConditions(period, filterType),
+    ];
+
+    const filas = await db
+      .select({
+        nombre: factVentas.nokoen,
+        total: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        documentos: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+      })
+      .from(factVentas)
+      .where(and(...conditions))
+      .groupBy(factVentas.nokoen);
+
+    const sucursales = filas
+      .map((f) => ({
+        nombre: f.nombre || 'Sin nombre',
+        total: Number(f.total),
+        documentos: Number(f.documentos),
+        esMatriz: f.nombre === matriz.nokoen,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      cadena: matriz.nokoen,
+      total: sucursales.reduce((s, f) => s + f.total, 0),
+      sucursales,
+    };
   }
 
   async getClientDetails(clientName: string, period?: string, filterType: string = 'month'): Promise<{
@@ -7868,60 +7997,9 @@ export class DatabaseStorage implements IStorage {
 
     const conditions = [
       await this.buildClientSalesMatch(clientName),
-      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'`, // Exclude GDV - only show invoiced sales
+      ...this.buildClientPeriodConditions(period, filterType),
     ];
-
-    // Apply date filters if period is provided
-    if (period) {
-      switch (filterType) {
-        case 'day':
-          // Period format: YYYY-MM-DD
-          conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
-          );
-          break;
-        case 'month':
-          // Period format: YYYY-MM
-          if (period === 'current-month') {
-            conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
-            );
-          } else if (period === 'last-month') {
-            conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
-            );
-          } else {
-            const [year, month] = period.split('-');
-            conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
-            );
-          }
-          break;
-        case 'year':
-          // Period format: YYYY or YYYY-MM (extract year only)
-          const yearForFilter2 = period.split('-')[0];
-          conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter2}`
-          );
-          break;
-        case 'range':
-          if (period.includes('_')) {
-            const [startDate, endDate] = period.split('_');
-            conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
-            );
-          } else if (period === 'last-30-days') {
-            conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
-            );
-          } else if (period === 'last-7-days') {
-            conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
-            );
-          }
-          break;
-      }
-    }
 
     const [result] = await db
       .select({

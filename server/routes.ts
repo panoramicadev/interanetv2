@@ -440,6 +440,7 @@ import { registerLogRoutes } from './routes-logs';
 import { registrarHistorial } from './routes-rendicion';
 import { sendPushForNotification } from './push';
 import { encodeScopeSucursal } from './utils/sucursal-scope';
+import { marcarCadenas } from './utils/sucursal-por-prefijo';
 import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
@@ -3428,7 +3429,8 @@ export function registerRoutes(app: Express): Server {
         console.log('[CLIENT SEARCH] Using searchClientsByName for term:', searchTerm);
         const results = await storage.searchClientsByName(searchTerm);
         console.log('[CLIENT SEARCH] Results from searchClientsByName:', results.length);
-        return res.json(results);
+        // Las sucursales de una cadena salen como "FERRETERIA FLANDEZ - REDMAT".
+        return res.json(await marcarCadenas(results, 'nokoen'));
       }
 
       // Search with sales filters (for analytics, dashboards, etc.)
@@ -3449,7 +3451,7 @@ export function registerRoutes(app: Express): Server {
       );
 
       console.log('[CLIENT SEARCH] Results from searchClients:', results.length);
-      res.json(results);
+      res.json(await marcarCadenas(results, 'name'));
     } catch (error) {
       console.error("[CLIENT SEARCH] Error searching clients:", error);
       res.status(500).json({ message: "Failed to search clients" });
@@ -4314,7 +4316,9 @@ export function registerRoutes(app: Express): Server {
         product as string, // Filtrar por producto específico
         clientScope
       );
-      res.json(result);
+      // Las sucursales de una cadena salen como "FERRETERIA FLANDEZ - REDMAT",
+      // igual que en el buscador de la misma tarjeta.
+      res.json({ ...result, items: await marcarCadenas(result.items, 'clientName') });
     } catch (error) {
       console.error("Error fetching top clients:", error);
       res.status(500).json({ message: "Failed to fetch top clients" });
@@ -5343,6 +5347,22 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching client details:", error);
       res.status(500).json({ message: "Failed to fetch client details" });
+    }
+  });
+
+  // Desglose de la cadena por sucursal, en la ficha de su casa matriz (REDMAT):
+  // cuánto aporta cada ferretería al total, con el mismo período de las tarjetas.
+  // Responde null si el cliente no es la matriz de una cadena por prefijo.
+  app.get("/api/sales/client/:clientName/cadena", requireAuth, async (req, res) => {
+    try {
+      const { clientName } = req.params;
+      const { period, filterType = "month" } = req.query;
+
+      const desglose = await storage.getClientChainBreakdown(clientName, period as string, filterType as string);
+      res.json(desglose);
+    } catch (error) {
+      console.error("Error fetching client chain breakdown:", error);
+      res.status(500).json({ message: "No se pudo calcular el desglose de la cadena" });
     }
   });
 

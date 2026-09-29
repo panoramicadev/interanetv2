@@ -880,7 +880,10 @@ export default function Dashboard() {
   });
 
   // Search clients in the entire database
-  const { data: searchedClients, isLoading: isSearchingClients } = useQuery<Array<{ koen: string; nokoen: string }>>({
+  // `cadena`: la cadena a la que pertenece una sucursal ("REDMAT"), para que el
+  // buscador muestre "FERRETERIA FLANDEZ - REDMAT". Esas fichas no tienen código
+  // del ERP (koen), así que la clave de cada fila va por `id`.
+  const { data: searchedClients, isLoading: isSearchingClients } = useQuery<Array<{ id?: string; koen: string; nokoen: string; cadena?: string }>>({
     queryKey: ["/api/clients/search", clientSearchTerm],
     queryFn: async () => {
       if (!clientSearchTerm || clientSearchTerm.length < 2) return [];
@@ -1447,7 +1450,7 @@ export default function Dashboard() {
                                   <div className="py-1">
                                     {searchedClients.map((client) => (
                                       <button
-                                        key={client.koen}
+                                        key={client.id ?? client.koen ?? client.nokoen}
                                         onClick={() => {
                                           setLocalGlobalFilter({ type: "client", value: client.nokoen });
                                           setClientSearchTerm("");
@@ -1456,7 +1459,11 @@ export default function Dashboard() {
                                           }`}
                                         data-testid={`mobile-client-result-${client.koen}`}
                                       >
-                                        <span className="text-sm text-gray-900 truncate">{client.nokoen}</span>
+                                        <span className="flex min-w-0 items-baseline gap-1 text-sm text-gray-900">
+                                          <span className="truncate">{client.nokoen}</span>
+                                          {/* Se trunca el nombre, nunca la cadena. */}
+                                          {client.cadena && <span className="shrink-0 text-[#fd6301]">- {client.cadena}</span>}
+                                        </span>
                                         {localGlobalFilter.value === client.nokoen && (
                                           <Check className="h-4 w-4 text-[#fd6301] flex-shrink-0" />
                                         )}
@@ -1771,7 +1778,7 @@ export default function Dashboard() {
                             <CommandGroup heading="Resultados de búsqueda">
                               {searchedClients.map((client) => (
                                 <CommandItem
-                                  key={client.koen}
+                                  key={client.id ?? client.koen ?? client.nokoen}
                                   value={client.nokoen}
                                   onSelect={(value) => {
                                     setGlobalFilter({ type: "client", value: client.nokoen });
@@ -1784,7 +1791,10 @@ export default function Dashboard() {
                                     className={`mr-2 h-4 w-4 ${globalFilter.value === client.nokoen ? "opacity-100" : "opacity-0"
                                       }`}
                                   />
-                                  {client.nokoen}
+                                  <span className="flex min-w-0 items-baseline gap-1">
+                                    <span className="truncate">{client.nokoen}</span>
+                                    {client.cadena && <span className="shrink-0 text-[#fd6301]">- {client.cadena}</span>}
+                                  </span>
                                 </CommandItem>
                               ))}
                             </CommandGroup>

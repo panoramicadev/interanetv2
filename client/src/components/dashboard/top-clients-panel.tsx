@@ -9,6 +9,8 @@ interface TopClient {
   clientName: string;
   totalSales: number;
   transactionCount: number;
+  /** Cadena de la sucursal ("REDMAT"): la fila se lee "FERRETERIA FLANDEZ - REDMAT". */
+  cadena?: string;
 }
 
 interface TopClientsResponse {
@@ -21,6 +23,7 @@ interface SearchClient {
   name: string;
   totalSales: number;
   transactionCount: number;
+  cadena?: string;
 }
 
 interface NewClientItem {
@@ -112,7 +115,7 @@ export default function TopClientsPanel({
   );
 
   // Items + period total depending on view
-  let displayClients: { clientName: string; totalSales: number; transactionCount: number }[] = [];
+  let displayClients: { clientName: string; totalSales: number; transactionCount: number; cadena?: string }[] = [];
   let periodTotal = 0;
   let currentLoading = false;
   let totalCount = 0;
@@ -129,7 +132,7 @@ export default function TopClientsPanel({
     totalCount = filteredNewClients.length;
   } else {
     displayClients = debouncedSearchTerm.length >= 2 && searchResults
-      ? searchResults.map((c) => ({ clientName: c.name, totalSales: c.totalSales, transactionCount: c.transactionCount }))
+      ? searchResults.map((c) => ({ clientName: c.name, totalSales: c.totalSales, transactionCount: c.transactionCount, cadena: c.cadena }))
       : topClientsResponse?.items || [];
     periodTotal = topClientsResponse?.periodTotalSales || 0;
     currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
@@ -335,8 +338,10 @@ export default function TopClientsPanel({
                   >
                     {/* Nombre del cliente - mobile: full width */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm text-gray-700 font-medium line-clamp-2 sm:truncate">
-                        {client.clientName}
+                      <p className="flex min-w-0 items-baseline gap-1 text-xs sm:text-sm text-gray-700 font-medium">
+                        <span className="min-w-0 line-clamp-2 sm:truncate">{client.clientName}</span>
+                        {/* Sucursal de una cadena: se recorta el nombre, nunca la cadena. */}
+                        {client.cadena && <span className="shrink-0 text-[#fd6301]">- {client.cadena}</span>}
                       </p>
                     </div>
 
