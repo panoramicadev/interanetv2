@@ -174,6 +174,9 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
   });
 }
 
+/** Plazo vigente de la solicitud: el aprobado si lo hay, si no el pedido. */
+const diasDe = (s: SolicitudCredito) => s.diasAprobados ?? s.diasSolicitados;
+
 /**
  * Cuerpo del aviso de resolución. Lleva lo justo para actualizar la ficha del
  * cliente sin tener que entrar al sistema: cliente, RUT, plazo y monto aprobado.
@@ -196,7 +199,7 @@ function cuerpoDeLaResolucion(s: SolicitudCredito): string {
     <table style="border-collapse:collapse;margin:12px 0">
       ${fila('Cliente', s.razonSocial)}
       ${fila('RUT', s.rut)}
-      ${fila('Días de crédito', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}
+      ${fila('Días de crédito', diasDe(s) ? `${diasDe(s)} días` : null)}
       ${fila('Crédito solicitado', money(s.creditoSolicitado))}
       ${aprobada ? fila('Monto aprobado', money(s.creditoAprobado)) : ''}
       ${fila('Vendedor', s.solicitanteNombre)}
@@ -244,7 +247,7 @@ async function avisarResolucionPorCorreo(s: SolicitudCredito): Promise<void> {
     cc: cc.length ? cc.join(', ') : undefined,
     subject: `Crédito ${aprobada ? 'APROBADO' : 'RECHAZADO'} · ${s.razonSocial}${
       aprobada ? ` · ${money(s.creditoAprobado)}` : ''
-    }${s.diasSolicitados ? ` a ${s.diasSolicitados} días` : ''}`,
+    }${diasDe(s) ? ` a ${diasDe(s)} días` : ''}`,
     html: cuerpoDeLaResolucion(s),
   });
 }
@@ -352,6 +355,10 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
 
       const enAnalisis = parsed.data.estado === 'analizando';
 
+      if (parsed.data.estado === 'aprobada' && !parsed.data.diasAprobados) {
+        return res.status(400).json({ message: 'Para aprobar hay que indicar los días de crédito' });
+      }
+
       const [actualizada] = await db
         .update(solicitudesCredito)
         .set({
@@ -363,6 +370,8 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
                   parsed.data.estado === 'aprobada' && parsed.data.creditoAprobado != null
                     ? String(parsed.data.creditoAprobado)
                     : null,
+                diasAprobados:
+                  parsed.data.estado === 'aprobada' ? parsed.data.diasAprobados ?? null : null,
                 resueltaPorId: usuario.id,
                 resueltaPorNombre: nombreDe(usuario),
                 resueltaAt: new Date(),

@@ -89,6 +89,18 @@ const money = (valor: unknown) => {
 /** Deja solo los dígitos: es lo que se guarda y lo que se manda al servidor. */
 const soloDigitos = (valor: string) => valor.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 
+/**
+ * Monto que se quiere decir con lo tipeado. Un crédito nunca es de pocos miles
+ * de pesos, así que lo corto se lee en miles: 600 → $600.000 y 1000 → $1.000.000.
+ * Desde 10.000 se toma tal cual (500000 → $500.000). Se muestra siempre el
+ * resultado para que no haya sorpresas.
+ */
+const montoAprobado = (digitos: string) => {
+  const n = Number(digitos);
+  if (!n) return 0;
+  return n < 10000 ? n * 1000 : n;
+};
+
 /** Lo que se ve mientras se escribe: $2.000.000. Vacío se queda vacío. */
 const montoVisible = (digitos: string) =>
   digitos ? `$${Number(digitos).toLocaleString("es-CL")}` : "";
@@ -614,6 +626,8 @@ function FilaSolicitud({
   const [detalle, setDetalle] = useState(false);
   const [bajando, setBajando] = useState<null | "pdf" | "carpeta" | "csv">(null);
   const [monto, setMonto] = useState("");
+  // Arranca con el plazo pedido; Finanzas lo cambia si aprueba otro.
+  const [dias, setDias] = useState(solicitud.diasSolicitados ? String(solicitud.diasSolicitados) : "");
   const [motivo, setMotivo] = useState("");
 
   /** Las tres descargas se comportan igual: spinner mientras baja, aviso si falla. */
@@ -677,6 +691,11 @@ function FilaSolicitud({
           <div className="text-right">
             <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Aprobado</div>
             <div className="text-sm font-bold tabular-nums text-emerald-600">{money(solicitud.creditoAprobado)}</div>
+            {solicitud.diasAprobados ? (
+              <div className="text-[10px] font-semibold tabular-nums text-slate-400">
+                a {solicitud.diasAprobados} días
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -773,6 +792,7 @@ function FilaSolicitud({
           {dato("Dirección", solicitud.direccion)}
           {dato("Ciudad", solicitud.ciudad)}
           {dato("Plazo solicitado", solicitud.diasSolicitados ? `${solicitud.diasSolicitados} días` : null)}
+          {solicitud.diasAprobados ? dato("Plazo aprobado", `${solicitud.diasAprobados} días`) : null}
           {dato("Representante legal", solicitud.representanteNombre)}
           {dato("Cédula del representante", solicitud.representanteCedula)}
           {dato("Socio 1", solicitud.socio1Nombre)}
@@ -801,17 +821,34 @@ function FilaSolicitud({
 
       {abierto && puedeResolver && (
         <div className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 space-y-2">
-          <div className={`grid grid-cols-1 gap-2 ${soloAnaliza ? "" : "sm:grid-cols-2"}`}>
-            {/* El monto lo decide Finanzas: quien solo analiza no lo ve. */}
+          <div className={`grid grid-cols-1 gap-2 ${soloAnaliza ? "" : "sm:grid-cols-[1fr_9rem_2fr]"}`}>
+            {/* Monto y plazo los decide Finanzas: quien solo analiza no los ve. */}
             {!soloAnaliza && (
-              <Input
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                type="number"
-                placeholder="Monto aprobado"
-                className="h-9 rounded-xl text-sm"
-                data-testid={`input-credito-aprobado-${solicitud.id}`}
-              />
+              <>
+                <div>
+                  <Input
+                    value={monto}
+                    onChange={(e) => setMonto(soloDigitos(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="Monto aprobado"
+                    className="h-9 rounded-xl text-sm"
+                    data-testid={`input-credito-aprobado-${solicitud.id}`}
+                  />
+                  {monto && (
+                    <div className="mt-1 pl-1 text-[11px] font-semibold tabular-nums text-emerald-600">
+                      = {money(montoAprobado(monto))}
+                    </div>
+                  )}
+                </div>
+                <Input
+                  value={dias}
+                  onChange={(e) => setDias(soloDigitos(e.target.value))}
+                  inputMode="numeric"
+                  placeholder="Días de crédito"
+                  className="h-9 rounded-xl text-sm"
+                  data-testid={`input-credito-dias-${solicitud.id}`}
+                />
+              </>
             )}
             <Textarea
               value={motivo}
@@ -853,12 +890,13 @@ function FilaSolicitud({
                 </Button>
                 <Button
                   size="sm"
-                  disabled={resolviendo || Number(monto) <= 0}
+                  disabled={resolviendo || montoAprobado(monto) <= 0 || Number(dias) <= 0}
                   className="h-8 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() =>
                     onResolver({
                       estado: "aprobada",
-                      creditoAprobado: Number(monto),
+                      creditoAprobado: montoAprobado(monto),
+                      diasAprobados: Number(dias),
                       observaciones: motivo.trim() || null,
                     })
                   }

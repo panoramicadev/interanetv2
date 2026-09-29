@@ -4440,6 +4440,9 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   // Plazo de pago pedido, en días. Nullable porque las solicitudes anteriores a
   // este campo no lo tienen: se muestran sin plazo en vez de inventarles uno.
   diasSolicitados: integer("dias_solicitados"),
+  // Plazo que Finanzas aprueba, que puede ser distinto del pedido. Solo se llena
+  // al aprobar.
+  diasAprobados: integer("dias_aprobados"),
 
   // Carpeta tributaria (el adjunto que pide Finanzas para evaluar)
   carpetaTributariaUrl: text("carpeta_tributaria_url"),
@@ -4477,6 +4480,7 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
     id: true,
     estado: true,
     creditoAprobado: true,
+    diasAprobados: true,
     observaciones: true,
     solicitanteId: true,
     solicitanteNombre: true,
@@ -4516,6 +4520,7 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
 export const resolverSolicitudCreditoSchema = z.object({
   estado: z.enum(["analizando", "aprobada", "rechazada"]),
   creditoAprobado: z.coerce.number().min(0).optional().nullable(),
+  diasAprobados: z.coerce.number().int().min(1).max(365).optional().nullable(),
   observaciones: z.string().trim().max(2000).optional().nullable(),
 });
 
