@@ -207,7 +207,7 @@ export function EnviarCobranzaButton({
     if (!(Number(monto) > 0)) falta.push("el monto");
     if (!fecha) falta.push("la fecha");
     if (falta.length === 0) return "—";
-    return `Escribí ${falta.join(" y ")} arriba y la vista previa del correo aparece acá.`;
+    return `Escribe ${falta.join(" y ")} arriba y la vista previa del correo aparecerá aquí.`;
   }, [monto, fecha]);
 
   const puedeEnviar = useMemo(
@@ -275,7 +275,7 @@ export function EnviarCobranzaButton({
                   data-testid="input-cobranza-email"
                 />
                 {!fichaEmail && (
-                  <p className="text-[11px] text-amber-600 mt-1">La ficha no tiene correo registrado. Ingresá uno para poder enviar.</p>
+                  <p className="text-[11px] text-amber-600 mt-1">La ficha no tiene correo registrado. Ingresa uno para poder enviar.</p>
                 )}
               </div>
 
@@ -297,7 +297,7 @@ export function EnviarCobranzaButton({
 
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Asunto (opcional)</Label>
-                <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Se genera automáticamente si lo dejás vacío" />
+                <Input className="mt-1.5" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Se genera automáticamente si lo dejas vacío" />
               </div>
 
               <div>
