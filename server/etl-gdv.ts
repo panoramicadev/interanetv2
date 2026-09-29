@@ -15,6 +15,7 @@ import {
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
+import { imputarSucursalesPorPrefijo } from './utils/sucursal-por-prefijo';
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -668,6 +669,10 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log(`   Registros actuales: ${rowsAfterSync}`);
     console.log(`   GDV cerradas/eliminadas: ${recordsRemoved}`);
     console.log(`   Total líneas procesadas: ${maeddo.recordset.length}\n`);
+
+    // La tabla se reemplazó entera con "REDMAT SPA": cada guía retoma el nombre
+    // de su ferretería por el prefijo de su orden de compra.
+    await imputarSucursalesPorPrefijo();
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');

@@ -18,6 +18,7 @@ import {
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
+import { imputarSucursalesPorPrefijo } from './utils/sucursal-por-prefijo';
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -870,6 +871,10 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
       `);
     });
+
+    // Los documentos recién recargados volvieron a llamarse "REDMAT SPA": cada
+    // venta retoma el nombre de su ferretería por el prefijo de su orden de compra.
+    await imputarSucursalesPorPrefijo();
 
     // Contar filas DESPUÉS del proceso para calcular registros nuevos
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
