@@ -1407,6 +1407,8 @@ export async function bootstrapDatabase(): Promise<void> {
     // Plazo de pago pedido (migración 081). Va como ADD COLUMN IF NOT EXISTS para
     // las tablas que se crearon antes de que existiera el campo.
     await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS dias_solicitados INTEGER`);
+    // Plazo aprobado por Finanzas (migración 088).
+    await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS dias_aprobados INTEGER`);
     // Receptor de DTE, aparte del correo de cobranza (migración 082).
     await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS correo_dte VARCHAR(160)`);
 
