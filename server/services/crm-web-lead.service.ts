@@ -65,7 +65,9 @@ async function resolveOwnerForSegmento(segmentoValue: string | null | undefined)
     .limit(1);
   if (owner) return owner;
 
-  // 2) Cualquier vendedor cuyo supervisor sea del área.
+  // 2) Cualquier vendedor cuyo supervisor sea del área. Solo vendedores (o
+  // encargados que venden): desde sep-2026 cualquier rol puede tener
+  // supervisor, y un lead web no puede terminar asignado a un técnico.
   const supervisores = await db
     .select({ id: salespeopleUsers.id })
     .from(salespeopleUsers)
@@ -77,6 +79,7 @@ async function resolveOwnerForSegmento(segmentoValue: string | null | undefined)
       .where(and(
         activo,
         inArray(salespeopleUsers.supervisorId, supervisores.map(s => s.id)),
+        inArray(salespeopleUsers.role, ['salesperson', 'encargado_area']),
       ))
       .limit(1);
     if (teamMember) return teamMember;

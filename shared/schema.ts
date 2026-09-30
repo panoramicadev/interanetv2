@@ -1258,7 +1258,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   password: varchar("password"), // Hash de la contraseña
   isActive: boolean("is_active").default(true),
   role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "encargado_area" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
-  supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
+  supervisorId: varchar("supervisor_id"), // Supervisor al que reporta el usuario. Opcional y para cualquier rol salvo admin y client (desde sep-2026; antes solo vendedores)
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
   clientRut: varchar("client_rut"), // RUT del cliente asociado (solo para role="client")
   clientId: varchar("client_id"), // FK directa a clients.id para vinculación confiable eCommerce↔SAP

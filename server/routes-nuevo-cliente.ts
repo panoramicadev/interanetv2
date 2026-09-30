@@ -265,9 +265,9 @@ export function registerNuevoClienteRoutes(app: Express): void {
       }
 
       const usuario = req.user;
-      // El supervisor sale del maestro de vendedores, no del formulario.
-      const supervisorId =
-        usuario.role === 'salesperson' ? await supervisorDeVendedor(usuario.id) : null;
+      // El supervisor sale del maestro de usuarios, no del formulario. Vale
+      // para cualquier rol: desde sep-2026 todo usuario puede tener supervisor.
+      const supervisorId = await supervisorDeVendedor(usuario.id);
 
       const [nueva] = await db
         .insert(solicitudesNuevoCliente)
