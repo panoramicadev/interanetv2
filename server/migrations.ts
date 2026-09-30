@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ObjectStorageService } from './objectStorage';
 import { REDMAT_RUT, REDMAT_SUCURSALES } from './data/redmat-sucursales';
+import { PANTONERA_PANORAMICA } from './data/tintometria-pantonera';
 
 /**
  * Mapa aproximado nombre→hex para sembrar color_palette desde ep.color.
@@ -2153,6 +2154,86 @@ export async function ensureSucursalesRedmat(): Promise<void> {
       AND (suc.gien IS NULL OR btrim(suc.gien) = '')
       AND matriz.gien IS NOT NULL
   `);
+}
+
+/**
+ * Carta de colores y libro de fórmulas de tintometría (migración 090).
+ *
+ * Va en su propia función, fuera de bootstrapDatabase: el bootstrap es un solo
+ * try/catch y el primer bloque que falla salta todos los que siguen. Acá, si
+ * algo falla, falla solo tintometría.
+ *
+ * Además carga la pantonera Panorámica (1.232 colores con nombre y hex). Solo
+ * escribe cuando falta alguno: en un arranque normal es una consulta de conteo.
+ * Las fórmulas no se cargan acá: las sube laboratorio desde el libro en Excel.
+ */
+export async function ensureTintometriaTablas(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tinto_colores (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      cartilla VARCHAR(40) NOT NULL,
+      codigo VARCHAR(40) NOT NULL,
+      nombre TEXT,
+      hex VARCHAR(7),
+      grupo VARCHAR(20),
+      orden INTEGER,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tinto_colores_cartilla_codigo" ON tinto_colores (cartilla, codigo)`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tinto_formulas (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      color_id VARCHAR NOT NULL REFERENCES tinto_colores(id) ON DELETE CASCADE,
+      linea VARCHAR(120) NOT NULL,
+      base VARCHAR(40) NOT NULL,
+      variante INTEGER NOT NULL DEFAULT 1,
+      origen VARCHAR(20) NOT NULL DEFAULT 'libro',
+      version VARCHAR(60),
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      observaciones TEXT,
+      alerta TEXT,
+      cliente_id VARCHAR,
+      obra TEXT,
+      solicitud_id VARCHAR,
+      creado_por_id VARCHAR,
+      creado_por_nombre TEXT,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_tinto_formulas_color" ON tinto_formulas (color_id)`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tinto_formulas_libro"
+      ON tinto_formulas (color_id, linea, base, variante) WHERE origen = 'libro'
+  `);
+
+  const conteo = await db.execute(sql`
+    SELECT count(*)::int AS n FROM tinto_colores WHERE cartilla = 'PANORAMICA' AND hex IS NOT NULL
+  `);
+  const cargados = Number(((conteo as any).rows || [])[0]?.n ?? 0);
+  if (cargados >= PANTONERA_PANORAMICA.length) return;
+
+  const filas = PANTONERA_PANORAMICA.map(([codigo, nombre, hex], i) => {
+    const grupo = codigo.slice(0, codigo.lastIndexOf('-'));
+    return sql`('PANORAMICA', ${codigo}, ${nombre}, ${hex}, ${grupo}, ${i + 1})`;
+  });
+  // Si el color ya existía (lo creó una importación del libro antes que la
+  // pantonera), se completa con su nombre y su hex.
+  await db.execute(sql`
+    INSERT INTO tinto_colores (cartilla, codigo, nombre, hex, grupo, orden)
+    VALUES ${sql.join(filas, sql`, `)}
+    ON CONFLICT (cartilla, codigo) DO UPDATE SET
+      nombre = EXCLUDED.nombre,
+      hex = EXCLUDED.hex,
+      grupo = EXCLUDED.grupo,
+      orden = EXCLUDED.orden,
+      updated_at = now()
+  `);
+  console.log(`🎨 Pantonera Panorámica cargada: ${PANTONERA_PANORAMICA.length} colores`);
 }
 
 export async function ensureOAuthTables(): Promise<void> {

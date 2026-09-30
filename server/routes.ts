@@ -25973,9 +25973,21 @@ export function registerRoutes(app: Express): Server {
   // =============================================================================
   // TINTOMETRÍA ROUTES
   // =============================================================================
+  //
+  // Hasta sep-2026 estas rutas pedían solo sesión: cualquiera con usuario
+  // (incluso una cuenta de cliente) podía leer costos o borrar pigmentos.
+  // Leer y calcular pide algún permiso de tintometría; escribir, administrarla.
+  // La carta de colores y el libro de fórmulas viven en routes-tintometria.ts.
+  const puedeUsarTintometria = async (req: any, res: any, next: any) => {
+    for (const clave of ['tintometria.admin', 'tintometria.calculadora', 'tintometria.selector']) {
+      if (await userHasPermission(req.user, clave)) return next();
+    }
+    return res.status(403).json({ message: 'Acceso denegado. No tienes habilitado este módulo.' });
+  };
+  const puedeAdministrarTintometria = requirePermission('tintometria.admin');
 
   // PIGMENTS routes
-  app.get('/api/tintometria/pigments', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/pigments', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const pigments = await storage.getAllPigments();
       res.json(pigments);
@@ -25984,7 +25996,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/pigments/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const pigment = await storage.getPigmentById(parseInt(req.params.id));
       if (!pigment) {
@@ -25996,7 +26008,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/pigments', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/pigments', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const pigment = await storage.createPigment(req.body);
       res.status(201).json(pigment);
@@ -26005,7 +26017,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/pigments/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const pigment = await storage.updatePigment(parseInt(req.params.id), req.body);
       res.json(pigment);
@@ -26014,7 +26026,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/pigments/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deletePigment(parseInt(req.params.id));
       res.status(204).send();
@@ -26024,7 +26036,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // BASES routes
-  app.get('/api/tintometria/bases', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/bases', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const bases = await storage.getAllBases();
       res.json(bases);
@@ -26033,7 +26045,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/bases/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const base = await storage.getBaseById(parseInt(req.params.id));
       if (!base) {
@@ -26045,7 +26057,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/bases', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/bases', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const base = await storage.createBase(req.body);
       res.status(201).json(base);
@@ -26054,7 +26066,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/bases/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const base = await storage.updateBase(parseInt(req.params.id), req.body);
       res.json(base);
@@ -26063,7 +26075,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/bases/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteBase(parseInt(req.params.id));
       res.status(204).send();
@@ -26073,7 +26085,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ENVASES routes
-  app.get('/api/tintometria/envases', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/envases', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const envases = await storage.getAllEnvases();
       res.json(envases);
@@ -26082,7 +26094,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/envases/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const envase = await storage.getEnvaseById(parseInt(req.params.id));
       if (!envase) {
@@ -26094,7 +26106,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/envases', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/envases', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const envase = await storage.createEnvase(req.body);
       res.status(201).json(envase);
@@ -26103,7 +26115,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/envases/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const envase = await storage.updateEnvase(parseInt(req.params.id), req.body);
       res.json(envase);
@@ -26112,7 +26124,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/envases/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteEnvase(parseInt(req.params.id));
       res.status(204).send();
@@ -26122,7 +26134,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // COLORES routes
-  app.get('/api/tintometria/colores', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/colores', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const colores = await storage.getAllColores();
       res.json(colores);
@@ -26131,7 +26143,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/colores/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const color = await storage.getColorById(parseInt(req.params.id));
       if (!color) {
@@ -26143,7 +26155,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/colores', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/colores', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const color = await storage.createColor(req.body);
       res.status(201).json(color);
@@ -26152,7 +26164,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/colores/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const color = await storage.updateColor(parseInt(req.params.id), req.body);
       res.json(color);
@@ -26161,7 +26173,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/colores/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteColor(parseInt(req.params.id));
       res.status(204).send();
@@ -26171,7 +26183,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // RECETAS routes
-  app.get('/api/tintometria/recetas', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/recetas', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const { colorId } = req.query;
       let recetas;
@@ -26186,7 +26198,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/recetas/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const receta = await storage.getRecetaById(parseInt(req.params.id));
       if (!receta) {
@@ -26198,7 +26210,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/recetas', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/recetas', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const receta = await storage.createReceta(req.body);
       res.status(201).json(receta);
@@ -26207,7 +26219,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/recetas/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const receta = await storage.updateReceta(parseInt(req.params.id), req.body);
       res.json(receta);
@@ -26216,7 +26228,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/recetas/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteReceta(parseInt(req.params.id));
       res.status(204).send();
@@ -26226,7 +26238,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PARÁMETROS routes
-  app.get('/api/tintometria/parametros', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/parametros', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const parametros = await storage.getAllParametros();
       res.json(parametros);
@@ -26235,7 +26247,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/tintometria/parametros/:id', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const parametro = await storage.getParametroById(parseInt(req.params.id));
       if (!parametro) {
@@ -26247,7 +26259,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.post('/api/tintometria/parametros', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/parametros', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const parametro = await storage.createParametro(req.body);
       res.status(201).json(parametro);
@@ -26256,7 +26268,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.put('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.put('/api/tintometria/parametros/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const parametro = await storage.updateParametro(parseInt(req.params.id), req.body);
       res.json(parametro);
@@ -26265,7 +26277,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/tintometria/parametros/:id', requireAuth, puedeAdministrarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteParametro(parseInt(req.params.id));
       res.status(204).send();
@@ -26275,7 +26287,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // CALCULATE COLOR COST route
-  app.post('/api/tintometria/calculate', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/tintometria/calculate', requireAuth, puedeUsarTintometria, asyncHandler(async (req: any, res: any) => {
     try {
       const { colorId, envaseId } = req.body;
       if (!colorId || !envaseId) {

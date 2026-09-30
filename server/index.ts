@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, ensureTintometriaTablas, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 import { imputarSucursalesPorPrefijo } from "./utils/sucursal-por-prefijo";
 
@@ -93,6 +93,12 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error al verificar la columna de prefijo de sucursal:', error.message);
     }
+    // Tintometría: carta de colores y libro de fórmulas, con la pantonera cargada.
+    try {
+      await ensureTintometriaTablas();
+    } catch (error: any) {
+      console.error('❌ Error al preparar las tablas de tintometría:', error.message);
+    }
     // Con las fichas listas, cada venta toma el nombre de su ferretería por el
     // prefijo de la orden de compra. Corre acá para que un despliegue lo aplique
     // sin esperar al ETL; adentro replica primero las reglas de comisión.
@@ -152,6 +158,10 @@ app.use((req, res, next) => {
   // Nuevo Cliente: el vendedor pide el alta, Administración crea el cliente
   const { registerNuevoClienteRoutes } = await import('./routes-nuevo-cliente');
   registerNuevoClienteRoutes(app);
+
+  // Tintometría: carta de colores, fórmulas del libro e importación del Excel
+  const { registerTintometriaRoutes } = await import('./routes-tintometria');
+  registerTintometriaRoutes(app);
 
   // Compradores del Market: el cliente crea usuarios y aprueba sus pedidos
   const { registerMarketUsuariosRoutes } = await import('./routes-market-usuarios');

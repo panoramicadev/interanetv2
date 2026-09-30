@@ -139,6 +139,7 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     label: "Tintometría",
     icon: Palette,
     children: [
+      { key: "tintometria.carta", href: "/tintometria/carta", label: "Carta de colores", icon: Palette },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
       { key: "tintometria.calculadora", href: "/tintometria/calculadora", label: "Calcular Costos", icon: DollarSign },
       { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },

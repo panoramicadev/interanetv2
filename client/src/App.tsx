@@ -88,6 +88,7 @@ import ClientDocumentos from "@/components/ecommerce/client-documents";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
+import TintometriaCarta from "@/pages/tintometria-carta";
 import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MargenPage from "@/pages/margen";
@@ -375,10 +376,13 @@ function Router() {
 
             {/* Rutas de Tintometría */}
             <Route path="/tintometria" component={() => {
-              // Redirect to admin by default
-              window.location.replace('/tintometria/admin');
+              // La carta de colores es la puerta del módulo: es lo que ve casi
+              // todo el que tiene tintometría (antes mandaba a Administrar Datos,
+              // que es solo de laboratorio).
+              window.location.replace('/tintometria/carta');
               return null;
             }} />
+            <Route path="/tintometria/carta" component={guarded("tintometria.carta", TintometriaCarta)} />
             <Route path="/tintometria/admin" component={guarded("tintometria.admin", TintometriaAdmin)} />
             <Route path="/tintometria/calculadora" component={guarded("tintometria.calculadora", TintometriaCalculadora)} />
             <Route path="/tintometria/selector" component={guarded("tintometria.selector", TintometriaSelector)} />

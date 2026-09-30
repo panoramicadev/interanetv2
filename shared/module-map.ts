@@ -1372,6 +1372,35 @@ export const MODULE_MAP: ModuleDef[] = [
 
   // ══════════════ TINTOMETRÍA ══════════════
   {
+    id: "tintometria.carta",
+    label: "Carta de Colores",
+    href: "/tintometria/carta",
+    permission: "tintometria.carta",
+    group: "Tintometría",
+    nav: { label: "Carta de colores", parentLabel: "Tintometría" },
+    purpose:
+      "La pantonera Panorámica (Copper Color, 1.232 colores) y la cartilla Sherwin-Williams: buscar un color por código o nombre y verlo. Quien tiene «Ver fórmulas» ve además la fórmula de cada color por línea, base y formato.",
+    whoUses: "Vendedores y recepción (para mostrarle el color al cliente); el operador que tiñe y laboratorio (fórmulas).",
+    gotchas: [
+      "Las fórmulas solo las ve quien tiene el permiso «Ver fórmulas» (por defecto laboratorio, jefe de planta y área de colores).",
+      "Las fórmulas del libro las sube laboratorio desde Tintometría → Administrar Datos → Libro de fórmulas.",
+      "El color en pantalla es referencial: puede variar según la pantalla y la iluminación.",
+    ],
+    guides: [
+      {
+        id: "ver-formula-color",
+        title: "Ver la fórmula de un color",
+        intent: ["formula de un color", "como se tine", "dosis de colorante", "buscar color pantonera", "carta de colores"],
+        steps: [
+          { title: "Busca el color por su código o su nombre", route: "/tintometria/carta" },
+          { title: "Tócalo para abrir su ficha", route: "/tintometria/carta" },
+          { title: "Elige el formato (galón o balde) y lee las dosis", detail: "La dosis va en la notación de la máquina: 1Y14-0 es 1 onza y 14 rayas.", route: "/tintometria/carta" },
+        ],
+      },
+    ],
+  },
+
+  {
     id: "tintometria.selector",
     label: "Selector Visual de Colores",
     href: "/tintometria/selector",
@@ -1413,10 +1442,21 @@ export const MODULE_MAP: ModuleDef[] = [
     permission: "tintometria.admin",
     group: "Tintometría",
     nav: { label: "Administrar Datos", parentLabel: "Tintometría" },
-    purpose: "Mantención de los datos base de tintometría: bases, colorantes, costos y fórmulas.",
+    purpose: "Mantención de los datos base de tintometría: el libro de fórmulas (subir el Excel del libro tintométrico), bases, colorantes y costos.",
     whoUses: "Laboratorio y admin.",
-    gotchas: ["Al entrar a /tintometria el sistema redirige a esta pantalla."],
-    guides: [],
+    gotchas: ["El libro de fórmulas se sube completo en Excel: reemplaza las fórmulas del libro de cada línea que venga y avisa lo que hay que revisar."],
+    guides: [
+      {
+        id: "subir-libro-formulas",
+        title: "Subir una versión nueva del libro de fórmulas",
+        intent: ["subir libro tintometrico", "actualizar formulas", "cargar excel de formulas", "libro de formulas"],
+        steps: [
+          { title: "Entra a la pestaña Libro de fórmulas", route: "/tintometria/admin" },
+          { title: "Sube el Excel del libro con «Subir libro en Excel»", route: "/tintometria/admin" },
+          { title: "Revisa las alertas del resultado con laboratorio", detail: "Son colores con dos fórmulas o en dos bases: el libro las trae así y alguien tiene que decidir.", route: "/tintometria/admin" },
+        ],
+      },
+    ],
   },
 
   // ══════════════ MANTENCIÓN (CMMS) ══════════════
