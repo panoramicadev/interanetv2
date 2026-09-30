@@ -89,6 +89,7 @@ import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
 import TintometriaCarta from "@/pages/tintometria-carta";
+import TintometriaSolicitudes from "@/pages/tintometria-solicitudes";
 import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MargenPage from "@/pages/margen";
@@ -383,6 +384,7 @@ function Router() {
               return null;
             }} />
             <Route path="/tintometria/carta" component={guarded("tintometria.carta", TintometriaCarta)} />
+            <Route path="/tintometria/solicitudes" component={guarded("tintometria.solicitudes", TintometriaSolicitudes)} />
             <Route path="/tintometria/admin" component={guarded("tintometria.admin", TintometriaAdmin)} />
             <Route path="/tintometria/calculadora" component={guarded("tintometria.calculadora", TintometriaCalculadora)} />
             <Route path="/tintometria/selector" component={guarded("tintometria.selector", TintometriaSelector)} />

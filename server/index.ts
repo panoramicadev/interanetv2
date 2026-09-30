@@ -162,6 +162,9 @@ app.use((req, res, next) => {
   // Tintometría: carta de colores, fórmulas del libro e importación del Excel
   const { registerTintometriaRoutes } = await import('./routes-tintometria');
   registerTintometriaRoutes(app);
+  // …y las solicitudes de fórmula o precio a laboratorio
+  const { registerTintometriaSolicitudesRoutes } = await import('./routes-tintometria-solicitudes');
+  registerTintometriaSolicitudesRoutes(app);
 
   // Compradores del Market: el cliente crea usuarios y aprueba sus pedidos
   const { registerMarketUsuariosRoutes } = await import('./routes-market-usuarios');

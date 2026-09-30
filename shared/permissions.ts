@@ -302,6 +302,20 @@ export const PERMISSIONS: PermissionDef[] = [
     href: "/tintometria/carta",
   },
   {
+    key: "tintometria.solicitudes",
+    label: "Solicitudes a laboratorio",
+    description: "Pedirle a laboratorio la fórmula o el precio de un color para un cliente, y seguir la respuesta",
+    group: "tintometria",
+    href: "/tintometria/solicitudes",
+  },
+  {
+    // Sin href: es la bandeja de la misma pantalla de solicitudes.
+    key: "tintometria.laboratorio",
+    label: "Bandeja de laboratorio",
+    description: "Ver todas las solicitudes a laboratorio y responderlas con la fórmula y el precio",
+    group: "tintometria",
+  },
+  {
     // Sin href: es un permiso DENTRO de la carta. Las fórmulas son del
     // laboratorio; por ahora solo las ve el operador que tiñe (sep-2026).
     key: "tintometria.formulas",
@@ -545,15 +559,20 @@ export const CONFIGURABLE_ROLES: string[] = [
 // Bloques reutilizables para defaults
 const TINTOMETRIA_ALL = [
   "tintometria.carta",
+  "tintometria.solicitudes",
+  "tintometria.laboratorio",
   "tintometria.formulas",
   "tintometria.admin",
   "tintometria.calculadora",
   "tintometria.selector",
 ];
 // Las fórmulas son del laboratorio: por defecto las ven solo quienes tiñen
-// (laboratorio, planta y área de colores). Al resto se le da por usuario o por
-// rol en Configuración → Roles y Permisos.
-const TINTOMETRIA_SIN_FORMULAS = TINTOMETRIA_ALL.filter((k) => k !== "tintometria.formulas");
+// (laboratorio, planta y área de colores), y la bandeja la atiende
+// laboratorio. Al resto se le da por usuario o por rol en Configuración →
+// Roles y Permisos.
+const TINTOMETRIA_SIN_LABORATORIO = TINTOMETRIA_ALL.filter(
+  (k) => k !== "tintometria.formulas" && k !== "tintometria.laboratorio",
+);
 /**
  * Consulta de catálogo: acompaña SIEMPRE al permiso "productos".
  * Antes /lista-precios se cubría con "productos" y /inventario no tenía guard;
@@ -631,7 +650,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "cmms.dashboard",
     ...CMMS_BASICO,
     "gastos",
-    ...TINTOMETRIA_SIN_FORMULAS,
+    ...TINTOMETRIA_SIN_LABORATORIO,
     ...CONFIG_TABS_GESTION,
   ],
   encargado_area: [
@@ -649,6 +668,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "gastos",
     // La carta de colores es lo que se le muestra al cliente (sep-2026).
     "tintometria.carta",
+    "tintometria.solicitudes",
     ...CONFIG_TABS_GESTION,
   ],
   // Menú estandarizado del vendedor: Dashboard → Tomador de Pedidos → Panel de
@@ -671,6 +691,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "postventa.reclamos",
     "gastos",
     "tintometria.carta",
+    "tintometria.solicitudes",
   ],
   tecnico_obra: [
     "nuevo_cliente",
@@ -679,6 +700,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "clientes",
     "gastos",
     "tintometria.carta",
+    "tintometria.solicitudes",
   ],
   // Recepción administra la lista de precios: crea SKU, edita precios y arma
   // ofertas por cliente (las que después ve ese cliente en su tienda). Por eso
@@ -695,6 +717,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "finanzas",
     "gastos",
     "tintometria.carta",
+    "tintometria.solicitudes",
   ],
   jefe_planta: [
     "nuevo_cliente",

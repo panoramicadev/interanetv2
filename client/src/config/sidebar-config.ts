@@ -41,7 +41,8 @@ import {
   Inbox,
   Share2,
   Wallet,
-  Scale
+  Scale,
+  FlaskConical,
 } from "lucide-react";
 
 export interface SidebarItem {
@@ -219,6 +220,11 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
         href: "/tintometria/carta",
         label: "Carta de colores",
         icon: Palette,
+      },
+      {
+        href: "/tintometria/solicitudes",
+        label: "Solicitudes a laboratorio",
+        icon: FlaskConical,
       },
       {
         href: "/tintometria/admin",
@@ -405,6 +411,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/tintometria/carta",
           label: "Carta de colores",
           icon: Palette,
+        },
+        {
+          href: "/tintometria/solicitudes",
+          label: "Solicitudes a laboratorio",
+          icon: FlaskConical,
         },
         {
           href: "/tintometria/admin",
@@ -646,6 +657,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
+          href: "/tintometria/solicitudes",
+          label: "Solicitudes a laboratorio",
+          icon: FlaskConical,
+        },
+        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -785,6 +801,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/tintometria/carta",
           label: "Carta de colores",
           icon: Palette,
+        },
+        {
+          href: "/tintometria/solicitudes",
+          label: "Solicitudes a laboratorio",
+          icon: FlaskConical,
         },
         {
           href: "/tintometria/admin",

@@ -4248,6 +4248,122 @@ export const tintoFormulas = pgTable("tinto_formulas", {
 export type TintoColor = typeof tintoColores.$inferSelect;
 export type TintoFormula = typeof tintoFormulas.$inferSelect;
 
+// ── Solicitudes a laboratorio (sep-2026) ─────────────────────────────────────
+// Un vendedor le pide a laboratorio la fórmula y/o el precio de un color para un
+// cliente, con los mismos datos de la planilla "Solicitud de fórmula
+// tintométrica" que circulaba por correo. Laboratorio responde en el panel: la
+// fórmula queda en la carta (origen "laboratorio", ligada al cliente y la obra)
+// y el precio, en la solicitud. Todo lo que se hablen queda en el hilo.
+export const tintoSolicitudes = pgTable("tinto_solicitudes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  numero: integer("numero").generatedByDefaultAsIdentity(),
+  tipo: varchar("tipo", { length: 20 }).notNull(), // formula | precio | formula_precio
+  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | en_desarrollo | respondida | rechazada
+
+  // Antecedentes del solicitante
+  clienteId: varchar("cliente_id"),
+  clienteNombre: text("cliente_nombre").notNull(),
+  ciudad: varchar("ciudad", { length: 120 }),
+  obra: text("obra"),
+
+  // Antecedentes del color
+  colorId: varchar("color_id"), // si se eligió de la carta
+  colorCodigo: varchar("color_codigo", { length: 60 }).notNull(), // "SW 7019"
+  colorNombre: text("color_nombre"),
+  cartilla: varchar("cartilla", { length: 60 }), // PANORAMICA | SW | "RAL", "NCS"…
+  linea: text("linea").notNull(), // línea a desarrollar: "Textu EIFS G-25"
+  base: text("base"), // "Base oscura"
+  formato: text("formato"), // "4 galones"
+  cantidad: text("cantidad"), // para cotizar: cuánto se estima vender
+  // Si es por continuación de obra
+  patron: text("patron"),
+  lote: text("lote"),
+  observaciones: text("observaciones"),
+  adjuntos: jsonb("adjuntos").notNull().default(sql`'[]'::jsonb`), // [{ url, nombre }]
+
+  // Respuesta de laboratorio
+  formulaId: varchar("formula_id"),
+  precio: numeric("precio", { precision: 15, scale: 2 }),
+  precioUnidad: text("precio_unidad"), // "por galón", "por tineta"…
+  respuesta: text("respuesta"), // observaciones de laboratorio o motivo del rechazo
+  respondidaPorId: varchar("respondida_por_id"),
+  respondidaPorNombre: text("respondida_por_nombre"),
+  respondidaAt: timestamp("respondida_at", { withTimezone: true }),
+
+  solicitanteId: varchar("solicitante_id"),
+  solicitanteNombre: text("solicitante_nombre"),
+  supervisorId: varchar("supervisor_id"),
+  // Para marcar lo no leído de cada lado.
+  vistaSolicitanteAt: timestamp("vista_solicitante_at", { withTimezone: true }),
+  vistaLaboratorioAt: timestamp("vista_laboratorio_at", { withTimezone: true }),
+  ultimoMovimientoAt: timestamp("ultimo_movimiento_at", { withTimezone: true }).defaultNow(),
+  ultimoMovimientoDe: varchar("ultimo_movimiento_de", { length: 20 }), // solicitante | laboratorio
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitanteIdx: index("IDX_tinto_solicitudes_solicitante").on(table.solicitanteId),
+  estadoIdx: index("IDX_tinto_solicitudes_estado").on(table.estado),
+}));
+
+export const tintoSolicitudMensajes = pgTable("tinto_solicitud_mensajes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  solicitudId: varchar("solicitud_id").notNull(),
+  autorId: varchar("autor_id"),
+  autorNombre: text("autor_nombre"),
+  lado: varchar("lado", { length: 20 }).notNull(), // solicitante | laboratorio
+  texto: text("texto"),
+  adjuntoUrl: text("adjunto_url"),
+  adjuntoNombre: text("adjunto_nombre"),
+  // Los cambios de estado también van al hilo, para leer la historia de corrido.
+  evento: varchar("evento", { length: 30 }), // null = mensaje; creada | en_desarrollo | respondida | rechazada
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitudIdx: index("IDX_tinto_solicitud_mensajes_solicitud").on(table.solicitudId),
+}));
+
+export const TIPOS_SOLICITUD_LABORATORIO = ["formula", "precio", "formula_precio"] as const;
+
+// Lo que manda el vendedor. El estado, quién la pide y la respuesta los pone el
+// servidor.
+export const insertTintoSolicitudSchema = z.object({
+  tipo: z.enum(TIPOS_SOLICITUD_LABORATORIO, { errorMap: () => ({ message: "Elige si necesitas fórmula, precio o las dos" }) }),
+  clienteId: z.string().trim().optional().nullable(),
+  clienteNombre: z.string({ required_error: "Indica el cliente" }).trim().min(1, "Indica el cliente"),
+  ciudad: z.string().trim().max(120).optional().nullable(),
+  obra: z.string().trim().optional().nullable(),
+  colorId: z.string().trim().optional().nullable(),
+  colorCodigo: z.string({ required_error: "Indica el código del color" }).trim().min(1, "Indica el código del color"),
+  colorNombre: z.string().trim().optional().nullable(),
+  cartilla: z.string().trim().max(60).optional().nullable(),
+  linea: z.string({ required_error: "Indica la línea a desarrollar" }).trim().min(1, "Indica la línea a desarrollar"),
+  base: z.string().trim().optional().nullable(),
+  formato: z.string().trim().optional().nullable(),
+  cantidad: z.string().trim().optional().nullable(),
+  patron: z.string().trim().optional().nullable(),
+  lote: z.string().trim().optional().nullable(),
+  observaciones: z.string().trim().max(4000).optional().nullable(),
+  adjuntos: z.array(z.object({ url: z.string().min(1), nombre: z.string().optional() })).max(10).optional(),
+});
+
+// La respuesta de laboratorio. La fórmula va por colorante con la dosis del
+// formato que se desarrolló ("4 galones" → galones: 4).
+export const responderTintoSolicitudSchema = z.object({
+  galones: z.coerce.number().positive().max(1000).optional().nullable(),
+  base: z.string().trim().max(40).optional().nullable(),
+  items: z
+    .array(z.object({ colorante: z.string().trim().min(1).max(10), dosis: z.string().trim().min(1).max(20) }))
+    .max(8)
+    .optional(),
+  precio: z.coerce.number().min(0).optional().nullable(),
+  precioUnidad: z.string().trim().max(60).optional().nullable(),
+  respuesta: z.string().trim().max(4000).optional().nullable(),
+});
+
+export type TintoSolicitud = typeof tintoSolicitudes.$inferSelect;
+export type TintoSolicitudMensaje = typeof tintoSolicitudMensajes.$inferSelect;
+export type InsertTintoSolicitud = z.infer<typeof insertTintoSolicitudSchema>;
+
 // =============================================================================
 // PALETA DE COLORES DEL CATÁLOGO
 // -----------------------------------------------------------------------------

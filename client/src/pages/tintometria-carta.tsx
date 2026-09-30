@@ -11,8 +11,9 @@
  * navegador: buscar no espera al servidor.
  */
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, Copy, FlaskConical, Loader2, Palette, Search, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, FlaskConical, Loader2, Palette, Search, Send, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,6 +57,7 @@ const titulo = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (l) => l.toUp
 export default function TintometriaCartaPage() {
   const { can } = usePermissions();
   const verFormulas = can("tintometria.formulas");
+  const puedeSolicitar = can("tintometria.solicitudes");
   const [cartilla, setCartilla] = useState("PANORAMICA");
   const [busqueda, setBusqueda] = useState("");
   const [elegido, setElegido] = useState<ColorCarta | null>(null);
@@ -194,7 +196,12 @@ export default function TintometriaCartaPage() {
         iluminación y el sustrato.
       </p>
 
-      <FichaColor color={elegido} verFormulas={verFormulas} onCerrar={() => setElegido(null)} />
+      <FichaColor
+        color={elegido}
+        verFormulas={verFormulas}
+        puedeSolicitar={puedeSolicitar}
+        onCerrar={() => setElegido(null)}
+      />
     </div>
   );
 }
@@ -230,13 +237,16 @@ function Muestra({ color, onElegir }: { color: ColorCarta; onElegir: (c: ColorCa
 function FichaColor({
   color,
   verFormulas,
+  puedeSolicitar,
   onCerrar,
 }: {
   color: ColorCarta | null;
   verFormulas: boolean;
+  puedeSolicitar: boolean;
   onCerrar: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
+  const [, navegar] = useLocation();
   const { data: formulas = [], isLoading } = useQuery<TintoFormula[]>({
     queryKey: [`/api/tintometria/carta/${color?.id}/formulas`],
     enabled: !!color && verFormulas,
@@ -303,6 +313,19 @@ function FichaColor({
                   formulas.map((f) => <TarjetaFormula key={f.id} formula={f} />)
                 )}
               </div>
+            )}
+
+            {/* Fórmula para otra línea, o el precio para un cliente: se le pide a
+                laboratorio con el color ya cargado. */}
+            {puedeSolicitar && (
+              <button
+                type="button"
+                onClick={() => navegar(`/tintometria/solicitudes?color=${color.id}`)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:border-orange-200 hover:text-[#fd6301] dark:border-slate-700 dark:text-slate-200"
+                data-testid="button-solicitar-laboratorio"
+              >
+                <Send className="h-4 w-4" /> Pedir fórmula o precio a laboratorio
+              </button>
             )}
           </>
         )}

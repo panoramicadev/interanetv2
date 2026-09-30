@@ -95,6 +95,7 @@ type NavItemProps = {
   unreadCount: number;
   pendingOrdersCount: number;
   marketingPorAceptar: number;
+  laboratorioPendientes: number;
   publicSlug?: string;
   onNavegar: () => void;
   onToggleSubmenu: (href: string) => void;
@@ -109,6 +110,7 @@ const NavItem = memo(function NavItem({
   unreadCount,
   pendingOrdersCount,
   marketingPorAceptar,
+  laboratorioPendientes,
   publicSlug,
   onNavegar,
   onToggleSubmenu,
@@ -129,7 +131,8 @@ const NavItem = memo(function NavItem({
   );
   const hasPendingChild = hasChildren &&
     ((pendingOrdersCount > 0 && item.children.some((c: any) => c.href === "/ecommerce-pedidos")) ||
-      (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")));
+      (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")) ||
+      (laboratorioPendientes > 0 && item.children.some((c: any) => c.href === "/tintometria/solicitudes")));
 
   if (item.disabled) {
     if (collapsed) {
@@ -232,6 +235,16 @@ const NavItem = memo(function NavItem({
                         data-testid="badge-solicitudes-marketing"
                       >
                         {marketingPorAceptar}
+                      </span>
+                    )}
+                    {child.href === "/tintometria/solicitudes" && laboratorioPendientes > 0 && (
+                      <span
+                        className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                          isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+                        }`}
+                        data-testid="badge-solicitudes-laboratorio"
+                      >
+                        {laboratorioPendientes}
                       </span>
                     )}
                   </button>
@@ -532,6 +545,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   });
   const marketingPorAceptar = marketingSolicitudes.filter((s) => s.estado === "solicitado").length;
 
+  // Solicitudes a laboratorio con algo sin mirar: para laboratorio, lo que llegó
+  // o le escribieron; para quien pidió, lo que respondió laboratorio.
+  const hasLaboratorioInbox = useMemo(
+    () => sidebarItems.some((item) => item.children?.some((c) => c.href === "/tintometria/solicitudes")),
+    [sidebarItems],
+  );
+  const { data: laboratorioData } = useQuery<{ count: number }>({
+    queryKey: ["/api/tintometria/solicitudes/pendientes"],
+    refetchInterval: 60000,
+    enabled: !!user && hasLaboratorioInbox,
+  });
+  const laboratorioPendientes = laboratorioData?.count || 0;
+
   // Al entrar a una ruta que vive dentro de un grupo, el grupo se abre solo: si no,
   // el menú se ve colapsado y no se entiende dónde está uno parado.
   useEffect(() => {
@@ -673,6 +699,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               unreadCount={unreadCount}
               pendingOrdersCount={pendingOrdersCount}
               marketingPorAceptar={marketingPorAceptar}
+              laboratorioPendientes={laboratorioPendientes}
               publicSlug={(user as any)?.publicSlug}
               onNavegar={cerrarMenuMovil}
               onToggleSubmenu={toggleSubmenu}
