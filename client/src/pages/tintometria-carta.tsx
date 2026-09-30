@@ -247,7 +247,7 @@ function FichaColor({
 }) {
   const [copiado, setCopiado] = useState(false);
   const [, navegar] = useLocation();
-  const { data: formulas = [], isLoading } = useQuery<TintoFormula[]>({
+  const { data: formulas = [], isLoading } = useQuery<FormulaCarta[]>({
     queryKey: [`/api/tintometria/carta/${color?.id}/formulas`],
     enabled: !!color && verFormulas,
   });
@@ -334,7 +334,9 @@ function FichaColor({
   );
 }
 
-function TarjetaFormula({ formula }: { formula: TintoFormula }) {
+type FormulaCarta = TintoFormula & { clienteNombre?: string | null; solicitudNumero?: number | null };
+
+function TarjetaFormula({ formula }: { formula: FormulaCarta }) {
   // Se muestran todos los colorantes del libro, también los que en este
   // formato no llegan a media raya ("0Y0-0"): así la ficha dice lo mismo que el
   // libro. Esos van atenuados.
@@ -352,8 +354,16 @@ function TarjetaFormula({ formula }: { formula: TintoFormula }) {
         <div className="text-[11px] text-slate-400">
           {formula.origen === "libro" ? "Libro" : "Laboratorio"}
           {formula.version ? ` ${titulo(formula.version)}` : ""}
+          {formula.solicitudNumero ? ` · solicitud #${formula.solicitudNumero}` : ""}
         </div>
       </div>
+      {/* Una fórmula de laboratorio se hizo para alguien: el operador tiene que
+          saber para quién antes de usarla con otro cliente. */}
+      {formula.origen !== "libro" && (formula.clienteNombre || formula.obra) && (
+        <div className="text-xs text-slate-500">
+          Para {[formula.clienteNombre, formula.obra ? `obra ${formula.obra}` : null].filter(Boolean).join(" · ")}
+        </div>
+      )}
 
       {formula.alerta && (
         <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">

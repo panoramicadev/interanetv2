@@ -14,7 +14,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from './db';
 import { requireAuth } from './auth';
 import { requirePermission, userHasPermission } from './permissions';
-import { tintoColores, tintoFormulas } from '../shared/schema';
+import { tintoColores, tintoFormulas, tintoSolicitudes } from '../shared/schema';
 import { importarLibro, leerLibro } from './services/tintometria-libro';
 
 /** Pasa si el usuario tiene al menos uno de los permisos. */
@@ -75,9 +75,16 @@ export function registerTintometriaRoutes(app: Express) {
     requirePermission('tintometria.formulas'),
     async (req: any, res) => {
       try {
-        const formulas = await db
-          .select()
+        // Las de laboratorio traen para quién se hicieron: cliente y número de
+        // solicitud, para que el operador sepa cuál usar.
+        const filas = await db
+          .select({
+            formula: tintoFormulas,
+            clienteNombre: tintoSolicitudes.clienteNombre,
+            solicitudNumero: tintoSolicitudes.numero,
+          })
           .from(tintoFormulas)
+          .leftJoin(tintoSolicitudes, eq(tintoSolicitudes.id, tintoFormulas.solicitudId))
           .where(and(eq(tintoFormulas.colorId, req.params.id), eq(tintoFormulas.activo, true)))
           .orderBy(
             sql`CASE WHEN ${tintoFormulas.origen} = 'libro' THEN 0 ELSE 1 END`,
@@ -85,7 +92,7 @@ export function registerTintometriaRoutes(app: Express) {
             asc(tintoFormulas.base),
             asc(tintoFormulas.variante),
           );
-        res.json(formulas);
+        res.json(filas.map((f) => ({ ...f.formula, clienteNombre: f.clienteNombre, solicitudNumero: f.solicitudNumero })));
       } catch (error: any) {
         console.error('[tintometria] no se pudieron leer las fórmulas:', error.message);
         res.status(500).json({ message: 'No se pudieron cargar las fórmulas' });
