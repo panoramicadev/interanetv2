@@ -33621,7 +33621,12 @@ export function registerRoutes(app: Express): Server {
       const newMonto = (req.body.montoInicial !== undefined && req.body.montoInicial !== null && req.body.montoInicial !== '')
         ? parseFloat(String(req.body.montoInicial))
         : null;
-      if (newMonto !== null) {
+      // Solo cuenta como cambio de monto si es distinto del guardado: el ajuste
+      // de abajo reinicia el saldo al monto completo, y como la pantalla de
+      // edición mandaba el monto siempre, extender las fechas le devolvía al
+      // fondo todo lo ya gastado.
+      const montoCambia = newMonto !== null && Math.abs(newMonto - parseFloat(String(current.montoInicial || 0))) > 0.01;
+      if (montoCambia) {
         updateData.montoInicial = String(newMonto);
       }
       if (req.body.fechaInicio !== undefined) updateData.fechaInicio = req.body.fechaInicio;
@@ -33639,7 +33644,7 @@ export function registerRoutes(app: Express): Server {
 
       const updated = await storage.updateFundAllocation(req.params.id, updateData);
 
-      if (newMonto !== null) {
+      if (montoCambia) {
         const balanceAfterUpdate = await storage.getFundAllocationBalance(req.params.id);
         const resetAdjustment = newMonto - balanceAfterUpdate.saldoDisponible;
         if (Math.abs(resetAdjustment) > 0.01) {

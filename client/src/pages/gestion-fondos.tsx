@@ -536,6 +536,14 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     },
   });
 
+  /**
+   * El monto del diálogo de edición cuenta como cambio solo si difiere del
+   * guardado, y solo entonces se manda: el servidor reinicia el saldo al monto
+   * completo cuando lo recibe, y extender las fechas no tiene que tocar el saldo.
+   */
+  const montoEditadoCambia = (fondo: FundAllocation, valor: string) =>
+    Math.abs(parseFloat(valor || '0') - parseFloat(String(fondo.montoInicial || 0))) > 0.01;
+
   const editFundMutation = useMutation({
     mutationFn: async (data: { allocationId: string; montoInicial?: string; fechaInicio?: string; fechaTermino?: string }) => {
       return apiRequest(`/api/fund-allocations/${data.allocationId}`, {
@@ -2468,7 +2476,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
             const currentMonto = parseFloat(String(selectedAllocation.montoInicial || 0));
             const newMonto = parseFloat(editMontoInicial || '0');
             const currentSaldo = selectedAllocation.saldoDisponible || 0;
-            const montoChanged = Math.abs(newMonto - currentMonto) > 0.01;
+            const montoChanged = montoEditadoCambia(selectedAllocation, editMontoInicial);
             return (
               <div className="space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
@@ -2546,7 +2554,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                 if (selectedAllocation && editMontoInicial) {
                   editFundMutation.mutate({
                     allocationId: selectedAllocation.id,
-                    montoInicial: editMontoInicial,
+                    montoInicial: montoEditadoCambia(selectedAllocation, editMontoInicial) ? editMontoInicial : undefined,
                     fechaInicio: editFechaInicio || undefined,
                     fechaTermino: editFechaTermino || undefined,
                   });
