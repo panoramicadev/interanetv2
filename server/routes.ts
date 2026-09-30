@@ -32657,10 +32657,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
 
-      // Admin, supervisor y encargado_area pueden crear gastos en nombre de otros usuarios.
-      // El resto sólo puede crear los propios.
+      // Admin, supervisor, encargado_area y recursos_humanos pueden crear gastos en
+      // nombre de otros usuarios: son los perfiles a los que el formulario les deja
+      // elegir colaborador. Sin RRHH en la lista, lo que cargaba para otra persona
+      // quedaba a su propio nombre. El resto sólo puede crear los propios.
       let targetUserId = user.id;
-      if (['admin', 'supervisor', 'encargado_area'].includes(user.role) && req.body.userId) {
+      if (['admin', 'supervisor', 'encargado_area', 'recursos_humanos'].includes(user.role) && req.body.userId) {
         targetUserId = req.body.userId;
       }
 
