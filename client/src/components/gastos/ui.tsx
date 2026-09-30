@@ -81,6 +81,9 @@ const ESTADOS: Record<string, { label: string; className: string }> = {
   cerrado: { label: "Cerrado", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
   solicitud: { label: "Solicitud", className: "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300" },
   pendiente_aprobacion: { label: "Por aprobar", className: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" },
+  // Fondo activo cuya fecha de término ya pasó. No se guarda: lo deriva la
+  // pantalla de fondos (ver shared/fondo-vigencia.ts).
+  vencido: { label: "Vencido", className: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" },
   // Informes de rendición
   borrador: { label: "Borrador", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
   enviado: { label: "En aprobación", className: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" },

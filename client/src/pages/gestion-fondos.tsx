@@ -50,6 +50,9 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { EstadoChip } from "@/components/gastos/ui";
+import { hoyEnChile } from "@/lib/dateUtils";
+import { fechaDMA, fondoVencido } from "@shared/fondo-vigencia";
 import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2, Pencil, Lock, AlertTriangle } from "lucide-react";
 
 const crearFondoSchema = z.object({
@@ -773,36 +776,23 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const hoy = hoyEnChile();
+
+  /**
+   * Estado del fondo como pill unificada (ver components/gastos/ui.tsx), igual
+   * que en la lista de gastos. Un fondo activo cuya fecha de término ya pasó se
+   * muestra VENCIDO: nada lo cierra solo, y sin esta marca se veía igual que uno
+   * vigente. Sigue aceptando boletas de su período, así que no se cambia su estado.
+   */
   const getEstadoBadge = (estado: string, fondo?: FundAllocation) => {
-    const baseClasses = "whitespace-nowrap text-xs";
-    switch (estado) {
-      case 'solicitud':
-        return <Badge variant="outline" className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-200`}>Solicitud</Badge>;
-      case 'pendiente_supervisor':
-      case 'pendiente_rrhh':
-        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente RRHH</Badge>;
-      case 'pendiente':
-      case 'pendiente_aprobacion':
-        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente</Badge>;
-      case 'activo':
-      case 'abierto':
-        return <Badge variant="outline" className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Activo</Badge>;
-      case 'aprobado':
-        return <Badge variant="outline" className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Aprobado</Badge>;
-      case 'cerrado':
-        return <Badge variant="outline" className={`${baseClasses} bg-gray-50 text-gray-700 border-gray-200`}>Cerrado</Badge>;
-      case 'rechazado':
-        if (fondo) {
-          const rechazadoPorSupervisor = fondo.supervisorAprobadorId && !fondo.rrhhAprobadorId;
-          if (rechazadoPorSupervisor) {
-            return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado por Supervisor</Badge>;
-          }
-          return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado por RRHH</Badge>;
-        }
-        return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado</Badge>;
-      default:
-        return <Badge variant="outline" className={baseClasses}>{estado}</Badge>;
+    if (fondo?.estado === 'activo' && fondoVencido(fondo.fechaTermino, hoy)) {
+      return <EstadoChip estado="vencido" />;
     }
+    if (estado === 'rechazado' && fondo) {
+      const rechazadoPorSupervisor = fondo.supervisorAprobadorId && !fondo.rrhhAprobadorId;
+      return <EstadoChip estado="rechazado" label={rechazadoPorSupervisor ? 'Rechazado por Supervisor' : 'Rechazado por RRHH'} />;
+    }
+    return <EstadoChip estado={estado} />;
   };
 
   const getAssigneeName = (userId: string) => {
@@ -2038,16 +2028,18 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                     <span className="text-sm bg-white p-2 rounded border">{selectedAllocation.motivo}</span>
                   </div>
                 )}
+                {/* Inicio y término son columnas date() ('AAAA-MM-DD'): con new Date()
+                    se leían como medianoche UTC y en Chile se mostraba el día anterior. */}
                 {selectedAllocation.fechaInicio && (
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Fecha de Inicio:</span>
-                    <span className="text-sm font-medium">{new Date(selectedAllocation.fechaInicio).toLocaleDateString('es-CL')}</span>
+                    <span className="text-sm font-medium">{fechaDMA(selectedAllocation.fechaInicio)}</span>
                   </div>
                 )}
                 {selectedAllocation.fechaTermino && (
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Fecha de Término:</span>
-                    <span className="text-sm font-medium">{new Date(selectedAllocation.fechaTermino).toLocaleDateString('es-CL')}</span>
+                    <span className="text-sm font-medium">{fechaDMA(selectedAllocation.fechaTermino)}</span>
                   </div>
                 )}
                 {selectedAllocation.createdAt && (
