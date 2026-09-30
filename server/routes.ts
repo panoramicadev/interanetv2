@@ -124,7 +124,7 @@ import { parseAndResolveOrder, type ParsedOrderIntent } from "./voice-order";
 import { parseActividadCrm } from "./crm-voz";
 import { randomUUID } from "crypto";
 import { createSupabase } from "./supabase-client";
-import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser, canEditPricing } from "./permissions";
+import { registerPermissionRoutes, requirePermission, getEffectivePermissionsForUser, canEditPricing, userHasPermission } from "./permissions";
 import { registerCommissionRoutes } from "./commissions";
 import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
 import { registerBalanceRoutes } from "./routes-balance";
@@ -5302,7 +5302,19 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get available vendors for supervisor to claim
-  app.get("/api/supervisor/:supervisorId/available-vendors", requireAuth, async (req, res) => {
+  // Las vistas de un supervisor son suyas (o de un admin). Hasta sep-2026 estas
+  // rutas no pedían sesión: cualquiera podía leer el equipo, las metas y las
+  // alertas de cualquier supervisor, o cargarle metas. El cliente siempre las
+  // llama con el id de quien está conectado.
+  const requireSupervisorPropio = (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated?.() || !req.user) {
+      return res.status(401).json({ message: 'No autenticado' });
+    }
+    if (req.user.role === 'admin' || req.user.id === req.params.supervisorId) return next();
+    return res.status(403).json({ message: 'Acceso denegado' });
+  };
+
+  app.get("/api/supervisor/:supervisorId/available-vendors", requireSupervisorPropio, async (req, res) => {
     try {
       const { supervisorId } = req.params;
 
@@ -5326,7 +5338,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Claim a vendor (convert from sales data to user account)
-  app.post("/api/supervisor/:supervisorId/claim-vendor", requireAuth, async (req, res) => {
+  app.post("/api/supervisor/:supervisorId/claim-vendor", requireSupervisorPropio, async (req, res) => {
     try {
       const { supervisorId } = req.params;
       const { salespersonName, email, password } = req.body;
@@ -6470,7 +6482,22 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson users management endpoints
-  app.get('/api/users/salespeople', async (req, res) => {
+  //
+  // ⚠️ Hasta sep-2026 estos endpoints no pedían sesión: cualquiera, sin entrar,
+  // podía listar al equipo completo (nombres, correos y roles) y crear cuentas
+  // con cualquier rol, administrador incluido. Y un supervisor podía darle el rol
+  // admin a quien quisiera. Ahora:
+  //  - listar pide sesión y no es para cuentas de cliente;
+  //  - crear, editar y borrar lo hacen admin, supervisor y encargado de área, y
+  //    quien tenga Market → Configuración, solo para cuentas de cliente;
+  //  - solo un administrador crea, edita o borra administradores, o da ese rol.
+  const ROLES_GESTIONAN_USUARIOS = ['admin', 'supervisor', 'encargado_area'];
+  const esCuentaAdmin = async (id: string) => (await storage.getSalespersonUser(id))?.role === 'admin';
+
+  app.get('/api/users/salespeople', requireAuth, async (req: any, res) => {
+    if (req.user?.role === 'client') {
+      return res.status(403).json({ message: 'Acceso denegado' });
+    }
     try {
       const users = await storage.getSalespeopleUsers();
       res.json(users);
@@ -6480,11 +6507,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/users/salespeople', async (req, res) => {
-    console.log("🚀 POST /api/users/salespeople iniciado");
-    console.log("📦 Body recibido:", req.body);
+  app.post('/api/users/salespeople', requireAuth, async (req: any, res) => {
+    // Sin volcar el cuerpo al log: trae la contraseña en texto plano.
+    console.log("🚀 POST /api/users/salespeople iniciado por", req.user?.email);
     try {
       const validatedUser = insertSalespersonUserSchema.parse(req.body);
+
+      const rolActor = req.user?.role;
+      const gestionaUsuarios = ROLES_GESTIONAN_USUARIOS.includes(rolActor);
+      // Market → Configuración da de alta las cuentas de la tienda de los clientes.
+      const creaCuentaCliente =
+        validatedUser.role === 'client' && (await userHasPermission(req.user, 'market.configuracion'));
+      if (!gestionaUsuarios && !creaCuentaCliente) {
+        return res.status(403).json({ message: 'No tienes permiso para crear usuarios.' });
+      }
+      if (validatedUser.role === 'admin' && rolActor !== 'admin') {
+        return res.status(403).json({ message: 'Solo un administrador puede crear otro administrador.' });
+      }
 
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
@@ -6510,7 +6549,6 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      console.log("Datos validados:", validatedUser);
       const newUser = await storage.createSalespersonUser(validatedUser);
       console.log("Usuario creado exitosamente:", newUser);
 
@@ -6539,7 +6577,8 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      res.json(newUser);
+      // El hash de la contraseña no sale del servidor, igual que en el listado.
+      res.json({ ...newUser, password: '' });
     } catch (error: any) {
       console.error("Error creating salesperson user:", error);
       console.error("Error stack:", error.stack);
@@ -6597,6 +6636,14 @@ export function registerRoutes(app: Express): Server {
 
       const { id } = req.params;
       const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
+
+      // Un supervisor o encargado no puede crear administradores por la puerta
+      // de atrás: ni dar el rol admin ni tocar la cuenta de un administrador.
+      if (userRecord.role !== 'admin' && (validatedUser.role === 'admin' || (await esCuentaAdmin(id)))) {
+        return res.status(403).json({
+          message: 'Solo un administrador puede dar el rol de administrador o modificar a un administrador.',
+        });
+      }
 
       // Verificar si se está cambiando información crítica (email o password)
       const isCriticalUpdate = validatedUser.email || validatedUser.password;
@@ -6671,6 +6718,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { id } = req.params;
+      if (userRecord.role !== 'admin' && (await esCuentaAdmin(id))) {
+        return res.status(403).json({ message: 'Solo un administrador puede eliminar a un administrador.' });
+      }
       await storage.deleteSalespersonUser(id);
       res.json({ message: 'Usuario eliminado correctamente' });
     } catch (error) {
@@ -6706,7 +6756,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Rutas específicas para supervisores
-  app.get('/api/supervisor/:supervisorId/salespeople', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/salespeople', requireSupervisorPropio, async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
       console.log(`[DEBUG] Fetching salespeople for supervisor ID: ${supervisorId}`);
@@ -6721,7 +6771,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/supervisor/:supervisorId/goals', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/goals', requireSupervisorPropio, async (req: any, res) => {
     try {
       // Para desarrollo, permitimos acceso más flexible pero conservamos verificaciones básicas
       // En producción estas verificaciones serían más estrictas
@@ -6739,7 +6789,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Obtener productos más vendidos por el equipo del supervisor
-  app.get('/api/supervisor/:supervisorId/team-products', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/team-products', requireSupervisorPropio, async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
       const { limit = 10 } = req.query;
@@ -6762,7 +6812,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Obtener métricas consolidadas del equipo
-  app.get('/api/supervisor/:supervisorId/team-metrics', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/team-metrics', requireSupervisorPropio, async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
 
@@ -6789,7 +6839,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Obtener progreso de metas del supervisor (formato compatible con GoalsProgress)
-  app.get('/api/supervisor/:supervisorId/goals/progress', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/goals/progress', requireSupervisorPropio, async (req: any, res) => {
     try {
       // Para desarrollo, permitir acceso directo sin autenticación estricta
       // En producción, estas verificaciones deberían ser más estrictas
@@ -6822,7 +6872,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/supervisor/:supervisorId/alerts', async (req: any, res) => {
+  app.get('/api/supervisor/:supervisorId/alerts', requireSupervisorPropio, async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
 
@@ -6835,7 +6885,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Crear meta para vendedor
-  app.post('/api/supervisor/:supervisorId/goals', async (req: any, res) => {
+  app.post('/api/supervisor/:supervisorId/goals', requireSupervisorPropio, async (req: any, res) => {
     try {
       // Verificar autenticación
       let userId;
@@ -6884,7 +6934,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Editar meta existente
-  app.put('/api/supervisor/:supervisorId/goals/:goalId', async (req: any, res) => {
+  app.put('/api/supervisor/:supervisorId/goals/:goalId', requireSupervisorPropio, async (req: any, res) => {
     try {
       // Verificar autenticación
       let userId;
