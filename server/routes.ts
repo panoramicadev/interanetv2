@@ -36,6 +36,7 @@ import {
   DEFAULT_PRICE_LIST,
 } from "./price-list-resolver";
 import { resolverLineaCredito } from "@shared/credito";
+import { boletaFueraDelFondo, mensajeBoletaFueraDelFondo } from "@shared/fondo-vigencia";
 import { obtenerCreditoCliente } from "./services/credito-cliente";
 import { generarEstadoCuentaPdf, nombreArchivoEstadoCuenta, registerEstadoCuentaRoutes } from "./services/estado-cuenta";
 import { db } from "./db";
@@ -449,6 +450,7 @@ import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTms
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
+import { hoyEnChile } from "./utils/fecha-chile";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import { isValidRut, formatRut } from "@shared/rut";
 import {
@@ -32667,10 +32669,10 @@ export function registerRoutes(app: Express): Server {
         userId: targetUserId,
       });
 
+      // El mes se mide en el calendario de Chile: el servidor corre en UTC, y el
+      // último día del mes, desde las 21:00, ya estaba en el mes siguiente.
       if (user.role === 'salesperson' && validated.fechaEmision) {
-        const emisionDate = new Date(validated.fechaEmision + 'T12:00:00');
-        const now = new Date();
-        if (emisionDate.getMonth() !== now.getMonth() || emisionDate.getFullYear() !== now.getFullYear()) {
+        if (validated.fechaEmision.slice(0, 7) !== hoyEnChile().slice(0, 7)) {
           return res.status(400).json({ message: 'La fecha de emisión debe estar dentro del mes calendario actual' });
         }
       }
@@ -32681,12 +32683,13 @@ export function registerRoutes(app: Express): Server {
         if (!allocation) {
           return res.status(400).json({ message: 'Fondo asignado no encontrado' });
         }
-        if (allocation.fechaTermino) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const termino = new Date(allocation.fechaTermino + 'T23:59:59');
-          if (today > termino && user.role !== 'admin') {
-            return res.status(400).json({ message: 'El fondo asignado ha expirado. La fecha de término ya pasó.' });
+        // El término del fondo se mide contra la fecha de la boleta, no contra
+        // el día en que se carga: las boletas de una ruta se suben a la vuelta.
+        // Sin fecha, la boleta cuenta como de hoy. Ver shared/fondo-vigencia.ts.
+        if (allocation.fechaTermino && user.role !== 'admin') {
+          const fechaBoleta = validated.fechaEmision || hoyEnChile();
+          if (boletaFueraDelFondo(fechaBoleta, allocation.fechaTermino)) {
+            return res.status(400).json({ message: mensajeBoletaFueraDelFondo(fechaBoleta, allocation.nombre, allocation.fechaTermino) });
           }
         }
         const balance = await storage.getFundAllocationBalance(validated.fundAllocationId!);
@@ -32810,6 +32813,38 @@ export function registerRoutes(app: Express): Server {
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           updates[field] = req.body[field];
+        }
+      }
+
+      // Si cambian la fecha de la boleta o el monto de un gasto con fondo, se
+      // vuelven a aplicar las reglas del alta: sin esto, editar permitía mover
+      // la boleta fuera del período del fondo o cargarle más de lo que quedaba.
+      // Admin las salta, igual que al crear.
+      if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId && user.role !== 'admin') {
+        const fechaNueva = updates.fechaEmision !== undefined
+          ? (updates.fechaEmision ? String(updates.fechaEmision).slice(0, 10) : null)
+          : gasto.fechaEmision;
+        const montoActual = parseFloat(String(gasto.monto || 0));
+        const montoNuevo = updates.monto !== undefined ? parseFloat(String(updates.monto)) : montoActual;
+        const cambiaMonto = Math.abs(montoNuevo - montoActual) > 0.01;
+
+        if (fechaNueva !== gasto.fechaEmision || cambiaMonto) {
+          const allocation = await storage.getFundAllocationById(gasto.fundAllocationId);
+          if (allocation?.fechaTermino) {
+            const fechaBoleta = fechaNueva || hoyEnChile();
+            if (boletaFueraDelFondo(fechaBoleta, allocation.fechaTermino)) {
+              return res.status(400).json({ message: mensajeBoletaFueraDelFondo(fechaBoleta, allocation.nombre, allocation.fechaTermino) });
+            }
+          }
+          // El saldo ya descuenta este gasto por su monto actual: lo único que
+          // tiene que caber en lo que queda es el aumento.
+          if (montoNuevo > montoActual) {
+            const balance = await storage.getFundAllocationBalance(gasto.fundAllocationId);
+            if (montoNuevo - montoActual > balance.saldoDisponible) {
+              const disponible = balance.saldoDisponible + montoActual;
+              return res.status(400).json({ message: `Saldo insuficiente. Disponible: $${disponible.toLocaleString('es-CL')}, Gasto: $${montoNuevo.toLocaleString('es-CL')}` });
+            }
+          }
         }
       }
 
