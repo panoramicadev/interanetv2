@@ -172,10 +172,14 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "dashboard", item: { href: "/", label: "Dashboard", icon: LayoutDashboard } },
   { key: "productos", item: { href: "/productos", label: "Productos", icon: Package } },
   { key: "clientes", item: { href: "/clientes", label: "Clientes", icon: Users } },
-  // CRM oculto del sidebar para todos los roles (la página sigue accesible por
-  // URL /seguimiento-clientes; el permiso clientes.seguimiento sigue gobernando
-  // el acceso, solo no se muestra el acceso directo en el menú).
-  // { key: "clientes.seguimiento", item: { href: "/seguimiento-clientes", label: "CRM", icon: UserCheck } },
+  // CRM para quien lo tiene habilitado y NO trabaja desde el Panel de Trabajo.
+  // Desde jul-2026 el CRM vive como pestaña del Panel, y admin, supervisor y
+  // vendedor entran por ahí (por eso el vendedor lo tiene en
+  // EXTRAS_OCULTOS_POR_ROL). Pero el resto de los roles no tiene el Panel en su
+  // menú: un técnico o recepción con "Acceso CRM" prendido en Gestión de
+  // Usuarios quedaba con el permiso y sin ninguna puerta para entrar
+  // (reporte de sep-2026, Matías Flores).
+  { key: "clientes.seguimiento", item: { href: "/seguimiento-clientes", label: "CRM", icon: UserCheck } },
   { key: "clientes.ayuda_memoria", item: { href: "/ayuda-memoria", label: "Ayuda Memoria", icon: BookOpen } },
   { key: "tomador_pedidos", item: { href: "/tomador-pedidos-v2", label: "Tomador de Pedidos", icon: ClipboardCheck } },
   { key: "seguimiento_pedidos", item: { href: "/seguimiento-pedidos", label: "Pedidos", icon: PackageSearch } },
@@ -214,7 +218,10 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
  * falta para que la ficha cargue, pero el menú queda como se estandarizó.
  */
 const EXTRAS_OCULTOS_POR_ROL: Record<string, Set<string>> = {
-  salesperson: new Set(["clientes"]),
+  salesperson: new Set(["clientes", "clientes.seguimiento"]),
+  // Marketing no usa el CRM aunque tenga el permiso (tareas.tsx tampoco le
+  // muestra la pestaña): su trabajo es el módulo Marketing.
+  marketing: new Set(["clientes.seguimiento"]),
 };
 
 /** Datos del usuario que cambian su menú más allá del rol. */

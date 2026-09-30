@@ -298,10 +298,11 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
       }
 
       const usuario = req.user;
-      // El supervisor sale del maestro de vendedores, no del formulario: es
-      // justamente lo que antes había que vincular a mano.
-      const supervisorId =
-        usuario.role === 'salesperson' ? await supervisorDeVendedor(usuario.id) : null;
+      // El supervisor sale del maestro de usuarios, no del formulario: es
+      // justamente lo que antes había que vincular a mano. Vale para cualquier
+      // rol: desde sep-2026 todo usuario puede tener supervisor, y si la
+      // solicitud ya aparece en su lista, también tiene que llegarle el aviso.
+      const supervisorId = await supervisorDeVendedor(usuario.id);
 
       const [nueva] = await db
         .insert(solicitudesCredito)

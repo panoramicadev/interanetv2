@@ -924,11 +924,12 @@ export default function UsersPage() {
     return role && !rolesWithoutSegment.includes(role);
   };
 
-  // Roles que pueden tener un supervisor asignado.
-  // Un encargado de área también puede desempeñarse como vendedor (rol dual):
-  // conserva su scope por sucursal y, además, reporta a un supervisor.
+  // Roles que pueden tener un supervisor asignado: todos menos admin y cliente
+  // (pedido de sep-2026: antes solo vendedor y encargado de área). Es opcional.
+  // Un encargado de área además puede desempeñarse como vendedor (rol dual):
+  // conserva su scope por sucursal y reporta a un supervisor.
   const canHaveSupervisor = (role: string | null | undefined) =>
-    role === "salesperson" || role === "encargado_area";
+    !!role && role !== "admin" && role !== "client";
 
   // Clear fields when role changes
   useEffect(() => {
@@ -974,7 +975,6 @@ export default function UsersPage() {
       supervisorId: canHaveSupervisor(data.role) && data.supervisorId !== "none" ? data.supervisorId : null,
       assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
-    console.log("Enviando datos:", cleanedData);
     createUserMutation.mutate(cleanedData);
   };
 
@@ -1550,11 +1550,14 @@ export default function UsersPage() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="none">Sin supervisor</SelectItem>
-                            {availableSupervisors.map((supervisor) => (
-                              <SelectItem key={supervisor.id} value={supervisor.id}>
-                                {supervisor.salespersonName}
-                              </SelectItem>
-                            ))}
+                            {/* Un supervisor no puede ser su propio supervisor. */}
+                            {availableSupervisors
+                              .filter((supervisor) => supervisor.id !== editingUser?.id)
+                              .map((supervisor) => (
+                                <SelectItem key={supervisor.id} value={supervisor.id}>
+                                  {supervisor.salespersonName}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                         {watchedEditRole === "encargado_area" && (
