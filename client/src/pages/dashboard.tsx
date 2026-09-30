@@ -22,6 +22,7 @@ import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metric
 import SalespersonDetail from "@/pages/salesperson-detail";
 import SegmentDetail from "@/pages/segment-detail";
 import SucursalDetail from "@/pages/sucursal-detail";
+import { CadenaSucursalesCard } from "@/components/clients/cadena-sucursales-card";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useBotonMenuArriba } from "@/components/layout/dashboard-layout";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
@@ -2032,6 +2033,22 @@ export default function Dashboard() {
               comparePeriod={comparePeriod}
               onShowNewClients={handleShowNewClientsInPanel}
             />
+
+            {/* Matriz de una cadena (REDMAT): el total de la cadena y lo que aporta
+                cada ferretería, igual que en la ficha del cliente. Tocar una
+                ferretería filtra el dashboard por ella. Para cualquier otro cliente
+                la tarjeta no aparece. Toma el lugar de Documentos Pendientes en el
+                orden del celular, que no se muestra con un cliente elegido. */}
+            {selectedClient && (
+              <div className="order-[-3] md:order-none">
+                <CadenaSucursalesCard
+                  clientName={selectedClient}
+                  period={selectedPeriod}
+                  filterType={filterType}
+                  onSeleccionarSucursal={(nombre) => setGlobalFilter({ type: "client", value: nombre })}
+                />
+              </div>
+            )}
 
             {/* ORDEN EN CELULAR (pedido del usuario, ago-2026). Es lo que se mira primero
                 al abrir el dashboard desde el teléfono:
