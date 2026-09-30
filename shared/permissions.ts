@@ -295,6 +295,21 @@ export const PERMISSIONS: PermissionDef[] = [
 
   // ── Tintometría ──────────────────────────────────────────────
   {
+    key: "tintometria.carta",
+    label: "Carta de colores",
+    description: "Pantonera Panorámica y Sherwin-Williams: código, nombre y color",
+    group: "tintometria",
+    href: "/tintometria/carta",
+  },
+  {
+    // Sin href: es un permiso DENTRO de la carta. Las fórmulas son del
+    // laboratorio; por ahora solo las ve el operador que tiñe (sep-2026).
+    key: "tintometria.formulas",
+    label: "Ver fórmulas",
+    description: "Ver en la carta la fórmula de cada color (colorantes y dosis)",
+    group: "tintometria",
+  },
+  {
     key: "tintometria.admin",
     label: "Administrar Datos",
     description: "Mantención de datos de tintometría",
@@ -528,7 +543,17 @@ export const CONFIGURABLE_ROLES: string[] = [
 ];
 
 // Bloques reutilizables para defaults
-const TINTOMETRIA_ALL = ["tintometria.admin", "tintometria.calculadora", "tintometria.selector"];
+const TINTOMETRIA_ALL = [
+  "tintometria.carta",
+  "tintometria.formulas",
+  "tintometria.admin",
+  "tintometria.calculadora",
+  "tintometria.selector",
+];
+// Las fórmulas son del laboratorio: por defecto las ven solo quienes tiñen
+// (laboratorio, planta y área de colores). Al resto se le da por usuario o por
+// rol en Configuración → Roles y Permisos.
+const TINTOMETRIA_SIN_FORMULAS = TINTOMETRIA_ALL.filter((k) => k !== "tintometria.formulas");
 /**
  * Consulta de catálogo: acompaña SIEMPRE al permiso "productos".
  * Antes /lista-precios se cubría con "productos" y /inventario no tenía guard;
@@ -606,7 +631,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "cmms.dashboard",
     ...CMMS_BASICO,
     "gastos",
-    ...TINTOMETRIA_ALL,
+    ...TINTOMETRIA_SIN_FORMULAS,
     ...CONFIG_TABS_GESTION,
   ],
   encargado_area: [
@@ -622,6 +647,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "finanzas",
     "tomador_pedidos",
     "gastos",
+    // La carta de colores es lo que se le muestra al cliente (sep-2026).
+    "tintometria.carta",
     ...CONFIG_TABS_GESTION,
   ],
   // Menú estandarizado del vendedor: Dashboard → Tomador de Pedidos → Panel de
@@ -643,6 +670,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "tomador_pedidos",
     "postventa.reclamos",
     "gastos",
+    "tintometria.carta",
   ],
   tecnico_obra: [
     "nuevo_cliente",
@@ -650,6 +678,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "postventa.reclamos",
     "clientes",
     "gastos",
+    "tintometria.carta",
   ],
   // Recepción administra la lista de precios: crea SKU, edita precios y arma
   // ofertas por cliente (las que después ve ese cliente en su tienda). Por eso
@@ -665,6 +694,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "clientes",
     "finanzas",
     "gastos",
+    "tintometria.carta",
   ],
   jefe_planta: [
     "nuevo_cliente",
@@ -723,12 +753,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   area_logistica: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   area_aplicacion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   area_materia_prima: ["nuevo_cliente", "postventa.reclamos", "gastos"],
-  area_colores: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  // El área de colores tiñe: ve la carta con sus fórmulas.
+  area_colores: ["nuevo_cliente", "postventa.reclamos", "gastos", "tintometria.carta", "tintometria.formulas"],
   area_envase: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   area_etiqueta: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   // Rol client: portal de tienda; estos permisos solo afectan rutas
   // del dashboard interno que comparte (no tiene UI de configuración).
-  client: ["mis_pedidos", ...TINTOMETRIA_ALL],
+  // De tintometría ve solo la carta de colores: nada de costos, fórmulas ni
+  // administración (sep-2026; antes heredaba todo el grupo, y con el permiso
+  // del selector podía leer el costo de los pigmentos).
+  client: ["mis_pedidos", "tintometria.carta"],
 };
 
 /** Set de permisos por defecto de un rol (admin → todos) */

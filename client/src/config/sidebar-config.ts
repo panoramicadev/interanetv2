@@ -216,6 +216,11 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     icon: Palette,
     children: [
       {
+        href: "/tintometria/carta",
+        label: "Carta de colores",
+        icon: Palette,
+      },
+      {
         href: "/tintometria/admin",
         label: "Administrar Datos",
         icon: Settings,
@@ -396,6 +401,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Tintometría",
       icon: Palette,
       children: [
+        {
+          href: "/tintometria/carta",
+          label: "Carta de colores",
+          icon: Palette,
+        },
         {
           href: "/tintometria/admin",
           label: "Administrar Datos",
@@ -631,6 +641,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Palette,
       children: [
         {
+          href: "/tintometria/carta",
+          label: "Carta de colores",
+          icon: Palette,
+        },
+        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -766,6 +781,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Tintometría",
       icon: Palette,
       children: [
+        {
+          href: "/tintometria/carta",
+          label: "Carta de colores",
+          icon: Palette,
+        },
         {
           href: "/tintometria/admin",
           label: "Administrar Datos",

@@ -58,6 +58,7 @@ import type {
   InsertParametro
 } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
+import { LibroFormulasAdmin } from '@/components/tintometria/libro-formulas-admin';
 
 export default function TintometriaAdmin() {
   const { user } = useAuth();
@@ -78,7 +79,8 @@ export default function TintometriaAdmin() {
   
   const [editingItem, setEditingItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('pigments');
+  // El libro de fórmulas va primero: es lo que laboratorio viene a actualizar.
+  const [activeTab, setActiveTab] = useState('libro');
 
   // Queries for all entities
   const { data: pigments = [], isLoading: loadingPigments } = useQuery<Pigment[]>({
@@ -501,7 +503,8 @@ export default function TintometriaAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="libro" data-testid="tab-libro">Libro</TabsTrigger>
           <TabsTrigger value="pigments" data-testid="tab-pigments">Pigmentos</TabsTrigger>
           <TabsTrigger value="bases" data-testid="tab-bases">Bases</TabsTrigger>
           <TabsTrigger value="envases" data-testid="tab-envases">Envases</TabsTrigger>
@@ -511,6 +514,10 @@ export default function TintometriaAdmin() {
         </TabsList>
 
         {/* PIGMENTS TAB */}
+        <TabsContent value="libro" className="space-y-4">
+          <LibroFormulasAdmin />
+        </TabsContent>
+
         <TabsContent value="pigments" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">

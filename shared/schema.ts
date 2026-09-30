@@ -4188,6 +4188,67 @@ export type Parametro = typeof parametros.$inferSelect;
 export type InsertParametro = z.infer<typeof insertParametroSchema>;
 
 // =============================================================================
+// CARTA DE COLORES Y LIBRO DE FÓRMULAS (sep-2026)
+// -----------------------------------------------------------------------------
+// Distinto de las tablas de arriba: aquellas calculan COSTOS con la fracción de
+// peso de cada pigmento por kilo. Estas guardan lo que el operador sirve en la
+// máquina: el color de una cartilla (Panorámica, Sherwin-Williams…) y, por
+// línea de producto y base, las dosis de cada colorante por formato.
+// Migración 090. Las crea ensureTintometriaTablas (server/migrations.ts) al
+// arrancar, y ahí mismo se carga la pantonera (server/data/tintometria-pantonera.ts).
+// =============================================================================
+
+export const tintoColores = pgTable("tinto_colores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // PANORAMICA | SW | la que traiga una fórmula de laboratorio (RAL, NCS…)
+  cartilla: varchar("cartilla", { length: 40 }).notNull(),
+  codigo: varchar("codigo", { length: 40 }).notNull(), // "001-4", "OW-3-2", "SW6561"
+  nombre: text("nombre"), // "Poetic Purple"; la cartilla SW del libro no trae nombres
+  // Referencial: sirve para mostrar el color, no para igualarlo.
+  hex: varchar("hex", { length: 7 }),
+  grupo: varchar("grupo", { length: 20 }), // carátula: "001", "OW-3"
+  orden: integer("orden"),
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  cartillaCodigo: uniqueIndex("UQ_tinto_colores_cartilla_codigo").on(table.cartilla, table.codigo),
+}));
+
+export const tintoFormulas = pgTable("tinto_formulas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  colorId: varchar("color_id").notNull(),
+  linea: varchar("linea", { length: 120 }).notNull(), // "ESMATE AL AGUA COPPER 960", tal cual el libro
+  base: varchar("base", { length: 40 }).notNull(), // BLANCA | MEDIA | INCOLORA | FUERTE…
+  // El libro a veces trae dos fórmulas distintas para el mismo color y base: se
+  // guardan las dos, numeradas, con una alerta para que laboratorio decida.
+  variante: integer("variante").notNull().default(1),
+  origen: varchar("origen", { length: 20 }).notNull().default("libro"), // libro | laboratorio
+  version: varchar("version", { length: 60 }), // "OCTUBRE 2026"
+  items: jsonb("items").notNull().default(sql`'[]'::jsonb`), // ItemFormula[] (shared/tintometria.ts)
+  observaciones: text("observaciones"),
+  alerta: text("alerta"),
+  // Para las fórmulas que responde laboratorio a pedido de un vendedor.
+  clienteId: varchar("cliente_id"),
+  obra: text("obra"),
+  solicitudId: varchar("solicitud_id"),
+  creadoPorId: varchar("creado_por_id"),
+  creadoPorNombre: text("creado_por_nombre"),
+  // Una importación nueva del libro apaga las fórmulas que ya no vienen.
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  colorIdx: index("IDX_tinto_formulas_color").on(table.colorId),
+  libroUnico: uniqueIndex("UQ_tinto_formulas_libro")
+    .on(table.colorId, table.linea, table.base, table.variante)
+    .where(sql`origen = 'libro'`),
+}));
+
+export type TintoColor = typeof tintoColores.$inferSelect;
+export type TintoFormula = typeof tintoFormulas.$inferSelect;
+
+// =============================================================================
 // PALETA DE COLORES DEL CATÁLOGO
 // -----------------------------------------------------------------------------
 // Fuente de verdad del hex por nombre de color (ecommerce_products.color).
