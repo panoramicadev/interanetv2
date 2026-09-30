@@ -24489,7 +24489,7 @@ export class DatabaseStorage implements IStorage {
     const supervisorSegments = await db
       .select({ segmentCode: segmentSupervisors.segmentCode })
       .from(segmentSupervisors)
-      .where(eq(segmentSupervisors.supervisorId, supervisorId));
+      .where(eq(segmentSupervisors.supervisorUserId, supervisorId));
 
     const segmentCodes = supervisorSegments.map(s => s.segmentCode);
 
