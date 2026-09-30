@@ -13,11 +13,13 @@
 import jsPDF from "jspdf";
 import type { SolicitudCredito } from "@shared/schema";
 import {
+  esAumento,
   fmtFecha,
+  nombreDeArchivo,
   resumenDeSolicitud,
   seccionesDeSolicitud,
-  slug,
   texto,
+  tituloDeSolicitud,
   type CampoSolicitud,
 } from "./solicitud-credito-datos";
 
@@ -85,7 +87,7 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
-  doc.text("SOLICITUD DE CRÉDITO", ANCHO_PAGINA - MARGEN, 17, { align: "right" });
+  doc.text(tituloDeSolicitud(solicitud).toUpperCase(), ANCHO_PAGINA - MARGEN, 17, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.text(
@@ -121,15 +123,20 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
   // ── Las tres cifras que se miran primero ──────────────────────────────────
   const resumen = resumenDeSolicitud(solicitud);
   const delResumen = (label: string) => texto(resumen.find((c) => c.label === label)?.valor);
-  const tiles: { label: string; valor: string; color: [number, number, number] }[] = [
-    { label: "Crédito solicitado", valor: delResumen("Crédito solicitado"), color: TINTA },
-    { label: "Plazo solicitado", valor: delResumen("Plazo solicitado"), color: TINTA },
-    {
-      label: "Crédito aprobado",
-      valor: delResumen("Crédito aprobado"),
-      color: solicitud.creditoAprobado != null ? VERDE : GRIS,
-    },
-  ];
+  const colorAprobado = solicitud.creditoAprobado != null ? VERDE : GRIS;
+  // En un aumento las tres cifras son líneas: la que tenía, la que pide y la que
+  // quedó. El plazo va en la sección del aumento, junto al que ya tenía.
+  const tiles: { label: string; valor: string; color: [number, number, number] }[] = esAumento(solicitud)
+    ? [
+        { label: "Línea actual", valor: delResumen("Línea actual"), color: TINTA },
+        { label: "Línea solicitada", valor: delResumen("Línea solicitada"), color: TINTA },
+        { label: "Línea aprobada", valor: delResumen("Línea aprobada"), color: colorAprobado },
+      ]
+    : [
+        { label: "Crédito solicitado", valor: delResumen("Crédito solicitado"), color: TINTA },
+        { label: "Plazo solicitado", valor: delResumen("Plazo solicitado"), color: TINTA },
+        { label: "Crédito aprobado", valor: delResumen("Crédito aprobado"), color: colorAprobado },
+      ];
   const anchoTile = (ANCHO_CONTENIDO - GAP * 2) / 3;
   tiles.forEach((tile, i) => {
     const x = MARGEN + i * (anchoTile + GAP);
@@ -236,12 +243,12 @@ export async function descargarSolicitudCreditoPdf(solicitud: SolicitudCredito) 
     doc.setFontSize(7);
     doc.setTextColor(...GRIS);
     doc.text(
-      `Panorámica · Solicitud de crédito de ${solicitud.razonSocial} · generada el ${new Date().toLocaleDateString("es-CL")}`,
+      `Panorámica · ${tituloDeSolicitud(solicitud)} de ${solicitud.razonSocial} · generada el ${new Date().toLocaleDateString("es-CL")}`,
       MARGEN,
       ALTO_PAGINA - 10,
     );
     doc.text(`${p} / ${paginas}`, ANCHO_PAGINA - MARGEN, ALTO_PAGINA - 10, { align: "right" });
   }
 
-  doc.save(`solicitud-credito-${slug(solicitud.razonSocial)}.pdf`);
+  doc.save(`${nombreDeArchivo(solicitud)}.pdf`);
 }
