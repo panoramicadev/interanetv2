@@ -4402,13 +4402,21 @@ export type InsertEmailNotificationSetting = typeof emailNotificationSettings.$i
 export const solicitudesCredito = pgTable("solicitudes_credito", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
 
+  // Qué se pide: crédito para un cliente nuevo o un aumento de la línea de uno
+  // que ya compra (pedido del gerente comercial, sep-2026). Las solicitudes
+  // anteriores a este campo son todas de cliente nuevo.
+  tipo: varchar("tipo", { length: 20 }).notNull().default("nueva"), // nueva | aumento
+
   // A quién se le pide el crédito
   clienteId: varchar("cliente_id"), // FK a clients.id cuando el cliente ya existe
   razonSocial: text("razon_social").notNull(),
   rut: varchar("rut", { length: 20 }).notNull(),
-  direccion: text("direccion").notNull(),
-  ciudad: varchar("ciudad", { length: 120 }).notNull(),
-  telefono: varchar("telefono", { length: 40 }).notNull(),
+  // Obligatorios en una solicitud nueva: los exige el formulario. En un aumento
+  // salen de la ficha del cliente, que puede tenerlos incompletos, y Finanzas ya
+  // lo conoce: por eso la columna acepta vacíos.
+  direccion: text("direccion"),
+  ciudad: varchar("ciudad", { length: 120 }),
+  telefono: varchar("telefono", { length: 40 }),
   giro: text("giro"),
   // Son dos correos distintos y se usan para cosas distintas: a cobranza se le
   // mandan los estados de cuenta, al receptor DTE le llegan las facturas
@@ -4433,7 +4441,8 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   cuenta2: varchar("cuenta2", { length: 60 }),
   sucursal2: varchar("sucursal2", { length: 120 }),
 
-  // Montos
+  // Montos. En un aumento, lo solicitado y lo aprobado son la línea TOTAL que
+  // queda, no lo que se le suma a la actual.
   creditoSolicitado: numeric("credito_solicitado", { precision: 15, scale: 2 }).notNull(),
   creditoAprobado: numeric("credito_aprobado", { precision: 15, scale: 2 }),
 
@@ -4443,6 +4452,14 @@ export const solicitudesCredito = pgTable("solicitudes_credito", {
   // Plazo que Finanzas aprueba, que puede ser distinto del pedido. Solo se llena
   // al aprobar.
   diasAprobados: integer("dias_aprobados"),
+
+  // Solo en un aumento: la línea y los días de crédito que el cliente tenía al
+  // pedirlo, y por qué necesita más. Se guarda la foto del momento porque la
+  // ficha cambia —justamente cuando se aprueba— y después no se sabría desde
+  // dónde se subió. Línea null = el cliente no tenía línea.
+  creditoActual: numeric("credito_actual", { precision: 15, scale: 2 }),
+  diasActuales: integer("dias_actuales"),
+  motivo: text("motivo"),
 
   // Carpeta tributaria (el adjunto que pide Finanzas para evaluar)
   carpetaTributariaUrl: text("carpeta_tributaria_url"),
@@ -4473,14 +4490,23 @@ export type EstadoSolicitudCredito = (typeof ESTADOS_SOLICITUD_CREDITO)[number];
 export const DIAS_SOLICITUD_CREDITO = [30, 45, 60] as const;
 export type DiasSolicitudCredito = (typeof DIAS_SOLICITUD_CREDITO)[number];
 
-// Lo que manda el vendedor. Todo lo del flujo (estado, quién la envió, quién la
-// resolvió) lo pone el servidor: son datos de auditoría, no del formulario.
-export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredito)
+/** Crédito para un cliente nuevo, o aumento de la línea de uno que ya compra. */
+export const TIPOS_SOLICITUD_CREDITO = ["nueva", "aumento"] as const;
+export type TipoSolicitudCredito = (typeof TIPOS_SOLICITUD_CREDITO)[number];
+
+// Lo que manda el vendedor, común a los dos tipos. Todo lo del flujo (estado,
+// quién la envió, quién la resolvió) lo pone el servidor: son datos de
+// auditoría, no del formulario.
+const solicitudCreditoBaseSchema = createInsertSchema(solicitudesCredito)
   .omit({
     id: true,
+    tipo: true,
     estado: true,
     creditoAprobado: true,
     diasAprobados: true,
+    creditoActual: true,
+    diasActuales: true,
+    motivo: true,
     observaciones: true,
     solicitanteId: true,
     solicitanteNombre: true,
@@ -4494,9 +4520,6 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
   .extend({
     razonSocial: z.string().trim().min(1, "La razón social es obligatoria"),
     rut: z.string().trim().min(1, "El RUT es obligatorio"),
-    direccion: z.string().trim().min(1, "La dirección es obligatoria"),
-    ciudad: z.string().trim().min(1, "La ciudad es obligatoria"),
-    telefono: z.string().trim().min(1, "El teléfono es obligatorio"),
     correo: z
       .string()
       .trim()
@@ -4504,11 +4527,64 @@ export const insertSolicitudCreditoSchema = createInsertSchema(solicitudesCredit
       .optional()
       .or(z.literal(""))
       .or(z.null()),
-    correoDte: z.string().trim().min(1, "El correo DTE es obligatorio").email("Correo DTE inválido"),
     creditoSolicitado: z.coerce.number().positive("El crédito solicitado tiene que ser mayor que cero"),
     diasSolicitados: z.coerce
       .number()
-      .refine((v) => (DIAS_SOLICITUD_CREDITO as readonly number[]).includes(v), "Elegí un plazo de pago válido"),
+      .refine((v) => (DIAS_SOLICITUD_CREDITO as readonly number[]).includes(v), "Elige un plazo de pago válido"),
+  });
+
+// Cliente nuevo: los datos de la empresa los escribe el vendedor y sin ellos
+// Finanzas no tiene a quién evaluar. Son las mismas reglas de siempre.
+const solicitudCreditoNuevaSchema = solicitudCreditoBaseSchema.extend({
+  tipo: z.literal("nueva"),
+  direccion: z.string().trim().min(1, "La dirección es obligatoria"),
+  ciudad: z.string().trim().min(1, "La ciudad es obligatoria"),
+  telefono: z.string().trim().min(1, "El teléfono es obligatorio"),
+  correoDte: z.string().trim().min(1, "El correo DTE es obligatorio").email("Correo DTE inválido"),
+});
+
+/** Un dato que viene de la ficha del cliente: puede faltar, y vacío se guarda como null. */
+const datoDeFicha = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((valor) => valor || null);
+
+// Aumento de la línea de un cliente que ya compra. Finanzas ya lo conoce: los
+// datos de contacto salen de su ficha, completos o no. Lo que no puede faltar
+// es por qué se pide.
+const solicitudCreditoAumentoSchema = solicitudCreditoBaseSchema.extend({
+  tipo: z.literal("aumento"),
+  direccion: datoDeFicha,
+  ciudad: datoDeFicha,
+  telefono: datoDeFicha,
+  correoDte: z.string().trim().email("Correo DTE inválido").optional().or(z.literal("")).or(z.null()),
+  creditoActual: z.coerce.number().min(0).nullish(),
+  diasActuales: z.coerce.number().int().min(0).nullish(),
+  motivo: z.string().trim().min(1, "El motivo del aumento es obligatorio").max(2000),
+});
+
+export const insertSolicitudCreditoSchema = z
+  .preprocess(
+    // Sin tipo es una solicitud nueva: así llegaban todas antes del aumento, y
+    // así las sigue mandando una pestaña abierta con la versión anterior.
+    (datos) =>
+      datos && typeof datos === "object" && (datos as { tipo?: unknown }).tipo == null
+        ? { ...datos, tipo: "nueva" }
+        : datos,
+    z.discriminatedUnion("tipo", [solicitudCreditoNuevaSchema, solicitudCreditoAumentoSchema]),
+  )
+  .superRefine((datos, ctx) => {
+    // Un aumento tiene que subir la línea. Si el cliente no tenía línea (null
+    // o 0), cualquier monto es subirla.
+    const actual = datos.tipo === "aumento" ? datos.creditoActual ?? 0 : 0;
+    if (actual > 0 && datos.creditoSolicitado <= actual) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["creditoSolicitado"],
+        message: "La línea solicitada tiene que ser mayor que la actual",
+      });
+    }
   });
 
 /**

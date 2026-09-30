@@ -5,6 +5,10 @@
  * console.log y limpiaba el formulario. Acá la solicitud se guarda, se avisa por
  * correo y queda con su estado hasta que Finanzas la aprueba o la rechaza.
  *
+ * Hay dos tipos y siguen el mismo flujo: crédito para un cliente nuevo y aumento
+ * de la línea de uno que ya compra (`tipo = 'aumento'`). Cambian los datos que
+ * se piden y cómo se lee el correo, no quién pide, ve ni resuelve.
+ *
  * Quién ve qué:
  *  - el vendedor ve las suyas;
  *  - el supervisor, las de su equipo;
@@ -56,6 +60,16 @@ const money = (valor: unknown) => {
   const n = Number(valor ?? 0);
   return Number.isFinite(n) ? `$${Math.round(n).toLocaleString('es-CL')}` : '—';
 };
+
+const esAumento = (s: SolicitudCredito) => s.tipo === 'aumento';
+
+/** La línea que tenía el cliente al pedir el aumento. Sin línea se dice, no se muestra $0. */
+const lineaActual = (s: SolicitudCredito) =>
+  Number(s.creditoActual) > 0 ? money(s.creditoActual) : 'Sin línea';
+
+/** Dirección y ciudad en una sola fila. En un aumento pueden faltar las dos. */
+const direccionCompleta = (s: SolicitudCredito) =>
+  [s.direccion, s.ciudad].map((v) => v?.trim()).filter(Boolean).join(', ') || null;
 
 /** Supervisor a cargo de un vendedor, según el maestro de vendedores. */
 async function supervisorDeVendedor(vendedorId: string): Promise<string | null> {
@@ -113,17 +127,30 @@ function cuerpoDelCorreo(s: SolicitudCredito): string {
       : `<tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:13px">${label}</td>
            <td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600">${valor}</td></tr>`;
 
+  // En un aumento el cliente ya compra: lo que Finanzas necesita ver primero es
+  // desde qué línea se sube, hasta cuánto y por qué.
+  const cifras = esAumento(s)
+    ? `
+      ${fila('Línea actual', lineaActual(s))}
+      ${fila('Línea solicitada', money(s.creditoSolicitado))}
+      ${fila('Plazo actual', s.diasActuales ? `${s.diasActuales} días` : null)}
+      ${fila('Plazo solicitado', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}
+      ${fila('Motivo del aumento', s.motivo)}`
+    : `
+      ${fila('Crédito solicitado', money(s.creditoSolicitado))}
+      ${fila('Plazo solicitado', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}`;
+
   return `
     <p style="font-size:15px;color:#0f172a">
-      <strong>${s.solicitanteNombre ?? 'Un vendedor'}</strong> envió una solicitud de crédito para
-      <strong>${s.razonSocial}</strong>.
+      <strong>${s.solicitanteNombre ?? 'Un vendedor'}</strong> envió una solicitud de
+      ${esAumento(s) ? '<strong>aumento de crédito</strong>' : 'crédito'} para
+      <strong>${s.razonSocial}</strong>${esAumento(s) ? ', que ya es cliente' : ''}.
     </p>
     <table style="border-collapse:collapse;margin:12px 0">
       ${fila('RUT', s.rut)}
-      ${fila('Crédito solicitado', money(s.creditoSolicitado))}
-      ${fila('Plazo solicitado', s.diasSolicitados ? `${s.diasSolicitados} días` : null)}
+      ${cifras}
       ${fila('Giro', s.giro)}
-      ${fila('Dirección', `${s.direccion}, ${s.ciudad}`)}
+      ${fila('Dirección', direccionCompleta(s))}
       ${fila('Teléfono', s.telefono)}
       ${fila('Correo cobranza', s.correo)}
       ${fila('Correo DTE (SII)', s.correoDte)}
@@ -164,12 +191,13 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
     return;
   }
 
+  const plazo = s.diasSolicitados ? ` a ${s.diasSolicitados} días` : '';
   await emailService.sendEmail({
     to: to.join(', '),
     cc: cc.length ? cc.join(', ') : undefined,
-    subject: `Solicitud de crédito · ${s.razonSocial} · ${money(s.creditoSolicitado)}${
-      s.diasSolicitados ? ` a ${s.diasSolicitados} días` : ''
-    }`,
+    subject: esAumento(s)
+      ? `Solicitud de aumento de crédito · ${s.razonSocial} · ${lineaActual(s)} → ${money(s.creditoSolicitado)}${plazo}`
+      : `Solicitud de crédito · ${s.razonSocial} · ${money(s.creditoSolicitado)}${plazo}`,
     html: cuerpoDelCorreo(s),
   });
 }
@@ -183,15 +211,18 @@ const diasDe = (s: SolicitudCredito) => s.diasAprobados ?? s.diasSolicitados;
  */
 function cuerpoDeLaResolucion(s: SolicitudCredito): string {
   const aprobada = s.estado === 'aprobada';
+  const aumento = esAumento(s);
   const fila = (label: string, valor: unknown) =>
     valor === null || valor === undefined || valor === ''
       ? ''
       : `<tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:13px">${label}</td>
            <td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600">${valor}</td></tr>`;
 
+  // En un aumento lo aprobado es la línea total que queda: se rotula así para
+  // que nadie la cargue en la ficha como si fuera lo que se suma.
   return `
     <p style="font-size:15px;color:#0f172a">
-      La solicitud de crédito de <strong>${s.razonSocial}</strong> fue
+      La solicitud de ${aumento ? 'aumento de crédito' : 'crédito'} de <strong>${s.razonSocial}</strong> fue
       <strong style="color:${aprobada ? '#047857' : '#b91c1c'}">${aprobada ? 'APROBADA' : 'RECHAZADA'}</strong>${
         s.resueltaPorNombre ? ` por ${s.resueltaPorNombre}` : ''
       }.
@@ -200,8 +231,9 @@ function cuerpoDeLaResolucion(s: SolicitudCredito): string {
       ${fila('Cliente', s.razonSocial)}
       ${fila('RUT', s.rut)}
       ${fila('Días de crédito', diasDe(s) ? `${diasDe(s)} días` : null)}
-      ${fila('Crédito solicitado', money(s.creditoSolicitado))}
-      ${aprobada ? fila('Monto aprobado', money(s.creditoAprobado)) : ''}
+      ${aumento ? fila('Línea actual', lineaActual(s)) : ''}
+      ${fila(aumento ? 'Línea solicitada' : 'Crédito solicitado', money(s.creditoSolicitado))}
+      ${aprobada ? fila(aumento ? 'Nueva línea aprobada' : 'Monto aprobado', money(s.creditoAprobado)) : ''}
       ${fila('Vendedor', s.solicitanteNombre)}
       ${fila('Observaciones', s.observaciones)}
     </table>
@@ -245,7 +277,7 @@ async function avisarResolucionPorCorreo(s: SolicitudCredito): Promise<void> {
   await emailService.sendEmail({
     to: to.join(', '),
     cc: cc.length ? cc.join(', ') : undefined,
-    subject: `Crédito ${aprobada ? 'APROBADO' : 'RECHAZADO'} · ${s.razonSocial}${
+    subject: `${esAumento(s) ? 'Aumento de crédito' : 'Crédito'} ${aprobada ? 'APROBADO' : 'RECHAZADO'} · ${s.razonSocial}${
       aprobada ? ` · ${money(s.creditoAprobado)}` : ''
     }${diasDe(s) ? ` a ${diasDe(s)} días` : ''}`,
     html: cuerpoDeLaResolucion(s),
@@ -303,12 +335,17 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
       const supervisorId =
         usuario.role === 'salesperson' ? await supervisorDeVendedor(usuario.id) : null;
 
+      const datos = parsed.data;
       const [nueva] = await db
         .insert(solicitudesCredito)
         .values({
-          ...parsed.data,
-          correo: parsed.data.correo || null,
-          creditoSolicitado: String(parsed.data.creditoSolicitado),
+          ...datos,
+          correo: datos.correo || null,
+          correoDte: datos.correoDte || null,
+          creditoSolicitado: String(datos.creditoSolicitado),
+          // En un aumento, la línea que el cliente tenía al pedirlo (null = no tenía).
+          creditoActual:
+            datos.tipo === 'aumento' && datos.creditoActual != null ? String(datos.creditoActual) : null,
           estado: 'enviada',
           solicitanteId: usuario.id,
           solicitanteNombre: nombreDe(usuario),
