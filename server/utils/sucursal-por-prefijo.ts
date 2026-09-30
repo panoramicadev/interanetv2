@@ -32,7 +32,7 @@
  * sucursal (ver asegurarComisionesDeSucursales). Si eso falla, no renombra.
  */
 
-import { sql } from 'drizzle-orm';
+import { sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { db } from '../db';
 
 /** Las tres tablas de hechos que muestran el nombre del cliente en la intranet. */
@@ -165,4 +165,97 @@ export async function marcarCadenas<T extends Record<string, any>>(filas: T[], c
     console.warn('[cadenas] No se pudieron marcar las sucursales:', e);
     return filas;
   }
+}
+
+/**
+ * Nombres de las sucursales de una cadena, si `nombre` es su casa matriz
+ * ("REDMAT SPA" → las ferreterías). Vacío si no es la matriz de una cadena.
+ */
+export async function sucursalesDeCadena(nombre: string): Promise<string[]> {
+  const limpio = (nombre || '').trim();
+  if (!limpio) return [];
+  try {
+    const r = await db.execute(sql`
+      SELECT suc.nokoen AS sucursal
+      FROM clients matriz
+      JOIN clients suc ON suc.parent_client_id = matriz.id AND suc.oc_prefix IS NOT NULL
+      WHERE matriz.parent_client_id IS NULL
+        AND UPPER(btrim(matriz.nokoen)) = UPPER(${limpio})
+      ORDER BY suc.nokoen
+    `);
+    return (((r as any).rows || []) as Array<{ sucursal: string }>).map((f) => f.sucursal).filter(Boolean);
+  } catch (e) {
+    // Sin la lista se filtra como antes, por el nombre exacto: nunca de más.
+    console.warn('[cadenas] No se pudieron leer las sucursales de la cadena:', e);
+    return [];
+  }
+}
+
+/**
+ * Nombres con los que se filtran las ventas de un cliente en los informes.
+ *
+ * La imputación le pone a cada venta de la cadena el nombre de su ferretería,
+ * así que filtrar por "REDMAT SPA" a secas dejaba afuera todo lo que se compró
+ * con orden de compra: solo quedaban las ventas sin prefijo. Si el cliente es la
+ * matriz de una cadena, van también los nombres de sus sucursales; si no, el
+ * suyo solo, igual que siempre.
+ */
+export async function nombresParaFiltrarCliente(nombre: string): Promise<string[]> {
+  const sucursales = await sucursalesDeCadena(nombre);
+  return [nombre, ...sucursales.filter((s) => s !== nombre)];
+}
+
+/**
+ * Condición sobre la columna del nombre del cliente: `col = nombre` o, si es la
+ * matriz de una cadena, `col IN (matriz, sucursales...)`. Sirve igual para una
+ * columna de Drizzle (`factVentas.nokoen`) que para SQL crudo (sql`fv."nokoen"`).
+ */
+export async function condicionNombreCliente(columna: SQLWrapper, nombre: string): Promise<SQL> {
+  const nombres = await nombresParaFiltrarCliente(nombre);
+  if (nombres.length === 1) return sql`${columna} = ${nombre}`;
+  return sql`${columna} IN (${sql.join(nombres.map((n) => sql`${n}`), sql`, `)})`;
+}
+
+/**
+ * Fichas de sucursal cuya cadena calza con lo que se buscó: escribir "redmat"
+ * tiene que traer también las ferreterías, que no llevan ese texto en su nombre.
+ */
+export async function sucursalesDeCadenasQueCalzan(
+  termino: string,
+): Promise<Array<{ id: string; nokoen: string; koen: string | null; cadena: string }>> {
+  const t = (termino || '').trim();
+  if (t.length < 2) return [];
+  try {
+    const r = await db.execute(sql`
+      SELECT suc.id, suc.nokoen, suc.koen, matriz.nokoen AS matriz
+      FROM clients matriz
+      JOIN clients suc ON suc.parent_client_id = matriz.id AND suc.oc_prefix IS NOT NULL
+      WHERE matriz.parent_client_id IS NULL
+        AND matriz.nokoen ILIKE ${'%' + t + '%'}
+      ORDER BY suc.nokoen
+    `);
+    return (((r as any).rows || []) as Array<{ id: string; nokoen: string; koen: string | null; matriz: string }>).map(
+      (f) => ({ id: f.id, nokoen: f.nokoen, koen: f.koen, cadena: nombreCortoCadena(f.matriz) }),
+    );
+  } catch (e) {
+    console.warn('[cadenas] No se pudieron buscar sucursales por cadena:', e);
+    return [];
+  }
+}
+
+/**
+ * Condición de búsqueda por nombre sobre las ventas que también trae a las
+ * sucursales de las cadenas cuyo nombre calza: buscar "redmat" en un ranking
+ * lista cada ferretería, no solo las ventas que quedaron como "REDMAT SPA".
+ */
+export function condicionBusquedaConCadenas(columna: SQLWrapper, termino: string): SQL {
+  const patron = `%${termino.trim().toLowerCase()}%`;
+  return sql`(LOWER(${columna}) LIKE ${patron} OR ${columna} IN (
+    SELECT suc.nokoen
+    FROM clients suc
+    JOIN clients matriz ON matriz.id = suc.parent_client_id
+    WHERE suc.oc_prefix IS NOT NULL
+      AND matriz.parent_client_id IS NULL
+      AND LOWER(matriz.nokoen) LIKE ${patron}
+  ))`;
 }

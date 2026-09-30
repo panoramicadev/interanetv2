@@ -396,6 +396,7 @@ import {
   type InsertEcommerceCoupon,
   type UpdateEcommerceCoupon,
 } from "@shared/schema";
+import { condicionNombreCliente, condicionBusquedaConCadenas } from './utils/sucursal-por-prefijo';
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
 import { LINE_COST_EXPR } from "./costo-linea";
@@ -2862,7 +2863,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     if (product) {
       // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
@@ -3067,7 +3068,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     if (product) {
       conditions.push(eq(factVentas.nokoprct, product));
@@ -3118,6 +3119,8 @@ export class DatabaseStorage implements IStorage {
     clientScope?: string[];
   }): Promise<number> {
     const { startDate, endDate, salesperson, segment, client, clientScope } = filters;
+    // La matriz de una cadena incluye a sus sucursales (ver condicionNombreCliente).
+    const filtroCliente = client ? sql`AND ${await condicionNombreCliente(sql`fv."nokoen"`, client)}` : sql``;
 
     const result = await db.execute(sql`
       SELECT COUNT(DISTINCT fv."nokoen") as new_clients
@@ -3127,7 +3130,7 @@ export class DatabaseStorage implements IStorage {
         AND fv."tido" != 'GDV'
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
         ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
-        ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        ${filtroCliente}
         ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
           SELECT 1 FROM ventas.fact_ventas fv2
@@ -3157,6 +3160,8 @@ export class DatabaseStorage implements IStorage {
     salesperson: string;
   }>> {
     const { startDate, endDate, salesperson, segment, client, clientScope } = filters;
+    // La matriz de una cadena incluye a sus sucursales (ver condicionNombreCliente).
+    const filtroCliente = client ? sql`AND ${await condicionNombreCliente(sql`fv."nokoen"`, client)}` : sql``;
 
     const result = await db.execute(sql`
       SELECT 
@@ -3172,7 +3177,7 @@ export class DatabaseStorage implements IStorage {
         AND fv."tido" != 'GDV'
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
         ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
-        ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        ${filtroCliente}
         ${clientScope && clientScope.length ? sql`AND fv."endo" IN (${sql.join(clientScope.map(k => sql`${k}`), sql`, `)})` : sql``}
         AND NOT EXISTS (
           SELECT 1 FROM ventas.fact_ventas fv2
@@ -3215,7 +3220,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factGdv.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factGdv.nokoen, client));
+      conditions.push(await condicionNombreCliente(factGdv.nokoen, client));
     }
     // Scope de datos del encargado de área (sucursales asignadas)
     if (clientScope && clientScope.length > 0) {
@@ -3307,7 +3312,7 @@ export class DatabaseStorage implements IStorage {
       baseConditions.push(eq(factVentas.nokofu, filters.salesperson));
     }
     if (filters?.client) {
-      baseConditions.push(eq(factVentas.nokoen, filters.client));
+      baseConditions.push(await condicionNombreCliente(factVentas.nokoen, filters.client));
     }
     if (filters?.product) {
       baseConditions.push(eq(factVentas.nokoprct, filters.product));
@@ -3378,7 +3383,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokofu, filters.salesperson));
     }
     if (filters?.client) {
-      conditions.push(eq(factVentas.nokoen, filters.client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, filters.client));
     }
     if (filters?.branch) {
       conditions.push(...DatabaseStorage.getBranchConditions(filters.branch));
@@ -3429,7 +3434,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     if (product) {
       // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
@@ -3500,7 +3505,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     if (product) {
       // nokoprct: nokoar no existe en fact_ventas y el filtro reventaba en runtime.
@@ -3559,7 +3564,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     conditions.push(...DatabaseStorage.getClientScopeConditions(clientScope));
 
@@ -3856,9 +3861,10 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     transactionCount: number;
   }>> {
-    // Search clients by name (case-insensitive) and return aggregated sales data
+    // Search clients by name (case-insensitive) and return aggregated sales data.
+    // Buscar una cadena ("redmat") trae también a cada una de sus sucursales.
     const conditions = [
-      sql`LOWER(${factVentas.nokoen}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
+      condicionBusquedaConCadenas(factVentas.nokoen, searchTerm),
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
@@ -5723,7 +5729,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(segmentEq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(factVentas.nokoen, client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, client));
     }
     if (product) {
       conditions.push(eq(factVentas.nokoprct, product));
@@ -5898,7 +5904,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nosudo, filters.branch));
     }
     if (filters?.client) {
-      conditions.push(eq(factVentas.nokoen, filters.client));
+      conditions.push(await condicionNombreCliente(factVentas.nokoen, filters.client));
     }
 
     // Get totals for percentage calculations
@@ -7914,6 +7920,12 @@ export class DatabaseStorage implements IStorage {
         } else if (period === 'last-7-days') {
           conditions.push(
             sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+          );
+        } else if (period === 'last-90-days') {
+          // El dashboard también ofrece 90 días; sin esto la tarjeta de la cadena
+          // mostraba todo el histórico al elegirlo.
+          conditions.push(
+            sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '90 days'`
           );
         }
         break;
@@ -17083,7 +17095,7 @@ export class DatabaseStorage implements IStorage {
 
       // Use nokoen for client filtering
       if (options.client) {
-        conditions.push(sql`nokoen = ${options.client}`);
+        conditions.push(await condicionNombreCliente(sql`nokoen`, options.client));
       }
 
       // Scope de datos del encargado de área (sucursales asignadas) - fact_nvv tiene columna endo
@@ -29569,7 +29581,7 @@ export class DatabaseStorage implements IStorage {
           ${endDate ? sql`AND fv."feemdo" <= ${endDate}::date` : sql``}
           ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
           ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
-          ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+          ${client ? sql`AND ${await condicionNombreCliente(sql`fv."nokoen"`, client)}` : sql``}
       ),
       por_producto AS (
         SELECT

@@ -41,12 +41,18 @@ export function CadenaSucursalesCard({
   period,
   filterType,
   comprasTotales,
+  onSeleccionarSucursal,
 }: {
   clientName: string;
   period: string;
   filterType: string;
-  /** "Compras Totales" de la ficha, para mostrar que el desglose cuadra con ella. */
+  /**
+   * "Compras Totales" de la ficha, para mostrar que el desglose cuadra con ella.
+   * Sin este dato (en el dashboard, o mientras carga) no se dice nada del cuadre.
+   */
   comprasTotales?: number;
+  /** Si viene, cada ferretería se puede tocar para ver solo la suya (dashboard). */
+  onSeleccionarSucursal?: (nombre: string) => void;
 }) {
   const { data } = useQuery<DesgloseCadena | null>({
     queryKey: [
@@ -63,7 +69,7 @@ export function CadenaSucursalesCard({
   const ferreterias = data.sucursales.filter((s) => !s.esMatriz);
   const sinPrefijo = data.sucursales.filter((s) => s.esMatriz);
   const filas = [...ferreterias, ...sinPrefijo];
-  const cuadra = comprasTotales == null || Math.abs(data.total - comprasTotales) < 1;
+  const cuadra = comprasTotales != null && Math.abs(data.total - comprasTotales) < 1;
 
   return (
     <div
@@ -97,8 +103,10 @@ export function CadenaSucursalesCard({
         </p>
       ) : (
         <ul className="mt-3 space-y-3">
-          {filas.map((s) => (
-            <li key={s.nombre} data-testid={`fila-cadena-${s.nombre}`}>
+          {filas.map((s) => {
+            const seleccionable = !!onSeleccionarSucursal && !s.esMatriz;
+            const contenido = (
+              <>
               <div className="flex items-baseline justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
@@ -120,11 +128,29 @@ export function CadenaSucursalesCard({
                   style={{ width: `${data.total > 0 ? Math.max(0, (s.total / data.total) * 100) : 0}%` }}
                 />
               </div>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={s.nombre} data-testid={`fila-cadena-${s.nombre}`}>
+                {seleccionable ? (
+                  <button
+                    type="button"
+                    onClick={() => onSeleccionarSucursal!(s.nombre)}
+                    className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 py-1 text-left transition-colors hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                    title={`Ver solo ${s.nombre}`}
+                  >
+                    {contenido}
+                  </button>
+                ) : (
+                  contenido
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
+      {comprasTotales != null && (
       <div
         className={`mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs dark:border-slate-800 ${
           cuadra ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
@@ -137,6 +163,7 @@ export function CadenaSucursalesCard({
             : `El total de la cadena no cuadra con Compras Totales (${pesos(comprasTotales ?? 0)}).`}
         </span>
       </div>
+      )}
     </div>
   );
 }

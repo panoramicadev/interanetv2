@@ -442,7 +442,7 @@ import { registerLogRoutes } from './routes-logs';
 import { registrarHistorial } from './routes-rendicion';
 import { sendPushForNotification } from './push';
 import { encodeScopeSucursal } from './utils/sucursal-scope';
-import { marcarCadenas } from './utils/sucursal-por-prefijo';
+import { marcarCadenas, sucursalesDeCadenasQueCalzan, condicionNombreCliente, nombresParaFiltrarCliente } from './utils/sucursal-por-prefijo';
 import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
@@ -3289,7 +3289,14 @@ export function registerRoutes(app: Express): Server {
         const results = await storage.searchClientsByName(searchTerm);
         console.log('[CLIENT SEARCH] Results from searchClientsByName:', results.length);
         // Las sucursales de una cadena salen como "FERRETERIA FLANDEZ - REDMAT".
-        return res.json(await marcarCadenas(results, 'nokoen'));
+        // Y al buscar la cadena ("redmat") aparecen todas sus sucursales, aunque
+        // el nombre de cada ferretería no lleve ese texto.
+        const yaEstan = new Set(results.map((r: any) => String(r.nokoen).trim().toUpperCase()));
+        const deLaCadena = (await sucursalesDeCadenasQueCalzan(searchTerm)).filter(
+          (s) => !yaEstan.has(s.nokoen.trim().toUpperCase()),
+        );
+        const conSucursales = [...results, ...deLaCadena.map((s) => ({ id: s.id, nokoen: s.nokoen, koen: s.koen ?? '' }))];
+        return res.json(await marcarCadenas(conSucursales as any[], 'nokoen'));
       }
 
       // Search with sales filters (for analytics, dashboards, etc.)
@@ -4206,7 +4213,8 @@ export function registerRoutes(app: Express): Server {
       if (segment) {
         conditions.push(sql`${factVentas.idmaeedo} IN (SELECT DISTINCT idmaeedo FROM ventas.fact_ventas WHERE ${segmentSqlEq(sql`noruen`, segment as string)})`);
       }
-      if (client) conditions.push(eq(factVentas.nokoen, client as string));
+      // La matriz de una cadena (REDMAT) incluye a sus sucursales.
+      if (client) conditions.push(await condicionNombreCliente(factVentas.nokoen, client as string));
 
       const whereClause = and(...conditions);
 
@@ -4893,7 +4901,7 @@ export function registerRoutes(app: Express): Server {
         conditions.push(eq(factVentas.nokofu, salesperson as string));
       }
       if (client) {
-        conditions.push(eq(factVentas.nokoen, client as string));
+        conditions.push(await condicionNombreCliente(factVentas.nokoen, client as string));
       }
       if (branch) {
         conditions.push(eq(factVentas.nosudo, branch as string));
@@ -23726,9 +23734,13 @@ export function registerRoutes(app: Express): Server {
       }
     }
     if (client) {
-      conditions.push(`nokoen = $${paramIdx}`);
-      params.push(client as string);
-      paramIdx++;
+      // La matriz de una cadena (REDMAT) incluye a sus sucursales: un placeholder
+      // por nombre, igual que el scope de más abajo.
+      const nombres = await nombresParaFiltrarCliente(client as string);
+      const placeholders = nombres.map((_, i) => `$${paramIdx + i}`).join(', ');
+      conditions.push(`nokoen IN (${placeholders})`);
+      params.push(...nombres);
+      paramIdx += nombres.length;
     }
     // Scope de datos para encargado_area (sucursales asignadas), por código de cliente (endo)
     const clientScope = await getEncargadoScopeKoens(req.user);
@@ -31538,6 +31550,8 @@ export function registerRoutes(app: Express): Server {
     const clientV = str(client);
     const productV = str(product);
     const familyV = str(family);
+    // La matriz de una cadena (REDMAT) incluye a sus sucursales.
+    const clientCondition = clientV ? await condicionNombreCliente(sql`fv."nokoen"`, clientV) : null;
 
     // "Por producto" manda un producto COMERCIAL, que agrupa variantes: "ZINC ACRYL"
     // son 10 códigos distintos en el ERP. Se resuelve con el mismo criterio que usa la
@@ -31574,7 +31588,7 @@ export function registerRoutes(app: Express): Server {
         AND fv."feemdo" <= ${e}::date
         ${salespersonV ? sql`AND fv."nokofu" = ${salespersonV}` : sql``}
         ${segmentV ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segmentV)}` : sql``}
-        ${clientV ? sql`AND fv."nokoen" = ${clientV}` : sql``}
+        ${clientCondition ? sql`AND ${clientCondition}` : sql``}
         ${productMatch ? sql`AND ${productMatch}` : sql``}
         ${familyV ? sql`AND TRIM(fv."nofmpr") = ${familyV}` : sql``}
         ${branchCondition ? sql`AND ${branchCondition}` : sql``}
