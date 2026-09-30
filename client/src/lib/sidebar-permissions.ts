@@ -36,6 +36,7 @@ import {
   Send,
   Wallet,
   Scale,
+  FlaskConical,
 } from "lucide-react";
 import {
   SIDEBAR_CONFIG,
@@ -140,6 +141,7 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     icon: Palette,
     children: [
       { key: "tintometria.carta", href: "/tintometria/carta", label: "Carta de colores", icon: Palette },
+      { key: "tintometria.solicitudes", href: "/tintometria/solicitudes", label: "Solicitudes a laboratorio", icon: FlaskConical },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
       { key: "tintometria.calculadora", href: "/tintometria/calculadora", label: "Calcular Costos", icon: DollarSign },
       { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },

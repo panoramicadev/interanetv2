@@ -1401,6 +1401,34 @@ export const MODULE_MAP: ModuleDef[] = [
   },
 
   {
+    id: "tintometria.solicitudes",
+    label: "Solicitudes a Laboratorio",
+    href: "/tintometria/solicitudes",
+    permission: "tintometria.solicitudes",
+    group: "Tintometría",
+    nav: { label: "Solicitudes a laboratorio", parentLabel: "Tintometría" },
+    purpose:
+      "Pedirle a laboratorio la fórmula y/o el precio de un color para un cliente (reemplaza la planilla «Solicitud de fórmula tintométrica»). Laboratorio responde en el panel y todo lo que se hablen queda en el hilo de la solicitud.",
+    whoUses: "Vendedores, supervisores y recepción piden; laboratorio responde desde la misma pantalla.",
+    gotchas: [
+      "La fórmula que responde laboratorio queda en la carta de colores, ligada al cliente y la obra, y la ve solo quien tiene «Ver fórmulas»: el vendedor ve que está lista y el precio.",
+      "Los avisos llegan por correo a laboratorio (usuarios con ese rol y los de Configuración → Correos → «Solicitud a laboratorio») y a quien pidió.",
+    ],
+    guides: [
+      {
+        id: "pedir-formula-laboratorio",
+        title: "Pedirle a laboratorio una fórmula o un precio",
+        intent: ["pedir formula", "solicitud a laboratorio", "color personalizado", "cotizar color", "desarrollar color"],
+        steps: [
+          { title: "Abre Nueva solicitud y elige si necesitas fórmula, precio o las dos", route: "/tintometria/solicitudes" },
+          { title: "Indica el cliente, el color (búscalo en la carta o escríbelo) y la línea a desarrollar", route: "/tintometria/solicitudes" },
+          { title: "Envíala: laboratorio la recibe por correo y te responde en la misma solicitud", route: "/tintometria/solicitudes" },
+        ],
+      },
+    ],
+  },
+
+  {
     id: "tintometria.selector",
     label: "Selector Visual de Colores",
     href: "/tintometria/selector",
