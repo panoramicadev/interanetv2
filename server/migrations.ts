@@ -1411,6 +1411,22 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS dias_aprobados INTEGER`);
     // Receptor de DTE, aparte del correo de cobranza (migración 082).
     await db.execute(sql`ALTER TABLE solicitudes_credito ADD COLUMN IF NOT EXISTS correo_dte VARCHAR(160)`);
+    // Aumento de crédito (migración 089): el tipo de solicitud, la línea y los días
+    // que el cliente tenía al pedirlo, y el motivo. En un aumento la dirección, la
+    // ciudad y el teléfono salen de la ficha y pueden faltar.
+    await db.execute(sql`
+      ALTER TABLE solicitudes_credito
+        ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) NOT NULL DEFAULT 'nueva',
+        ADD COLUMN IF NOT EXISTS credito_actual NUMERIC(15, 2),
+        ADD COLUMN IF NOT EXISTS dias_actuales INTEGER,
+        ADD COLUMN IF NOT EXISTS motivo TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE solicitudes_credito
+        ALTER COLUMN direccion DROP NOT NULL,
+        ALTER COLUMN ciudad DROP NOT NULL,
+        ALTER COLUMN telefono DROP NOT NULL
+    `);
 
     // Nuevo Cliente (migración 080). Ver migrations/080_solicitudes_nuevo_cliente.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las

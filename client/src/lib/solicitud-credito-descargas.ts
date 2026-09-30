@@ -9,6 +9,7 @@
  */
 import type { SolicitudCredito } from "@shared/schema";
 import {
+  nombreDeArchivo,
   resumenDeSolicitud,
   seccionesDeSolicitud,
   slug,
@@ -59,7 +60,7 @@ export function descargarSolicitudCreditoCsv(solicitud: SolicitudCredito) {
   const csv = filas.map((fila) => fila.map(celda).join(SEPARADOR)).join("\r\n");
   bajarArchivo(
     new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" }),
-    `solicitud-credito-${slug(solicitud.razonSocial)}.csv`,
+    `${nombreDeArchivo(solicitud)}.csv`,
   );
 }
 
