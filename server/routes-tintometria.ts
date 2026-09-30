@@ -53,9 +53,12 @@ export function registerTintometriaRoutes(app: Express) {
           nombre: tintoColores.nombre,
           hex: tintoColores.hex,
           grupo: tintoColores.grupo,
+          // ⚠️ tinto_colores.id va escrito a mano: con ${tintoColores.id} Drizzle
+          // pone "id" sin la tabla, y dentro de la subconsulta Postgres lo lee
+          // como f.id: el conteo daba 0 para todos los colores.
           formulas: sql<number>`(
             SELECT count(*)::int FROM tinto_formulas f
-            WHERE f.color_id = ${tintoColores.id} AND f.activo = true
+            WHERE f.color_id = tinto_colores.id AND f.activo = true
           )`,
         })
         .from(tintoColores)
