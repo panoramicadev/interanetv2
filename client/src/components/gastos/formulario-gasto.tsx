@@ -60,6 +60,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hoyEnChile } from "@/lib/dateUtils";
+import {
+  boletaFueraDelFondo,
+  fechaDMA,
+  fondoVencido,
+  mensajeBoletaFueraDelFondo,
+} from "@shared/fondo-vigencia";
 import {
   BOTON_MARCA,
   SUPERFICIE,
@@ -102,6 +109,9 @@ interface FundAllocation {
   montoInicial: string | number;
   montoUsado?: string | number;
   saldoDisponible?: number;
+  /** 'AAAA-MM-DD', tal como vienen de la columna date(). */
+  fechaInicio?: string | null;
+  fechaTermino?: string | null;
 }
 
 type FormValues = z.infer<typeof formSchema>;
@@ -116,7 +126,9 @@ const formatName = (name: string | null | undefined): string => {
     .join(" ");
 };
 
-const hoyISO = () => new Date().toISOString().split("T")[0];
+/** Término del fondo en la opción del selector: "30-09", con el año solo si no es el actual. */
+const terminoCorto = (fechaTermino: string, hoy: string) =>
+  fechaTermino.slice(0, 4) === hoy.slice(0, 4) ? fechaDMA(fechaTermino).slice(0, 5) : fechaDMA(fechaTermino);
 
 /** Encabezado de bloque: número de paso + título. */
 function Paso({
@@ -209,7 +221,9 @@ export default function FormularioGasto({
       proveedor: "",
       rutProveedor: "",
       numeroDocumento: "",
-      fechaEmision: hoyISO(),
+      // La fecha de Chile, no la de UTC: desde las 21:00 el formulario
+      // proponía la de mañana y la boleta podía quedar fuera del fondo.
+      fechaEmision: hoyEnChile(),
       fundingMode: "reembolso",
       fundAllocationId: "",
       ruta: "",
@@ -224,6 +238,7 @@ export default function FormularioGasto({
   const fundingMode = form.watch("fundingMode");
   const montoActual = form.watch("monto");
   const categoriaActual = form.watch("categoria");
+  const fechaEmisionActual = form.watch("fechaEmision");
 
   const { data: userFunds = [] } = useQuery<FundAllocation[]>({
     queryKey: ["/api/fund-allocations/user", selectedUserId, user?.role],
@@ -258,6 +273,34 @@ export default function FormularioGasto({
       (g: any) => g.fundAllocationId === fundId && g.estado !== "rechazado",
     );
     return fundGastos.reduce((sum: number, g: any) => sum + parseFloat(g.monto || "0"), 0);
+  };
+
+  /**
+   * Saldo del fondo según el servidor: `saldoDisponible` ya descuenta ajustes y
+   * gastos por aprobar, y es el número contra el que se valida al guardar. La
+   * opción del selector, el panel y la confirmación usan este mismo valor; antes
+   * la confirmación lo recalculaba sin los ajustes y podía no coincidir con el
+   * panel. El cálculo local queda solo por si el servidor no lo manda.
+   */
+  const saldoDelFondo = (fondo: FundAllocation) =>
+    fondo.saldoDisponible != null
+      ? parseFloat(String(fondo.saldoDisponible))
+      : parseFloat(String(fondo.montoInicial || 0)) -
+        (fondo.montoUsado ? parseFloat(String(fondo.montoUsado)) : getFundUsage(fondo.id));
+
+  /**
+   * Si la boleta es posterior al término del fondo elegido, el mismo mensaje con
+   * que la rechazaría el servidor (ver shared/fondo-vigencia.ts); si no, null.
+   * Admin la puede cargar igual, como en el servidor.
+   */
+  const avisoFondoTerminado = (fundAllocationId?: string, fechaEmision?: string): string | null => {
+    if (user?.role === "admin") return null;
+    const fondo = userFunds.find((f) => f.id === fundAllocationId);
+    if (!fondo?.fechaTermino) return null;
+    const fechaBoleta = fechaEmision || hoyEnChile();
+    return boletaFueraDelFondo(fechaBoleta, fondo.fechaTermino)
+      ? mensajeBoletaFueraDelFondo(fechaBoleta, fondo.nombre, fondo.fechaTermino)
+      : null;
   };
 
   // Si no puede elegir a otros, el userId queda fijado al propio (y se re-fija
@@ -324,7 +367,7 @@ export default function FormularioGasto({
       proveedor: "",
       rutProveedor: "",
       numeroDocumento: "",
-      fechaEmision: hoyISO(),
+      fechaEmision: hoyEnChile(),
       fundAllocationId: form.getValues("fundingMode") === "con_fondo" ? form.getValues("fundAllocationId") : "",
     });
     if (previewLocal) URL.revokeObjectURL(previewLocal);
@@ -451,6 +494,18 @@ export default function FormularioGasto({
       });
       return;
     }
+    // Se frena antes de la confirmación: antes el rechazo llegaba solo después
+    // de llenar todo y confirmar, cuando el diálogo ya no dejaba corregir nada.
+    const aviso =
+      data.fundingMode === "con_fondo" ? avisoFondoTerminado(data.fundAllocationId, data.fechaEmision) : null;
+    if (aviso) {
+      toast({
+        title: "El fondo no cubre esta boleta",
+        description: aviso,
+        variant: "destructive",
+      });
+      return;
+    }
     setPendingFormData(data);
     setSubmitError(null);
     setShowConfirmDialog(true);
@@ -486,16 +541,14 @@ export default function FormularioGasto({
     if (pendingFormData.fundingMode === "reembolso") return null;
     const fund = userFunds.find((f) => f.id === pendingFormData.fundAllocationId);
     if (!fund) return null;
-    const montoInicial =
-      typeof fund.montoInicial === "string" ? parseFloat(fund.montoInicial) : fund.montoInicial;
-    const montoUsado = getFundUsage(fund.id);
-    const saldoActual = montoInicial - montoUsado;
+    const saldoActual = saldoDelFondo(fund);
     const nuevoSaldo = saldoActual - parseFloat(pendingFormData.monto || "0");
     return { fund, saldoActual, nuevoSaldo };
   };
 
   const IconoCategoriaActual = iconoCategoria(categoriaActual);
   const montoNumerico = parseFloat(montoActual || "0");
+  const hoy = hoyEnChile();
   const inputFileRef = useRef<HTMLInputElement>(null);
 
   const claseCampo =
@@ -1055,13 +1108,9 @@ export default function FormularioGasto({
                   name="fundAllocationId"
                   render={({ field }) => {
                     const fondo = userFunds.find((f) => f.id === field.value);
-                    const saldoActual = fondo
-                      ? fondo.saldoDisponible != null
-                        ? parseFloat(String(fondo.saldoDisponible))
-                        : parseFloat(String(fondo.montoInicial || 0)) -
-                          (fondo.montoUsado ? parseFloat(String(fondo.montoUsado)) : getFundUsage(fondo.id))
-                      : 0;
+                    const saldoActual = fondo ? saldoDelFondo(fondo) : 0;
                     const nuevoSaldo = saldoActual - montoNumerico;
+                    const aviso = avisoFondoTerminado(field.value, fechaEmisionActual);
                     return (
                       <FormItem>
                         <FormLabel className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -1075,24 +1124,40 @@ export default function FormularioGasto({
                           </FormControl>
                           <SelectContent>
                             {userFunds.map((fund) => {
-                              const montoInicial = parseFloat(String(fund.montoInicial || 0));
-                              const montoUsado = fund.montoUsado
-                                ? parseFloat(String(fund.montoUsado))
-                                : getFundUsage(fund.id);
-                              const saldoReal = montoInicial - montoUsado;
+                              const saldo = saldoDelFondo(fund);
+                              // Un fondo vencido se ofrece igual, porque todavía
+                              // acepta boletas de su período: se avisa, no se deshabilita.
+                              const vencido = fondoVencido(fund.fechaTermino, hoy);
                               return (
                                 <SelectItem
                                   key={fund.id}
                                   value={fund.id}
-                                  disabled={saldoReal <= 0 && user?.role !== "admin"}
+                                  disabled={saldo <= 0 && user?.role !== "admin"}
                                 >
-                                  {fund.nombre} — {formatoMoneda(saldoReal)}
+                                  {fund.nombre} — {formatoMoneda(saldo)}
+                                  {fund.fechaTermino && (
+                                    <>
+                                      {" "}
+                                      <span className={vencido ? "text-red-600 dark:text-red-400" : "text-slate-400"}>
+                                        · {vencido ? "venció el" : "vence"} {terminoCorto(fund.fechaTermino, hoy)}
+                                      </span>
+                                    </>
+                                  )}
                                 </SelectItem>
                               );
                             })}
                           </SelectContent>
                         </Select>
                         <FormMessage />
+                        {aviso && (
+                          <div
+                            className="mt-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20"
+                            data-testid="aviso-fondo-terminado"
+                          >
+                            <XCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
+                            <p className="text-xs leading-relaxed text-red-700 dark:text-red-300">{aviso}</p>
+                          </div>
+                        )}
                         {fondo && (
                           <div className="mt-2 space-y-1 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900/50 dark:bg-sky-950/20">
                             <div className="flex items-center justify-between gap-2">

@@ -46,6 +46,23 @@ export function parseDateFromAPI(dateString: string | null | undefined): Date | 
 }
 
 /**
+ * Hoy en Chile, 'AAAA-MM-DD', sin importar la zona horaria del equipo.
+ * `new Date().toISOString()` da la fecha de UTC, que desde las 21:00 de Chile
+ * (20:00 en invierno) ya es mañana. Hace la misma cuenta que
+ * server/utils/fecha-chile.ts, para que formulario y servidor hablen del mismo "hoy".
+ */
+export function hoyEnChile(ahora: Date = new Date()): string {
+  const partes = new Intl.DateTimeFormat("es-CL", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(ahora);
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) => partes.find((p) => p.type === tipo)?.value ?? "";
+  return `${parte("year")}-${parte("month")}-${parte("day")}`;
+}
+
+/**
  * Gets today's date at local midnight
  */
 export function getTodayAtMidnight(): Date {
