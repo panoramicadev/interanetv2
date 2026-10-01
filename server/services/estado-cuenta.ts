@@ -29,7 +29,7 @@ import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import { formatRutDisplay } from '@shared/rut';
 import { requireAuth } from '../auth';
-import { DATOS_PAGO } from '../email-templates';
+import { CONTACTO_COBRANZA, DATOS_PAGO } from '../email-templates';
 import {
   obtenerCreditoCliente,
   type CreditoCliente,
@@ -39,6 +39,9 @@ import {
 export type FormatoEstadoCuenta = 'pdf' | 'xlsx';
 
 const EMPRESA = 'Pinturas Panorámica';
+
+const LINEA_CONSULTAS =
+  `Ante cualquier consulta, escríbanos a ${CONTACTO_COBRANZA.correo}, con copia a ${CONTACTO_COBRANZA.copia}.`;
 
 const TIPO_CONTENIDO: Record<FormatoEstadoCuenta, string> = {
   pdf: 'application/pdf',
@@ -236,7 +239,7 @@ export async function generarEstadoCuentaPdf(
     dibujarDatosPago(doc, y + 18);
   } else {
     doc.font('Helvetica').fontSize(8).fillColor(COLOR.tintaSuave)
-      .text(`Ante cualquier consulta, escríbanos a ${DATOS_PAGO.correo}.`, MARGEN, y + 10, { width: ANCHO_UTIL });
+      .text(LINEA_CONSULTAS, MARGEN, y + 10, { width: ANCHO_UTIL });
   }
 
   // Encabezado y pie se pintan al final: solo entonces se sabe cuántas páginas hay.
@@ -609,23 +612,23 @@ function dibujarDatosPago(doc: Pdf, y0: number): void {
     });
   };
 
+  // Sin pago con tarjeta: quien recibe un estado de cuenta tiene cuenta
+  // corriente y paga por transferencia (el botón de pago cobra comisión).
   columna(MARGEN + 12, 'Transferencia bancaria', [
-    { texto: `${DATOS_PAGO.razonSocial} · RUT ${DATOS_PAGO.rut}` },
+    { texto: DATOS_PAGO.razonSocial },
+    { texto: `RUT ${DATOS_PAGO.rut}` },
     { texto: `${DATOS_PAGO.tipoCuenta} ${DATOS_PAGO.banco} N° ${DATOS_PAGO.numeroCuenta}` },
-    { texto: `Comprobante a ${DATOS_PAGO.correo}` },
   ]);
-  columna(MARGEN + mitad + 12, 'Pago con tarjeta', [
-    { texto: DATOS_PAGO.pagoTarjetaUrl.replace(/^https?:\/\//, ''), link: DATOS_PAGO.pagoTarjetaUrl },
+  columna(MARGEN + mitad + 12, 'Envíe su comprobante a', [
+    { texto: CONTACTO_COBRANZA.correo, link: `mailto:${CONTACTO_COBRANZA.correo}` },
+    { texto: `Con copia a ${CONTACTO_COBRANZA.copia}` },
   ]);
   y += ALTO_CUERPO;
 
   doc.font('Helvetica').fontSize(8).fillColor(COLOR.tintaSuave)
-    .text(
-      `Si ya pagó alguno de estos documentos, por favor omítalo. Ante cualquier consulta, escríbanos a ${DATOS_PAGO.correo}.`,
-      MARGEN,
-      y + 10,
-      { width: ANCHO_UTIL },
-    );
+    .text(`Si ya pagó alguno de estos documentos, por favor omítalo. ${LINEA_CONSULTAS}`, MARGEN, y + 10, {
+      width: ANCHO_UTIL,
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
