@@ -1014,6 +1014,25 @@ export default function Clients() {
                 </SelectContent>
               </Select>
 
+              {/* Vendedor. Un vendedor ya entra filtrado por sí mismo: no elige a otro. */}
+              {user?.role !== 'salesperson' && (
+                <Select
+                  value={selectedSalesperson || ALL_SENTINEL}
+                  onValueChange={(v) => { setSelectedSalesperson(v === ALL_SENTINEL ? "" : v); setCurrentPage(1); }}
+                >
+                  <SelectTrigger className={filterTriggerClass(!!selectedSalesperson)}>
+                    <User className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                    <SelectValue placeholder="Vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_SENTINEL}>Vendedor: Todos</SelectItem>
+                    {(salespeople || []).filter(Boolean).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               {/* Ventas (período) */}
               <div className={`flex items-center gap-2 px-3 h-10 rounded-xl border transition-colors flex-1 sm:flex-none ${filterBySales ? "bg-indigo-50 border-indigo-300" : "bg-muted/40 border-muted"}`}>
                 <Checkbox
