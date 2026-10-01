@@ -2333,7 +2333,10 @@ export function registerRoutes(app: Express): Server {
         clientIdRestrictions.push(await storage.getClientIdsByOrderStatus(orderStatus));
       }
       if (creditOverdue === 'overdue' || creditOverdue === 'current') {
-        clientIdRestrictions.push(await storage.getClientIdsByCreditOverdue(creditOverdue));
+        clientIdRestrictions.push(await storage.getClientIdsByCreditOverdue(
+          creditOverdue,
+          typeof salesperson === 'string' ? salesperson : undefined,
+        ));
       }
 
       // Con término de búsqueda no colapsamos por RUT: el usuario busca un cliente

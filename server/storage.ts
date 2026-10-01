@@ -12677,7 +12677,16 @@ export class DatabaseStorage implements IStorage {
   // pendientes (espgdo='P') con saldo > 0 y fecha de vencimiento ya pasada.
   // 'overdue' = clientes con vencido > 0; 'current' = clientes con código (koen) y
   // al día. Clientes sin koen no entran en cartera y quedan fuera de ambos conjuntos.
-  async getClientIdsByCreditOverdue(mode: 'overdue' | 'current'): Promise<{ ids: string[]; mode: 'include' | 'exclude' }> {
+  async getClientIdsByCreditOverdue(
+    mode: 'overdue' | 'current',
+    salesperson?: string,
+  ): Promise<{ ids: string[]; mode: 'include' | 'exclude' }> {
+    // Con vendedor, "con vencido" cuenta solo los documentos vencidos de ese
+    // vendedor: sin esto, un cliente que le compró alguna vez y hoy le debe a
+    // otro aparecería en su listado. "Al día" no cambia: es no deberle a nadie.
+    const soloDelVendedor = mode === 'overdue' && salesperson
+      ? sql`AND nokofu = ${salesperson}`
+      : sql``;
     const res: any = await db.execute(sql`
       WITH docs AS (
         SELECT endo,
@@ -12687,6 +12696,7 @@ export class DatabaseStorage implements IStorage {
         FROM ventas.fact_ventas
         WHERE tido IN ('FCV', 'FDV')
           AND espgdo = 'P'
+          ${soloDelVendedor}
         GROUP BY endo, idmaeedo
       ),
       overdue_koens AS (

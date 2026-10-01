@@ -12,7 +12,8 @@ export function getEmailHeader(): string {
 /**
  * Datos para el pago. Los usan el bloque "Datos para el pago" de los correos y
  * el PDF del estado de cuenta (services/estado-cuenta.ts): si cambia la cuenta,
- * se cambia aquí y cambian los dos.
+ * se cambia aquí y cambian los dos. `correo` y `pagoTarjetaUrl` no salen en
+ * cobranza: ver CONTACTO_COBRANZA.
  */
 export const DATOS_PAGO = {
   razonSocial: 'Pintureria Panoramica Limitada',
@@ -24,7 +25,35 @@ export const DATOS_PAGO = {
   pagoTarjetaUrl: 'https://micrositios.getnet.cl/pinturaspanoramica',
 } as const;
 
-export function getPaymentInfoBlock(): string {
+/**
+ * A quién le escribe un cliente con cuenta corriente por su deuda: consultas y
+ * comprobantes de transferencia. Lo usan el correo de cobranza y el PDF del
+ * estado de cuenta, que ya no nombran el correo general (oct-2026, formato
+ * aprobado por Administración).
+ */
+export const CONTACTO_COBRANZA = {
+  correo: 'calcoholado@pinturaspanoramica.cl',
+  copia: 'fparra@pinturaspanoramica.cl',
+} as const;
+
+/**
+ * `cobranza`: el bloque para quien paga una deuda de cuenta corriente. Sale sin
+ * "Pago con tarjeta" (ferreterías y constructoras pagan por transferencia; el
+ * botón de pago cobra comisión) y el comprobante va al contacto de cobranza.
+ */
+export function getPaymentInfoBlock(opciones: { cobranza?: boolean } = {}): string {
+  const enlace = (correo: string) =>
+    `<a href="mailto:${correo}" style="color: #fd6301; text-decoration: none;">${correo}</a>`;
+  const lineaCorreo = opciones.cobranza
+    ? `Comprobante a ${enlace(CONTACTO_COBRANZA.correo)}, con copia a ${enlace(CONTACTO_COBRANZA.copia)}`
+    : `Email: ${enlace(DATOS_PAGO.correo)}`;
+  const pagoTarjeta = opciones.cobranza
+    ? ''
+    : `
+          <p style="color: #1a1f2e; margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #f0f0f0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
+            <strong style="color: #fd6301;">Pago con tarjeta</strong><br>
+            <a href="${DATOS_PAGO.pagoTarjetaUrl}" style="color: #fd6301; text-decoration: none; word-break: break-all;">${DATOS_PAGO.pagoTarjetaUrl}</a>
+          </p>`;
   return `
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 24px 0 8px 0; border-collapse: separate;">
       <tr>
@@ -36,17 +65,13 @@ export function getPaymentInfoBlock(): string {
       </tr>
       <tr>
         <td style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 0; padding: 18px; border-radius: 0 0 6px 6px;">
-          <p style="color: #1a1f2e; margin: 0 0 12px 0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
+          <p style="color: #1a1f2e; margin: 0${opciones.cobranza ? '' : ' 0 12px 0'}; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
             <strong style="color: #fd6301;">Transferencia bancaria</strong><br>
             <span style="color: #333;">${DATOS_PAGO.razonSocial}</span><br>
             <span style="color: #333;">RUT: <strong>${DATOS_PAGO.rut}</strong></span><br>
             <span style="color: #333;">${DATOS_PAGO.tipoCuenta} <strong>${DATOS_PAGO.banco}</strong>: <strong>${DATOS_PAGO.numeroCuenta}</strong></span><br>
-            <span style="color: #333;">Email: <a href="mailto:${DATOS_PAGO.correo}" style="color: #fd6301; text-decoration: none;">${DATOS_PAGO.correo}</a></span>
-          </p>
-          <p style="color: #1a1f2e; margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #f0f0f0; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.6;">
-            <strong style="color: #fd6301;">Pago con tarjeta</strong><br>
-            <a href="${DATOS_PAGO.pagoTarjetaUrl}" style="color: #fd6301; text-decoration: none; word-break: break-all;">${DATOS_PAGO.pagoTarjetaUrl}</a>
-          </p>
+            <span style="color: #333;">${lineaCorreo}</span>
+          </p>${pagoTarjeta}
         </td>
       </tr>
     </table>
@@ -230,10 +255,12 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
       <p style="color: #1a1f2e; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.mensajeAdicional}</p>
     </div>` : ''}
 
-    ${getPaymentInfoBlock()}
+    ${getPaymentInfoBlock({ cobranza: true })}
 
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 5px 0;">
-      Si ya realizó el pago, por favor haga caso omiso de este mensaje. Para coordinar el pago o regularizar este saldo, comuníquese con nuestro equipo de cobranzas.
+      Si ya realizó el pago, por favor haga caso omiso de este mensaje. Ante cualquier consulta, o para coordinar el pago, escríbanos a
+      <a href="mailto:${CONTACTO_COBRANZA.correo}" style="color: #fd6301; text-decoration: none;">${CONTACTO_COBRANZA.correo}</a>, con copia a
+      <a href="mailto:${CONTACTO_COBRANZA.copia}" style="color: #fd6301; text-decoration: none;">${CONTACTO_COBRANZA.copia}</a>.
     </p>
   `);
 
