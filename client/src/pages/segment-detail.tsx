@@ -21,6 +21,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
+import ResumenConsolidado from "@/components/dashboard/resumen-consolidado";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
@@ -1325,6 +1326,14 @@ export default function SegmentDetail({
           })() ? (
             <>
               {console.log("✅ Renderizando componentes comparativos")}
+              {/* Consolidado de lo seleccionado, antes de los gráficos: abajo va una barra
+                  por mes y acá arriba cuánto suma todo junto, con la variación contra el
+                  mismo tramo del año anterior. */}
+              <ResumenConsolidado
+                periods={comparativePeriods}
+                segment={segmentName}
+              />
+
               {/* Comparative Segment Chart */}
               <ComparativeSegmentTable
                 periods={comparativePeriods}

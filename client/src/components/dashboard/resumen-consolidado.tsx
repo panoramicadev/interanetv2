@@ -25,7 +25,8 @@ interface MetricasConsolidadas {
   totalUnits: number;
   activeCustomers: number;
   gdvSales: number;
-  newClients: number;
+  /** `null` cuando no se puede contar con el recorte pedido (sucursal). */
+  newClients: number | null;
 }
 
 interface RespuestaConsolidado {
@@ -43,6 +44,8 @@ export interface ResumenConsolidadoProps {
   salesperson?: string;
   client?: string;
   product?: string;
+  /** Sucursal según la definición de sucursales del dashboard. */
+  branch?: string;
 }
 
 const formatearMoneda = (valor: number) =>
@@ -94,12 +97,13 @@ export default function ResumenConsolidado({
   salesperson,
   client,
   product,
+  branch,
 }: ResumenConsolidadoProps) {
   const filterType = periods[0]?.filterType ?? "month";
   const listaPeriodos = periods.map(p => p.period).join(",");
 
   const { data, isLoading, isError } = useQuery<RespuestaConsolidado>({
-    queryKey: ["/api/sales/metrics/consolidado", listaPeriodos, filterType, segment, salesperson, client, product],
+    queryKey: ["/api/sales/metrics/consolidado", listaPeriodos, filterType, segment, salesperson, client, product, branch],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("periods", listaPeriodos);
@@ -108,6 +112,7 @@ export default function ResumenConsolidado({
       if (salesperson) params.append("salesperson", salesperson);
       if (client) params.append("client", client);
       if (product) params.append("product", product);
+      if (branch) params.append("branch", branch);
       const res = await fetch(`/api/sales/metrics/consolidado?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("No se pudo cargar el resumen consolidado");
       return (await res.json()) as RespuestaConsolidado;
@@ -203,9 +208,13 @@ export default function ResumenConsolidado({
       variacion: variacion(actual.activeCustomers, anterior.activeCustomers),
       testId: "consolidado-clientes",
       // Clientes distintos en TODO el tramo, no la suma de los meses: quien compró en
-      // enero y en marzo cuenta una vez.
+      // enero y en marzo cuenta una vez. "Nuevos" no viene cuando el recorte es una
+      // sucursal — ver la nota del endpoint; en ese caso la fila no se muestra en vez
+      // de mostrar un número de toda la empresa.
       detalles: [
-        { etiqueta: "Nuevos", valor: formatearNumero(actual.newClients) },
+        ...(actual.newClients !== null
+          ? [{ etiqueta: "Nuevos", valor: formatearNumero(actual.newClients) }]
+          : []),
         { etiqueta: "Año anterior", valor: formatearNumero(anterior.activeCustomers) },
       ],
     },

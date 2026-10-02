@@ -14,6 +14,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import MetaGoalCard from "@/components/dashboard/meta-goal-card";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
+import ResumenConsolidado from "@/components/dashboard/resumen-consolidado";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import SalesChart from "@/components/dashboard/sales-chart";
 import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
@@ -650,6 +651,17 @@ export default function SucursalDetail({
           })() ? (
             <>
               {console.log("✅ Renderizando componentes comparativos")}
+              {/* Consolidado de lo seleccionado, antes de los gráficos: abajo va una barra
+                  por mes y acá arriba cuánto suma todo junto, con la variación contra el
+                  mismo tramo del año anterior. */}
+              {/* Va con `branch`, no con `segment`: la sucursal se arma con una lista de
+                  vendedores y exclusiones de clientes, que es el mismo recorte que usan
+                  las tarjetas de esta pantalla fuera del modo comparativo. */}
+              <ResumenConsolidado
+                periods={comparativePeriods}
+                branch={branchName}
+              />
+
               {/* Comparative Segment Chart */}
               <ComparativeSegmentTable
                 periods={comparativePeriods}
