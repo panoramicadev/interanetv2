@@ -973,20 +973,14 @@ export default function SeguimientoClienteDetalle() {
                   {/* Semáforo de cobranza: antes había que entrar a Clientes para
                       enterarse de que el cliente al que se le iba a vender debía. */}
                   {semaforoDeuda && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTabInferior("cobranza");
-                        tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${semaforoDeuda.chip}`}
-                      title="Ver el detalle en la pestaña Cobranza"
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${semaforoDeuda.chip}`}
                       data-testid={`chip-semaforo-deuda-${semaforoDeuda.nivel}`}
                     >
                       <span className={`w-2 h-2 rounded-full ${semaforoDeuda.punto}`} />
                       {semaforoDeuda.label}
                       {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
-                    </button>
+                    </span>
                   )}
                 </div>
               </div>
@@ -1046,50 +1040,12 @@ export default function SeguimientoClienteDetalle() {
           </div>
         </div>
 
-        {/* ═══ Fila de datos clave ═══ */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Prioridad */}
-          <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-prioridad">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2">Prioridad</p>
-            <div className="flex flex-wrap gap-1.5">
-              {PRIORIDADES.map((p) => {
-                const active = (client.prioridad || "media") === p.value;
-                return (
-                  <button
-                    key={p.value}
-                    onClick={() => updateMutation.mutate({ prioridad: p.value })}
-                    disabled={updateMutation.isPending}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
-                      active ? `${p.color} ring-1 ring-inset ring-black/10 dark:ring-white/10` : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                    }`}
-                    data-testid={`prioridad-${p.value}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Último pedido real (solo lectura) */}
-          <div className="rounded-xl border bg-card shadow-sm p-3.5" data-testid="card-ultimo-pedido">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2 flex items-center gap-1">
-              <ShoppingCart className="w-3 h-3" /> Último pedido real
-            </p>
-            <p className="text-sm font-semibold text-foreground">{formatDate(client.ultimaCompraDate)}</p>
-            {client.ultimaCompraDate && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">{timeAgo(client.ultimaCompraDate)}</p>
-            )}
-          </div>
-        </div>
-
         {/* ═══ Layout 2 columnas ═══ */}
-        {/* En móvil la Actividad va primero (order-first); Información y Notas
+        {/* En móvil la Actividad va primero (order-first); Información
             quedan debajo y colapsadas. En desktop vuelve al orden normal. */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 sm:gap-5 items-start">
 
-          {/* ─── Columna izquierda: Información + Notas ─── */}
+          {/* ─── Columna izquierda: Información ─── */}
           <div className="space-y-4 sm:space-y-5 order-2 lg:order-none">
 
             {/* Card Información */}
@@ -1290,101 +1246,6 @@ export default function SeguimientoClienteDetalle() {
               </div>
             )}
 
-            {/* Card Notas + Etiquetas */}
-            <div className="rounded-xl border bg-card shadow-sm">
-              <button
-                type="button"
-                onClick={() => setNotasOpenMobile((v) => !v)}
-                className="w-full px-4 sm:px-5 py-3.5 border-b flex items-center justify-between text-left lg:cursor-default"
-              >
-                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-indigo-500" />
-                  Notas
-                </h2>
-                <div className="flex items-center gap-2">
-                  {notasDirty && (
-                    <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin guardar</Badge>
-                  )}
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform lg:hidden ${notasOpenMobile ? "rotate-180" : ""}`} />
-                </div>
-              </button>
-              <div className={`${notasOpenMobile ? "" : "hidden"} lg:block p-4 sm:p-5 space-y-4`}>
-                {/* Etiquetas */}
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <Tags className="w-3 h-3" /> Etiquetas
-                  </p>
-                  <div className="flex flex-wrap gap-1.5" data-testid="etiquetas-list">
-                    {etiquetas.map((tag) => (
-                      <span
-                        key={tag}
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${etiquetaColor(tag)}`}
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => removeEtiqueta(tag)}
-                          disabled={updateMutation.isPending}
-                          className="hover:opacity-60 transition-opacity"
-                          title="Quitar etiqueta"
-                          data-testid={`btn-quitar-etiqueta-${tag}`}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                    {etiquetas.length === 0 && (
-                      <span className="text-xs text-muted-foreground">Sin etiquetas aún</span>
-                    )}
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Input
-                      value={etiquetaInput}
-                      onChange={(e) => setEtiquetaInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEtiqueta(); } }}
-                      placeholder="Nueva etiqueta..."
-                      className="h-8 text-sm"
-                      data-testid="input-etiqueta"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={addEtiqueta}
-                      disabled={!etiquetaInput.trim() || updateMutation.isPending}
-                      className="h-8 px-2.5"
-                      title="Agregar etiqueta"
-                      data-testid="btn-agregar-etiqueta"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Notas internas */}
-                <div className="space-y-2">
-                  <Textarea
-                    value={notasValue}
-                    onChange={(e) => setNotasDraft(e.target.value)}
-                    placeholder="Notas internas sobre este cliente..."
-                    rows={4}
-                    className="text-sm resize-none"
-                    data-testid="textarea-notas"
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={() => updateMutation.mutate({ notas: notasValue }, { onSuccess: () => setNotasDraft(null) })}
-                      disabled={!notasDirty || updateMutation.isPending}
-                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
-                      data-testid="btn-guardar-notas"
-                    >
-                      {updateMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-                      Guardar notas
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* ─── Columna derecha: Timeline de actividad ─── */}
@@ -1928,205 +1789,6 @@ export default function SeguimientoClienteDetalle() {
               )}
             </div>
           </div>
-        </div>
-
-        {/* ═══ Pestañas: Pedidos / NVV / Cobranza / RUT-Compras ═══ */}
-        {/* La bitácora del cliente vive integrada en el timeline de Actividad */}
-        <div ref={tabsRef} className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 scroll-mt-4">
-          <Tabs value={tabInferior} onValueChange={setTabInferior} className="w-full">
-            <TabsList className="w-full grid grid-cols-4 h-auto">
-              <TabsTrigger value="pedidos" className="text-xs px-1.5">Pedidos</TabsTrigger>
-              <TabsTrigger value="nvv" className="text-xs px-1.5">NVV</TabsTrigger>
-              <TabsTrigger value="cobranza" className="text-xs px-1.5 gap-1.5">
-                Cobranza
-                {semaforoDeuda && (
-                  <span className={`h-2 w-2 rounded-full ${semaforoDeuda.punto}`} title={semaforoDeuda.label} />
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="rut" className="text-xs px-1.5">
-                <span className="sm:hidden">RUT</span>
-                <span className="hidden sm:inline">RUT / Compras</span>
-              </TabsTrigger>
-            </TabsList>
-
-            {/* ─── Pedidos ─── */}
-            <TabsContent value="pedidos" className="mt-4">
-              <PedidosTab client={client} />
-            </TabsContent>
-
-            {/* ─── NVV ─── */}
-            <TabsContent value="nvv" className="mt-4">
-              <NVVTab client={client} />
-            </TabsContent>
-
-            {/* ─── Cobranza ─── */}
-            {/* Es el MISMO panel (y la misma query) que la pestaña Crédito de la
-                ficha del cliente, para que Seguimiento y Clientes no muestren
-                cifras distintas del mismo cliente. */}
-            <TabsContent value="cobranza" className="mt-4 space-y-3" data-testid="tab-cobranza">
-              {/* Etiqueta del semáforo: el mismo estado que se ve en el encabezado,
-                  con la lectura en palabras de lo que dicen los números de abajo. */}
-              {semaforoDeuda && (
-                <div
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${semaforoDeuda.badge}`}
-                  data-testid={`badge-semaforo-deuda-${semaforoDeuda.nivel}`}
-                >
-                  <span className={`h-2.5 w-2.5 rounded-full ${semaforoDeuda.punto}`} />
-                  {semaforoDeuda.label}
-                  {semaforoDeuda.detalle && <span className="tabular-nums">{semaforoDeuda.detalle}</span>}
-                  <span className="font-normal opacity-70">
-                    {semaforoDeuda.nivel === "rojo"
-                      ? "· cobrar antes de vender"
-                      : semaforoDeuda.nivel === "amarillo"
-                        ? "· al día, con documentos por vencer"
-                        : "· sin documentos pendientes"}
-                  </span>
-                </div>
-              )}
-              {creditoNombre || client.rut ? (
-                <CreditoPanel
-                  clientName={creditoNombre}
-                  rut={client.rut}
-                  footer={
-                    // Mismo botón (y mismo correo) que la ficha de Clientes: acá se
-                    // cobra sin tener que saltar a otro módulo. Va siempre que haya
-                    // cliente, tenga o no facturas pendientes hoy.
-                    creditoNombre ? (
-                      <>
-                        <EnviarCobranzaButton
-                          clientName={creditoNombre}
-                          rut={client.rut}
-                          testId="button-enviar-cobranza-seguimiento"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/client/${encodeURIComponent(creditoNombre)}`)}
-                          className="w-full rounded-2xl text-muted-foreground hover:text-foreground sm:w-auto"
-                          data-testid="btn-ir-a-cobranza"
-                        >
-                          Ver ficha en Clientes
-                        </Button>
-                      </>
-                    ) : null
-                  }
-                />
-              ) : (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  Vincula un RUT para ver la cobranza de este cliente.
-                </p>
-              )}
-            </TabsContent>
-
-            {/* ─── RUT / Compras ─── */}
-            <TabsContent value="rut" className="mt-4 space-y-4" data-testid="tab-rut-compras">
-              {/* Estado de vinculación */}
-              <div className="rounded-xl border bg-slate-50/60 dark:bg-slate-900/30 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Link2 className="w-4 h-4 text-indigo-500" />
-                  <h3 className="text-sm font-bold text-foreground">Vinculación con base de ventas</h3>
-                </div>
-
-                {client.rut ? (
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className="font-mono text-sm font-semibold text-foreground">{client.rut}</span>
-                    {cv ? (
-                      <>
-                        <Badge className="text-[10px] border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                          <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
-                          Vinculado
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{fixEncoding(cv.nokoen)}</span>
-                      </>
-                    ) : (
-                      <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                        Sin match en ventas
-                      </Badge>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Este cliente no tiene RUT vinculado. Ingresa uno para cruzarlo con la base de ventas.
-                  </p>
-                )}
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    value={rutInput}
-                    onChange={(e) => setRutInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && rutInput.trim()) linkRutMutation.mutate(rutInput.trim()); }}
-                    placeholder={client.rut ? "Cambiar RUT (ej: 76.123.456-7)" : "Ingresar RUT (ej: 76.123.456-7)"}
-                    className="h-9 sm:max-w-xs font-mono text-sm"
-                    data-testid="input-rut"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => linkRutMutation.mutate(rutInput.trim())}
-                    disabled={!rutInput.trim() || linkRutMutation.isPending}
-                    className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                    data-testid="btn-vincular-rut"
-                  >
-                    {linkRutMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Link2 className="w-3.5 h-3.5 mr-1.5" />}
-                    {client.rut ? "Re-vincular" : "Vincular RUT"}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Detección de compras */}
-              <div className="rounded-xl border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4 text-emerald-500" />
-                    <h3 className="text-sm font-bold text-foreground">Detección de compras</h3>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDetectPurchases}
-                    disabled={isDetecting || (!client.rut && !client.clienteId)}
-                    className="text-xs"
-                    data-testid="btn-detectar-compras"
-                  >
-                    {isDetecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Search className="w-3.5 h-3.5 mr-1.5" />}
-                    Detectar compras
-                  </Button>
-                </div>
-
-                {!client.rut && !client.clienteId ? (
-                  <p className="text-xs text-muted-foreground">Vincula un RUT primero para poder detectar compras.</p>
-                ) : detectedPurchases === null ? (
-                  <p className="text-xs text-muted-foreground">
-                    Busca documentos de venta (GDV/NVV/FCV) asociados al RUT y crea hitos automáticos si hay novedades.
-                  </p>
-                ) : detectedPurchases.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No se encontraron documentos de venta para este RUT.</p>
-                ) : (
-                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
-                    {detectedPurchases.map((p: any, i: number) => (
-                      <div key={p.id || i} className="bg-muted/20 border rounded-lg p-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-semibold">{p.tido} #{p.nudo}</span>
-                            {p.eslido && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1.5">{p.eslido}</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1 truncate">{p.nokoprct || "Sin detalle de producto"}</p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatCLP(p.vanedo)}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">{formatDate(p.feemdo)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-          </Tabs>
         </div>
       </div>
 
