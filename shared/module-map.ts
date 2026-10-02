@@ -1373,11 +1373,11 @@ export const MODULE_MAP: ModuleDef[] = [
   // ══════════════ TINTOMETRÍA ══════════════
   {
     id: "tintometria.carta",
-    label: "Carta de Colores",
+    label: "Pantonera Digital",
     href: "/tintometria/carta",
     permission: "tintometria.carta",
     group: "Tintometría",
-    nav: { label: "Carta de colores", parentLabel: "Tintometría" },
+    nav: { label: "Pantonera Digital", parentLabel: "Tintometría" },
     purpose:
       "La pantonera Panorámica (Copper Color, 1.232 colores) y la cartilla Sherwin-Williams: buscar un color por código o nombre y verlo. Quien tiene «Ver fórmulas» ve además la fórmula de cada color por línea, base y formato.",
     whoUses: "Vendedores y recepción (para mostrarle el color al cliente); el operador que tiñe y laboratorio (fórmulas).",

@@ -657,7 +657,7 @@ function BuscadorColor({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         className={`${CAMPO} pl-9`}
-        placeholder="Búscalo en la carta de colores (código o nombre), o escríbelo abajo"
+        placeholder="Búscalo en la Pantonera Digital (código o nombre), o escríbelo abajo"
         data-testid="input-lab-buscar-color"
       />
       {resultados.length > 0 && (
@@ -846,7 +846,7 @@ function Respuesta({ s }: { s: Detalle }) {
       )}
       {s.formulaId && !s.formula && (
         <div className="text-sm text-slate-700 dark:text-slate-200">
-          La fórmula está lista y quedó en la carta de colores para el operador.
+          La fórmula está lista y quedó en la Pantonera Digital para el operador.
         </div>
       )}
       {s.formula && (
