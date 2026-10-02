@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
+import ResumenConsolidado from "@/components/dashboard/resumen-consolidado";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
@@ -1446,6 +1447,14 @@ export default function SalespersonDetail({
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
             <>
+              {/* Consolidado de lo seleccionado, antes de los gráficos: abajo va una barra
+                  por mes y acá arriba cuánto suma todo junto, con la variación contra el
+                  mismo tramo del año anterior. */}
+              <ResumenConsolidado
+                periods={comparativePeriods}
+                salesperson={salespersonName || undefined}
+              />
+
               {/* Comparative Salesperson Chart and Table */}
               <ComparativeSalespersonTable
                 salespersonName={salespersonName || ''}

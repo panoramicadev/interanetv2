@@ -1590,7 +1590,7 @@ export function registerRoutes(app: Express): Server {
   // sola vez sobre esa unión.
   app.get('/api/sales/metrics/consolidado', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
-      const { periods, filterType, salesperson, segment, client, supplier, product } = req.query;
+      const { periods, filterType, salesperson, segment, client, supplier, product, branch } = req.query;
 
       const listaPeriodos = String(periods || '')
         .split(',')
@@ -1628,6 +1628,7 @@ export function registerRoutes(app: Express): Server {
         client: client as string,
         supplier: supplier as string,
         product: product as string,
+        branch: branch as string,
         clientScope,
       };
       const filtrosClientesNuevos = {
@@ -1637,21 +1638,28 @@ export function registerRoutes(app: Express): Server {
         clientScope,
       };
 
+      // Clientes nuevos de una SUCURSAL no se puede contar todavía: la sucursal se
+      // arma con una lista de vendedores y exclusiones de clientes (getBranchConditions)
+      // que vive en Drizzle, y getNewClientsCount es SQL crudo. Antes que mostrar un
+      // número contado sin ese recorte —o sea, de toda la empresa— la tarjeta omite la
+      // fila. Ver la nota del mismo tema en resumen-consolidado.tsx.
+      const contarNuevos = !branch;
+
       const [actual, anterior, clientesNuevos, clientesNuevosAnterior] = await Promise.all([
         storage.getSalesMetrics({ ranges: unidos, ...filtros }),
         storage.getSalesMetrics({ ranges: tramosAnteriores, ...filtros }),
-        storage.getNewClientsCount({
+        contarNuevos ? storage.getNewClientsCount({
           startDate: unidos[0].startDate,
           endDate: unidos[unidos.length - 1].endDate,
           ranges: unidos,
           ...filtrosClientesNuevos,
-        }),
-        storage.getNewClientsCount({
+        }) : Promise.resolve(null),
+        contarNuevos ? storage.getNewClientsCount({
           startDate: tramosAnteriores[0].startDate,
           endDate: tramosAnteriores[tramosAnteriores.length - 1].endDate,
           ranges: tramosAnteriores,
           ...filtrosClientesNuevos,
-        }),
+        }) : Promise.resolve(null),
       ]);
 
       res.json({
