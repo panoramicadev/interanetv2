@@ -451,6 +451,7 @@ import { matchEcommerceOrdersToErp } from "./utils/erp-match";
 import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { hoyEnChile } from "./utils/fecha-chile";
+import { unirTramos, tramoAnioAnterior } from "./utils/tramos-consolidado";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import { isValidRut, formatRut } from "@shared/rut";
 import {
@@ -1572,6 +1573,102 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching sales metrics:", error);
       res.status(500).json({ message: "Failed to fetch sales metrics" });
+    }
+  });
+
+  // Resumen consolidado de VARIOS períodos a la vez.
+  //
+  // Cuando en el dashboard se eligen varios meses (o varios días, o varios años) el
+  // gráfico muestra una barra por período, pero la pregunta de arriba es otra: cuánto
+  // suma todo lo seleccionado y cómo le fue contra el mismo tramo del año anterior.
+  //
+  // No se puede resolver sumando en el cliente lo que devuelve /api/sales/metrics por
+  // cada mes: los clientes activos y los clientes nuevos son cuentas de distintos, y
+  // sumarlas cuenta dos veces a quien compró en dos meses. Tampoco sirve un solo
+  // startDate/endDate del primero al último, porque la selección puede tener huecos
+  // (enero, marzo y abril). Por eso acá se arma la UNIÓN de tramos y se consulta una
+  // sola vez sobre esa unión.
+  app.get('/api/sales/metrics/consolidado', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { periods, filterType, salesperson, segment, client, supplier, product } = req.query;
+
+      const listaPeriodos = String(periods || '')
+        .split(',')
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      if (listaPeriodos.length === 0) {
+        return res.status(400).json({ message: "Falta el parámetro 'periods'" });
+      }
+      // Tope defensivo: 10 años de meses es más de lo que cabe en el selector.
+      if (listaPeriodos.length > 120) {
+        return res.status(400).json({ message: "Demasiados períodos en una sola consulta" });
+      }
+
+      // Cada período se resuelve con la MISMA regla que el resto del dashboard, así el
+      // mes en curso queda cortado en el día de hoy y no hasta fin de mes.
+      const tramos = listaPeriodos
+        .map(p => getDateRange(p, filterType as string))
+        .filter((r): r is { startDate: string; endDate: string } => Boolean(r.startDate && r.endDate))
+        .map(r => ({ startDate: r.startDate, endDate: r.endDate }));
+
+      if (tramos.length === 0) {
+        return res.status(400).json({ message: "Ningún período quedó en un rango de fechas válido" });
+      }
+
+      const unidos = unirTramos(tramos);
+      const tramosAnteriores = unidos.map(tramoAnioAnterior);
+
+      // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
+      const clientScope = await getEncargadoScopeKoens((req as any).user);
+
+      const filtros = {
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+        supplier: supplier as string,
+        product: product as string,
+        clientScope,
+      };
+      const filtrosClientesNuevos = {
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+        clientScope,
+      };
+
+      const [actual, anterior, clientesNuevos, clientesNuevosAnterior] = await Promise.all([
+        storage.getSalesMetrics({ ranges: unidos, ...filtros }),
+        storage.getSalesMetrics({ ranges: tramosAnteriores, ...filtros }),
+        storage.getNewClientsCount({
+          startDate: unidos[0].startDate,
+          endDate: unidos[unidos.length - 1].endDate,
+          ranges: unidos,
+          ...filtrosClientesNuevos,
+        }),
+        storage.getNewClientsCount({
+          startDate: tramosAnteriores[0].startDate,
+          endDate: tramosAnteriores[tramosAnteriores.length - 1].endDate,
+          ranges: tramosAnteriores,
+          ...filtrosClientesNuevos,
+        }),
+      ]);
+
+      res.json({
+        periodos: listaPeriodos.length,
+        tramos: unidos,
+        tramosAnteriores,
+        rango: { startDate: unidos[0].startDate, endDate: unidos[unidos.length - 1].endDate },
+        rangoAnterior: {
+          startDate: tramosAnteriores[0].startDate,
+          endDate: tramosAnteriores[tramosAnteriores.length - 1].endDate,
+        },
+        actual: { ...actual, newClients: clientesNuevos },
+        anterior: { ...anterior, newClients: clientesNuevosAnterior },
+      });
+    } catch (error) {
+      console.error("Error fetching consolidated sales metrics:", error);
+      res.status(500).json({ message: "Failed to fetch consolidated sales metrics" });
     }
   });
 

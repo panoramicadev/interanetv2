@@ -57,11 +57,36 @@ const CHART_COLORS = [
 // NVV: color de estado "pendiente"
 const NVV_COLOR = { border: '#d97706', bg: 'rgba(217, 119, 6, 0.3)' };
 
+/**
+ * Granularidad por defecto de un rango de fechas ("2026-01-05_2026-01-20"), según su
+ * largo: hasta ~6 semanas se lee por día, hasta medio año por semana, y de ahí por mes.
+ * Si el período no viene con el formato de rango, cae en semanas como antes.
+ */
+function granularidadDeRango(selectedPeriod: string): 'weekly' | 'monthly' | 'daily' {
+  const [inicio, fin] = (selectedPeriod || '').split('_');
+  if (!inicio || !fin) return 'weekly';
+  const aFecha = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return y && m && d ? new Date(y, m - 1, d) : null;
+  };
+  const a = aFecha(inicio);
+  const b = aFecha(fin);
+  if (!a || !b) return 'weekly';
+  const dias = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+  if (dias <= 45) return 'daily';
+  if (dias <= 186) return 'weekly';
+  return 'monthly';
+}
+
 export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, product, branch, comparisonPeriods }: SalesChartProps) {
   // Auto-set chart period based on main filter type
   const getDefaultPeriod = (): 'weekly' | 'monthly' | 'daily' => {
     if (filterType === 'year') return 'monthly'; // Year view → show 12 months
     if (filterType === 'month') return 'daily';  // Month view → show days
+    // Rango de fechas: la granularidad sale del largo del tramo. Elegir "del 5 al 20 de
+    // enero" en el selector de días llega acá como rango, y en semanas eso eran dos o
+    // tres barras que no dicen nada; se espera el mismo gráfico por día del vista de mes.
+    if (filterType === 'range') return granularidadDeRango(selectedPeriod);
     return 'weekly'; // Default fallback
   };
   
@@ -72,7 +97,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
   // Sync chart period when main filter changes
   useEffect(() => {
     setPeriod(getDefaultPeriod());
-  }, [filterType]);
+  }, [filterType, selectedPeriod]);
   
   const chartPeriod = filterType === 'day' ? 'daily' : period;
   const isNvv = dataSource === 'nvv';
