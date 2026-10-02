@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { DollarSign, Package, Receipt, Users, FileText } from "lucide-react";
+import { DollarSign, Package, Percent, Receipt, Users, FileText } from "lucide-react";
 import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
 import { KPI_TARJETA } from "@/lib/kpi-tarjeta";
 import { mesEs } from "@/lib/fecha-es";
@@ -27,6 +27,16 @@ interface MetricasConsolidadas {
   gdvSales: number;
   /** `null` cuando no se puede contar con el recorte pedido (sucursal). */
   newClients: number | null;
+}
+
+interface MargenConsolidado {
+  revenue: number;
+  cost: number;
+  margin: number;
+  marginPct: number;
+  prev: { revenue: number; cost: number; margin: number; marginPct: number };
+  /** Variación en PUNTOS porcentuales; `null` si el año anterior no tiene con qué comparar. */
+  deltaPctPoints: number | null;
 }
 
 interface RespuestaConsolidado {
@@ -58,6 +68,9 @@ const formatearMoneda = (valor: number) =>
 
 const formatearNumero = (valor: number) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(valor);
+
+const formatearPorcentaje = (valor: number) =>
+  `${valor.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 /**
  * Variación porcentual lista para mostrar. `null` cuando el tramo del año anterior no
@@ -122,6 +135,29 @@ export default function ResumenConsolidado({
     staleTime: 60_000,
   });
 
+  // El margen va en su propio endpoint porque sale de otra fuente (líneas con costo GRI,
+  // sin flete). Acepta la misma lista de períodos y la resuelve igual: unión de tramos y
+  // comparación contra el mismo tramo del año anterior.
+  const { data: margen } = useQuery<MargenConsolidado>({
+    queryKey: ["/api/margen/resumen", "consolidado", listaPeriodos, filterType, segment, salesperson, client, product, branch],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append("periods", listaPeriodos);
+      params.append("filterType", filterType);
+      if (segment) params.append("segment", segment);
+      if (salesperson) params.append("salesperson", salesperson);
+      if (client) params.append("client", client);
+      if (product) params.append("product", product);
+      if (branch) params.append("branch", branch);
+      const res = await fetch(`/api/margen/resumen?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("No se pudo cargar el margen consolidado");
+      return (await res.json()) as MargenConsolidado;
+    },
+    enabled: periods.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+
   if (periods.length === 0) return null;
 
   const cantidad = cuantosPeriodos(periods.length, filterType);
@@ -130,8 +166,8 @@ export default function ResumenConsolidado({
     return (
       <section aria-busy="true">
         <div className="mb-2 h-4 w-56 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
-        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
-          {[0, 1, 2, 3, 4].map(i => (
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 2xl:grid-cols-6">
+          {[0, 1, 2, 3, 4, 5].map(i => (
             <div key={i} className={KPI_TARJETA}>
               <div className="h-10 w-10 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse" />
               <div className="mt-3 h-3 w-20 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
@@ -218,6 +254,25 @@ export default function ResumenConsolidado({
         { etiqueta: "Año anterior", valor: formatearNumero(anterior.activeCustomers) },
       ],
     },
+    {
+      // Margen del MISMO tramo, sobre lo facturado y sin el flete (que es un cargo
+      // traspasado, no mercadería). La variación de un porcentaje va en PUNTOS: pasar de
+      // 10% a 12% son +2 pts, no +20%.
+      titulo: "Margen",
+      valor: margen ? formatearPorcentaje(margen.marginPct) : "—",
+      icono: Percent,
+      variacion:
+        margen?.deltaPctPoints != null
+          ? `${margen.deltaPctPoints > 0 ? "+" : ""}${margen.deltaPctPoints.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts`
+          : null,
+      testId: "consolidado-margen",
+      detalles: margen
+        ? [
+            { etiqueta: "Margen", valor: formatearMoneda(margen.margin) },
+            { etiqueta: "Año anterior", valor: formatearPorcentaje(margen.prev.marginPct) },
+          ]
+        : [],
+    },
   ];
 
   return (
@@ -231,11 +286,11 @@ export default function ResumenConsolidado({
         </p>
       </div>
 
-      {/* Dos por fila desde 360 px: apiladas de a una se pierde la comparación de un
-          vistazo. Bajo 360 sí va una sola columna — en media tarjeta de un iPhone SE el
-          total de ventas (trece dígitos) se cortaba con puntos suspensivos. */}
-      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
-        {tarjetas.map((t, i) => (
+      {/* Son seis, así que las filas cierran parejas: 2 en celular, 3 de tablet a
+          escritorio y 6 de corrido en pantallas anchas. Bajo 360 px va una sola columna:
+          en media tarjeta de un iPhone SE el total de ventas (trece dígitos) no entra. */}
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 2xl:grid-cols-6">
+        {tarjetas.map(t => (
           <TarjetaKpi
             key={t.titulo}
             titulo={t.titulo}
@@ -245,10 +300,6 @@ export default function ResumenConsolidado({
             variacionEtiqueta={t.variacion ? "vs año anterior" : "sin dato del año anterior"}
             detalles={t.detalles}
             testId={t.testId}
-            // En celular son dos por fila y la quinta quedaba sola dejando un hueco al
-            // lado; ocupando el ancho completo la fila cierra y se gana aire para sus
-            // dos líneas de detalle.
-            className={i === tarjetas.length - 1 ? "min-[360px]:col-span-2 md:col-span-1" : ""}
           />
         ))}
       </div>
